@@ -164,11 +164,11 @@ public class SnippetsTask extends DefaultTask {
                     }
                     return
                 }
-                matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,((?!id=).)*(id="?([-\w]+)"?)?(.*))?].*/
-                if (matcher.matches()) {
-                    lastLanguage = matcher.group(1)
+                def (boolean matches, String language, String targetName) = matchSource(line)
+                if (matches) {
+                    lastLanguage = language
                     lastLanguageLine = lineNumber
-                    name = matcher.group(5)
+                    name = targetName
                     return
                 }
                 if (line ==~ /\/\/\s*AUTOSENSE\s*/) {
@@ -309,6 +309,14 @@ public class SnippetsTask extends DefaultTask {
             }
             if (snippet != null) emit()
         }
+    }
+
+    static matchSource(String line) {
+        def matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,((?!id=).)*(id="?([-\w]+)"?)?(.*))?].*/
+        if(matcher.matches()){
+            return [true, matcher.group(1), matcher.group(5)]
+        }
+        return [false]
     }
 
     static class Snippet {

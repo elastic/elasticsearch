@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart.StartOfWeek;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
@@ -16,12 +17,12 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart.Part;
 
-public class DatePartProcessor extends BinaryDateTimeProcessor {
+public class DatePartProcessor extends ThreeArgsDateTimeProcessor {
 
     public static final String NAME = "dtpart";
 
-    public DatePartProcessor(Processor source1, Processor source2, ZoneId zoneId) {
-        super(source1, source2, zoneId);
+    public DatePartProcessor(Processor source1, Processor source2, Processor source3, ZoneId zoneId) {
+        super(source1, source2, source3, zoneId);
     }
 
     public DatePartProcessor(StreamInput in) throws IOException {
@@ -34,14 +35,24 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
     }
 
     @Override
-    protected Object doProcess(Object left, Object right) {
-        return process(left, right, zoneId());
+    public Object process(Object input) {
+            Object o1 = first().process(input);
+            if (o1 == null) {
+                return null;
+            }
+            Object o2 = second().process(input);
+            if (o2 == null) {
+                return null;
+            }
+            Object o3 = third().process(input);
+
+        return process(o1, o2, o3, zoneId());
     }
 
     /**
      * Used in Painless scripting
      */
-    public static Object process(Object source1, Object source2, ZoneId zoneId) {
+    public static Object process(Object source1, Object source2, Object source3, ZoneId zoneId) {
         if (source1 == null || source2 == null) {
             return null;
         }
@@ -64,6 +75,20 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
             throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", source2);
         }
 
-        return datePartField.extract(((ZonedDateTime) source2).withZoneSameInstant(zoneId));
+        StartOfWeek startOfWeek;
+        if (source3 == null) {
+            startOfWeek = StartOfWeek.SUNDAY;
+        } else {
+            if (source3 instanceof String == false) {
+                throw new SqlIllegalArgumentException("A string is required; received [{}]", source3);
+            }
+            startOfWeek = StartOfWeek.resolve((String) source3);
+            if (startOfWeek == null) {
+                throw new SqlIllegalArgumentException("A value of {} is required; received [{}]",
+                    StartOfWeek.values(), source3);
+            }
+        }
+
+        return datePartField.extract(((ZonedDateTime) source2).withZoneSameInstant(zoneId), startOfWeek);
     }
 }

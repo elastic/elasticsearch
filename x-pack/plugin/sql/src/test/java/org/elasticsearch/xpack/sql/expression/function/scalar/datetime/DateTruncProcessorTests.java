@@ -29,7 +29,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
     public static DateTruncProcessor randomDateTruncProcessor() {
         return new DateTruncProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             randomZone());
     }
 

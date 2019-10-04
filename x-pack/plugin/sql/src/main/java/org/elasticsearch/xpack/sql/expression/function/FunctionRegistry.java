@@ -377,7 +377,7 @@ public class FunctionRegistry {
         };
         return def(function, builder, false, names);
     }
-    
+
     interface ConfigurationAwareFunctionBuilder<T> {
         T build(Source source, Configuration configuration);
     }
@@ -446,7 +446,7 @@ public class FunctionRegistry {
     interface MultiFunctionBuilder<T> {
         T build(Source source, List<Expression> children);
     }
-    
+
     /**
      * Build a {@linkplain FunctionDefinition} for a unary function that is not
      * aware of time zone but does support {@code DISTINCT}.
@@ -510,6 +510,28 @@ public class FunctionRegistry {
 
     interface DatetimeBinaryFunctionBuilder<T> {
         T build(Source source, Expression lhs, Expression rhs, ZoneId zi);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a three-args function that
+     * requires a timezone.
+     */
+    @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            if (children.size() < 2 || children.size() > 3) {
+                throw new SqlIllegalArgumentException("expects two or three arguments");
+            }
+            if (distinct) {
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg.zoneId());
+        };
+        return def(function, builder, false, names);
+    }
+
+    interface DatetimeThreeArgsFunctionBuilder<T> {
+        T build(Source source, Expression first, Expression second, Expression third, ZoneId zi);
     }
 
     /**

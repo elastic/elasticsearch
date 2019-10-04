@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
@@ -946,7 +947,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 }
                             });
                         }
-                        
+
                         if (isMatching.get() == true) {
                             // move grouping in front
                             groupings.remove(group);
@@ -1215,6 +1216,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 In in = (In) e;
                 if (Expressions.isNull(in.value())) {
                     return Literal.of(in, null);
+                }
+
+            } else if (e instanceof DatePart) {
+                DatePart dp = (DatePart) e;
+                if (Expressions.isNull(dp.first()) || Expressions.isNull(dp.second())) {
+                    return Literal.of(dp, null);
                 }
 
             } else if (e instanceof Alias == false

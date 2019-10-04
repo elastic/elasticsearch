@@ -269,27 +269,31 @@ F       | 1997-05-19 00:00:00.000Z
 ;
 
 selectDatePartWithDate
-SELECT DATE_PART('year', '2019-09-04'::date) as dp_years, DATE_PART('quarter', '2019-09-04'::date) as dp_quarter, DATE_PART('month', '2019-09-04'::date) as dp_month,
-DATE_PART('dayofyear', '2019-09-04'::date) as dp_doy, DATE_PART('day', '2019-09-04'::date) as dp_day, DATE_PART('week', '2019-09-04'::date) as dp_week,
-DATE_PART('weekday', '2019-09-04'::date) as dp_weekday, DATE_PART('hour', '2019-09-04'::date) as dp_hour, DATE_PART('minute', '2019-09-04'::date) as dp_minute,
-DATE_PART('second', '2019-09-04'::date) as dp_second, DATE_PART('millisecond', '2019-09-04'::date) as dp_millis, DATE_PART('mcs', '2019-09-04'::date) as dp_micros,
-DATE_PART('ns', '2019-09-04'::date) as dp_nanos, DATE_PART('tz', '2019-09-04'::date) as dp_tzoffset;
+SELECT DATE_PART('year', '2019-09-08'::date) as dp_years, DATE_PART('quarter', '2019-09-08'::date) as dp_quarter, DATE_PART('month', '2019-09-08'::date) as dp_month,
+DATE_PART('dayofyear', '2019-09-08'::date) as dp_doy, DATE_PART('day', '2019-09-08'::date) as dp_day,
+DATE_PART('week', '2019-09-08'::date) as dp_week, DATE_PART('week', '2019-09-08'::date, 'monday') as dp_week_iso,
+DATE_PART('weekday', '2019-09-08'::date) as dp_weekday, DATE_PART('weekday', '2019-09-08'::date, 'monday') as dp_weekday_iso,
+DATE_PART('hour', '2019-09-08'::date) as dp_hour, DATE_PART('minute', '2019-09-08'::date) as dp_minute,
+DATE_PART('second', '2019-09-08'::date) as dp_second, DATE_PART('millisecond', '2019-09-08'::date) as dp_millis, DATE_PART('mcs', '2019-09-08'::date) as dp_micros,
+DATE_PART('ns', '2019-09-08'::date) as dp_nanos, DATE_PART('tz', '2019-09-08'::date) as dp_tzoffset;
 
-dp_years | dp_quarter | dp_month | dp_doy | dp_day | dp_week | dp_weekday | dp_hour | dp_minute | dp_second | dp_millis | dp_micros | dp_nanos  | dp_tzoffset
----------+------------+----------+--------+--------+---------+------------+---------+-----------+-----------+-----------+-----------+-----------+------------
-2019     | 3          | 9        |247     | 4      | 36      | 4          | 0       | 0         | 0         | 0         | 0         | 0         | 0
+dp_years | dp_quarter | dp_month | dp_doy | dp_day | dp_week | dp_week_iso | dp_weekday | dp_weekday_iso | dp_hour | dp_minute | dp_second | dp_millis | dp_micros | dp_nanos  | dp_tzoffset
+---------+------------+----------+--------+--------+---------+-------------+------------+----------------+---------+-----------+-----------+-----------+-----------+-----------+------------
+2019     | 3          | 9        |251     | 8      | 37      | 36          | 1          | 7              | 0       | 0         | 0         | 0         | 0         | 0         | 0
 ;
 
 selectDatePartWithDateTime
-SELECT DATE_PART('year', '2019-09-04T11:22:33.123Z'::datetime) as dp_years, DATE_PART('quarter', '2019-09-04T11:22:33.123Z'::datetime) as dp_quarter, DATE_PART('month', '2019-09-04T11:22:33.123Z'::datetime) as dp_month,
-DATE_PART('dayofyear', '2019-09-04T11:22:33.123Z'::datetime) as dp_doy, DATE_PART('day', '2019-09-04T11:22:33.123Z'::datetime) as dp_day, DATE_PART('week', '2019-09-04T11:22:33.123Z'::datetime) as dp_week,
-DATE_PART('weekday', '2019-09-04T11:22:33.123Z'::datetime) as dp_weekday, DATE_PART('hour', '2019-09-04T11:22:33.123Z'::datetime) as dp_hour, DATE_PART('minute', '2019-09-04T11:22:33.123Z'::datetime) as dp_minute,
-DATE_PART('second', '2019-09-04T11:22:33.123Z'::datetime) as dp_second, DATE_PART('millisecond', '2019-09-04T11:22:33.123Z'::datetime) as dp_millis, DATE_PART('mcs', '2019-09-04T11:22:33.123Z'::datetime) as dp_micros,
-DATE_PART('ns', '2019-09-04T11:22:33.123Z'::datetime) as dp_nanos, DATE_PART('tz', '2019-09-04T11:22:33.123Z'::datetime) as dp_tzoffset;
+SELECT DATE_PART('year', '2019-10-13T11:22:33.123Z'::datetime) as dp_years, DATE_PART('quarter', '2019-10-13T11:22:33.123Z'::datetime) as dp_quarter, DATE_PART('month', '2019-10-13T11:22:33.123Z'::datetime) as dp_month,
+DATE_PART('dayofyear', '2019-10-13T11:22:33.123Z'::datetime) as dp_doy, DATE_PART('day', '2019-10-13T11:22:33.123Z'::datetime) as dp_day,
+DATE_PART('week', '2019-10-13T11:22:33.123Z'::datetime) as dp_week, DATE_PART('week', '2019-10-13T11:22:33.123Z'::datetime, 'monday') as dp_week_iso,
+DATE_PART('weekday', '2019-10-13T11:22:33.123Z'::datetime) as dp_weekday, DATE_PART('weekday', '2019-10-13T11:22:33.123Z'::datetime, 'monday') as dp_weekday_iso,
+DATE_PART('hour', '2019-10-13T11:22:33.123Z'::datetime) as dp_hour, DATE_PART('minute', '2019-10-13T11:22:33.123Z'::datetime) as dp_minute,
+DATE_PART('second', '2019-10-13T11:22:33.123Z'::datetime) as dp_second, DATE_PART('millisecond', '2019-10-13T11:22:33.123Z'::datetime) as dp_millis, DATE_PART('mcs', '2019-10-13T11:22:33.123Z'::datetime) as dp_micros,
+DATE_PART('ns', '2019-10-13T11:22:33.123Z'::datetime) as dp_nanos, DATE_PART('tz', '2019-10-13T11:22:33.123Z'::datetime) as dp_tzoffset;
 
-dp_years | dp_quarter | dp_month | dp_doy | dp_day | dp_week | dp_weekday | dp_hour | dp_minute | dp_second | dp_millis | dp_micros | dp_nanos  | dp_tzoffset
----------+------------+----------+--------+--------+---------+------------+---------+-----------+-----------+-----------+-----------+-----------+------------
-2019     | 3          | 9        |247     | 4      | 36      | 4          | 11      | 22        | 33        | 123       | 123000    | 123000000 | 0
+dp_years | dp_quarter | dp_month | dp_doy | dp_day | dp_week | dp_week_iso | dp_weekday | dp_weekday_iso | dp_hour | dp_minute | dp_second | dp_millis | dp_micros | dp_nanos  | dp_tzoffset
+---------+------------+----------+--------+--------+---------+-------------+------------+----------------+---------+-----------+-----------+-----------+-----------+-----------+------------
+2019     | 4          | 10       |286     | 13     | 42      | 41          | 1          | 7              | 11      | 22        | 33        | 123       | 123000    | 123000000 | 0
 ;
 
 selectDatePartWithNullTruncateField

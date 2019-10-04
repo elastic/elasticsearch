@@ -80,7 +80,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     private LogicalPlan incompatibleAccept(String sql) {
         return accept(incompatible(), sql);
     }
-    
+
     public void testMissingIndex() {
         assertEquals("1:17: Unknown index [missing]", error(IndexResolution.notFound("missing"), "SELECT foo FROM missing"));
     }
@@ -96,11 +96,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testMissingColumnWithWildcard() {
         assertEquals("1:8: Unknown column [xxx]", error("SELECT xxx.* FROM test"));
     }
-    
+
     public void testMisspelledColumnWithWildcard() {
         assertEquals("1:8: Unknown column [tex], did you mean [text]?", error("SELECT tex.* FROM test"));
     }
-    
+
     public void testColumnWithNoSubFields() {
         assertEquals("1:8: Cannot determine columns for [text.*]", error("SELECT text.* FROM test"));
     }
@@ -131,14 +131,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 "line 1:22: Unknown column [c]\n" +
                 "line 1:25: Unknown column [tex], did you mean [text]?", error("SELECT bool, a, b.*, c, tex.* FROM test"));
     }
-    
+
     public void testMultipleColumnsWithWildcard2() {
         assertEquals("1:8: Unknown column [tex], did you mean [text]?\n" +
                 "line 1:21: Unknown column [a]\n" +
                 "line 1:24: Unknown column [dat], did you mean [date]?\n" +
                 "line 1:31: Unknown column [c]", error("SELECT tex.*, bool, a, dat.*, c FROM test"));
     }
-    
+
     public void testMultipleColumnsWithWildcard3() {
         assertEquals("1:8: Unknown column [ate], did you mean [date]?\n" +
                 "line 1:21: Unknown column [keyw], did you mean [keyword]?\n" +
@@ -235,9 +235,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DATE_PART(int, date) FROM test"));
         assertEquals("1:8: second argument of [DATE_PART(keyword, keyword)] must be [date or datetime], found value [keyword] " +
             "type [keyword]", error("SELECT DATE_PART(keyword, keyword) FROM test"));
+        assertEquals("1:8: third argument of [DATE_PART(keyword, date, int)] must be [string], found value [int] " +
+            "type [integer]", error("SELECT DATE_PART(keyword, date, int) FROM test"));
+
         assertEquals("1:8: first argument of [DATE_PART('invalid', keyword)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
             "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, TZOFFSET] " +
-                "or their aliases, found value ['invalid']",
+                "or their aliases; found value ['invalid']",
             error("SELECT DATE_PART('invalid', keyword) FROM test"));
         assertEquals("1:8: Unknown value ['tzofset'] for first argument of [DATE_PART('tzofset', keyword)]; " +
                 "did you mean [tzoffset]?",
@@ -245,14 +248,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_PART('dz', keyword)]; " +
                 "did you mean [dd, tz, dw, dy, d]?",
             error("SELECT DATE_PART('dz', keyword) FROM test"));
+
+        assertEquals("1:8: third argument of [DATE_PART('second', date, 'invalid')] must be one of [SUNDAY, MONDAY]; " +
+            "found value ['invalid']",
+            error("SELECT DATE_PART('second', date, 'invalid') FROM test"));
     }
 
     public void testDatePartValidArgs() {
         accept("SELECT DATE_PART('weekday', date) FROM test");
-        accept("SELECT DATE_PART('dw', date) FROM test");
+        accept("SELECT DATE_PART('dw', date, 'Sunday') FROM test");
         accept("SELECT DATE_PART('tz', date) FROM test");
         accept("SELECT DATE_PART('dayofyear', date) FROM test");
-        accept("SELECT DATE_PART('dy', date) FROM test");
+        accept("SELECT DATE_PART('dy', date, 'MONDAY') FROM test");
         accept("SELECT DATE_PART('ms', date) FROM test");
     }
 
@@ -616,13 +623,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text LIKE 'foo'"));
     }
-    
+
     public void testInvalidTypeForRLikeMatch() {
         assertEquals("1:26: [text RLIKE 'foo'] cannot operate on field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text RLIKE 'foo'"));
     }
-    
+
     public void testAllowCorrectFieldsInIncompatibleMappings() {
         assertNotNull(incompatibleAccept("SELECT languages FROM \"*\""));
     }
@@ -746,32 +753,32 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
     }
-    
+
     public void testHistogramNotInGroupingWithCount() {
         assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, COUNT(*) FROM test"));
     }
-    
+
     public void testHistogramNotInGroupingWithMaxFirst() {
         assertEquals("1:19: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT MAX(date), HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
     }
-    
+
     public void testHistogramWithoutAliasNotInGrouping() {
         assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test"));
     }
-    
+
     public void testTwoHistogramsNotInGrouping() {
         assertEquals("1:48: [HISTOGRAM(date, INTERVAL 1 DAY)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, HISTOGRAM(date, INTERVAL 1 DAY) FROM test GROUP BY h"));
     }
-    
+
     public void testHistogramNotInGrouping_WithGroupByField() {
         assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test GROUP BY date"));
     }
-    
+
     public void testScalarOfHistogramNotInGrouping() {
         assertEquals("1:14: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) FROM test"));

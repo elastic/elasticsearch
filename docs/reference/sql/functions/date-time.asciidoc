@@ -257,13 +257,16 @@ function as the maximum number of second fractional digits returned is 3 (millis
 --------------------------------------------------
 DATE_PART(
     string_exp, <1>
-    datetime_exp) <2>
+    datetime_exp <2>
+    [,startofweek_exp]) <3>
 --------------------------------------------------
 
 *Input*:
 
 <1> string expression denoting the unit to extract from the date/datetime
 <2> date/datetime expression
+<3> string expression denoting the day on which the week starts, valid values: `Sunday`,`Monday`; optional, if missing,
+defaults to `Sunday`.
 
 *Output*: integer
 
@@ -271,7 +274,9 @@ DATE_PART(
 
 Extract the specified unit from a date/datetime. If any of the two arguments is `null` a `null` is returned.
 It's similar to <<sql-functions-datetime-extract>> but with different names and aliases for the units and
-provides more options (e.g.: `TZOFFSET`).
+provides more options (e.g.: `TZOFFSET`). The third argument, is used for the extraction of `week` or `weekday`.
+If missing the default value `Sunday` is used, which results in non-ISO extraction of the fields `week` or `weekday`.
+If an ISO extraction is preferred then the value `Monday` should be provided as a third argument.
 
 [cols="^,^"]
 |===
@@ -318,12 +323,18 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateMonth]
 --------------------------------------------------
 
 [NOTE]
-For `week` and `weekday` the unit is extracted using the non-ISO calculation, which means
-that a given week is considered to start from Sunday, not Monday.
+For `week` and `weekday` the unit is extracted using the non-ISO calculation by default, which means
+that a given week is considered to start from Sunday, not Monday. If an ISO calculation is required,
+then use the third optional argument with the value: `Monday`.
 
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeWeek]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeWeekIso]
 --------------------------------------------------
 
 [NOTE]

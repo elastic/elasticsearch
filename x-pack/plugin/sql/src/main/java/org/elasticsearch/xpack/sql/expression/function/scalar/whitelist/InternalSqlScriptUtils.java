@@ -235,7 +235,7 @@ public final class InternalSqlScriptUtils {
     public static Double atan(Number value) {
         return MathOperation.ATAN.apply(value);
     }
-    
+
     public static Number atan2(Number left, Number right) {
         return BinaryMathOperation.ATAN2.apply(left, right);
     }
@@ -291,7 +291,7 @@ public final class InternalSqlScriptUtils {
     public static Double pi(Number value) {
         return MathOperation.PI.apply(value);
     }
-    
+
     public static Number power(Number left, Number right) {
         return BinaryMathOperation.POWER.apply(left, right);
     }
@@ -350,7 +350,7 @@ public final class InternalSqlScriptUtils {
         }
         return NonIsoDateTimeExtractor.DAY_OF_WEEK.extract(asDateTime(dateTime), tzId);
     }
-    
+
     public static String monthName(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
@@ -364,7 +364,7 @@ public final class InternalSqlScriptUtils {
         }
         return QuarterProcessor.quarter(asDateTime(dateTime), tzId);
     }
-    
+
     public static Integer weekOfYear(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
@@ -376,8 +376,8 @@ public final class InternalSqlScriptUtils {
         return (ZonedDateTime) DateTruncProcessor.process(truncateTo, asDateTime(dateTime) , ZoneId.of(tzId));
     }
 
-    public static Integer datePart(String dateField, Object dateTime, String tzId) {
-        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime) , ZoneId.of(tzId));
+    public static Integer datePart(String dateField, Object dateTime, String startOfWeek, String tzId) {
+        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime), startOfWeek, ZoneId.of(tzId));
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {

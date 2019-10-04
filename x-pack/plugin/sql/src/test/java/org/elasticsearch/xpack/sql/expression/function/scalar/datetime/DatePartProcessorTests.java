@@ -27,7 +27,8 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
     public static DatePartProcessor randomDatePartProcessor() {
         return new DatePartProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
             randomZone());
     }
 
@@ -51,6 +52,7 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
         return new DatePartProcessor(
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
             new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
     }
 
@@ -73,25 +75,42 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
             () -> new DatePart(Source.EMPTY, l("dayfyear"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("Received value [dayfyear] is not valid date part for extraction; did you mean [dayofyear, year]?",
              siae.getMessage());
+
+        siae = expectThrows(SqlIllegalArgumentException.class, () -> new DatePart(Source.EMPTY,
+            l("days"), randomDatetimeLiteral(), l("invalid"), randomZone()).makePipe().asProcessor().process(null));
+        assertEquals("A value of [SUNDAY, MONDAY] is required; received [invalid]", siae.getMessage());
     }
 
     public void testWithNulls() {
         assertNull(new DatePart(Source.EMPTY, NULL, randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DatePart(Source.EMPTY, NULL,
+            randomDatetimeLiteral(), randomStartOfWeek(), randomZone()).makePipe().asProcessor().process(null));
+
         assertNull(new DatePart(Source.EMPTY, l("days"), NULL, randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DatePart(Source.EMPTY, l("days"), NULL, randomStartOfWeek(), randomZone()).makePipe().asProcessor().process(null));
+
         assertNull(new DatePart(Source.EMPTY, NULL, NULL, randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DatePart(Source.EMPTY, NULL, NULL, randomStartOfWeek(), randomZone()).makePipe().asProcessor().process(null));
+
+        assertNotNull(new DatePart(Source.EMPTY, l("minutes"), randomDatetimeLiteral(), NULL, randomZone())
+            .makePipe().asProcessor().process(null));
     }
 
     public void testTruncation() {
         ZoneId zoneId = ZoneId.of("+05:10");
-        Literal dateTime = l(dateTime(2007, 10, 30, 12, 15, 32, 123456789));
+        Literal dateTime = l(dateTime(2007, 10, 28, 12, 15, 32, 123456789));
 
         assertEquals(2007, new DatePart(Source.EMPTY, l("years"), dateTime, zoneId).makePipe().asProcessor().process(null));
         assertEquals(4, new DatePart(Source.EMPTY, l("quarters"), dateTime, zoneId).makePipe().asProcessor().process(null));
         assertEquals(10, new DatePart(Source.EMPTY, l("month"), dateTime, zoneId).makePipe().asProcessor().process(null));
-        assertEquals(303, new DatePart(Source.EMPTY, l("dayofyear"), dateTime, zoneId).makePipe().asProcessor().process(null));
-        assertEquals(30, new DatePart(Source.EMPTY, l("day"), dateTime, zoneId).makePipe().asProcessor().process(null));
+        assertEquals(301, new DatePart(Source.EMPTY, l("dayofyear"), dateTime, zoneId).makePipe().asProcessor().process(null));
+        assertEquals(28, new DatePart(Source.EMPTY, l("day"), dateTime, zoneId).makePipe().asProcessor().process(null));
         assertEquals(44, new DatePart(Source.EMPTY, l("week"), dateTime, zoneId).makePipe().asProcessor().process(null));
-        assertEquals(3, new DatePart(Source.EMPTY, l("weekday"), dateTime, zoneId).makePipe().asProcessor().process(null));
+        assertEquals(44, new DatePart(Source.EMPTY, l("week"), dateTime, l("SunDay"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals(43, new DatePart(Source.EMPTY, l("week"), dateTime, l("monday"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals(1, new DatePart(Source.EMPTY, l("weekday"), dateTime, zoneId).makePipe().asProcessor().process(null));
+        assertEquals(1, new DatePart(Source.EMPTY, l("weekday"), dateTime, l("sundAY"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals(7, new DatePart(Source.EMPTY, l("weekday"), dateTime, l("MoNdAy"), zoneId).makePipe().asProcessor().process(null));
         assertEquals(17, new DatePart(Source.EMPTY, l("hour"), dateTime, zoneId).makePipe().asProcessor().process(null));
         assertEquals(25, new DatePart(Source.EMPTY, l("minutes"), dateTime, zoneId).makePipe().asProcessor().process(null));
         assertEquals(32, new DatePart(Source.EMPTY, l("ss"), dateTime, zoneId).makePipe().asProcessor().process(null));
@@ -99,5 +118,13 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
         assertEquals(123456, new DatePart(Source.EMPTY, l("microsecond"), dateTime, zoneId).makePipe().asProcessor().process(null));
         assertEquals(123456789, new DatePart(Source.EMPTY, l("ns"), dateTime, zoneId).makePipe().asProcessor().process(null));
         assertEquals(310, new DatePart(Source.EMPTY, l("tzoffset"), dateTime, zoneId).makePipe().asProcessor().process(null));
+    }
+
+    private Literal randomStartOfWeek() {
+        if (randomBoolean()) {
+            return l("Sunday");
+        } else {
+            return l("Monday");
+        }
     }
 }

@@ -56,9 +56,6 @@ we recommend using the <<docs-index_,index API>>'s
 This option ensures the indexing operation waits
 for a periodic refresh
 before running the search.
-
-If required,
-we recommend performing an explicit refresh no more than once per second.
 ====
 
 [[refresh-api-path-params]]

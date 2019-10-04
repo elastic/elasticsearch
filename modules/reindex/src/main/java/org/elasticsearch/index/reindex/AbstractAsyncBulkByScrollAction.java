@@ -231,7 +231,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     protected BulkByScrollResponse buildResponse(TimeValue took, List<BulkItemResponse.Failure> indexingFailures,
                                                       List<SearchFailure> searchFailures, boolean timedOut) {
-        return new BulkByScrollResponse(took, task.getUncommittedStatus(), indexingFailures, searchFailures, timedOut);
+        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
     }
 
     /**
@@ -432,7 +432,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        checkpointListener.onCheckpoint(asyncResponse.getCheckpoint(), task.getUncommittedStatus());
+        checkpointListener.onCheckpoint(asyncResponse.getCheckpoint(), task.getStatus());
+
         this.lastBatchSize = batchSize;
         asyncResponse.done(worker.throttleWaitTime(thisBatchStartTime, timeValueNanos(System.nanoTime()), batchSize));
     }

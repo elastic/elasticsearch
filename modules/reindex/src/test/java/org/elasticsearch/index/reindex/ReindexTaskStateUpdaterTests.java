@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -45,7 +45,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         createDoc(reindexClient, taskId);
 
         ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 1, (s) -> {});
+            taskId, 1, ActionListener.wrap(() -> {}), () -> {});
         CountDownLatch successLatch = new CountDownLatch(1);
 
         updater.assign(new ActionListener<>() {
@@ -63,7 +63,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         successLatch.await();
 
         ReindexTaskStateUpdater oldAllocationUpdater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 0, (s) -> {});
+            taskId, 0, ActionListener.wrap(() -> {}), () -> {});
         CountDownLatch failureLatch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
@@ -94,7 +94,8 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         Collections.shuffle(assignments, random());
 
         for (Integer i : assignments) {
-            ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(), taskId, i, (s) -> {});
+            ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(), taskId, i,
+                ActionListener.wrap(() -> {}), () -> {});
             new Thread(() -> {
                 updater.assign(new ActionListener<>() {
                     @Override
@@ -112,21 +113,20 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         }
 
         latch.await();
-        PlainActionFuture<ReindexTaskState> future = PlainActionFuture.newFuture();
-        reindexClient.getReindexTaskDoc(taskId, future);
-        ReindexTaskState reindexTaskState = future.actionGet();
+        PlainActionFuture<ReindexTaskState> getFuture = PlainActionFuture.newFuture();
+        reindexClient.getReindexTaskDoc(taskId, getFuture);
+        ReindexTaskState reindexTaskState = getFuture.actionGet();
         assertEquals(9L, reindexTaskState.getStateDoc().getAllocationId().longValue());
     }
 
-    public void testNewAllocationWillStopCheckpoints() throws Exception {
+    public void testNewAllocationWillTriggerCancelCallback() throws Exception {
         String taskId = randomAlphaOfLength(10);
         ReindexIndexClient reindexClient = getReindexClient();
         createDoc(reindexClient, taskId);
 
-        AtomicInteger committed = new AtomicInteger(0);
-
+        AtomicBoolean cancelled = new AtomicBoolean(false);
         ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 0, (s) -> committed.incrementAndGet());
+            taskId, 0, ActionListener.wrap(() -> {}), () -> cancelled.set(true));
         CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
 
         updater.assign(new ActionListener<>() {
@@ -145,10 +145,10 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(Collections.emptyList(), null);
         updater.onCheckpoint(new ScrollableHitSource.Checkpoint(10), status);
-        assertBusy(() -> assertEquals(1, committed.get()));
+        assertFalse(cancelled.get());
 
         ReindexTaskStateUpdater newAllocationUpdater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 1, (s) -> {});
+            taskId, 1, ActionListener.wrap(() -> {}), () -> {});
         CountDownLatch secondAssignmentLatch = new CountDownLatch(1);
 
         newAllocationUpdater.assign(new ActionListener<>() {
@@ -167,11 +167,11 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
 
         updater.onCheckpoint(new ScrollableHitSource.Checkpoint(20), status);
-        assertEquals(committed.get(), 1);
+        assertBusy(() -> assertTrue(cancelled.get()));
 
-        PlainActionFuture<ReindexTaskState> future = PlainActionFuture.newFuture();
-        reindexClient.getReindexTaskDoc(taskId, future);
-        ReindexTaskState reindexTaskState = future.actionGet();
+        PlainActionFuture<ReindexTaskState> getFuture = PlainActionFuture.newFuture();
+        reindexClient.getReindexTaskDoc(taskId, getFuture);
+        ReindexTaskState reindexTaskState = getFuture.actionGet();
         assertEquals(10, reindexTaskState.getStateDoc().getCheckpoint().getRestartFromValue());
     }
 
@@ -180,10 +180,9 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         ReindexIndexClient reindexClient = getReindexClient();
         createDoc(reindexClient, taskId);
 
-        AtomicInteger committed = new AtomicInteger(0);
-
+        PlainActionFuture<ReindexTaskStateDoc> finishedFuture = PlainActionFuture.newFuture();
         ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 0, (s) -> committed.incrementAndGet());
+            taskId, 0, finishedFuture, () -> {});
         CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
 
         updater.assign(new ActionListener<>() {
@@ -202,17 +201,25 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(Collections.emptyList(), null);
         updater.onCheckpoint(new ScrollableHitSource.Checkpoint(10), status);
-        assertBusy(() -> assertEquals(1, committed.get()));
+        assertBusy(() -> {
+            PlainActionFuture<ReindexTaskState> future = PlainActionFuture.newFuture();
+            reindexClient.getReindexTaskDoc(taskId, future);
+            ReindexTaskState reindexTaskState = future.actionGet();
+            assertNotNull(reindexTaskState.getStateDoc().getCheckpoint());
+            assertEquals(10, reindexTaskState.getStateDoc().getCheckpoint().getRestartFromValue());
+        });
 
 
         BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.timeValueSeconds(5), status, Collections.emptyList(),
             Collections.emptyList(), false);
-        PlainActionFuture<ReindexTaskStateDoc> finishedFuture = PlainActionFuture.newFuture();
-        updater.finish(response, null, finishedFuture);
+        updater.finish(response, null);
         finishedFuture.actionGet();
 
         updater.onCheckpoint(new ScrollableHitSource.Checkpoint(20), status);
-        assertEquals(committed.get(), 1);
+
+        PlainActionFuture<ReindexTaskState> getFuture = PlainActionFuture.newFuture();
+        reindexClient.getReindexTaskDoc(taskId, getFuture);
+        assertEquals(10, getFuture.actionGet().getStateDoc().getCheckpoint().getRestartFromValue());
     }
 
     public void testFinishStoresResult() throws Exception {
@@ -220,10 +227,9 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         ReindexIndexClient reindexClient = getReindexClient();
         createDoc(reindexClient, taskId);
 
-        AtomicInteger committed = new AtomicInteger(0);
-
+        PlainActionFuture<ReindexTaskStateDoc> finishedFuture = PlainActionFuture.newFuture();
         ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 0, (s) -> committed.incrementAndGet());
+            taskId, 0, finishedFuture, () -> {});
         CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
 
         updater.assign(new ActionListener<>() {
@@ -242,13 +248,19 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(Collections.emptyList(), null);
         updater.onCheckpoint(new ScrollableHitSource.Checkpoint(10), status);
-        assertBusy(() -> assertEquals(1, committed.get()));
+
+        assertBusy(() -> {
+            PlainActionFuture<ReindexTaskState> getFuture = PlainActionFuture.newFuture();
+            reindexClient.getReindexTaskDoc(taskId, getFuture);
+            ReindexTaskState reindexTaskState = getFuture.actionGet();
+            assertNotNull(reindexTaskState.getStateDoc().getCheckpoint());
+            assertEquals(10, reindexTaskState.getStateDoc().getCheckpoint().getRestartFromValue());
+        });
 
 
         BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.timeValueSeconds(5), status, Collections.emptyList(),
             Collections.emptyList(), false);
-        PlainActionFuture<ReindexTaskStateDoc> finishedFuture = PlainActionFuture.newFuture();
-        updater.finish(response, null, finishedFuture);
+        updater.finish(response, null);
         finishedFuture.actionGet();
 
         PlainActionFuture<ReindexTaskState> storedStateFuture = PlainActionFuture.newFuture();

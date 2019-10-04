@@ -336,7 +336,7 @@ Using an <<search-explain, explain request>> provides an explanation of how the 
 
 [source,console]
 --------------------------------------------------
-GET /_explain
+GET /twitter/_explain/0
 {
     "query" : {
         "script_score" : {
@@ -345,8 +345,8 @@ GET /_explain
             },
             "script" : {
                 "source" : """
-                  int likes = doc['likes'].value;
-                  int normalizedLikes = likes / 10;
+                  long likes = doc['likes'].value;
+                  double normalizedLikes = likes / 10;
                   if (explanation != null) {
                     explanation.set('normalized likes = likes / 10 = ' + likes + ' / 10 = ' + normalizedLikes);
                   }
@@ -357,5 +357,6 @@ GET /_explain
      }
 }
 --------------------------------------------------
+// TEST[setup:twitter]
 
 Note that the `explanation` will be null when using in a normal `_search` request, so having a conditional guard is best practice.

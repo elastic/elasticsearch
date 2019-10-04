@@ -61,6 +61,7 @@ public class ESJsonLayoutTests extends ESTestCase {
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
 
+        //message field is removed as is expected to be provided by a field from a message
         assertThat(conversionPattern, Matchers.equalTo(
             "{" +
                 "\"type\": \"server\", " +
@@ -69,7 +70,6 @@ public class ESJsonLayoutTests extends ESTestCase {
                 "\"component\": \"%c{1.}\", " +
                 "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
                 "\"node.name\": \"%node_name\"" +
-                "%notEmpty{, \"message\": \"%OverrideField{message}\"}" +
                 "%notEmpty{, %node_and_cluster_id }" +
                 "%notEmpty{, %CustomMapFields{message} }" +
                 "%exceptionAsJson }" + System.lineSeparator()));

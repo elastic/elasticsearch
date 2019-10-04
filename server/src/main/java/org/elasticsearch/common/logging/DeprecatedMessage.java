@@ -28,17 +28,18 @@ import java.util.Map;
  * A logger message used by {@link DeprecationLogger}.
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
  */
-public class DeprecatedMessage extends ESLogMessage {
+public class DeprecatedMessage  {
+    private static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
 
-    public DeprecatedMessage(String messagePattern, String xOpaqueId, Object... args) {
-        super(fieldMap(xOpaqueId), messagePattern, args);
-    }
 
-    private static Map<String, Object> fieldMap(String xOpaqueId) {
+    public static  ParameterizedStructuredMessage of(String xOpaqueId, String messagePattern, Object... args){
         if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return Collections.emptyMap();
+            return ParameterizedStructuredMessage.of(messagePattern,args)
+                                                 .build();
         }
-
-        return Map.of("x-opaque-id", xOpaqueId);
+        return ParameterizedStructuredMessage.of(messagePattern,args)
+                                      .field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId)
+                                      .build();
     }
+
 }

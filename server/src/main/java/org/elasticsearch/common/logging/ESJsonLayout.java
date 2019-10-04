@@ -95,8 +95,10 @@ public class ESJsonLayout extends AbstractStringLayout {
         map.put("node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
+
+        // overridden fields are expected to be present in a log message
         for (String key : overrideFields) {
-            map.put(key, inQuotes("%OverrideField{" + key + "}"));
+            map.remove(key);
         }
 
         return createPattern(map, Set.of(overrideFields));

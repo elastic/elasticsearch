@@ -83,6 +83,9 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     public static final Setting<Integer> COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST =
         Setting.intSetting("enrich.coordinator_proxy.max_lookups_per_request", 128, 1, 10000, Setting.Property.NodeScope);
 
+    static final Setting<Integer> ENRICH_MAX_FORCE_MERGE_ATTEMPTS =
+        Setting.intSetting("enrich.max_force_merge_attempts", 3, 1, 10, Setting.Property.NodeScope);
+
     private static final String QUEUE_CAPACITY_SETTING_NAME = "enrich.coordinator_proxy.queue_capacity";
     public static final Setting<Integer> COORDINATOR_PROXY_QUEUE_CAPACITY = new Setting<>(QUEUE_CAPACITY_SETTING_NAME,
             settings -> {
@@ -196,7 +199,8 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             ENRICH_CLEANUP_PERIOD,
             COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS,
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
-            COORDINATOR_PROXY_QUEUE_CAPACITY
+            COORDINATOR_PROXY_QUEUE_CAPACITY,
+            ENRICH_MAX_FORCE_MERGE_ATTEMPTS
         );
     }
 }

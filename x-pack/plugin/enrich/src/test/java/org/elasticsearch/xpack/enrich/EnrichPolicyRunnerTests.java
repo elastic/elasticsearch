@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1226,12 +1228,135 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
+    public void testRunnerWithForceMergeRetry() throws Exception {
+        final String sourceIndex = "source-index";
+        IndexResponse indexRequest = client().index(new IndexRequest()
+            .index(sourceIndex)
+            .id("id")
+            .source(
+                "{" +
+                    "\"field1\":\"value1\"," +
+                    "\"field2\":2," +
+                    "\"field3\":\"ignored\"," +
+                    "\"field4\":\"ignored\"," +
+                    "\"field5\":\"value5\"" +
+                "}",
+                XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertEquals(RestStatus.CREATED, indexRequest.status());
+
+        SearchResponse sourceSearchResponse = client().search(
+            new SearchRequest(sourceIndex)
+                .source(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.matchAllQuery()))).actionGet();
+        assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+        assertNotNull(sourceDocMap);
+        assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
+        assertThat(sourceDocMap.get("field2"), is(equalTo(2)));
+        assertThat(sourceDocMap.get("field3"), is(equalTo("ignored")));
+        assertThat(sourceDocMap.get("field4"), is(equalTo("ignored")));
+        assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
+
+        List<String> enrichFields = Arrays.asList("field2", "field5");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex), "field1",
+            enrichFields);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<PolicyExecutionResult> listener = createTestListener(latch, exception::set);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
+        AtomicInteger forceMergeAttempts = new AtomicInteger(0);
+        final XContentBuilder unmergedDocument = SmileXContent.contentBuilder()
+            .startObject().field("field1", "value1.1").field("field2", 2).field("field5", "value5").endObject();
+        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(policyName, policy, listener, clusterService, client(), resolver,
+            () -> createTime, randomIntBetween(1, 10000), randomIntBetween(3, 10)) {
+            @Override
+            protected void ensureSingleSegment(String destinationIndexName, int attempt) {
+                forceMergeAttempts.incrementAndGet();
+                if (attempt == 1) {
+                    // Put and flush a document to increase the number of segments, simulating not
+                    // all segments were merged on the first try.
+                    IndexResponse indexRequest = client().index(new IndexRequest()
+                        .index(createdEnrichIndex)
+                        .source(unmergedDocument)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    ).actionGet();
+                    assertEquals(RestStatus.CREATED, indexRequest.status());
+                }
+                super.ensureSingleSegment(destinationIndexName, attempt);
+            }
+        };
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        // Validate number of force merges
+        assertThat(forceMergeAttempts.get(), equalTo(2));
+
+        // Validate Index definition
+        GetIndexResponse enrichIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        assertThat(enrichIndex.getIndices().length, equalTo(1));
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+
+        // Validate Mapping
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> field1 = (Map<?, ?>) properties.get("field1");
+        assertNotNull(field1);
+        assertThat(field1.get("type"), is(equalTo("keyword")));
+        assertThat(field1.get("doc_values"), is(false));
+
+        // Validate document structure
+        SearchResponse allEnrichDocs = client().search(
+            new SearchRequest(".enrich-test1")
+                .source(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.matchAllQuery()))).actionGet();
+        assertThat(allEnrichDocs.getHits().getTotalHits().value, equalTo(2L));
+        for (String keyValue : Arrays.asList("value1", "value1.1")) {
+            SearchResponse enrichSearchResponse = client().search(
+                new SearchRequest(".enrich-test1")
+                    .source(SearchSourceBuilder.searchSource()
+                        .query(QueryBuilders.matchQuery("field1", keyValue)))).actionGet();
+
+            assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+            Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+            assertNotNull(enrichDocument);
+            assertThat(enrichDocument.size(), is(equalTo(3)));
+            assertThat(enrichDocument.get("field1"), is(equalTo(keyValue)));
+            assertThat(enrichDocument.get("field2"), is(equalTo(2)));
+            assertThat(enrichDocument.get("field5"), is(equalTo("value5")));
+        }
+
+        // Validate segments
+        validateSegments(createdEnrichIndex, 2);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+    }
+
     private EnrichPolicyRunner createPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener,
                                                   Long createTime) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
         return new EnrichPolicyRunner(policyName, policy, listener, clusterService, client(), resolver, () -> createTime,
-            randomIntBetween(1, 10000));
+            randomIntBetween(1, 10000), randomIntBetween(1, 10));
     }
 
     private ActionListener<PolicyExecutionResult> createTestListener(final CountDownLatch latch,

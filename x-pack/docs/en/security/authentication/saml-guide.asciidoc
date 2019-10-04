@@ -402,6 +402,7 @@ services it offers.
 By default the Elastic Stack will support SAML SLO if the following are true:
 
 - Your IdP metadata specifies that the IdP offers a SLO service
+- Your IdP releases a NameID in the subject of the SAML assertion that it issues for your users
 - You configure `sp.logout`
 - The setting `idp.use_single_logout` is not `false`
 

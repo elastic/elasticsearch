@@ -58,7 +58,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
     @OutputDirectory
     File testRoot = project.file('build/rest')
 
-    Map<String, Integer> names = new HashMap<>()
+    Set<String> names = new HashSet<>()
 
     public RestTestsFromSnippetsTask() {
         project.afterEvaluate {
@@ -238,9 +238,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             } else {
                 current.println('---')
                 if (test.name != null && test.name.isBlank() == false) {
-                    def num = names.compute(test.name, { key, old -> old == null ? 1 : old + 1 })
-                    def name = num == 1 ? test.name : test.name + "_" + num
-                    current.println("\"$name\":")
+                    if(names.add(test.name) == false) {
+                        throw new InvalidUserDataException("Duplicated snippet name '$test.name': $test")
+                    }
+                    current.println("\"$test.name\":")
                 } else {
                     current.println("\"line_$test.start\":")
                 }

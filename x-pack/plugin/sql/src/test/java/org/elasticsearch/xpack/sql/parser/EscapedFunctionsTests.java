@@ -23,7 +23,6 @@ import org.junit.Assert;
 import java.util.List;
 import java.util.Locale;
 import java.util.StringJoiner;
-import java.util.regex.Pattern;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;

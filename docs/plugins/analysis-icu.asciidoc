@@ -1,7 +1,7 @@
 [[analysis-icu]]
 === ICU Analysis Plugin
 
-The ICU Analysis plugin integrates the Lucene ICU module into elasticsearch,
+The ICU Analysis plugin integrates the Lucene ICU module into {es},
 adding extended Unicode support using the http://site.icu-project.org/[ICU]
 libraries, including better analysis of Asian languages, Unicode
 normalization, Unicode-aware case folding, collation support, and

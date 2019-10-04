@@ -56,7 +56,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
 
-        if (project.getRootProject().getExtensions().findByType(TestClustersRegistry.class) == null) {
+        if (project.getRootProject().getExtensions().findByName("testClusters") == null) {
             TestClustersRegistry registry = project.getRootProject().getExtensions()
                 .create("testClusters", TestClustersRegistry.class);
 

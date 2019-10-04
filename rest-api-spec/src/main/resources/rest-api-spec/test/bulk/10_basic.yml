@@ -60,8 +60,8 @@
 ---
 "Empty _id with op_type create":
   - skip:
-      version: " - 7.99.99"
-      reason: "auto id + op type create only supported since 8.0"
+      version: " - 7.4.99"
+      reason: "auto id + op type create only supported since 7.5"
 
   - do:
       bulk:

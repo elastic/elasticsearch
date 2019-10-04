@@ -27,7 +27,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -62,7 +61,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -101,17 +99,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -365,6 +359,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 final Map<String, BlobMetaData> rootBlobs = blobContainer().listBlobs();
                 final RepositoryData repositoryData = getRepositoryData(latestGeneration(rootBlobs.keySet()));
+                // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
+                // delete an index that was created by another master node after writing this index-N blob.
                 final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
                 doDeleteShardSnapshots(snapshotId, repositoryStateId, foundIndices, rootBlobs, repositoryData, listener);
             } catch (Exception ex) {
@@ -390,36 +386,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         Map<String, BlobMetaData> rootBlobs, RepositoryData repositoryData,
                                         ActionListener<Void> listener) throws IOException {
         final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
-        // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
-        // delete an index that was created by another master node after writing this index-N blob.
         writeIndexGen(updatedRepositoryData, repositoryStateId);
-        SnapshotInfo snapshot = null;
-        try {
-            snapshot = getSnapshotInfo(snapshotId);
-        } catch (SnapshotMissingException ex) {
-            listener.onFailure(ex);
-            return;
-        } catch (IllegalStateException | SnapshotException | ElasticsearchParseException ex) {
-            logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
-        }
-        final List<String> snapMetaFilesToDelete =
-            Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID()));
-        try {
-            blobContainer().deleteBlobsIgnoringIfNotExists(snapMetaFilesToDelete);
-        } catch (IOException e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
-        }
-        final var survivingIndices = updatedRepositoryData.getIndices();
         deleteIndices(
             updatedRepositoryData,
-            Optional.ofNullable(snapshot).map(info -> info.indices().stream().filter(survivingIndices::containsKey)
-                .map(updatedRepositoryData::resolveIndexId).collect(Collectors.toList())).orElse(Collections.emptyList()),
+            repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotId),
             snapshotId,
             ActionListener.delegateFailure(listener,
-                (l, v) -> cleanupStaleBlobs(foundIndices,
-                    Sets.difference(rootBlobs.keySet(), new HashSet<>(snapMetaFilesToDelete)).stream().collect(
-                        Collectors.toMap(Function.identity(), rootBlobs::get)),
-                    updatedRepositoryData, ActionListener.map(l, ignored -> null))));
+                (l, v) -> cleanupStaleBlobs(foundIndices, rootBlobs, updatedRepositoryData, ActionListener.map(l, ignored -> null))));
     }
 
     /**
@@ -677,18 +650,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                  final Map<String, Object> userMetadata,
                                  final ActionListener<SnapshotInfo> listener) {
 
-        // Once we're done writing all metadata, we update the index-N blob to finalize the snapshot
-        final ActionListener<SnapshotInfo> afterMetaWrites = ActionListener.wrap(snapshotInfo -> {
-            writeIndexGen(getRepositoryData().addSnapshot(snapshotId, snapshotInfo.state(), indices), repositoryStateId);
-            listener.onResponse(snapshotInfo);
-        }, ex -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", ex)));
-
         // We upload one meta blob for each index, one for the cluster-state and one snap-${uuid}.dat blob
-        final GroupedActionListener<SnapshotInfo> allMetaListener =
-            new GroupedActionListener<>(ActionListener.map(afterMetaWrites, snapshotInfos -> {
-                assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
-                return snapshotInfos.iterator().next();
-            }), 2 + indices.size());
+        // Once we're done writing all metadata, we update the index-N blob to finalize the snapshot
+        final ActionListener<SnapshotInfo> allMetaListener = new GroupedActionListener<>(
+            ActionListener.wrap(snapshotInfos -> {
+                    assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
+                    final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
+                    writeIndexGen(getRepositoryData().addSnapshot(snapshotId, snapshotInfo.state(), indices), repositoryStateId);
+                    listener.onResponse(snapshotInfo);
+                },
+                e -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e))),
+            2 + indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
@@ -711,7 +683,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }));
         }
 
-        executor.execute(ActionRunnable.wrap(afterMetaWrites, afterMetaListener -> {
+        executor.execute(ActionRunnable.wrap(allMetaListener, afterMetaListener -> {
             final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 indices.stream().map(IndexId::getName).collect(Collectors.toList()),
                 startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
@@ -745,7 +717,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public IndexMetaData getSnapshotIndexMetaData(final SnapshotId snapshotId, final IndexId index) throws IOException {
-        return indexMetaDataFormat.read(indexContainer(index), snapshotId.getUUID());
+        try {
+            return indexMetaDataFormat.read(indexContainer(index), snapshotId.getUUID());
+        } catch (NoSuchFileException e) {
+            throw new SnapshotMissingException(metadata.name(), snapshotId, e);
+        }
     }
 
     private BlobPath indicesPath() {

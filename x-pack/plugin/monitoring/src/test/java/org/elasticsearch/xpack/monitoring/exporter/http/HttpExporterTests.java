@@ -34,6 +34,7 @@ import org.mockito.InOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -131,7 +132,7 @@ public class HttpExporterTests extends ESTestCase {
     public void testHostListIsRejectedIfTypeIsNotHttp() {
         final String prefix = "xpack.monitoring.exporters.example";
         final Settings.Builder builder = Settings.builder().put(prefix + ".type", "local");
-        builder.putList(prefix + ".host", List.of("https://example.com:443"));
+        builder.putList(prefix + ".host", Collections.singletonList("https://example.com:443"));
         final Settings settings = builder.build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -168,7 +169,7 @@ public class HttpExporterTests extends ESTestCase {
         final String httpsHost = "https://example.com:443";
         final Settings settings = Settings.builder()
             .put(prefix + ".type", "http")
-            .putList(prefix + ".host", List.of(httpHost, httpsHost))
+            .putList(prefix + ".host", Arrays.asList(httpHost, httpsHost))
             .build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

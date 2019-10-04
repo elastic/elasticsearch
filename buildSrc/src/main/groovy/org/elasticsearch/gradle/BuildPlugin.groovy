@@ -86,7 +86,6 @@ import java.nio.file.Files
 import java.util.regex.Matcher
 
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
-
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -911,6 +910,11 @@ class BuildPlugin implements Plugin<Project> {
                     logging.showExceptions = true
                     logging.showCauses = true
                     logging.exceptionFormat = 'full'
+                }
+
+                if (OS.current().equals(OS.WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
+                    // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
+                    test.systemProperty 'tests.timeoutSuite', '1800000!'
                 }
 
                 project.plugins.withType(ShadowPlugin).whenPluginAdded {

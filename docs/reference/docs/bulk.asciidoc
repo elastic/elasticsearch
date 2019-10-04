@@ -70,7 +70,7 @@ make sure that the JSON actions and sources are not pretty printed.
 If you specify an index in the request URI, 
 it is used for any actions that don't explicitly specify an index.
 
-A note on the format. The idea here is to make processing of this as
+A note on the format: The idea here is to make processing of this as
 fast as possible. As some of the actions are redirected to other
 shards on other nodes, only `action_meta_data` is parsed on the
 receiving node side.

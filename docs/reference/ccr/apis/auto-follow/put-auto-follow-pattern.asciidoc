@@ -45,14 +45,13 @@ DELETE /_ccr/auto_follow/auto_follow_pattern_name
 * If the {es} {security-features} are enabled, you must have `read` and `monitor`
 index privileges for the leader index patterns. You must also have `manage_ccr`
 cluster privileges on the cluster that contains the follower index. For more
-information, see
-{stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 [[ccr-put-auto-follow-pattern-desc]]
 ==== {api-description-title}
 
 This API creates a new named collection of
-{stack-ov}/ccr-auto-follow.html[auto-follow patterns] against the remote cluster
+<<ccr-auto-follow,auto-follow patterns>> against the remote cluster
 specified in the request body. Newly created indices on the remote cluster
 matching any of the specified patterns will be automatically configured as follower
 indices.

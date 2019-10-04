@@ -16,7 +16,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -737,7 +736,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_SKIP_ROLLED, false)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
 
         // Index a document
@@ -761,20 +759,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}");
         client().performRequest(addPolicyRequest);
         assertBusy(() -> assertTrue((boolean) explainIndex(originalIndex).getOrDefault("managed", false)));
-
-        // Wait for rollover to error
-        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME))));
-
-        // Set indexing complete
-        Request setIndexingCompleteRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        setIndexingCompleteRequest.setJsonEntity("{\n" +
-            "  \"index.lifecycle.indexing_complete\": true\n" +
-            "}");
-        client().performRequest(setIndexingCompleteRequest);
-
-        // Retry policy
-        Request retryRequest = new Request("POST", "/" + originalIndex + "/_ilm/retry");
-        client().performRequest(retryRequest);
 
         // Wait for everything to be copacetic
         assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(TerminalPolicyStep.KEY)));

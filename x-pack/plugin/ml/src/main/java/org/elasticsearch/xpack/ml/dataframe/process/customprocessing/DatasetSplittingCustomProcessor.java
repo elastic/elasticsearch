@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.dataframe.process.customprocessing;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.List;
@@ -18,7 +17,7 @@ import java.util.Random;
  * This relies on the fact that when the dependent variable field
  * is empty, then the row is not used for training but only to make predictions.
  */
-class RegressionCustomProcessor implements CustomProcessor {
+class DatasetSplittingCustomProcessor implements CustomProcessor {
 
     private static final String EMPTY = "";
 
@@ -27,10 +26,9 @@ class RegressionCustomProcessor implements CustomProcessor {
     private final Random random = Randomness.get();
     private boolean isFirstRow = true;
 
-    RegressionCustomProcessor(List<String> fieldNames, Regression regression) {
-        this.dependentVariableIndex = findDependentVariableIndex(fieldNames, regression.getDependentVariable());
-        this.trainingPercent = regression.getTrainingPercent();
-
+    DatasetSplittingCustomProcessor(List<String> fieldNames, String dependentVariable, double trainingPercent) {
+        this.dependentVariableIndex = findDependentVariableIndex(fieldNames, dependentVariable);
+        this.trainingPercent = trainingPercent;
     }
 
     private static int findDependentVariableIndex(List<String> fieldNames, String dependentVariable) {

@@ -72,7 +72,7 @@ For example, the
 following request creates a `remote_monitor` user that has the 
 `remote_monitoring_agent` role:
 
-[source, sh]
+[source,console]
 ---------------------------------------------------------------
 POST /_security/user/remote_monitor
 {
@@ -81,7 +81,6 @@ POST /_security/user/remote_monitor
   "full_name" : "Internal Agent For Remote Monitoring"
 }
 ---------------------------------------------------------------
-// CONSOLE
 // TEST[skip:needs-gold+-license]
 
 Alternatively, use the `remote_monitoring_user` {stack-ov}/built-in-users.html[built-in user]. 

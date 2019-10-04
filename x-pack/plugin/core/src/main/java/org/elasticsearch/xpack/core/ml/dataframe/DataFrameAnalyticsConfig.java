@@ -41,7 +41,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.GB);
     public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.MB);
-    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(20, ByteSizeUnit.MB);
+    /**
+     * This includes the overhead of thread stacks and data structures that the program might use that
+     * are not instrumented.  But it does NOT include the memory used by loading the executable code.
+     */
+    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(5, ByteSizeUnit.MB);
 
     public static final ParseField ID = new ParseField("id");
     public static final ParseField DESCRIPTION = new ParseField("description");

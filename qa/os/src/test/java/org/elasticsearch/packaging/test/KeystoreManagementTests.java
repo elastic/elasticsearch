@@ -198,6 +198,13 @@ public class KeystoreManagementTests extends PackagingTestCase {
         awaitElasticsearchStartup(startElasticsearch());
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
+
+        distribution().packagingConditional()
+            .forPackage(
+                () -> sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE")
+            )
+            .forArchive(Platforms.NO_ACTION)
+            .run();
     }
 
     public void test51WrongKeystorePasswordFromFile() throws Exception {
@@ -225,6 +232,13 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Shell.Result result = startElasticsearch();
         assertElasticsearchFailure(result, PASSWORD_ERROR_MESSAGE);
+
+        distribution().packagingConditional()
+            .forPackage(
+                () -> sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE")
+            )
+            .forArchive(Platforms.NO_ACTION)
+            .run();
     }
 
     private void createKeystore() throws Exception {

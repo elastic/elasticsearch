@@ -17,6 +17,7 @@
  * under the License.
  */
 
+
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
@@ -28,7 +29,6 @@ import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
 
 import java.nio.file.Files
 import java.nio.file.Path
-
 // need this so Zip/Tar tasks get basic defaults...
 apply plugin: 'base'
 

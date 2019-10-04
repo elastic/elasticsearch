@@ -277,7 +277,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             }
             if (firstNode == null) {
                 firstNode = node;
-                firstNode.start();
+                if (node.getVersion().before("6.5.0")) {
+                    // We need to start the first node early to be able to provide unicast.hosts
+                    firstNode.start();
+                }
             }
         }
         nodes.forEach(ElasticsearchNode::start);

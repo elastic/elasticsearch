@@ -123,12 +123,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     @Override
     public void onCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
         assert checkpointThrottler != null;
-        assert finishedListener != null;
 
-        // TODO: Test
-        if (isDone.get() == false) {
-            checkpointThrottler.accept(Tuple.tuple(checkpoint, status));
-        }
+        checkpointThrottler.accept(Tuple.tuple(checkpoint, status));
     }
 
     private void updateCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status, Runnable whenDone) {
@@ -157,7 +153,6 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
     public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
         assert checkpointThrottler != null;
-        assert finishedListener != null;
         if (isDone.compareAndSet(false, true)) {
             checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception));
         }

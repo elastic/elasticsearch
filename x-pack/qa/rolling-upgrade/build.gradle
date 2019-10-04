@@ -111,10 +111,6 @@ for (Version version : bwcVersions.wireCompatible) {
         numNodes = 3
         clusterName = 'rolling-upgrade'
         waitCondition = waitWithAuth
-        setting 'xpack.monitoring.exporters._http.type', 'http'
-        setting 'xpack.monitoring.exporters._http.enabled', 'false'
-        setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
-        setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
         setting 'xpack.license.self_generated.type', 'trial'
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -187,10 +183,6 @@ for (Version version : bwcVersions.wireCompatible) {
             * just stopped's data directory. */
             dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
             waitCondition = waitWithAuth
-            setting 'xpack.monitoring.exporters._http.type', 'http'
-            setting 'xpack.monitoring.exporters._http.enabled', 'false'
-            setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
-            setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
             setting 'xpack.license.self_generated.type', 'trial'
             setting 'xpack.security.enabled', 'true'
             setting 'xpack.security.transport.ssl.enabled', 'true'

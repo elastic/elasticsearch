@@ -684,7 +684,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(44, namedXContents.size());
+        assertEquals(45, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -718,9 +718,10 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(ShrinkAction.NAME));
         assertTrue(names.contains(FreezeAction.NAME));
         assertTrue(names.contains(SetPriorityAction.NAME));
-        assertEquals(Integer.valueOf(2), categories.get(DataFrameAnalysis.class));
+        assertEquals(Integer.valueOf(3), categories.get(DataFrameAnalysis.class));
         assertTrue(names.contains(OutlierDetection.NAME.getPreferredName()));
         assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.Regression.NAME.getPreferredName()));
+        assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.Classification.NAME.getPreferredName()));
         assertEquals(Integer.valueOf(1), categories.get(SyncConfig.class));
         assertTrue(names.contains(TimeSyncConfig.NAME));
         assertEquals(Integer.valueOf(2), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));

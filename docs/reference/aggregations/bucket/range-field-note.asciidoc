@@ -137,35 +137,35 @@ calculated over the ranges of all matching documents.
     "november_data" : {
       "buckets" : [
         {
-          "key" : 2019-10-27,
+          "key" : "2019-10-27",
           "doc_count" : 1
         },
         {
-          "key" : 2019-10-28,
+          "key" : "2019-10-28",
           "doc_count" : 1
         },
         {
-          "key" : 2019-10-29,
+          "key" : "2019-10-29",
           "doc_count" : 1
         },
         {
-          "key" : 2019-10-30,
+          "key" : "2019-10-30",
           "doc_count" : 1
         },
         {
-          "key" : 2019-10-31,
+          "key" : "2019-10-31",
           "doc_count" : 1
         },
         {
-          "key" : 2019-11-01,
+          "key" : "2019-11-01",
           "doc_count" : 1
         },
         {
-          "key" : 2019-11-02,
+          "key" : "2019-11-02",
           "doc_count" : 1
         },
         {
-          "key" : 2019-11-03,
+          "key" : "2019-11-03",
           "doc_count" : 1
         }
       ]

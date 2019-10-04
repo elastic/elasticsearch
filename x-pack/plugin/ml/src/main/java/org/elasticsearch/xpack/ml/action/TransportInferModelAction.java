@@ -26,12 +26,11 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
     private final Client client;
 
     @Inject
-    public TransportInferModelAction(String actionName,
-                                     TransportService transportService,
+    public TransportInferModelAction(TransportService transportService,
                                      ActionFilters actionFilters,
                                      ModelLoadingService modelLoadingService,
                                      Client client) {
-        super(actionName, transportService, actionFilters, InferModelAction.Request::new);
+        super(InferModelAction.NAME, transportService, actionFilters, InferModelAction.Request::new);
         this.modelLoadingService = modelLoadingService;
         this.client = client;
     }

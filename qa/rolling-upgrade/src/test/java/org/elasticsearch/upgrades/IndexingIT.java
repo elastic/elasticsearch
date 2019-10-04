@@ -158,13 +158,13 @@ public class IndexingIT extends AbstractRollingTestCase {
                     }
                 }
 
-                if (minNodeVersion.before(Version.V_8_0_0)) {
+                if (minNodeVersion.before(Version.V_7_5_0)) {
                     ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                     assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
                     assertThat(e.getMessage(),
-                        // if request goes to 8.0+ node
+                        // if request goes to 7.5+ node
                         either(containsString("optype create not supported for indexing requests without explicit id until"))
-                            // if request goes to 7.x node
+                            // if request goes to < 7.5 node
                             .or(containsString("an id must be provided if version type or value are set")
                             ));
                 } else {

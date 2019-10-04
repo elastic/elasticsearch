@@ -19,13 +19,13 @@
 
 package org.elasticsearch.packaging.util;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpResponse;
 import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.net.SocketException;
@@ -37,16 +37,16 @@ import static org.hamcrest.Matchers.containsString;
 
 public class ServerUtils {
 
-    private static final Log LOG = LogFactory.getLog(ServerUtils.class);
+    protected static final Logger logger =  LogManager.getLogger(ServerUtils.class);
 
     private static final long waitTime = TimeUnit.SECONDS.toMillis(60);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
 
-    public static void waitForElasticsearch() throws IOException {
-        waitForElasticsearch("green", null);
+    public static void waitForElasticsearch(Installation installation) throws IOException {
+        waitForElasticsearch("green", null, installation);
     }
 
-    public static void waitForElasticsearch(String status, String index) throws IOException {
+    public static void waitForElasticsearch(String status, String index, Installation installation) throws IOException {
 
         Objects.requireNonNull(status);
 
@@ -71,15 +71,17 @@ public class ServerUtils {
 
                 started = true;
 
-            } catch (SocketException | NoHttpResponseException e) {
-                // we want to retry if the connection is refused
-                LOG.debug("Got connection refused when waiting for cluster health", e);
+            } catch (IOException e) {
+                logger.info("Got exception when waiting for cluster health", e);
             }
 
             timeElapsed = System.currentTimeMillis() - startTime;
         }
 
         if (started == false) {
+            if (installation != null) {
+                FileUtils.logAllLogs(installation.logs, logger);
+            }
             throw new RuntimeException("Elasticsearch did not start");
         }
 

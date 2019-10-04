@@ -23,8 +23,9 @@ import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import com.carrotsearch.randomizedtesting.annotations.Timeout;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -52,10 +53,11 @@ import static org.junit.Assume.assumeTrue;
 @TestMethodProviders({
     JUnit3MethodProvider.class
 })
+@Timeout(millis = 20 * 60 * 1000) // 20 min
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public abstract class PackagingTestCase extends Assert {
 
-    protected final Log logger = LogFactory.getLog(getClass());
+    protected final Logger logger =  LogManager.getLogger(getClass());
 
     // the distribution being tested
     protected static final Distribution distribution;
@@ -129,5 +131,4 @@ public abstract class PackagingTestCase extends Assert {
         }
         return sh;
     }
-
 }

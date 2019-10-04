@@ -117,12 +117,6 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
-    /**
-     * Minimum node version which does not use {@link Repository#initializeSnapshot(SnapshotId, List, MetaData)} to write snapshot metadata
-     * when starting a snapshot.
-     */
-    public static final Version NO_REPO_INITIALIZE_VERSION = Version.V_7_5_0;
-
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_8_0_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
@@ -212,6 +206,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (ignoreUnavailable) {
                     logger.warn(() -> new ParameterizedMessage("failed to get snapshot [{}]", snapshotId), ex);
                 } else {
+                    if (ex instanceof SnapshotException) {
+                        throw ex;
+                    }
                     throw new SnapshotException(repositoryName, snapshotId, "Snapshot could not be read", ex);
                 }
             }
@@ -418,13 +415,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
                     throw new InvalidSnapshotNameException(
                         repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
-                }
-                if (clusterState.nodes().getMinNodeVersion().onOrAfter(NO_REPO_INITIALIZE_VERSION) == false) {
-                    // In mixed version clusters we initialize the snapshot in the repository so that in case of a master failover to an
-                    // older version master node snapshot finalization (that assumes initializeSnapshot was called) produces a valid
-                    // snapshot.
-                    repository.initializeSnapshot(
-                        snapshot.snapshot().getSnapshotId(), snapshot.indices(), metaDataForSnapshot(snapshot, clusterState.metaData()));
                 }
                 snapshotCreated = true;
 

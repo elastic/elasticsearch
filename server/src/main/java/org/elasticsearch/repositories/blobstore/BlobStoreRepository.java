@@ -390,8 +390,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void doDeleteShardSnapshots(SnapshotId snapshotId, long repositoryStateId, Map<String, BlobContainer> foundIndices,
                                         Map<String, BlobMetaData> rootBlobs, RepositoryData repositoryData, Version version,
                                         ActionListener<Void> listener) throws IOException {
-        // Listener to complete once all shards folders affected by this delete have been added new metadata blobs without
-        // this snapshot.
+
+        // listener to complete once all shards folders affected by this delete have been added new metadata blobs without this snapshot
         final CheckedConsumer<Collection<ShardSnapshotMetaDeleteResult>, IOException> deleteFromMetaListener;
 
         if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
@@ -433,7 +433,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 idxs -> deleteFromMetaListener.accept(idxs.stream().flatMap(Collection::stream).collect(Collectors.toList())),
                 listener::onFailure), indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        indices.forEach(indexId -> {
+        for (IndexId indexId : indices) {
             final Set<SnapshotId> survivingSnapshots = repositoryData.getSnapshots(indexId).stream()
                 .filter(id -> id.equals(snapshotId) == false).collect(Collectors.toSet());
             executor.execute(ActionRunnable.wrap(deleteIndexMetaDataListener, deleteIdxMetaListener -> {
@@ -492,7 +492,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     deleteIdxMetaListener.onResponse(null);
                 }
             }));
-        });
+        }
     }
 
     private void afterDeleteFromMeta(SnapshotId snapshotId, ActionListener<Void> listener, Map<String, BlobMetaData> rootBlobs,

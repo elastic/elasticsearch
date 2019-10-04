@@ -129,7 +129,9 @@ one or more rare URI paths many times compared to the population is regarded as
 highly anomalous. This analysis is based on the count of interactions with rare
 URI paths, not the number of different URI path values.
 
-NOTE: To define a URI path as rare, the analytics consider the number of
-distinct values that occur and not the number of times the URI path occurs.
-If a single client IP visits a single unique URI path, this is rare, even if it
+
+NOTE: Defining a URI path as rare happens the same way as you can see in the 
+case of the status codes above: the analytics consider the number of distinct 
+values that occur and not the number of times the URI path occurs. If a single 
+client IP visits a single unique URI path, this is rare, even if it
 occurs for that client IP in every bucket.

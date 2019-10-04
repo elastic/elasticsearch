@@ -127,23 +127,53 @@ public class ProcessPipes {
     public void connectStreams(Duration timeout) throws IOException {
         // The order here is important.  It must match the order that the C++ process tries to connect to the pipes, otherwise
         // a timeout is guaranteed.  Also change api::CIoManager in the C++ code if changing the order here.
-        if (logPipeName != null) {
-            logStream = namedPipeHelper.openNamedPipeInputStream(logPipeName, timeout);
+        try {
+            if (logPipeName != null) {
+                logStream = namedPipeHelper.openNamedPipeInputStream(logPipeName, timeout);
+            }
+            if (commandPipeName != null) {
+                commandStream = namedPipeHelper.openNamedPipeOutputStream(commandPipeName, timeout);
+            }
+            if (processInPipeName != null) {
+                processInStream = namedPipeHelper.openNamedPipeOutputStream(processInPipeName, timeout);
+            }
+            if (processOutPipeName != null) {
+                processOutStream = namedPipeHelper.openNamedPipeInputStream(processOutPipeName, timeout);
+            }
+            if (restorePipeName != null) {
+                restoreStream = namedPipeHelper.openNamedPipeOutputStream(restorePipeName, timeout);
+            }
+            if (persistPipeName != null) {
+                persistStream = namedPipeHelper.openNamedPipeInputStream(persistPipeName, timeout);
+            }
+        } catch (IOException ioe) {
+            try {
+                closeUnusedStreams();
+            } catch (IOException suppressed) {
+                ioe.addSuppressed(new IOException("Error closing process pipes", suppressed));
+            }
+            throw ioe;
         }
-        if (commandPipeName != null) {
-            commandStream = namedPipeHelper.openNamedPipeOutputStream(commandPipeName, timeout);
+    }
+
+    private void closeUnusedStreams() throws IOException {
+        if (logStream != null) {
+            logStream.close();
         }
-        if (processInPipeName != null) {
-            processInStream = namedPipeHelper.openNamedPipeOutputStream(processInPipeName, timeout);
+        if (commandStream != null) {
+            commandStream.close();
         }
-        if (processOutPipeName != null) {
-            processOutStream = namedPipeHelper.openNamedPipeInputStream(processOutPipeName, timeout);
+        if (processInStream != null) {
+            processInStream.close();
         }
-        if (restorePipeName != null) {
-            restoreStream = namedPipeHelper.openNamedPipeOutputStream(restorePipeName, timeout);
+        if (processOutStream != null) {
+            processOutStream.close();
         }
-        if (persistPipeName != null) {
-            persistStream = namedPipeHelper.openNamedPipeInputStream(persistPipeName, timeout);
+        if (restoreStream != null) {
+            restoreStream.close();
+        }
+        if (persistStream != null) {
+            persistStream.close();
         }
     }
 

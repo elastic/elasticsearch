@@ -60,6 +60,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TruncateTranslogAction;
+import org.elasticsearch.indices.IndicesModule;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -72,6 +73,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
@@ -99,7 +103,10 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             .withRequiredArg()
             .ofType(Integer.class);
 
-        namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+        namedXContentRegistry = new NamedXContentRegistry(
+                Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
+                        .flatMap(Function.identity())
+                        .collect(Collectors.toList()));
 
         removeCorruptedLuceneSegmentsAction = new RemoveCorruptedLuceneSegmentsAction();
         truncateTranslogAction = new TruncateTranslogAction(namedXContentRegistry);

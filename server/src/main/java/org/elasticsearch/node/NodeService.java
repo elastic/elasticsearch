@@ -107,7 +107,7 @@ public class NodeService implements Closeable {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(transportService.getLocalNode(), System.currentTimeMillis(),
-                indices.anySet() ? indicesService.stats(true, indices) : null,
+                indices.anySet() ? indicesService.stats(indices) : null,
                 os ? monitorService.osService().stats() : null,
                 process ? monitorService.processService().stats() : null,
                 jvm ? monitorService.jvmService().stats() : null,

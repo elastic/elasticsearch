@@ -36,7 +36,7 @@ public final class TransportLogger {
     private static final Logger logger = LogManager.getLogger(TransportLogger.class);
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
-    void logInboundMessage(TcpChannel channel, BytesReference message) {
+    static void logInboundMessage(TcpChannel channel, BytesReference message) {
         if (logger.isTraceEnabled()) {
             try {
                 String logMessage = format(channel, message, "READ");
@@ -47,7 +47,7 @@ public final class TransportLogger {
         }
     }
 
-    void logOutboundMessage(TcpChannel channel, BytesReference message) {
+    static void logOutboundMessage(TcpChannel channel, BytesReference message) {
         if (logger.isTraceEnabled()) {
             try {
                 if (message.get(0) != 'E') {
@@ -63,7 +63,7 @@ public final class TransportLogger {
         }
     }
 
-    private String format(TcpChannel channel, BytesReference message, String event) throws IOException {
+    private static String format(TcpChannel channel, BytesReference message, String event) throws IOException {
         final StringBuilder sb = new StringBuilder();
         sb.append(channel);
         int messageLengthWithHeader = HEADER_SIZE + message.length();

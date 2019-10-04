@@ -95,6 +95,11 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
     private static final String snapshotName = "test_snapshot";
     private static final String indexName = "test_index";
 
+    @Override
+    protected boolean waitForAllSnapshotsWiped() {
+        return true;
+    }
+
     public void testSnapshotCreateRepository() throws IOException {
         RestHighLevelClient client = highLevelClient();
 

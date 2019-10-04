@@ -5,9 +5,6 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
     testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
     testCompile project(':x-pack:plugin:ccr:qa')
 }
@@ -31,8 +28,8 @@ testClusters.'leader-cluster' {
 
 task 'follow-cluster'(type: RestIntegTestTask) {
     dependsOn 'leader-cluster'
-    useCluster testClusters.'leader-cluster'
     runner {
+        useCluster testClusters.'leader-cluster'
         systemProperty 'tests.target_cluster', 'follow'
         nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
     }

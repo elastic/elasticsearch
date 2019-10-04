@@ -1,19 +1,36 @@
 {
-  "render_search_template": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html#_validating_templates",
-    "stability": "stable",
-    "methods": ["GET", "POST"],
-    "url": {
-      "paths": [ "/_render/template", "/_render/template/{id}" ],
-      "parts": {
-        "id": {
-         "type" : "string",
-         "description" : "The id of the stored search template"
-        }
-      }
+  "render_search_template":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html#_validating_templates",
+      "description":"Allows to use the Mustache language to pre-render a search definition."
     },
-    "body": {
-      "description": "The search definition template and its params"
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_render/template",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path":"/_render/template/{id}",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The id of the stored search template"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The search definition template and its params"
     }
   }
 }

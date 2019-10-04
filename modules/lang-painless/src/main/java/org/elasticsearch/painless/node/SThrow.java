@@ -19,10 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Objects;
 import java.util.Set;
@@ -41,15 +44,20 @@ public final class SThrow extends AStatement {
     }
 
     @Override
+    void storeSettings(CompilerSettings settings) {
+        expression.storeSettings(settings);
+    }
+
+    @Override
     void extractVariables(Set<String> variables) {
         expression.extractVariables(variables);
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         expression.expected = Exception.class;
-        expression.analyze(locals);
-        expression = expression.cast(locals);
+        expression.analyze(functions, locals);
+        expression = expression.cast(functions, locals);
 
         methodEscape = true;
         loopEscape = true;
@@ -58,10 +66,10 @@ public final class SThrow extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-        expression.write(writer, globals);
-        writer.throwException();
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
+        expression.write(classWriter, methodWriter, globals);
+        methodWriter.throwException();
     }
 
     @Override

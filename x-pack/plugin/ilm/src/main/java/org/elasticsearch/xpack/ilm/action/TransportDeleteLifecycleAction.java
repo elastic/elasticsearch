@@ -24,11 +24,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Response;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
+import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Response;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,7 +38,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.LIFECYCLE_NAME_SETTING;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_NAME_SETTING;
 
 public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 

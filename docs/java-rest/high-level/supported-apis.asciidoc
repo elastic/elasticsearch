@@ -83,12 +83,12 @@ include::miscellaneous/ping.asciidoc[]
 include::miscellaneous/x-pack-info.asciidoc[]
 include::miscellaneous/x-pack-usage.asciidoc[]
 
-== Indices APIs
+== Index APIs
 
 :upid: {mainid}
 :doc-tests-file: {doc-tests}/IndicesClientDocumentationIT.java
 
-The Java High Level REST Client supports the following Indices APIs:
+The Java High Level REST Client supports the following Index APIs:
 
 Index Management::
 * <<{upid}-analyze>>
@@ -250,6 +250,7 @@ include::licensing/start-basic.asciidoc[]
 include::licensing/get-trial-status.asciidoc[]
 include::licensing/get-basic-status.asciidoc[]
 
+[role="xpack"]
 == Machine Learning APIs
 :upid: {mainid}-x-pack-ml
 :doc-tests-file: {doc-tests}/MlClientDocumentationIT.java
@@ -295,6 +296,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-start-data-frame-analytics>>
 * <<{upid}-stop-data-frame-analytics>>
 * <<{upid}-evaluate-data-frame>>
+* <<{upid}-estimate-memory-usage>>
 * <<{upid}-put-filter>>
 * <<{upid}-get-filters>>
 * <<{upid}-update-filter>>
@@ -346,6 +348,7 @@ include::ml/delete-data-frame-analytics.asciidoc[]
 include::ml/start-data-frame-analytics.asciidoc[]
 include::ml/stop-data-frame-analytics.asciidoc[]
 include::ml/evaluate-data-frame.asciidoc[]
+include::ml/estimate-memory-usage.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/get-filters.asciidoc[]
 include::ml/update-filter.asciidoc[]
@@ -369,6 +372,7 @@ The Java High Level REST Client supports the following Migration APIs:
 
 include::migration/get-deprecation-info.asciidoc[]
 
+[role="xpack"]
 == Rollup APIs
 
 :upid: {mainid}-rollup
@@ -394,6 +398,7 @@ include::rollup/search.asciidoc[]
 include::rollup/get_rollup_caps.asciidoc[]
 include::rollup/get_rollup_index_caps.asciidoc[]
 
+[role="xpack"]
 == Security APIs
 
 :upid: {mainid}-security
@@ -457,6 +462,7 @@ include::security/create-api-key.asciidoc[]
 include::security/get-api-key.asciidoc[]
 include::security/invalidate-api-key.asciidoc[]
 
+[role="xpack"]
 == Watcher APIs
 
 :upid: {mainid}-watcher
@@ -486,6 +492,7 @@ include::watcher/activate-watch.asciidoc[]
 include::watcher/execute-watch.asciidoc[]
 include::watcher/watcher-stats.asciidoc[]
 
+[role="xpack"]
 == Graph APIs
 
 The Java High Level REST Client supports the following Graph APIs:
@@ -506,6 +513,7 @@ don't leak into the rest of the documentation.
 :upid!:
 --
 
+[role="xpack"]
 == CCR APIs
 
 :upid: {mainid}-ccr
@@ -537,6 +545,7 @@ include::ccr/get_stats.asciidoc[]
 include::ccr/get_follow_stats.asciidoc[]
 include::ccr/get_follow_info.asciidoc[]
 
+[role="xpack"]
 == Index Lifecycle Management APIs
 
 :upid: {mainid}-ilm
@@ -566,27 +575,30 @@ include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 
-[[_data_frame_transform_apis]]
-== {dataframe-transform-cap} APIs
+[role="xpack"]
+[[transform_apis]]
+== {transform-cap} APIs
 
-:upid: {mainid}-dataframe
-:doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java
+:upid: {mainid}
+:doc-tests-file: {doc-tests}/TransformDocumentationIT.java
 
-The Java High Level REST Client supports the following {dataframe-transform}
+The Java High Level REST Client supports the following {transform}
 APIs:
 
-* <<{upid}-get-data-frame-transform>>
-* <<{upid}-get-data-frame-transform-stats>>
-* <<{upid}-put-data-frame-transform>>
-* <<{upid}-delete-data-frame-transform>>
-* <<{upid}-preview-data-frame-transform>>
-* <<{upid}-start-data-frame-transform>>
-* <<{upid}-stop-data-frame-transform>>
+* <<{upid}-get-transform>>
+* <<{upid}-get-transform-stats>>
+* <<{upid}-put-transform>>
+* <<{upid}-update-transform>>
+* <<{upid}-delete-transform>>
+* <<{upid}-preview-transform>>
+* <<{upid}-start-transform>>
+* <<{upid}-stop-transform>>
 
-include::dataframe/get_data_frame.asciidoc[]
-include::dataframe/get_data_frame_stats.asciidoc[]
-include::dataframe/put_data_frame.asciidoc[]
-include::dataframe/delete_data_frame.asciidoc[]
-include::dataframe/preview_data_frame.asciidoc[]
-include::dataframe/start_data_frame.asciidoc[]
-include::dataframe/stop_data_frame.asciidoc[]
+include::transform/get_transform.asciidoc[]
+include::transform/get_transform_stats.asciidoc[]
+include::transform/put_transform.asciidoc[]
+include::transform/update_transform.asciidoc[]
+include::transform/delete_transform.asciidoc[]
+include::transform/preview_transform.asciidoc[]
+include::transform/start_transform.asciidoc[]
+include::transform/stop_transform.asciidoc[]

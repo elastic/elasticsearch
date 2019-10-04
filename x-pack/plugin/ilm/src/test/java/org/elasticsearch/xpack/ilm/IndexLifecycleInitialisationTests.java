@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
@@ -27,27 +28,27 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
-import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleExplainResponse;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.Phase;
-import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
-import org.elasticsearch.xpack.core.indexlifecycle.Step;
-import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
-import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
+import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
+import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.LifecycleType;
+import org.elasticsearch.xpack.core.ilm.MockAction;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
+import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.core.ilm.StopILMRequest;
+import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
@@ -67,10 +69,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newLockableLifecyclePolicy;
+import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTestsUtils.newLockableLifecyclePolicy;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.CombinableMatcher.both;
@@ -186,7 +189,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     public void testExplainExecution() throws Exception {
         // start node
         logger.info("Starting server1");
-        final String server_1 = internalCluster().startNode();
+        internalCluster().startNode();
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
@@ -205,15 +208,39 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             .actionGet();
         assertAcked(createIndexResponse);
 
+        // using AtomicLong only to extract a value from a lambda rather than the more traditional atomic update use-case
+        AtomicLong originalLifecycleDate = new AtomicLong();
         {
             PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), mockPhase, 1L, actualModifiedDate);
             assertBusy(() -> {
-                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
-                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
-                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
-                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
                 assertThat(indexResponse.getStep(), equalTo("observable_cluster_state_action"));
                 assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
+                originalLifecycleDate.set(indexResponse.getLifecycleDate());
+            });
+        }
+
+        // set the origination date setting to an older value
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1000L)).get();
+
+        {
+            assertBusy(() -> {
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
+                assertThat("The configured origination date dictates the lifecycle date",
+                    indexResponse.getLifecycleDate(), equalTo(1000L));
+            });
+        }
+
+        // set the origination date setting to null
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null)).get();
+
+        {
+            assertBusy(() -> {
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
+                assertThat("Without the origination date, the index create date should dictate the lifecycle date",
+                    indexResponse.getLifecycleDate(), equalTo(originalLifecycleDate.get()));
             });
         }
 
@@ -224,15 +251,87 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         {
             PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), null, 1L, actualModifiedDate);
             assertBusy(() -> {
-                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
-                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
-                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
-                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
                 assertThat(indexResponse.getPhase(), equalTo(TerminalPolicyStep.COMPLETED_PHASE));
                 assertThat(indexResponse.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
                 assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
             });
         }
+    }
+
+    public void testExplainParseOriginationDate() throws Exception {
+        // start node
+        logger.info("Starting server1");
+        internalCluster().startNode();
+        logger.info("Starting server2");
+        internalCluster().startNode();
+        logger.info("Creating lifecycle [test_lifecycle]");
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
+
+        GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
+            new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
+        assertThat(responseItem.getVersion(), equalTo(1L));
+        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+
+        String indexName = "test-2019.09.14";
+        logger.info("Creating index [{}]", indexName);
+        CreateIndexResponse createIndexResponse =
+            client().admin().indices().create(createIndexRequest(indexName)
+                .settings(Settings.builder().put(settings).put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true))
+            ).actionGet();
+        assertAcked(createIndexResponse);
+
+        DateFormatter dateFormatter = DateFormatter.forPattern("yyyy.MM.dd");
+        long expectedDate = dateFormatter.parseMillis("2019.09.14");
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(expectedDate));
+        });
+
+        // disabling the lifecycle parsing would maintain the parsed value as that was set as the origination date
+        client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false)).get();
+
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(expectedDate));
+        });
+
+        // setting the lifecycle origination date setting to null should make the lifecyle date fallback on the index creation date
+        client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null)).get();
+
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(greaterThan(expectedDate)));
+        });
+
+        // setting the lifecycle origination date to an explicit value overrides the date parsing
+        long originationDate = 42L;
+        client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(
+                Map.of(
+                    LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true,
+                    LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, originationDate)
+            ).get();
+
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(originationDate));
+        });
+    }
+
+    private IndexLifecycleExplainResponse executeExplainRequestAndGetTestIndexResponse(String indexName) throws ExecutionException,
+        InterruptedException {
+        ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
+        ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+        assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
+        return explainResponse.getIndexResponses().get(indexName);
     }
 
     public void testMasterDedicatedDataDedicated() throws Exception {

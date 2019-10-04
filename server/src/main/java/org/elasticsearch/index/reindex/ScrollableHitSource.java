@@ -21,7 +21,10 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -34,6 +37,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -71,23 +75,28 @@ public abstract class ScrollableHitSource {
     }
 
     public final void start() {
-        doStart(response -> {
-           setScroll(response.getScrollId());
-           logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-           onResponse(response);
-        });
+        doStart(createRetryListener(this::doStart));
     }
-    protected abstract void doStart(Consumer<? super Response> onResponse);
 
-    final void startNextScroll(TimeValue extraKeepAlive) {
-        doStartNextScroll(scrollId.get(), extraKeepAlive, response -> {
-            setScroll(response.getScrollId());
-            onResponse(response);
-        });
+    private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
+        Consumer<RejectAwareActionListener<Response>> countingRetryHandler = listener -> {
+            countSearchRetry.run();
+            retryHandler.accept(listener);
+        };
+        return new RetryListener(logger, threadPool, backoffPolicy, countingRetryHandler,
+            ActionListener.wrap(this::onResponse, fail));
     }
-    protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);
+
+    // package private for tests.
+    final void startNextScroll(TimeValue extraKeepAlive) {
+        startNextScroll(extraKeepAlive, createRetryListener(listener -> startNextScroll(extraKeepAlive, listener)));
+    }
+    private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        doStartNextScroll(scrollId.get(), extraKeepAlive, searchListener);
+    }
 
     private void onResponse(Response response) {
+        logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
         setScroll(response.getScrollId());
         onResponse.accept(new AsyncResponse() {
             private AtomicBoolean alreadyDone = new AtomicBoolean();
@@ -112,6 +121,12 @@ public abstract class ScrollableHitSource {
             cleanup(onCompletion);
         }
     }
+
+    // following is the SPI to be implemented.
+    protected abstract void doStart(RejectAwareActionListener<Response> searchListener);
+
+    protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive,
+                                              RejectAwareActionListener<Response> searchListener);
 
     /**
      * Called to clear a scroll id.
@@ -214,10 +229,6 @@ public abstract class ScrollableHitSource {
          */
         String getIndex();
         /**
-         * The type that the hit has.
-         */
-        String getType();
-        /**
          * The document id of the hit.
          */
         String getId();
@@ -257,7 +268,6 @@ public abstract class ScrollableHitSource {
      */
     public static class BasicHit implements Hit {
         private final String index;
-        private final String type;
         private final String id;
         private final long version;
 
@@ -267,9 +277,8 @@ public abstract class ScrollableHitSource {
         private long seqNo;
         private long primaryTerm;
 
-        public BasicHit(String index, String type, String id, long version) {
+        public BasicHit(String index, String id, long version) {
             this.index = index;
-            this.type = type;
             this.id = id;
             this.version = version;
         }
@@ -277,11 +286,6 @@ public abstract class ScrollableHitSource {
         @Override
         public String getIndex() {
             return index;
-        }
-
-        @Override
-        public String getType() {
-            return type;
         }
 
         @Override
@@ -344,6 +348,7 @@ public abstract class ScrollableHitSource {
      */
     public static class SearchFailure implements Writeable, ToXContentObject {
         private final Throwable reason;
+        private final RestStatus status;
         @Nullable
         private final String index;
         @Nullable
@@ -355,12 +360,19 @@ public abstract class ScrollableHitSource {
         public static final String SHARD_FIELD = "shard";
         public static final String NODE_FIELD = "node";
         public static final String REASON_FIELD = "reason";
+        public static final String STATUS_FIELD = BulkItemResponse.Failure.STATUS_FIELD;
 
         public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId) {
+            this(reason, index, shardId, nodeId, ExceptionsHelper.status(reason));
+        }
+
+        public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId,
+                             RestStatus status) {
             this.index = index;
             this.shardId = shardId;
             this.reason = requireNonNull(reason, "reason cannot be null");
             this.nodeId = nodeId;
+            this.status = status;
         }
 
         /**
@@ -378,6 +390,7 @@ public abstract class ScrollableHitSource {
             index = in.readOptionalString();
             shardId = in.readOptionalVInt();
             nodeId = in.readOptionalString();
+            status = ExceptionsHelper.status(reason);
         }
 
         @Override
@@ -394,6 +407,10 @@ public abstract class ScrollableHitSource {
 
         public Integer getShardId() {
             return shardId;
+        }
+
+        public RestStatus getStatus() {
+            return this.status;
         }
 
         public Throwable getReason() {
@@ -417,6 +434,7 @@ public abstract class ScrollableHitSource {
             if (nodeId != null) {
                 builder.field(NODE_FIELD, nodeId);
             }
+            builder.field(STATUS_FIELD, status.getStatus());
             builder.field(REASON_FIELD);
             {
                 builder.startObject();

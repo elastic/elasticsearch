@@ -53,7 +53,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
  * builder.
  */
-public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geo.geometry.Geometry, PolygonBuilder> {
+public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geometry.Geometry, PolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
 
@@ -231,7 +231,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
     }
 
     @Override
-    public org.elasticsearch.geo.geometry.Geometry buildGeometry() {
+    public org.elasticsearch.geometry.Geometry buildGeometry() {
         return toPolygonGeometry();
     }
 
@@ -280,17 +280,18 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
         return factory.createPolygon(shell, holes);
     }
 
-    public org.elasticsearch.geo.geometry.Polygon toPolygonGeometry() {
-        final List<org.elasticsearch.geo.geometry.LinearRing> holes = new ArrayList<>(this.holes.size());
+    public org.elasticsearch.geometry.Polygon toPolygonGeometry() {
+        final List<org.elasticsearch.geometry.LinearRing> holes = new ArrayList<>(this.holes.size());
         for (int i = 0; i < this.holes.size(); ++i) {
             holes.add(linearRing(this.holes.get(i).coordinates));
         }
-        return new org.elasticsearch.geo.geometry.Polygon(linearRing(this.shell.coordinates), holes);
+        return new org.elasticsearch.geometry.Polygon(linearRing(this.shell.coordinates), holes);
     }
 
-    protected static org.elasticsearch.geo.geometry.LinearRing linearRing(List<Coordinate> coordinates) {
-        return new org.elasticsearch.geo.geometry.LinearRing(coordinates.stream().mapToDouble(i -> i.y).toArray(),
-            coordinates.stream().mapToDouble(i -> i.x).toArray());
+    protected static org.elasticsearch.geometry.LinearRing linearRing(List<Coordinate> coordinates) {
+        return new org.elasticsearch.geometry.LinearRing(coordinates.stream().mapToDouble(i -> i.x).toArray(),
+            coordinates.stream().mapToDouble(i -> i.y).toArray()
+        );
     }
 
     protected static LinearRing linearRingS4J(GeometryFactory factory, List<Coordinate> coordinates) {

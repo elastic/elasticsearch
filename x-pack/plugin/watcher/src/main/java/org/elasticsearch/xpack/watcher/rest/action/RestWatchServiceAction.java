@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -23,14 +22,13 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestWatchServiceAction.class));
 
-    public RestWatchServiceAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestWatchServiceAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
             POST, "/_watcher/_start", this,
             POST, "/_xpack/watcher/_start", deprecationLogger);
         controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/_stop", new StopRestHandler(settings),
+            POST, "/_watcher/_stop", new StopRestHandler(),
             POST, "/_xpack/watcher/_stop", deprecationLogger);
     }
 
@@ -47,8 +45,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
     private static class StopRestHandler extends BaseRestHandler {
 
-        StopRestHandler(Settings settings) {
-            super(settings);
+        StopRestHandler() {
         }
 
         @Override

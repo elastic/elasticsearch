@@ -54,6 +54,7 @@ import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
@@ -260,7 +261,9 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardStats.get(0);
             final Map<?, ?> retentionLeasesStats = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
             final List<?> leases = (List<?>) retentionLeasesStats.get("leases");
-            assertThat(leases, empty());
+            for (final Object lease : leases) {
+                assertThat(((Map<?, ?>) lease).get("source"), equalTo(ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+            }
         }
     }
 

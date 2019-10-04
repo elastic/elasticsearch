@@ -29,9 +29,6 @@ dependencies {
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
     testCompile project(xpackModule('ilm'))
 
     // watcher deps
@@ -44,7 +41,7 @@ dependencies {
 
     testCompile 'org.subethamail:subethasmtp:3.1.7'
     // needed for subethasmtp, has @GuardedBy annotation
-    testCompile 'com.google.code.findbugs:jsr305:3.0.1'
+    testCompile 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
@@ -68,6 +65,10 @@ thirdPartyAudit {
       'javax.activation.MailcapCommandMap',
       'javax.activation.MimetypesFileTypeMap'
     )
+}
+
+forbiddenPatterns {
+    exclude '**/*.p12'
 }
 
 test {

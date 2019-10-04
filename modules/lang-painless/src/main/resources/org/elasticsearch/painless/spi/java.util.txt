@@ -1031,6 +1031,7 @@ class java.util.UUID {
   UUID fromString(String)
   long getLeastSignificantBits()
   long getMostSignificantBits()
+  UUID randomUUID()
   UUID nameUUIDFromBytes(byte[])
   long node()
   long timestamp()

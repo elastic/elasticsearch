@@ -149,7 +149,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         "signing requests for use with SSL/TLS in the Elastic stack.";
 
     static final String INSTANCE_EXPLANATION =
-        "    * An instance is any piece of the Elastic Stack that requires a SSL certificate.\n" +
+        "    * An instance is any piece of the Elastic Stack that requires an SSL certificate.\n" +
             "      Depending on your configuration, Elasticsearch, Logstash, Kibana, and Beats\n" +
             "      may all require a certificate and private key.\n" +
             "    * The minimum required value for each instance is a name. This can simply be the\n" +
@@ -417,7 +417,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 if (validationErrors.isEmpty()) {
                     return Collections.singleton(information);
                 } else {
-                    validationErrors.forEach(terminal::println);
+                    validationErrors.forEach(terminal::errorPrintln);
                     return Collections.emptyList();
                 }
             }
@@ -477,7 +477,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 if (Name.isValidFilename(filename)) {
                     return filename;
                 } else {
-                    terminal.println(Terminal.Verbosity.SILENT, "'" + filename + "' is not a valid filename");
+                    terminal.errorPrintln(Terminal.Verbosity.SILENT, "'" + filename + "' is not a valid filename");
                     continue;
                 }
             }
@@ -891,11 +891,12 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             final List<String> errors = certInfo.validate();
             if (errors.size() > 0) {
                 hasError = true;
-                terminal.println(Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName + " has invalid details");
+                terminal.errorPrintln(Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName +
+                    " has invalid details");
                 for (String message : errors) {
-                    terminal.println(Verbosity.SILENT, " * " + message);
+                    terminal.errorPrintln(Verbosity.SILENT, " * " + message);
                 }
-                terminal.println("");
+                terminal.errorPrintln("");
             }
         }
         if (hasError) {
@@ -961,7 +962,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             return;
         }
         if (Files.exists(parent)) {
-            terminal.println(Terminal.Verbosity.SILENT, "Path " + parent + " exists, but is not a directory. Cannot write to " + path);
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "Path " + parent + " exists, but is not a directory. Cannot write to " + path);
             throw new UserException(ExitCodes.CANT_CREATE, "Cannot write to " + path);
         }
         if (terminal.promptYesNo("Directory " + parent + " does not exist. Do you want to create it?", true)) {

@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.VersionType;
@@ -77,7 +78,7 @@ public final class FollowingEngine extends InternalEngine {
              */
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
                 shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
-            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.primaryTerm());
+            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -90,7 +91,7 @@ public final class FollowingEngine extends InternalEngine {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
                 shardId, delete.seqNo(), lookupPrimaryTerm(delete.seqNo()));
-            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), delete.primaryTerm(), false);
+            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false);
         } else {
             return planDeletionAsNonPrimary(delete);
         }
@@ -117,7 +118,12 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
-        assert getMaxSeqNoOfUpdatesOrDeletes() >= seqNo : seqNo + " < " + getMaxSeqNoOfUpdatesOrDeletes();
+        if (Assertions.ENABLED) {
+            final long localCheckpoint = getProcessedLocalCheckpoint();
+            final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
+            assert localCheckpoint < maxSeqNoOfUpdates || maxSeqNoOfUpdates >= seqNo :
+                "maxSeqNoOfUpdates is not advanced local_checkpoint=" + localCheckpoint + " msu=" + maxSeqNoOfUpdates + " seq_no=" + seqNo;
+        }
         super.advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(seqNo); // extra safe in production code
     }
 

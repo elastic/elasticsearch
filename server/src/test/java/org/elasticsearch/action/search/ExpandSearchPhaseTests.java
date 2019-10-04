@@ -22,7 +22,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -51,8 +50,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             final int numInnerHits = randomIntBetween(1, 5);
             List<SearchHits> collapsedHits = new ArrayList<>(numInnerHits);
             for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
-                SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(innerHitNum, "ID", new Text("type"),
-                    Collections.emptyMap()), new SearchHit(innerHitNum + 1, "ID", new Text("type"),
+                SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(innerHitNum, "ID",
+                    Collections.emptyMap()), new SearchHit(innerHitNum + 1, "ID",
                     Collections.emptyMap())}, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1.0F);
                 collapsedHits.add(hits);
             }
@@ -101,7 +100,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID", new Text("type"),
+            SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID",
                 Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))))},
                 new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
@@ -132,8 +131,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
     public void testFailOneItemFailsEntirePhase() throws IOException {
         AtomicBoolean executedMultiSearch = new AtomicBoolean(false);
 
-        SearchHits collapsedHits = new SearchHits(new SearchHit[]{new SearchHit(2, "ID", new Text("type"),
-            Collections.emptyMap()), new SearchHit(3, "ID", new Text("type"),
+        SearchHits collapsedHits = new SearchHits(new SearchHit[]{new SearchHit(2, "ID",
+            Collections.emptyMap()), new SearchHit(3, "ID",
             Collections.emptyMap())}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         String collapseValue = randomBoolean() ? null : "boom";
@@ -155,9 +154,9 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             }
         };
 
-        SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID", new Text("type"),
+        SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID",
             Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue)))),
-            new SearchHit(2, "ID2", new Text("type"),
+            new SearchHit(2, "ID2",
                 Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))))},
             new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
@@ -186,9 +185,9 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             }
         };
 
-        SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID", new Text("type"),
+        SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID",
             Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(null)))),
-            new SearchHit(2, "ID2", new Text("type"),
+            new SearchHit(2, "ID2",
                 Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(null))))},
             new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);

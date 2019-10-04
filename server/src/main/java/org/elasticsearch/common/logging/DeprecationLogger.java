@@ -152,7 +152,7 @@ public class DeprecationLogger {
                     "299 Elasticsearch-%s%s-%s",
                     Version.CURRENT.toString(),
                     Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-                    Build.CURRENT.shortHash());
+                    Build.CURRENT.hash());
 
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
@@ -160,7 +160,9 @@ public class DeprecationLogger {
      */
     public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
-                    "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
+                    "Elasticsearch-" + // warn agent
+                    "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
+                    "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
                     "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
                     // quoted RFC 1123 date format
                     "\"" + // opening quote

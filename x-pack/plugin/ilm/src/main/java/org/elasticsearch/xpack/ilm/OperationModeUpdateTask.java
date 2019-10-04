@@ -10,9 +10,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask.class);
@@ -74,7 +74,8 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         return ClusterState.builder(currentState)
             .metaData(MetaData.builder(currentState.metaData())
                 .putCustom(SnapshotLifecycleMetadata.TYPE,
-                    new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(), newMode)))
+                    new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(),
+                        newMode, currentMetadata.getStats())))
             .build();
     }
 

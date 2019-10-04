@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TimingStatsReporterTests extends ESTestCase {
@@ -61,7 +62,7 @@ public class TimingStatsReporterTests extends ESTestCase {
         InOrder inOrder = inOrder(bulkResultsPersister);
         inOrder.verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0, 10.0));
         inOrder.verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 2, 10.0, 20.0, 15.0, 10.1, 30.0));
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(bulkResultsPersister);
     }
 
     public void testFinishReporting() {
@@ -83,25 +84,23 @@ public class TimingStatsReporterTests extends ESTestCase {
         InOrder inOrder = inOrder(bulkResultsPersister);
         inOrder.verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0, 10.0));
         inOrder.verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0, 30.0));
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(bulkResultsPersister);
     }
 
-    public void testFinishReportingNoChange() {
+    public void testFinishReporting_NoChange() {
         TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
-
         reporter.finishReporting();
 
         verifyZeroInteractions(bulkResultsPersister);
     }
 
-    public void testFinishReportingWithChange() {
+    public void testFinishReporting_WithChange() {
         TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
-
         reporter.reportBucket(createBucket(10));
-
         reporter.finishReporting();
 
         verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0, 10.0));
+        verifyNoMoreInteractions(bulkResultsPersister);
     }
 
     public void testTimingStatsDifferSignificantly() {

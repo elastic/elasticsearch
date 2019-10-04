@@ -7,20 +7,18 @@
 package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 
 import java.io.IOException;
 
 public class RestPutSnapshotLifecycleAction extends BaseRestHandler {
 
-    public RestPutSnapshotLifecycleAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutSnapshotLifecycleAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_slm/policy/{name}", this);
     }
 

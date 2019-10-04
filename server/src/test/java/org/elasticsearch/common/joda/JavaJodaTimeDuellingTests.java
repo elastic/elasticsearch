@@ -19,14 +19,18 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -35,8 +39,60 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
+    public void testCompositeDateMathParsing(){
+        //in all these examples the second pattern will be used
+        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+    }
+
+    public void testExceptionWhenCompositeParsingFailsDateMath(){
+        //both parsing failures should contain pattern and input text in exception
+        //both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
+        String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
+        String text = "2014-06-06T12:01:02.123";
+        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class,
+            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));
+        assertThat(e1.getMessage(), containsString(pattern));
+        assertThat(e1.getMessage(), containsString(text));
+
+        ElasticsearchParseException e2 = expectThrows(ElasticsearchParseException.class,
+            () -> dateMathToMillis(text, Joda.forPattern(pattern)));
+        assertThat(e2.getMessage(), containsString(pattern));
+        assertThat(e2.getMessage(), containsString(text));
+    }
+
+    private long dateMathToMillis(String text, DateFormatter dateFormatter) {
+        DateFormatter javaFormatter = dateFormatter.withLocale(randomLocale(random()));
+        DateMathParser javaDateMath = javaFormatter.toDateMathParser();
+        return javaDateMath.parse(text, () -> 0, true, (ZoneId) null).toEpochMilli();
+    }
+
+    public void testDayOfWeek() {
+        //7 (ok joda) vs 1 (java by default) but 7 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
+        ZonedDateTime now = LocalDateTime.of(2009,11,15,1,32,8,328402)
+                                         .atZone(ZoneOffset.UTC); //Sunday
+        DateFormatter jodaFormatter = Joda.forPattern("e").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
+        DateFormatter javaFormatter = DateFormatter.forPattern("8e").withZone(ZoneOffset.UTC);
+        assertThat(jodaFormatter.format(now), equalTo(javaFormatter.format(now)));
+    }
+
+    public void testStartOfWeek() {
+        //2019-21 (ok joda) vs 2019-22 (java by default) but 2019-21 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
+        ZonedDateTime now = LocalDateTime.of(2019,5,26,1,32,8,328402)
+                                         .atZone(ZoneOffset.UTC);
+        DateFormatter jodaFormatter = Joda.forPattern("xxxx-ww").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
+        DateFormatter javaFormatter = DateFormatter.forPattern("8YYYY-ww").withZone(ZoneOffset.UTC);
+        assertThat(jodaFormatter.format(now), equalTo(javaFormatter.format(now)));
+    }
 
     //these parsers should allow both ',' and '.' as a decimal point
     public void testDecimalPointParsing(){
@@ -826,5 +882,12 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
         assertThat(e.getMessage(), containsString(input));
         assertThat(e.getMessage(), containsString(format));
+    }
+
+    private void assertDateMathEquals(String text, String pattern) {
+        long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern(pattern));
+        long gotMillisJoda = dateMathToMillis(text, Joda.forPattern(pattern));
+
+        assertEquals(gotMillisJoda, gotMillisJava);
     }
 }

@@ -134,4 +134,5 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
                 Collections.singletonMap("foo",
                         Collections.singletonMap("type", "keyword"))), mappingMetaData.sourceAsMap());
     }
+
 }

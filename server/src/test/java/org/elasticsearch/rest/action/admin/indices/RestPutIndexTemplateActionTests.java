@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,7 +41,7 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestPutIndexTemplateAction(Settings.EMPTY, controller());
+        action = new RestPutIndexTemplateAction(controller());
     }
 
     public void testIncludeTypeName() throws IOException {
@@ -68,7 +67,7 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
                 .withPath("/_template/_some_template")
                 .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
                 .build();
-        action.prepareRequest(request, mock(NodeClient.class));        
+        action.prepareRequest(request, mock(NodeClient.class));
         assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

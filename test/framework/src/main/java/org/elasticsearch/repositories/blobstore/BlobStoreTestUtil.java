@@ -58,6 +58,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -169,9 +170,12 @@ public final class BlobStoreTestUtil {
                         continue;
                     }
                     if (snapshotInfo.shardFailures().stream().noneMatch(shardFailure ->
-                        shardFailure.index().equals(index) != false && shardFailure.shardId() == Integer.parseInt(entry.getKey()))) {
-                        assertThat(entry.getValue().listBlobs(),
+                        shardFailure.index().equals(index) && shardFailure.shardId() == Integer.parseInt(entry.getKey()))) {
+                        final Map<String, BlobMetaData> shardPathContents = entry.getValue().listBlobs();
+                        assertThat(shardPathContents,
                             hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())));
+                        assertThat(shardPathContents.keySet().stream()
+                            .filter(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)).count(), lessThanOrEqualTo(2L));
                     }
                 }
             }

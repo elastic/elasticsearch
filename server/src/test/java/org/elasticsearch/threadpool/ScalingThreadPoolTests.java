@@ -54,7 +54,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         if (randomBoolean()) {
             processors = randomIntBetween(1, availableProcessors);
             maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, processors);
-            builder.put("processors", processors);
+            builder.put("node.processors", processors);
         } else {
             maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, availableProcessors);
             processors = availableProcessors;

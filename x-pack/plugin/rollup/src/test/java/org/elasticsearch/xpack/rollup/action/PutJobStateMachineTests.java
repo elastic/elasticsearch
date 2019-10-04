@@ -132,8 +132,8 @@ public class PutJobStateMachineTests extends ESTestCase {
             String mapping = requestCaptor.getValue().mappings().get("_doc");
 
             // Make sure the version is present, and we have our date template (the most important aspects)
-            assertThat(mapping, containsString("\"rollup-version\": \"" + Version.CURRENT.toString() + "\""));
-            assertThat(mapping, containsString("\"path_match\": \"*.date_histogram.timestamp\""));
+            assertThat(mapping, containsString("\"rollup-version\":\"" + Version.CURRENT.toString() + "\""));
+            assertThat(mapping, containsString("\"path_match\":\"*.date_histogram.timestamp\""));
 
             listenerCaptor.getValue().onFailure(new ResourceAlreadyExistsException(job.getConfig().getRollupIndex()));
             latch.countDown();

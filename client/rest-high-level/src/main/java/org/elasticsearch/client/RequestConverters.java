@@ -191,8 +191,6 @@ final class RequestConverters {
                             metadata.field("version_type", "external");
                         } else if (versionType == VersionType.EXTERNAL_GTE) {
                             metadata.field("version_type", "external_gte");
-                        } else if (versionType == VersionType.FORCE) {
-                            metadata.field("version_type", "force");
                         }
                     }
 
@@ -266,7 +264,7 @@ final class RequestConverters {
     }
 
     private static Request getStyleRequest(String method, GetRequest getRequest) {
-        Request request = new Request(method, endpoint(getRequest.index(), getRequest.type(), getRequest.id()));
+        Request request = new Request(method, endpoint(getRequest.index(), getRequest.id()));
 
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
@@ -282,13 +280,7 @@ final class RequestConverters {
     }
 
     static Request sourceExists(GetRequest getRequest) {
-        String optionalType = getRequest.type();
-        String endpoint;
-        if (optionalType.equals(MapperService.SINGLE_MAPPING_NAME)) {
-            endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
-        } else {
-            endpoint = endpoint(getRequest.index(), optionalType, getRequest.id(), "_source");
-        }
+        String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
         Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
@@ -484,6 +476,7 @@ final class RequestConverters {
         if (multiSearchTemplateRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             params.putParam("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
         }
+        request.addParameters(params.asMap());
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
@@ -497,15 +490,19 @@ final class RequestConverters {
         params.withRouting(countRequest.routing());
         params.withPreference(countRequest.preference());
         params.withIndicesOptions(countRequest.indicesOptions());
+        if (countRequest.terminateAfter() != 0){
+            params.withTerminateAfter(countRequest.terminateAfter());
+        }
+        if (countRequest.minScore() != null){
+            params.putParam("min_score", String.valueOf(countRequest.minScore()));
+        }
         request.addParameters(params.asMap());
-        request.setEntity(createEntity(countRequest.source(), REQUEST_BODY_CONTENT_TYPE));
+        request.setEntity(createEntity(countRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request explain(ExplainRequest explainRequest) throws IOException {
-        String endpoint = explainRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
-            ? endpoint(explainRequest.index(), "_explain", explainRequest.id())
-            : endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain");
+        String endpoint = endpoint(explainRequest.index(), "_explain", explainRequest.id());
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         Params params = new Params();
@@ -546,6 +543,10 @@ final class RequestConverters {
         return prepareReindexRequest(reindexRequest, false);
     }
 
+    static Request submitDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
+        return prepareDeleteByQueryRequest(deleteByQueryRequest, false);
+    }
+
     private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -554,13 +555,43 @@ final class RequestConverters {
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
-            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond());
+            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond())
+            .withSlices(reindexRequest.getSlices());
 
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }
         request.addParameters(params.asMap());
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    private static Request prepareDeleteByQueryRequest(DeleteByQueryRequest deleteByQueryRequest,
+                                                       boolean waitForCompletion) throws IOException {
+        String endpoint = endpoint(deleteByQueryRequest.indices(), "_delete_by_query");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params()
+            .withRouting(deleteByQueryRequest.getRouting())
+            .withRefresh(deleteByQueryRequest.isRefresh())
+            .withTimeout(deleteByQueryRequest.getTimeout())
+            .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
+            .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
+            .withIndicesOptions(deleteByQueryRequest.indicesOptions())
+            .withWaitForCompletion(waitForCompletion);
+        if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
+            params.putParam("conflicts", "proceed");
+        }
+        if (deleteByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+            params.putParam("scroll_size", Integer.toString(deleteByQueryRequest.getBatchSize()));
+        }
+        if (deleteByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
+            params.putParam("scroll", deleteByQueryRequest.getScrollTime());
+        }
+        if (deleteByQueryRequest.getMaxDocs() > 0) {
+            params.putParam("max_docs", Integer.toString(deleteByQueryRequest.getMaxDocs()));
+        }
+        request.addParameters(params.asMap());
+        request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -593,30 +624,7 @@ final class RequestConverters {
     }
 
     static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
-        String endpoint = endpoint(deleteByQueryRequest.indices(), "_delete_by_query");
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params()
-            .withRouting(deleteByQueryRequest.getRouting())
-            .withRefresh(deleteByQueryRequest.isRefresh())
-            .withTimeout(deleteByQueryRequest.getTimeout())
-            .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
-            .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
-            .withIndicesOptions(deleteByQueryRequest.indicesOptions());
-        if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
-            params.putParam("conflicts", "proceed");
-        }
-        if (deleteByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
-            params.putParam("scroll_size", Integer.toString(deleteByQueryRequest.getBatchSize()));
-        }
-        if (deleteByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
-            params.putParam("scroll", deleteByQueryRequest.getScrollTime());
-        }
-        if (deleteByQueryRequest.getMaxDocs() > 0) {
-            params.putParam("max_docs", Integer.toString(deleteByQueryRequest.getMaxDocs()));
-        }
-        request.addParameters(params.asMap());
-        request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
+        return prepareDeleteByQueryRequest(deleteByQueryRequest, true);
     }
 
     static Request rethrottleReindex(RethrottleRequest rethrottleRequest) {
@@ -732,6 +740,10 @@ final class RequestConverters {
     @Deprecated
     static String endpoint(String index, String type, String id) {
         return new EndpointBuilder().addPathPart(index, type, id).build();
+    }
+
+    static String endpoint(String index, String id) {
+        return new EndpointBuilder().addPathPart(index, "_doc", id).build();
     }
 
     @Deprecated
@@ -897,11 +909,19 @@ final class RequestConverters {
             return putParam("routing", routing);
         }
 
+        Params withSlices(int slices) {
+            return putParam("slices", String.valueOf(slices));
+        }
+
         Params withStoredFields(String[] storedFields) {
             if (storedFields != null && storedFields.length > 0) {
                 return putParam("stored_fields", String.join(",", storedFields));
             }
             return this;
+        }
+
+        Params withTerminateAfter(int terminateAfter){
+            return putParam("terminate_after", String.valueOf(terminateAfter));
         }
 
         Params withTimeout(TimeValue timeout) {

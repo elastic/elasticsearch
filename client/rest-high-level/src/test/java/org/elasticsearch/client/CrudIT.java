@@ -56,9 +56,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
-import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -293,7 +291,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             }
             GetResponse getResponse = execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync);
             assertEquals("index", getResponse.getIndex());
-            assertEquals("_doc", getResponse.getType());
             assertEquals("id", getResponse.getId());
             assertTrue(getResponse.isExists());
             assertFalse(getResponse.isSourceEmpty());
@@ -304,7 +301,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             GetRequest getRequest = new GetRequest("index", "does_not_exist");
             GetResponse getResponse = execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync);
             assertEquals("index", getResponse.getIndex());
-            assertEquals("_doc", getResponse.getType());
             assertEquals("does_not_exist", getResponse.getId());
             assertFalse(getResponse.isExists());
             assertEquals(-1, getResponse.getVersion());
@@ -316,7 +312,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             getRequest.fetchSourceContext(new FetchSourceContext(false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY));
             GetResponse getResponse = execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync);
             assertEquals("index", getResponse.getIndex());
-            assertEquals("_doc", getResponse.getType());
             assertEquals("id", getResponse.getId());
             assertTrue(getResponse.isExists());
             assertTrue(getResponse.isSourceEmpty());
@@ -332,7 +327,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             }
             GetResponse getResponse = execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync);
             assertEquals("index", getResponse.getIndex());
-            assertEquals("_doc", getResponse.getType());
             assertEquals("id", getResponse.getId());
             assertTrue(getResponse.isExists());
             assertFalse(getResponse.isSourceEmpty());
@@ -353,21 +347,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             highLevelClient()::indexAsync,
             expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
         );
-
-        GetRequest getRequest = new GetRequest("index", "type", "id");
-        GetResponse getResponse = execute(getRequest,
-            highLevelClient()::get,
-            highLevelClient()::getAsync,
-            expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
-
-        assertEquals("index", getResponse.getIndex());
-        assertEquals("type", getResponse.getType());
-        assertEquals("id", getResponse.getId());
-
-        assertTrue(getResponse.isExists());
-        assertFalse(getResponse.isSourceEmpty());
-        assertEquals(1L, getResponse.getVersion());
-        assertEquals(document, getResponse.getSourceAsString());
     }
 
     public void testMultiGet() throws IOException {
@@ -381,7 +360,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertTrue(response.getResponses()[0].isFailed());
             assertNull(response.getResponses()[0].getResponse());
             assertEquals("id1", response.getResponses()[0].getFailure().getId());
-            assertNull(response.getResponses()[0].getFailure().getType());
             assertEquals("index", response.getResponses()[0].getFailure().getIndex());
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[0].getFailure().getFailure().getMessage());
@@ -389,7 +367,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertTrue(response.getResponses()[1].isFailed());
             assertNull(response.getResponses()[1].getResponse());
             assertEquals("id2", response.getResponses()[1].getId());
-            assertNull(response.getResponses()[1].getType());
             assertEquals("index", response.getResponses()[1].getIndex());
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[1].getFailure().getFailure().getMessage());
@@ -413,14 +390,12 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(response.getResponses()[0].isFailed());
             assertNull(response.getResponses()[0].getFailure());
             assertEquals("id1", response.getResponses()[0].getId());
-            assertEquals("_doc", response.getResponses()[0].getType());
             assertEquals("index", response.getResponses()[0].getIndex());
             assertEquals(Collections.singletonMap("field", "value1"), response.getResponses()[0].getResponse().getSource());
 
             assertFalse(response.getResponses()[1].isFailed());
             assertNull(response.getResponses()[1].getFailure());
             assertEquals("id2", response.getResponses()[1].getId());
-            assertEquals("_doc", response.getResponses()[1].getType());
             assertEquals("index", response.getResponses()[1].getIndex());
             assertEquals(Collections.singletonMap("field", "value2"), response.getResponses()[1].getResponse().getSource());
         }
@@ -437,23 +412,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         highLevelClient().bulk(bulk, expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.add("index", "id1");
-        multiGetRequest.add("index", "type", "id2");
-
-        MultiGetResponse response = execute(multiGetRequest,
-            highLevelClient()::mget,
-            highLevelClient()::mgetAsync,
-            expectWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE));
-        assertEquals(2, response.getResponses().length);
-
-        GetResponse firstResponse = response.getResponses()[0].getResponse();
-        assertEquals("index", firstResponse.getIndex());
-        assertEquals("type", firstResponse.getType());
-        assertEquals("id1", firstResponse.getId());
-
-        GetResponse secondResponse = response.getResponses()[1].getResponse();
-        assertEquals("index", secondResponse.getIndex());
-        assertEquals("type", secondResponse.getType());
-        assertEquals("id2", secondResponse.getId());
+        multiGetRequest.add("index", "id2");
     }
 
     public void testIndex() throws IOException {
@@ -972,7 +931,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals(expectedIndex, getResponse.getIndex());
-            assertEquals("_doc", getResponse.getType());
             assertEquals("id#1", getResponse.getId());
         }
 
@@ -990,7 +948,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals("index", getResponse.getIndex());
-            assertEquals("_doc", getResponse.getType());
             assertEquals(docId, getResponse.getId());
         }
 
@@ -1014,7 +971,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals("index", getResponse.getIndex());
-            assertEquals("_doc", getResponse.getType());
             assertEquals("id", getResponse.getId());
             assertEquals(routing, getResponse.getField("_routing").getValue());
         }

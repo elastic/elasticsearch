@@ -36,6 +36,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.script.Script;
@@ -90,8 +90,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     protected final BulkByScrollTask task;
     protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
+    protected final ScriptService scriptService;
+    protected final ReindexSslConfig sslConfig;
 
-    protected final Action mainAction;
     /**
      * The request for this action. Named mainRequest because we create lots of <code>request</code> variables all representing child
      * requests of this mainRequest.
@@ -114,12 +115,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
 
-    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
-                                           boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
-                                           ThreadPool threadPool, Action mainAction, Request mainRequest, 
-                                           ActionListener<BulkByScrollResponse> listener) {
-
+    AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
+                                    boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
+                                    ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
+                                    @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig) {
         this.task = task;
+        this.scriptService = scriptService;
+        this.sslConfig = sslConfig;
         if (!task.isWorker()) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }
@@ -128,7 +130,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.logger = logger;
         this.client = client;
         this.threadPool = threadPool;
-        this.mainAction = mainAction;
         this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
@@ -158,7 +159,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         // The default script applier executes a no-op
         return (request, searchHit) -> request;
     }
-    
+
     /**
      * Build the {@link RequestWrapper} for a single search hit. This shouldn't handle
      * metadata or scripting. That will be handled by copyMetadata and
@@ -193,7 +194,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
              * change the "fields" part of the search request it is unlikely that we got here because we didn't fetch _source.
              * Thus the error message assumes that it wasn't stored.
              */
-            throw new IllegalArgumentException("[" + doc.getIndex() + "][" + doc.getType() + "][" + doc.getId() + "] didn't store _source");
+            throw new IllegalArgumentException("[" + doc.getIndex() + "][" + doc.getId() + "] didn't store _source");
         }
         return true;
     }
@@ -525,10 +526,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
         String getIndex();
 
-        void setType(String type);
-
-        String getType();
-
         void setId(String id);
 
         String getId();
@@ -569,16 +566,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         @Override
         public String getIndex() {
             return request.index();
-        }
-
-        @Override
-        public void setType(String type) {
-            request.type(type);
-        }
-
-        @Override
-        public String getType() {
-            return request.type();
         }
 
         @Override
@@ -658,16 +645,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         @Override
         public String getIndex() {
             return request.index();
-        }
-
-        @Override
-        public void setType(String type) {
-            request.type(type);
-        }
-
-        @Override
-        public String getType() {
-            return request.type();
         }
 
         @Override
@@ -757,7 +734,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
             Map<String, Object> context = new HashMap<>();
             context.put(IndexFieldMapper.NAME, doc.getIndex());
-            context.put(TypeFieldMapper.NAME, doc.getType());
             context.put(IdFieldMapper.NAME, doc.getId());
             Long oldVersion = doc.getVersion();
             context.put(VersionFieldMapper.NAME, oldVersion);
@@ -786,10 +762,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             Object newValue = context.remove(IndexFieldMapper.NAME);
             if (false == doc.getIndex().equals(newValue)) {
                 scriptChangedIndex(request, newValue);
-            }
-            newValue = context.remove(TypeFieldMapper.NAME);
-            if (false == doc.getType().equals(newValue)) {
-                scriptChangedType(request, newValue);
             }
             newValue = context.remove(IdFieldMapper.NAME);
             if (false == doc.getId().equals(newValue)) {
@@ -825,7 +797,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 taskWorker.countNoop();
                 return null;
             case DELETE:
-                RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getType(), request.getId()));
+                RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getId()));
                 delete.setVersion(request.getVersion());
                 delete.setVersionType(VersionType.INTERNAL);
                 delete.setRouting(request.getRouting());
@@ -836,8 +808,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
 
         protected abstract void scriptChangedIndex(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedType(RequestWrapper<?> request, Object to);
 
         protected abstract void scriptChangedId(RequestWrapper<?> request, Object to);
 

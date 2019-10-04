@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage.PolicyStats;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PolicyStats;
 
 import java.io.IOException;
 import java.util.ArrayList;

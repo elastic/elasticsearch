@@ -54,12 +54,6 @@ the sensitive nature of the information.
 Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
 [float]
-[[password-security-settings]]
-==== Default password security settings
-`xpack.security.authc.accept_default_password`::
-In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
-
-[float]
 [[password-hashing-settings]]
 ==== Password hashing settings
 `xpack.security.authc.password_hashing.algorithm`::
@@ -218,7 +212,7 @@ information, see {stack-ov}/setting-up-authentication.html[Setting up authentica
 ===== Settings valid for all realms
 
 `type`::
-The type of the realm: `native, `ldap`, `active_directory`, `pki`, or `file`. Required.
+The type of the realm: `native`, `ldap`, `active_directory`, `pki`, or `file`. Required.
 
 `order`::
 The priority of the realm within the realm chain. Realms with a lower order are
@@ -861,6 +855,17 @@ Defaults to `20m`.
 Specifies the maximum number of user entries that the cache can contain.
 Defaults to `100000`.
 
+`delegation.enabled`::
+Generally, in order for the clients to be authenticated by the PKI realm they
+must connect directly to {es}. That is, they must not pass through proxies
+which terminate the TLS connection. In order to allow for a *trusted* and
+*smart* proxy, such as Kibana, to sit before {es} and terminate TLS
+connections, but still allow clients to be authenticated on {es} by this realm,
+you need to toggle this to `true`. Defaults to `false`. If delegation is
+enabled, then either `truststore.path` or `certificate_authorities` setting
+must be defined. For more details, see <<pki-realm-for-proxied-clients,
+Configuring authentication delegation for PKI realms>>.
+
 [[ref-saml-settings]]
 [float]
 ===== SAML realm settings
@@ -1275,9 +1280,9 @@ The OAuth 2.0 Client Secret that was assigned to {es} during registration
 at the OpenID Connect Provider
 
 `rp.redirect_uri`::
-The Redirect URI within {kib}. Typically this is the
-"api/security/v1/oidc" endpoint of your Kibana server. For example,
-`https://kibana.example.com/api/security/v1/oidc`.
+The Redirect URI within {kib}. If you want to use the authorization code flow, this is the
+"api/security/v1/oidc" endpoint of your {kib} server. If you want to use the implicit flow,  it is the "api/security/v1/oidc/implicit" endpoint.
+For example, `https://kibana.example.com/api/security/v1/oidc`.
 
 `rp.response_type`::
 OAuth 2.0 Response Type value that determines the authorization

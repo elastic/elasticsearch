@@ -139,11 +139,11 @@ Events are logged to a dedicated `<clustername>_audit.json` file in
 To walk through the configuration of {security-features} in {es}, {kib}, {ls}, and {metricbeat}, see
 {stack-ov}/security-getting-started.html[Getting started with security].
 
-include::{es-repo-dir}/security/securing-communications/securing-elasticsearch.asciidoc[]
+include::securing-communications/securing-elasticsearch.asciidoc[]
 
-include::{es-repo-dir}/security/securing-communications/configuring-tls-docker.asciidoc[]
+include::securing-communications/configuring-tls-docker.asciidoc[]
 
-include::{es-repo-dir}/security/securing-communications/enabling-cipher-suites.asciidoc[]
+include::securing-communications/enabling-cipher-suites.asciidoc[]
 
 include::authentication/configuring-active-directory-realm.asciidoc[]
 include::authentication/configuring-file-realm.asciidoc[]
@@ -154,6 +154,6 @@ include::authentication/configuring-saml-realm.asciidoc[]
 
 include::authentication/configuring-kerberos-realm.asciidoc[]
 
-include::{es-repo-dir}/security/reference/files.asciidoc[]
+include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]
 

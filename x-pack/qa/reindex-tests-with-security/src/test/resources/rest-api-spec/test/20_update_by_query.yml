@@ -210,7 +210,6 @@ setup:
   - do:
       get:
         index: source
-        type: _doc
         id: 1
   # These were visible to the user running the update_by_query so they stayed.
   - match: { _source.foo: z }

@@ -3,10 +3,14 @@ Elasticsearch documentation build process.
 
 See: https://github.com/elastic/docs
 
-Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
-CONSOLE" and "COPY AS CURL" in the documentation and are automatically tested
-by the command `gradle :docs:check`. To test just the docs from a single page,
-use e.g. `./gradlew :docs:integTestRunner --tests "*rollover*"`.
+Snippets marked with `[source,console]` are automatically annotated with
+"VIEW IN CONSOLE" and "COPY AS CURL" in the documentation and are automatically
+tested by the command `./gradlew -pdocs check`. To test just the docs from a
+single page, use e.g. `./gradlew -ddocs integTestRunner --tests "*rollover*"`.
+
+NOTE: Previously we use `// CONSOLE` instead of `[source,console]`. This worked
+well for a long time so you'll see it all over early branches but we're phasing
+it out because it requires some unpleasant hackery on the docs build side.
 
 NOTE: If you have an elasticsearch-extra folder alongside your elasticsearch
 folder, you must temporarily rename it when you are testing 6.3 or later branches.
@@ -45,10 +49,21 @@ for its modifiers:
   header. If the response doesn't include a `Warning` header with the exact
   text then the test fails. If the response includes `Warning` headers that
   aren't expected then the test fails.
-* `// TESTRESPONSE`: Matches this snippet against the body of the response of
-  the last test. If the response is JSON then order is ignored. If you add
-  `// TEST[continued]` to the snippet after `// TESTRESPONSE` it will continue
-  in the same test, allowing you to interleave requests with responses to check.
+* `[source,console-result]`: Matches this snippet against the body of the
+  response of the last test. If the response is JSON then order is ignored. If
+  you add `// TEST[continued]` to the snippet after `[source,console-result]`
+  it will continue in the same test, allowing you to interleave requests with
+  responses to check.
+* `// TESTRESPONSE`: Explicitly marks a snippet as a test response even without
+  `[source,console-result]`. Similarly to `// TEST` this is mostly used for
+  its modifiers.
+  * You can't use `[source,console-result]` immediately after `// TESTSETUP`.
+  Instead, consider using `// TEST[continued]` or rearrange your snippets.
+
+  NOTE: Previously we only used `// TESTRESPONSE` instead of
+  `[source,console-result]` so you'll see that a lot in older branches but we
+  prefer `[source,console-result]` now.
+
   * `// TESTRESPONSE[s/foo/bar/]`: Substitutions. See `// TEST[s/foo/bar]` for
   how it works. These are much more common than `// TEST[s/foo/bar]` because
   they are useful for eliding portions of the response that are not pertinent
@@ -62,8 +77,6 @@ for its modifiers:
     "figures out" the path. This is especially useful for making sweeping
     assertions like "I made up all the numbers in this example, don't compare
     them" which looks like `// TESTRESPONSE[s/\d+/$body.$_path/]`.
-  * You can't use `// TESTRESPONSE` immediately after `// TESTSETUP`. Instead,
-  consider using `// TEST[continued]` or rearrange your snippets.
   * `// TESTRESPONSE[non_json]`: Add substitutions for testing responses in a
   format other than JSON. Use this after all other substitutions so it doesn't
   make other substitutions difficult.
@@ -98,7 +111,7 @@ endyaml
 ```
 
 This allows slightly more expressive testing of the snippets. Since that syntax
-is not supported by CONSOLE the usual way to incorporate it is with a
+is not supported by `[source,console]` the usual way to incorporate it is with a
 `// TEST[s//]` marker like this:
 
 ```

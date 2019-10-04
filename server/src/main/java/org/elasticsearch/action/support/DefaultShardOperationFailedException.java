@@ -33,7 +33,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class DefaultShardOperationFailedException extends ShardOperationFailedException implements Writeable {
@@ -63,11 +62,11 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
 
     public DefaultShardOperationFailedException(ElasticsearchException e) {
         super(e.getIndex() == null ? null : e.getIndex().getName(), e.getShardId() == null ? -1 : e.getShardId().getId(),
-            detailedMessage(e), e.status(), e);
+            ExceptionsHelper.stackTrace(e), e.status(), e);
     }
 
     public DefaultShardOperationFailedException(String index, int shardId, Throwable cause) {
-        super(index, shardId, detailedMessage(cause), ExceptionsHelper.status(cause), cause);
+        super(index, shardId, ExceptionsHelper.stackTrace(cause), ExceptionsHelper.status(cause), cause);
     }
 
     public static DefaultShardOperationFailedException readShardOperationFailed(StreamInput in) throws IOException {
@@ -79,6 +78,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         f.shardId = in.readVInt();
         f.cause = in.readException();
         f.status = RestStatus.readFrom(in);
+        f.reason = ExceptionsHelper.stackTrace(f.cause);
     }
 
     @Override

@@ -7,20 +7,19 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
-import org.elasticsearch.client.dataframe.transforms.DestConfig;
-import org.elasticsearch.client.dataframe.transforms.SourceConfig;
-import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
-import org.elasticsearch.client.dataframe.transforms.pivot.GroupConfig;
-import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
-import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.client.core.IndexerState;
+import org.elasticsearch.client.transform.GetTransformStatsResponse;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.transform.transforms.TransformStats;
+import org.elasticsearch.client.transform.transforms.DestConfig;
+import org.elasticsearch.client.transform.transforms.SourceConfig;
+import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
+import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -38,7 +38,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,8 +49,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43662")
 public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
@@ -80,11 +82,18 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      */
     public void testDataFramesRollingUpgrade() throws Exception {
         assumeTrue("Continuous data frames not supported until 7.3", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_3_0));
+        Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
+        adjustLoggingLevels.setJsonEntity(
+            "{\"transient\": {" +
+                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
+                "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"}}");
+        client().performRequest(adjustLoggingLevels);
         Request waitForYellow = new Request("GET", "/_cluster/health");
         waitForYellow.addParameter("wait_for_nodes", "3");
         waitForYellow.addParameter("wait_for_status", "yellow");
         switch (CLUSTER_TYPE) {
             case OLD:
+                client().performRequest(waitForYellow);
                 createAndStartContinuousDataFrame();
                 break;
             case MIXED:
@@ -113,15 +122,15 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private void createAndStartContinuousDataFrame() throws Exception {
         createIndex(CONTINUOUS_DATA_FRAME_SOURCE);
-        long totalDocsWritten = 0;
+        long totalDocsWrittenSum = 0;
         for (TimeValue bucket : BUCKETS) {
             int docs = randomIntBetween(1, 25);
             putData(CONTINUOUS_DATA_FRAME_SOURCE, docs, bucket, ENTITIES);
-            totalDocsWritten += docs * ENTITIES.size();
+            totalDocsWrittenSum += docs * ENTITIES.size();
         }
-
-        DataFrameTransformConfig config = DataFrameTransformConfig.builder()
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(30)))
+        long totalDocsWritten = totalDocsWrittenSum;
+        TransformConfig config = TransformConfig.builder()
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             .setPivotConfig(PivotConfig.builder()
                 .setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("stars").field("stars")))
                 .setGroups(GroupConfig.builder().groupBy("user_id", TermsGroupSource.builder().setField("user_id").build()).build())
@@ -129,31 +138,40 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             .setDest(DestConfig.builder().setIndex(CONTINUOUS_DATA_FRAME_ID + "_idx").build())
             .setSource(SourceConfig.builder().setIndex(CONTINUOUS_DATA_FRAME_SOURCE).build())
             .setId(CONTINUOUS_DATA_FRAME_ID)
+            .setFrequency(TimeValue.timeValueSeconds(1))
             .build();
         putTransform(CONTINUOUS_DATA_FRAME_ID, config);
 
         startTransform(CONTINUOUS_DATA_FRAME_ID);
         waitUntilAfterCheckpoint(CONTINUOUS_DATA_FRAME_ID, 0L);
 
-        DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        assertBusy(() -> {
+            TransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+            assertThat(stateAndStats.getIndexerStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
+            assertThat(stateAndStats.getIndexerStats().getNumDocuments(), equalTo(totalDocsWritten));
+            // Even if we get back to started, we may periodically get set back to `indexing` when triggered.
+            // Though short lived due to no changes on the source indices, it could result in flaky test behavior
+            assertThat(stateAndStats.getState(), oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
+        }, 120, TimeUnit.SECONDS);
 
-        assertThat(stateAndStats.getIndexerStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
-        assertThat(stateAndStats.getIndexerStats().getNumDocuments(), equalTo(totalDocsWritten));
-        assertThat(stateAndStats.getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
+
+        // We want to make sure our latest state is written before we turn the node off, this makes the testing more reliable
+        awaitWrittenIndexerState(CONTINUOUS_DATA_FRAME_ID, IndexerState.STARTED.value());
     }
 
+    @SuppressWarnings("unchecked")
     private void verifyContinuousDataFrameHandlesData(long expectedLastCheckpoint) throws Exception {
 
         // A continuous data frame should automatically become started when it gets assigned to a node
         // if it was assigned to the node that was removed from the cluster
         assertBusy(() -> {
-            DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
-            assertThat(stateAndStats.getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
+            TransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+            assertThat(stateAndStats.getState(), oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
         },
         120,
         TimeUnit.SECONDS);
 
-        DataFrameTransformStats previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        TransformStats previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
         // Add a new user and write data to it
         // This is so we can have more reliable data counts, as writing to existing entities requires
@@ -161,9 +179,9 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         List<String> entities = new ArrayList<>(1);
         entities.add("user_" + ENTITIES.size() + expectedLastCheckpoint);
         int docs = 5;
-        // Index the data very recently in the past so that the transform sync delay can catch up to reading it in our spin
-        // wait later.
-        putData(CONTINUOUS_DATA_FRAME_SOURCE, docs, TimeValue.timeValueSeconds(1), entities);
+        // Index the data
+        // The frequency and delay should see the data once its indexed
+        putData(CONTINUOUS_DATA_FRAME_SOURCE, docs, TimeValue.timeValueSeconds(0), entities);
 
         waitUntilAfterCheckpoint(CONTINUOUS_DATA_FRAME_ID, expectedLastCheckpoint);
 
@@ -172,17 +190,62 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getNumDocuments())),
             120,
             TimeUnit.SECONDS);
-        DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        TransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
-        assertThat(stateAndStats.getTaskState(),
-            equalTo(DataFrameTransformTaskState.STARTED));
-        assertThat(stateAndStats.getIndexerStats().getOutputDocuments(),
-            greaterThan(previousStateAndStats.getIndexerStats().getOutputDocuments()));
-        assertThat(stateAndStats.getIndexerStats().getNumDocuments(),
-            greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getNumDocuments()));
+        assertThat(stateAndStats.getState(),
+            oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
+        awaitWrittenIndexerState(CONTINUOUS_DATA_FRAME_ID, (responseBody) -> {
+            Map<String, Object> indexerStats = (Map<String,Object>)((List<?>)XContentMapValues.extractValue("hits.hits._source.stats",
+                responseBody))
+                .get(0);
+            assertThat((Integer)indexerStats.get("documents_indexed"),
+                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getOutputDocuments()).intValue()));
+            assertThat((Integer)indexerStats.get("documents_processed"),
+                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getNumDocuments()).intValue()));
+        });
     }
 
-    private void putTransform(String id, DataFrameTransformConfig config) throws IOException {
+    private void awaitWrittenIndexerState(String id, Consumer<Map<?, ?>> responseAssertion) throws Exception {
+        Request getStatsDocsRequest = new Request("GET", ".data-frame-internal-*/_search");
+        getStatsDocsRequest.setJsonEntity("{\n" +
+            "  \"query\": {\n" +
+            "    \"bool\": {\n" +
+            "      \"filter\": \n" +
+            "        {\"term\": {\n" +
+            "          \"_id\": \"data_frame_transform_state_and_stats-" + id + "\"\n" +
+            "        }}\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"sort\": [\n" +
+            "    {\n" +
+            "      \"_index\": {\n" +
+            "        \"order\": \"desc\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  ],\n" +
+            "  \"size\": 1\n" +
+            "}");
+        assertBusy(() -> {
+            // Want to make sure we get the latest docs
+            client().performRequest(new Request("POST", ".data-frame-internal-*/_refresh"));
+            Response response = client().performRequest(getStatsDocsRequest);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            Map<String, Object> responseBody = entityAsMap(response);
+            assertEquals(1, XContentMapValues.extractValue("hits.total.value", responseBody));
+            responseAssertion.accept(responseBody);
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    private void awaitWrittenIndexerState(String id, String indexerState) throws Exception {
+        awaitWrittenIndexerState(id, (responseBody) -> {
+            String storedState = ((List<?>)XContentMapValues.extractValue("hits.hits._source.state.indexer_state", responseBody))
+                .get(0)
+                .toString();
+            assertThat(storedState, equalTo(indexerState));
+        });
+    }
+
+    private void putTransform(String id, TransformConfig config) throws IOException {
         final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + id);
         createDataframeTransformRequest.setJsonEntity(Strings.toString(config));
         Response response = client().performRequest(createDataframeTransformRequest);
@@ -207,7 +270,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    private DataFrameTransformStats getTransformStats(String id) throws IOException {
+    private TransformStats getTransformStats(String id) throws IOException {
         final Request getStats = new Request("GET", DATAFRAME_ENDPOINT + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
@@ -215,14 +278,14 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         try (XContentParser parser = xContentType.xContent().createParser(
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
             response.getEntity().getContent())) {
-            GetDataFrameTransformStatsResponse resp = GetDataFrameTransformStatsResponse.fromXContent(parser);
+            GetTransformStatsResponse resp = GetTransformStatsResponse.fromXContent(parser);
             assertThat(resp.getTransformsStats(), hasSize(1));
             return resp.getTransformsStats().get(0);
         }
     }
 
     private void waitUntilAfterCheckpoint(String id, long currentCheckpoint) throws Exception {
-        assertBusy(() -> assertThat(getTransformStats(id).getCheckpointingInfo().getNext().getCheckpoint(), greaterThan(currentCheckpoint)),
+        assertBusy(() -> assertThat(getTransformStats(id).getCheckpointingInfo().getLast().getCheckpoint(), greaterThan(currentCheckpoint)),
             60, TimeUnit.SECONDS);
     }
 
@@ -249,7 +312,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             Request req = new Request("PUT", indexName);
             req.setEntity(entity);
-            client().performRequest(req);
+            assertThat(client().performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
         }
     }
 

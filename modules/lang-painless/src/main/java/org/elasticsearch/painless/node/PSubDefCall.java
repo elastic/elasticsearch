@@ -19,14 +19,18 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Type;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -52,12 +56,17 @@ final class PSubDefCall extends AExpression {
     }
 
     @Override
+    void storeSettings(CompilerSettings settings) {
+        throw createError(new IllegalStateException("illegal tree structure"));
+    }
+
+    @Override
     void extractVariables(Set<String> variables) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         recipe = new StringBuilder();
         int totalCaptures = 0;
 
@@ -65,7 +74,7 @@ final class PSubDefCall extends AExpression {
             AExpression expression = arguments.get(argument);
 
             expression.internal = true;
-            expression.analyze(locals);
+            expression.analyze(functions, locals);
 
             if (expression instanceof ILambda) {
                 ILambda lambda = (ILambda) expression;
@@ -81,15 +90,16 @@ final class PSubDefCall extends AExpression {
             }
 
             expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(locals));
+            arguments.set(argument, expression.cast(functions, locals));
         }
 
-        actual = expected == null || explicit ? def.class : expected;
+        // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
+        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         List<Type> parameterTypes = new ArrayList<>();
 
@@ -105,7 +115,7 @@ final class PSubDefCall extends AExpression {
                 Collections.addAll(parameterTypes, lambda.getCaptures());
             }
 
-            argument.write(writer, globals);
+            argument.write(classWriter, methodWriter, globals);
         }
 
         // create method type from return value and arguments
@@ -114,7 +124,7 @@ final class PSubDefCall extends AExpression {
         List<Object> args = new ArrayList<>();
         args.add(recipe.toString());
         args.addAll(pointers);
-        writer.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
+        methodWriter.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
     }
 
     @Override

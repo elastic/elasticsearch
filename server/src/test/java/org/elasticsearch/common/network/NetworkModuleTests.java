@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -35,9 +33,6 @@ import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +41,6 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -89,37 +83,6 @@ public class NetworkModuleTests extends ESTestCase {
         @Override
         public HttpStats stats() {
             return null;
-        }
-    }
-
-
-    static class FakeRestHandler extends BaseRestHandler {
-        FakeRestHandler() {
-            super(null);
-        }
-        @Override
-        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException { return channel -> {}; }
-        @Override
-        public String getName() {
-            return "FakeRestHandler";
-        }
-    }
-
-    static class FakeCatRestHandler extends AbstractCatAction {
-        FakeCatRestHandler() {
-            super(null);
-        }
-        @Override
-        protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) { return channel -> {}; }
-        @Override
-        protected void documentation(StringBuilder sb) {}
-        @Override
-        protected Table getTableWithHeader(RestRequest request) {
-            return null;
-        }
-        @Override
-        public String getName() {
-            return "FakeCatRestHandler";
         }
     }
 

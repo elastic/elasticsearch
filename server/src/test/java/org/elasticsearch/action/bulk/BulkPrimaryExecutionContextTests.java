@@ -60,7 +60,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
-            context.markOperationAsExecuted(new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1));
+            context.markOperationAsExecuted(new Engine.IndexResult(new ElasticsearchException("bla"), 1));
             context.markAsCompleted(context.getExecutionResult());
         }
 
@@ -122,7 +122,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 case CREATE:
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1);
+                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1);
                     } else {
                         result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }

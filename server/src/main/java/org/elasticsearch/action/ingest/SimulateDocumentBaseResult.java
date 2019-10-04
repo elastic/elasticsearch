@@ -19,6 +19,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -66,12 +67,16 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
     }
 
     public SimulateDocumentBaseResult(IngestDocument ingestDocument) {
-        this.ingestDocument = new WriteableIngestDocument(ingestDocument);
-        failure = null;
+        if (ingestDocument != null) {
+            this.ingestDocument = new WriteableIngestDocument(ingestDocument);
+        } else {
+            this.ingestDocument = null;
+        }
+        this.failure = null;
     }
 
     public SimulateDocumentBaseResult(Exception failure) {
-        ingestDocument = null;
+        this.ingestDocument = null;
         this.failure = failure;
     }
 
@@ -79,23 +84,33 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
      * Read from a stream.
      */
     public SimulateDocumentBaseResult(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            ingestDocument = null;
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             failure = in.readException();
+            ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         } else {
-            ingestDocument = new WriteableIngestDocument(in);
-            failure = null;
+            if (in.readBoolean()) {
+                ingestDocument = null;
+                failure = in.readException();
+            } else {
+                ingestDocument = new WriteableIngestDocument(in);
+                failure = null;
+            }
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (failure == null) {
-            out.writeBoolean(false);
-            ingestDocument.writeTo(out);
-        } else {
-            out.writeBoolean(true);
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeException(failure);
+            out.writeOptionalWriteable(ingestDocument);
+        } else {
+            if (failure == null) {
+                out.writeBoolean(false);
+                ingestDocument.writeTo(out);
+            } else {
+                out.writeBoolean(true);
+                out.writeException(failure);
+            }
         }
     }
 
@@ -112,6 +127,11 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (failure == null && ingestDocument == null) {
+            builder.nullValue();
+            return builder;
+        }
+
         builder.startObject();
         if (failure == null) {
             ingestDocument.toXContent(builder, params);

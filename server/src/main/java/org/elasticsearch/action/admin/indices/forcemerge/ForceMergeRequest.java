@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -115,6 +116,14 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     public ForceMergeRequest flush(boolean flush) {
         this.flush = flush;
         return this;
+    }
+
+    @Override
+    public String getDescription() {
+        return "Force-merge indices " + Arrays.toString(indices()) +
+            ", maxSegments[" + maxNumSegments +
+            "], onlyExpungeDeletes[" + onlyExpungeDeletes +
+            "], flush[" + flush + "]";
     }
 
     @Override

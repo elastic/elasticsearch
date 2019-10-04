@@ -20,6 +20,7 @@ package org.elasticsearch.client.license;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -27,7 +28,7 @@ public class GetTrialStatusResponseTests extends
     AbstractResponseTestCase<org.elasticsearch.license.GetTrialStatusResponse, GetTrialStatusResponse> {
 
     @Override
-    protected org.elasticsearch.license.GetTrialStatusResponse createServerTestInstance() {
+    protected org.elasticsearch.license.GetTrialStatusResponse createServerTestInstance(XContentType xContentType) {
         return new org.elasticsearch.license.GetTrialStatusResponse(randomBoolean());
     }
 

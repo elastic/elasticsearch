@@ -128,7 +128,7 @@ public class TimingStats implements ToXContentObject, Writeable {
         this.maxBucketProcessingTimeMs = in.readOptionalDouble();
         this.avgBucketProcessingTimeMs = in.readOptionalDouble();
         this.exponentialAvgBucketProcessingTimeMs = in.readOptionalDouble();
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {  // TODO: Change to V_7_4_0 after backport
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             this.exponentialAvgCalculationContext = in.readOptionalWriteable(ExponentialAverageCalculationContext::new);
         } else {
             this.exponentialAvgCalculationContext = new ExponentialAverageCalculationContext();
@@ -223,7 +223,7 @@ public class TimingStats implements ToXContentObject, Writeable {
         out.writeOptionalDouble(maxBucketProcessingTimeMs);
         out.writeOptionalDouble(avgBucketProcessingTimeMs);
         out.writeOptionalDouble(exponentialAvgBucketProcessingTimeMs);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {  // TODO: Change to V_7_4_0 after backport
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeOptionalWriteable(exponentialAvgCalculationContext);
         }
     }

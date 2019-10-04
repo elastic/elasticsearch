@@ -28,7 +28,7 @@ previous versions.
 
 ==== Request Parameters
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 ==== Authorization
 
@@ -42,7 +42,7 @@ For more information, see {stack-ov}/security-privileges.html[Security Privilege
 
 The following example creates a new policy named `my_policy`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -66,15 +66,12 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 If the request succeeds, you receive the following result:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// CONSOLE
-// TESTRESPONSE

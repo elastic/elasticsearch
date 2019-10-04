@@ -639,7 +639,7 @@ to grant roles to users authenticating via SAML.
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `saml1` realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/saml-kibana
 {
@@ -650,8 +650,6 @@ PUT /_security/role_mapping/saml-kibana
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 
 The attributes that are mapped via the realm configuration are used to process
@@ -676,7 +674,7 @@ below.
 This mapping grants the {es} `finance_data` role, to any users who authenticate
 via the `saml1` realm with the `finance-team` group.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/saml-finance
 {
@@ -688,8 +686,6 @@ PUT /_security/role_mapping/saml-finance
   ] }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 If your users also exist in a repository that can be directly accessed by {es}
 (such as an LDAP directory) then you can use

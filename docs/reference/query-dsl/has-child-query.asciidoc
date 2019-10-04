@@ -27,7 +27,7 @@ the `has_child` query, use it as rarely as possible.
 To use the `has_child` query, your index must include a <<parent-join,join>>
 field mapping. For example:
 
-[source,js]
+[source,console]
 ----
 PUT /my_index
 {
@@ -44,13 +44,12 @@ PUT /my_index
 }
 
 ----
-// CONSOLE
 // TESTSETUP
 
 [[has-child-query-ex-query]]
 ===== Example query
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -67,25 +66,24 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[has-child-top-level-params]]
 ==== Top-level parameters for `has_child`
 
 `type`::
-(string) Required. Name of the child relationship mapped for the
+(Required, string) Name of the child relationship mapped for the
 <<parent-join,join>> field.
 
 `query`::
-(query object) Required. Query you wish to run on child documents of the `type`
+(Required, query object) Query you wish to run on child documents of the `type`
 field. If a child document matches the search, the query returns the parent
 document.
 
 `ignore_unmapped`::
 +
 --
-(boolean) Optional. Indicates whether to ignore an unmapped `type` and not return
-any documents instead of an error. Defaults to `false`.
+(Optional, boolean) Indicates whether to ignore an unmapped `type` and not
+return any documents instead of an error. Defaults to `false`.
 
 If `false`, {es} returns an error if the `type` is unmapped.
 
@@ -94,20 +92,20 @@ You can use this parameter to query multiple indices that may not contain the
 --
 
 `max_children`::
-(integer) Optional. Maximum number of child documents that match the `query`
+(Optional, integer) Maximum number of child documents that match the `query`
 allowed for a returned parent document. If the parent document exceeds this
 limit, it is excluded from the search results.
 
 `min_children`::
-(integer) Optional. Minimum number of child documents that match the `query`
+(Optional, integer) Minimum number of child documents that match the `query`
 required to match the query for a returned parent document. If the parent
 document does not meet this limit, it is excluded from the search results.
 
 `score_mode`::
 +
 --
-(string) Optional. Indicates how scores for matching child documents affect the
-root parent document's <<query-filter-context,relevance score>>. Valid values
+(Optional, string) Indicates how scores for matching child documents affect the
+root parent document's <<relevance-scores,relevance score>>. Valid values
 are:
 
 `none` (Default)::
@@ -139,7 +137,7 @@ If you need to sort returned documents by a field in their child documents, use
 a `function_score` query and sort by `_score`. For example, the following query
 sorts returned documents by the `click_count` field of their child documents.
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -158,4 +156,3 @@ GET /_search
     }
 }
 ----
-// CONSOLE

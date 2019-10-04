@@ -298,12 +298,8 @@ public abstract class TransportBroadcastAction<
         }
     }
 
-    protected void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
-        transportService.getThreadPool().executor(shardExecutor).execute(new ActionRunnable<ShardResponse>(listener) {
-            @Override
-            protected void doRun() throws Exception {
-                listener.onResponse(shardOperation(request, task));
-            }
-        });
+    private void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
+        transportService.getThreadPool().executor(shardExecutor)
+            .execute(ActionRunnable.wrap(listener, l -> l.onResponse(shardOperation(request, task))));
     }
 }

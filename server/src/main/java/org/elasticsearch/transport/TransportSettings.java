@@ -80,6 +80,21 @@ public final class TransportSettings {
     public static final Setting.AffixSetting<Boolean> TCP_KEEP_ALIVE_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.keep_alive",
             key -> boolSetting(key, TCP_KEEP_ALIVE, Setting.Property.NodeScope));
+    public static final Setting<Integer> TCP_KEEP_IDLE =
+        intSetting("transport.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, -1, Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<Integer> TCP_KEEP_IDLE_PROFILE =
+        affixKeySetting("transport.profiles.", "tcp.keep_idle",
+            key -> intSetting(key, TCP_KEEP_IDLE, -1, Setting.Property.NodeScope));
+    public static final Setting<Integer> TCP_KEEP_INTERVAL =
+        intSetting("transport.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, -1, Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<Integer> TCP_KEEP_INTERVAL_PROFILE =
+        affixKeySetting("transport.profiles.", "tcp.keep_interval",
+            key -> intSetting(key, TCP_KEEP_INTERVAL, -1, Setting.Property.NodeScope));
+    public static final Setting<Integer> TCP_KEEP_COUNT =
+        intSetting("transport.tcp.keep_count", NetworkService.TCP_KEEP_COUNT, -1, Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<Integer> TCP_KEEP_COUNT_PROFILE =
+        affixKeySetting("transport.profiles.", "tcp.keep_count",
+            key -> intSetting(key, TCP_KEEP_COUNT, -1, Setting.Property.NodeScope));
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         boolSetting("transport.tcp.reuse_address", NetworkService.TCP_REUSE_ADDRESS, Setting.Property.NodeScope);
     public static final Setting.AffixSetting<Boolean> TCP_REUSE_ADDRESS_PROFILE =

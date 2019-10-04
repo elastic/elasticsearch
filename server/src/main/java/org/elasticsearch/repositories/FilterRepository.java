@@ -74,16 +74,11 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
-        in.initializeSnapshot(snapshotId, indices, metaData);
-    }
-
-    @Override
-    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                         List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                         Map<String, Object> userMetadata) {
-        return in.finalizeSnapshot(snapshotId, indices, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, userMetadata);
+    public void finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+                                 List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
+                                 MetaData metaData, Map<String, Object> userMetadata, ActionListener<SnapshotInfo> listener) {
+        in.finalizeSnapshot(snapshotId, indices, startTime, failure, totalShards, shardFailures, repositoryStateId,
+            includeGlobalState, metaData, userMetadata, listener);
     }
 
     @Override
@@ -121,13 +116,11 @@ public class FilterRepository implements Repository {
         return in.isReadOnly();
     }
 
-
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
-        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus);
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
+        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, listener);
     }
-
     @Override
     public void restoreShard(Store store, SnapshotId snapshotId,
                              Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {

@@ -8,22 +8,22 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchScope;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.ldap.UserAttributeGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
 public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
 
     public static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -57,18 +57,19 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testResolveCustomGroupAttribute() throws Exception {
         Settings settings = Settings.builder()
-                .put("user_group_attribute", "seeAlso")
-                .build();
+            .put(getFullSettingKey("realm1", UserAttributeGroupsResolverSettings.ATTRIBUTE), "seeAlso")
+            .build();
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(config(REALM_ID, settings));
         List<String> groups =
                 resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
-        assertThat(groups, hasItems(containsString("Avengers")));  //seeAlso only has Avengers
+        assertThat(groups, hasSize(1));
+        assertThat(groups.get(0), containsString("Avengers"));  //seeAlso only has Avengers
     }
 
     public void testResolveInvalidGroupAttribute() throws Exception {
         Settings settings = Settings.builder()
-                .put("user_group_attribute", "doesntExist")
-                .build();
+            .put(getFullSettingKey("realm1", UserAttributeGroupsResolverSettings.ATTRIBUTE), "doesntExist")
+            .build();
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(config(REALM_ID, settings));
         List<String> groups =
                 resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);

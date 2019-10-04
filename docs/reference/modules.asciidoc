@@ -98,5 +98,3 @@ include::modules/threadpool.asciidoc[]
 include::modules/transport.asciidoc[]
 
 include::modules/remote-clusters.asciidoc[]
-
-include::modules/cross-cluster-search.asciidoc[]

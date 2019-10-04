@@ -250,9 +250,9 @@ public final class IOUtils {
     }
 
     // TODO: replace with constants class if needed (cf. org.apache.lucene.util.Constants)
-    private static final boolean WINDOWS = System.getProperty("os.name").startsWith("Windows");
-    private static final boolean LINUX = System.getProperty("os.name").startsWith("Linux");
-    private static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS X");
+    public static final boolean WINDOWS = System.getProperty("os.name").startsWith("Windows");
+    public static final boolean LINUX = System.getProperty("os.name").startsWith("Linux");
+    public static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS X");
 
     /**
      * Ensure that any writes to the given file is written to the storage device that contains it. The {@code isDir} parameter specifies

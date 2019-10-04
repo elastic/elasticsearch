@@ -40,8 +40,8 @@ Elasticsearch enforces a read-only index block
 (`index.blocks.read_only_allow_delete`) on every index that has one or more
 shards allocated on the node that has at least one disk exceeding the flood
 stage. This is a last resort to prevent nodes from running out of disk space.
-The index block must be released manually once there is enough disk space
-available to allow indexing operations to continue.
+The index block is automatically released once the disk utilization falls below
+the high watermark.
 
 NOTE: You can not mix the usage of percentage values and byte values within
 these settings. Either all are set to percentage values, or all are set to byte
@@ -52,14 +52,13 @@ threshold).
 
 An example of resetting the read-only index block on the `twitter` index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
   "index.blocks.read_only_allow_delete": null
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 --
 
@@ -88,7 +87,7 @@ An example of updating the low watermark to at least 100 gigabytes free, a high
 watermark of at least 50 gigabytes free, and a flood stage watermark of 10
 gigabytes free, and updating the information about the cluster every minute:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -100,4 +99,3 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE

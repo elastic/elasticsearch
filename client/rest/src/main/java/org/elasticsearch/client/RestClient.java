@@ -277,60 +277,64 @@ public class RestClient implements Closeable {
      * @param responseListener the {@link ResponseListener} to notify when the
      *      request is completed or fails
      */
-    public void performRequestAsync(Request request, ResponseListener responseListener) {
+    public Cancellable performRequestAsync(Request request, ResponseListener responseListener) {
         try {
             FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
             InternalRequest internalRequest = new InternalRequest(request);
             performRequestAsync(nextNodes(), internalRequest, failureTrackingResponseListener);
+            return internalRequest.cancellable;
         } catch (Exception e) {
             responseListener.onFailure(e);
+            return Cancellable.NO_OP;
         }
     }
 
     private void performRequestAsync(final NodeTuple<Iterator<Node>> nodeTuple,
                                      final InternalRequest request,
                                      final FailureTrackingResponseListener listener) {
-        final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
-        client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
-            @Override
-            public void completed(HttpResponse httpResponse) {
-                try {
-                    ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
-                    if (responseOrResponseException.responseException == null) {
-                        listener.onSuccess(responseOrResponseException.response);
-                    } else {
+        request.cancellable.runIfNotCancelled(() -> {
+            final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+            client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
+                @Override
+                public void completed(HttpResponse httpResponse) {
+                    try {
+                        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+                        if (responseOrResponseException.responseException == null) {
+                            listener.onSuccess(responseOrResponseException.response);
+                        } else {
+                            if (nodeTuple.nodes.hasNext()) {
+                                listener.trackFailure(responseOrResponseException.responseException);
+                                performRequestAsync(nodeTuple, request, listener);
+                            } else {
+                                listener.onDefinitiveFailure(responseOrResponseException.responseException);
+                            }
+                        }
+                    } catch(Exception e) {
+                        listener.onDefinitiveFailure(e);
+                    }
+                }
+
+                @Override
+                public void failed(Exception failure) {
+                    try {
+                        RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
+                        onFailure(context.node);
                         if (nodeTuple.nodes.hasNext()) {
-                            listener.trackFailure(responseOrResponseException.responseException);
+                            listener.trackFailure(failure);
                             performRequestAsync(nodeTuple, request, listener);
                         } else {
-                            listener.onDefinitiveFailure(responseOrResponseException.responseException);
+                            listener.onDefinitiveFailure(failure);
                         }
+                    } catch(Exception e) {
+                        listener.onDefinitiveFailure(e);
                     }
-                } catch(Exception e) {
-                    listener.onDefinitiveFailure(e);
                 }
-            }
 
-            @Override
-            public void failed(Exception failure) {
-                try {
-                    RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
-                    onFailure(context.node);
-                    if (nodeTuple.nodes.hasNext()) {
-                        listener.trackFailure(failure);
-                        performRequestAsync(nodeTuple, request, listener);
-                    } else {
-                        listener.onDefinitiveFailure(failure);
-                    }
-                } catch(Exception e) {
-                    listener.onDefinitiveFailure(e);
+                @Override
+                public void cancelled() {
+                    listener.onDefinitiveFailure(Cancellable.newCancellationException());
                 }
-            }
-
-            @Override
-            public void cancelled() {
-                listener.onDefinitiveFailure(new ExecutionException("request was cancelled", null));
-            }
+            });
         });
     }
 
@@ -651,19 +655,20 @@ public class RestClient implements Closeable {
 
     private class InternalRequest {
         private final Request request;
-        private final Map<String, String> params;
         private final Set<Integer> ignoreErrorCodes;
         private final HttpRequestBase httpRequest;
+        private final Cancellable cancellable;
         private final WarningsHandler warningsHandler;
 
         InternalRequest(Request request) {
             this.request = request;
-            this.params = new HashMap<>(request.getParameters());
+            Map<String, String> params = new HashMap<>(request.getParameters());
             //ignore is a special parameter supported by the clients, shouldn't be sent to es
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
             this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
+            this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
             this.warningsHandler = request.getOptions().getWarningsHandler() == null ?
                 RestClient.this.warningsHandler : request.getOptions().getWarningsHandler();

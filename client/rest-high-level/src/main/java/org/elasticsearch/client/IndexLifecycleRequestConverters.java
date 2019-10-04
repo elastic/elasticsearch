@@ -23,19 +23,21 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
-import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.StartILMRequest;
-import org.elasticsearch.client.indexlifecycle.StopILMRequest;
-import org.elasticsearch.client.snapshotlifecycle.DeleteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.ExplainLifecycleRequest;
+import org.elasticsearch.client.ilm.GetLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.LifecycleManagementStatusRequest;
+import org.elasticsearch.client.ilm.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RetryLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.StartILMRequest;
+import org.elasticsearch.client.ilm.StopILMRequest;
+import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecycleRetentionRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
+import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -203,7 +205,7 @@ final class IndexLifecycleRequestConverters {
     }
 
     static Request executeSnapshotLifecyclePolicy(ExecuteSnapshotLifecyclePolicyRequest executeSnapshotLifecyclePolicyRequest) {
-        Request request = new Request(HttpPut.METHOD_NAME,
+        Request request = new Request(HttpPost.METHOD_NAME,
             new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_slm/policy")
                 .addPathPartAsIs(executeSnapshotLifecyclePolicyRequest.getPolicyId())
@@ -212,6 +214,28 @@ final class IndexLifecycleRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(executeSnapshotLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(executeSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request executeSnapshotLifecycleRetention(ExecuteSnapshotLifecycleRetentionRequest executeSnapshotLifecycleRetentionRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME,
+            new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_slm/_execute_retention")
+                .build());
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(executeSnapshotLifecycleRetentionRequest.masterNodeTimeout());
+        params.withTimeout(executeSnapshotLifecycleRetentionRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getSnapshotLifecycleStats(GetSnapshotLifecycleStatsRequest getSnapshotLifecycleStatsRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_slm/stats").build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(getSnapshotLifecycleStatsRequest.masterNodeTimeout());
+        params.withTimeout(getSnapshotLifecycleStatsRequest.timeout());
         request.addParameters(params.asMap());
         return request;
     }

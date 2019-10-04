@@ -5,7 +5,7 @@ A metric aggregation that executes using scripts to provide a metric output.
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST ledger/_search?size=0
 {
@@ -24,7 +24,6 @@ POST ledger/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:ledger]
 
 <1> `init_script` is an optional parameter, all other scripts are required.
@@ -33,7 +32,7 @@ The above aggregation demonstrates how one would use the script aggregation comp
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "took": 218,
@@ -50,7 +49,7 @@ The response for the above aggregation:
 
 The above example can also be specified using stored scripts as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST ledger/_search?size=0
 {
@@ -77,7 +76,6 @@ POST ledger/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:ledger,stored_scripted_metric_script]
 
 <1> script parameters for `init`, `map` and `combine` scripts must be specified
@@ -86,7 +84,7 @@ in a global `params` object so that it can be shared between the scripts.
 ////
 Verify this response as well but in a hidden block.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "took": 218,
@@ -145,7 +143,7 @@ final combined profit which will be returned in the response of the aggregation.
 
 Imagine a situation where you index the following documents into an index with 2 shards:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /transactions/_bulk?refresh
 {"index":{"_id":1}}
@@ -157,7 +155,6 @@ PUT /transactions/_bulk?refresh
 {"index":{"_id":4}}
 {"type": "sale","amount": 130}
 --------------------------------------------------
-// CONSOLE
 
 Lets say that documents 1 and 3 end up on shard A and documents 2 and 4 end up on shard B. The following is a breakdown of what the aggregation result is
 at each stage of the example above.

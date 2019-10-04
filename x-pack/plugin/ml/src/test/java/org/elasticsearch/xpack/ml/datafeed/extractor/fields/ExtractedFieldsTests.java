@@ -27,12 +27,18 @@ import static org.mockito.Mockito.when;
 public class ExtractedFieldsTests extends ESTestCase {
 
     public void testAllTypesOfFields() {
-        ExtractedField docValue1 = ExtractedField.newField("doc1", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField docValue2 = ExtractedField.newField("doc2", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField scriptField1 = ExtractedField.newField("scripted1", ExtractedField.ExtractionMethod.SCRIPT_FIELD);
-        ExtractedField scriptField2 = ExtractedField.newField("scripted2", ExtractedField.ExtractionMethod.SCRIPT_FIELD);
-        ExtractedField sourceField1 = ExtractedField.newField("src1", ExtractedField.ExtractionMethod.SOURCE);
-        ExtractedField sourceField2 = ExtractedField.newField("src2", ExtractedField.ExtractionMethod.SOURCE);
+        ExtractedField docValue1 = ExtractedField.newField("doc1", Collections.singleton("keyword"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField docValue2 = ExtractedField.newField("doc2", Collections.singleton("ip"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField scriptField1 = ExtractedField.newField("scripted1", Collections.emptySet(),
+            ExtractedField.ExtractionMethod.SCRIPT_FIELD);
+        ExtractedField scriptField2 = ExtractedField.newField("scripted2", Collections.emptySet(),
+            ExtractedField.ExtractionMethod.SCRIPT_FIELD);
+        ExtractedField sourceField1 = ExtractedField.newField("src1", Collections.singleton("text"),
+            ExtractedField.ExtractionMethod.SOURCE);
+        ExtractedField sourceField2 = ExtractedField.newField("src2", Collections.singleton("text"),
+            ExtractedField.ExtractionMethod.SOURCE);
         ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
                 docValue1, docValue2, scriptField1, scriptField2, sourceField1, sourceField2));
 

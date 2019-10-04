@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -22,12 +24,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Response;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -41,6 +43,8 @@ import java.util.stream.Collectors;
  * as adding the desired new policy to be inserted.
  */
 public class TransportPutLifecycleAction extends TransportMasterNodeAction<Request, Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutLifecycleAction.class);
 
     @Inject
     public TransportPutLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,

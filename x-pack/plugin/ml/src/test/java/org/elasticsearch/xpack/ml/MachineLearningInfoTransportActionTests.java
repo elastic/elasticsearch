@@ -34,10 +34,13 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -95,6 +98,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         givenJobs(Collections.emptyList(), Collections.emptyList());
         givenDatafeeds(Collections.emptyList());
+        givenDataFrameAnalytics(Collections.emptyList());
     }
 
     private MachineLearningUsageTransportAction newUsageAction(Settings settings) {
@@ -165,6 +169,11 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                 buildDatafeedStats(DatafeedState.STARTED),
                 buildDatafeedStats(DatafeedState.STOPPED)
         ));
+        givenDataFrameAnalytics(Arrays.asList(
+            buildDataFrameAnalyticsStats(DataFrameAnalyticsState.STOPPED),
+            buildDataFrameAnalyticsStats(DataFrameAnalyticsState.STOPPED),
+            buildDataFrameAnalyticsStats(DataFrameAnalyticsState.STARTED)
+        ));
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -229,6 +238,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("datafeeds._all.count"), equalTo(3));
             assertThat(source.getValue("datafeeds.started.count"), equalTo(2));
             assertThat(source.getValue("datafeeds.stopped.count"), equalTo(1));
+
+            assertThat(source.getValue("data_frame_analytics_jobs._all.count"), equalTo(3));
+            assertThat(source.getValue("data_frame_analytics_jobs.started.count"), equalTo(1));
+            assertThat(source.getValue("data_frame_analytics_jobs.stopped.count"), equalTo(2));
 
             assertThat(source.getValue("jobs._all.forecasts.total"), equalTo(11));
             assertThat(source.getValue("jobs._all.forecasts.forecasted_jobs"), equalTo(2));
@@ -391,6 +404,19 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         }).when(client).execute(same(GetDatafeedsStatsAction.INSTANCE), any(), any());
     }
 
+    private void givenDataFrameAnalytics(List<GetDataFrameAnalyticsStatsAction.Response.Stats> dataFrameAnalyticsStats) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener =
+                (ActionListener<GetDataFrameAnalyticsStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(
+                new QueryPage<>(dataFrameAnalyticsStats,
+                    dataFrameAnalyticsStats.size(),
+                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+            return Void.TYPE;
+        }).when(client).execute(same(GetDataFrameAnalyticsStatsAction.INSTANCE), any(), any());
+    }
+
     private static Detector buildMinDetector(String fieldName) {
         Detector.Builder detectorBuilder = new Detector.Builder();
         detectorBuilder.setFunction("min");
@@ -428,6 +454,12 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     private static GetDatafeedsStatsAction.Response.DatafeedStats buildDatafeedStats(DatafeedState state) {
         GetDatafeedsStatsAction.Response.DatafeedStats stats = mock(GetDatafeedsStatsAction.Response.DatafeedStats.class);
         when(stats.getDatafeedState()).thenReturn(state);
+        return stats;
+    }
+
+    private static GetDataFrameAnalyticsStatsAction.Response.Stats buildDataFrameAnalyticsStats(DataFrameAnalyticsState state) {
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = mock(GetDataFrameAnalyticsStatsAction.Response.Stats.class);
+        when(stats.getState()).thenReturn(state);
         return stats;
     }
 

@@ -169,13 +169,14 @@ public class NoOpEngineTests extends EngineTestCase {
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
 
+        boolean softDeleteEnabled = engine.config().getIndexSettings().isSoftDeleteEnabled();
         final int numDocs = scaledRandomIntBetween(10, 3000);
         for (int i = 0; i < numDocs; i++) {
             engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            tracker.updateLocalCheckpoint(allocationId.getId(), i);
             if (rarely()) {
                 engine.flush();
             }
-            tracker.updateLocalCheckpoint(allocationId.getId(), i);
         }
         engine.flush(true, true);
 
@@ -195,7 +196,7 @@ public class NoOpEngineTests extends EngineTestCase {
         }
 
         assertThat(Translog.readMinTranslogGeneration(translogPath, translogUuid), equalTo(minFileGeneration));
-        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
+        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(softDeleteEnabled ? 0 : numDocs));
         assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
 
         noOpEngine.trimUnreferencedTranslogFiles();

@@ -64,7 +64,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Build current = Build.CURRENT;
         Build build = new Build(
-            current.flavor(), current.type(), current.shortHash(), current.date(), current.isSnapshot(),
+            current.flavor(), current.type(), current.hash(), current.date(), current.isSnapshot(),
             current.getQualifiedVersion()
         );
         Version version = Version.CURRENT;
@@ -79,7 +79,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                     + "\"number\":\"" + build.getQualifiedVersion() + "\","
                     + "\"build_flavor\":\"" + current.flavor().displayName() + "\","
                     + "\"build_type\":\"" + current.type().displayName() + "\","
-                    + "\"build_hash\":\"" + current.shortHash() + "\","
+                    + "\"build_hash\":\"" + current.hash() + "\","
                     + "\"build_date\":\"" + current.date() + "\","
                     + "\"build_snapshot\":" + current.isSnapshot() + ","
                     + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
@@ -106,7 +106,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
             case 2:
                 // toggle the snapshot flag of the original Build parameter
                 build = new Build(
-                    Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, build.shortHash(), build.date(), !build.isSnapshot(),
+                    Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, build.hash(), build.date(), !build.isSnapshot(),
                     build.getQualifiedVersion()
                 );
                 break;

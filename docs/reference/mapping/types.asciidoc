@@ -54,6 +54,8 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 
 <<flattened>>:: Allows an entire JSON object to be indexed as a single field.
 
+<<shape>>:: `shape` for arbitrary cartesian geometries.
+
 [float]
 [[types-array-handling]]
 === Arrays
@@ -122,3 +124,5 @@ include::types/sparse-vector.asciidoc[]
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
+
+include::types/shape.asciidoc[]

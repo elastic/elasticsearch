@@ -256,7 +256,7 @@ final class Bootstrap {
             final Path configPath) {
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
-            builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
+            builder.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile);
         }
         builder.put(initialSettings);
         if (secureSettings != null) {

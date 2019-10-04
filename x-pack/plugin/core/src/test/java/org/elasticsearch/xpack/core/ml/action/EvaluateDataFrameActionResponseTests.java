@@ -11,7 +11,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Response;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
 
 import java.util.List;
 
@@ -25,8 +27,13 @@ public class EvaluateDataFrameActionResponseTests extends AbstractWireSerializin
     @Override
     protected Response createTestInstance() {
         String evaluationName = randomAlphaOfLength(10);
-        List<EvaluationMetricResult> metrics = List.of(new MeanSquaredError.Result(1.0));
-        return new Response(evaluationName, metrics);
+        List<EvaluationMetricResult> metrics =
+            List.of(
+                MulticlassConfusionMatrixResultTests.createRandom(),
+                new MeanSquaredError.Result(randomDouble()),
+                new RSquared.Result(randomDouble()));
+        int numMetrics = randomIntBetween(0, metrics.size());
+        return new Response(evaluationName, metrics.subList(0, numMetrics));
     }
 
     @Override

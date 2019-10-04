@@ -23,6 +23,7 @@ POST _bulk
 ==== {api-request-title}
 
 `POST /_bulk`
+
 `POST /<index>/_bulk`
 
 [[docs-bulk-api-desc]]

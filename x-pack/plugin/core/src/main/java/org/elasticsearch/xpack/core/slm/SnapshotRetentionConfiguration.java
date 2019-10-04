@@ -115,7 +115,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
      * @param allSnapshots a list of all snapshot pertaining to this SLM policy and repository
      */
     public Predicate<SnapshotInfo> getSnapshotDeletionPredicate(final List<SnapshotInfo> allSnapshots) {
-        final int snapCount = allSnapshots.size();
+        final int totalSnapshotCount = allSnapshots.size();
         final List<SnapshotInfo> sortedSnapshots = allSnapshots.stream()
             .sorted(Comparator.comparingLong(SnapshotInfo::startTime))
             .collect(Collectors.toList());
@@ -136,6 +136,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             // First, if there's no expire_after and a more recent successful snapshot, we can delete all the failed ones
             if (this.expireAfter == null && SnapshotState.FAILED.equals(si.state()) && newestSuccessfulTimestamp > si.startTime()) {
                 // There's no expire_after and there's a more recent successful snapshot, delete this failed one
+                logger.trace("[{}]: ELIGIBLE as it is FAILED and there is a more recent successful snapshot", snapName);
                 return true;
             }
 
@@ -152,12 +153,12 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                     if (eligible) {
                         logger.trace("[{}]: ELIGIBLE as it is one of the {} oldest snapshots with " +
                                 "{} total snapshots ({} total), over the limit of {} maximum snapshots",
-                            snapName, snapsToDelete, nonFailedSnapshotCount, snapCount, this.maximumSnapshotCount);
+                            snapName, snapsToDelete, nonFailedSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
                         return true;
                     } else {
                         logger.trace("[{}]: INELIGIBLE as it is not one of the {} oldest snapshots with " +
                                 "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
-                            snapName, snapsToDelete, nonFailedSnapshotCount, snapCount, this.maximumSnapshotCount);
+                            snapName, snapsToDelete, nonFailedSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
                         return false;
                     }
                 }
@@ -169,7 +170,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             if (this.minimumSnapshotCount != null) {
                 if (nonFailedSnapshotCount <= this.minimumSnapshotCount && SnapshotState.FAILED.equals(si.state()) == false) {
                     logger.trace("[{}]: INELIGIBLE as there are {} non-failed snapshots ({} total) and {} minimum snapshots needed",
-                        snapName, nonFailedSnapshotCount, snapCount, this.minimumSnapshotCount);
+                        snapName, nonFailedSnapshotCount, totalSnapshotCount, this.minimumSnapshotCount);
                     return false;
                 }
             }

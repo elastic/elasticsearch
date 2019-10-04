@@ -490,16 +490,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         start();
     }
 
-    @Override
-    public void goToNextVersion() {
+    void goToNextVersion() {
         if (currentDistro + 1 >= distributions.size()) {
             throw new TestClustersException("Ran out of versions to go to for " + this);
         }
         logToProcessStdout("Switch version from " + getVersion() + " to " + distributions.get(currentDistro + 1).getVersion());
-        stop(false);
         currentDistro += 1;
         setting("node.attr.upgraded", "true");
-        start();
     }
 
     private boolean isSettingTrue(String name) {
@@ -717,11 +714,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public List<String> getAllHttpSocketURI() {
+        waitForAllConditions();
         return getHttpPortInternal();
     }
 
     @Override
     public List<String> getAllTransportPortURI() {
+        waitForAllConditions();
         return getTransportPortInternal();
     }
 
@@ -760,6 +759,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             logFileContents("Standard error of node", esStderrFile);
         }
         esProcess = null;
+        // Clean up the ports file in case this is started again.
+        try {
+            if (Files.exists(httpPortsFile)) {
+                Files.delete(httpPortsFile);
+            }
+            if (Files.exists(transportPortFile)) {
+                Files.delete(transportPortFile);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override

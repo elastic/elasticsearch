@@ -3,7 +3,7 @@ include::overview.asciidoc[]
 
 include::built-in-roles.asciidoc[]
 
-include::{xes-repo-dir}/security/authorization/managing-roles.asciidoc[]
+include::managing-roles.asciidoc[]
 
 include::privileges.asciidoc[]
 
@@ -11,14 +11,14 @@ include::document-level-security.asciidoc[]
 
 include::field-level-security.asciidoc[]
 
-include::{xes-repo-dir}/security/authorization/alias-privileges.asciidoc[]
+include::alias-privileges.asciidoc[]
 
-include::{xes-repo-dir}/security/authorization/mapping-roles.asciidoc[]
+include::mapping-roles.asciidoc[]
 
-include::{xes-repo-dir}/security/authorization/field-and-document-access-control.asciidoc[]
+include::field-and-document-access-control.asciidoc[]
 
-include::{xes-repo-dir}/security/authorization/run-as-privilege.asciidoc[]
+include::run-as-privilege.asciidoc[]
 
 include::configuring-authorization-delegation.asciidoc[]
 
-include::{xes-repo-dir}/security/authorization/custom-authorization.asciidoc[]
+include::custom-authorization.asciidoc[]

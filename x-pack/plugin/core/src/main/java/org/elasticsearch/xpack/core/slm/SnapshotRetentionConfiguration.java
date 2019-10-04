@@ -122,11 +122,24 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
         final long nonFailedSnapshotCount = allSnapshots.stream()
             .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
             .count();
+        final long newestSuccessfulTimestamp;
+        if (sortedSnapshots.isEmpty() == false) {
+            newestSuccessfulTimestamp = sortedSnapshots.get(sortedSnapshots.size() - 1).startTime();
+        } else {
+            newestSuccessfulTimestamp = Long.MIN_VALUE;
+        }
+
 
         return si -> {
             final String snapName = si.snapshotId().getName();
 
-            // First, enforce the maximum count, if the size is over the maximum number of
+            // First, if there's no expire_after and a more recent successful snapshot, we can delete all the failed ones
+            if (this.expireAfter == null && SnapshotState.FAILED.equals(si.state()) && newestSuccessfulTimestamp > si.startTime()) {
+                // There's no expire_after and there's a more recent successful snapshot, delete this failed one
+                return true;
+            }
+
+            // Next, enforce the maximum count, if the size is over the maximum number of
             // snapshots, then allow the oldest N (where N is the number over the maximum snapshot
             // count) snapshots to be eligible for deletion
             if (this.maximumSnapshotCount != null) {

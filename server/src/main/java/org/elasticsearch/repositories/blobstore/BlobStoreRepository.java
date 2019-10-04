@@ -1121,15 +1121,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     } finally {
                                         store.decRef();
                                     }
+                                } else if (snapshotStatus.isAborted()) {
+                                    throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                                 } else {
-                                    if (alreadyFailed.get() == false) {
-                                        if (snapshotStatus.isAborted()) {
-                                            throw new IndexShardSnapshotFailedException(shardId, "Aborted");
-                                        } else {
-                                            assert false : "Store was closed before aborting the snapshot";
-                                            throw new IllegalStateException("Store is closed already");
-                                        }
-                                    }
+                                    assert false : "Store was closed before aborting the snapshot";
+                                    throw new IllegalStateException("Store is closed already");
                                 }
                             }
                             filesListener.onResponse(null);

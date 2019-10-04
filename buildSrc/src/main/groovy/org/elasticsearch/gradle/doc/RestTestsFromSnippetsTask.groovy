@@ -31,7 +31,7 @@ import java.nio.file.Path
 /**
  * Generates REST tests for each snippet marked // TEST.
  */
-public class RestTestsFromSnippetsTask extends SnippetsTask {
+class RestTestsFromSnippetsTask extends SnippetsTask {
     /**
      * These languages aren't supported by the syntax highlighter so we
      * shouldn't use them.
@@ -60,7 +60,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
 
     Set<String> names = new HashSet<>()
 
-    public RestTestsFromSnippetsTask() {
+    RestTestsFromSnippetsTask() {
         project.afterEvaluate {
             // Wait to set this so testRoot can be customized
             project.sourceSets.test.output.dir(testRoot, builtBy: this)

@@ -106,6 +106,7 @@ specific index module:
     How long a shard can not receive a search or get request until it's considered
     search idle. (default is `30s`)
 
+[[index-refresh-interval-setting]]
 `index.refresh_interval`::
 
     How often to perform a refresh operation, which makes recent changes to the

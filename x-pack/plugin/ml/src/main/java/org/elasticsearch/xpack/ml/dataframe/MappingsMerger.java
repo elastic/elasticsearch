@@ -55,6 +55,7 @@ public final class MappingsMerger {
             ObjectObjectCursor<String, MappingMetaData> indexMappings = iterator.next();
             MappingMetaData mapping = indexMappings.value;
             if (mapping != null) {
+                type = mapping.type();
                 Map<String, Object> currentMappings = mapping.getSourceAsMap();
                 if (currentMappings.containsKey("properties")) {
 

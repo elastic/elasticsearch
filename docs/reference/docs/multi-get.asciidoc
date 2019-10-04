@@ -72,7 +72,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
-[[multi-get-api-request-body]]
+[[docs-multi-get-api-request-body]]
 ==== {api-request-body-title}
 
 `docs`::

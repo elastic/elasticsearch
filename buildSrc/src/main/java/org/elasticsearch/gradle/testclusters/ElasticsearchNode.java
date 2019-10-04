@@ -120,7 +120,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final List<URI> plugins = new ArrayList<>();
     private final List<File> modules = new ArrayList<>();
-    private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
+    final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
     private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
     private final LazyPropertyMap<String, File> keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);
     private final LazyPropertyMap<String, CharSequence> systemProperties = new LazyPropertyMap<>("System properties", this);
@@ -732,6 +732,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public synchronized void stop(boolean tailLogs) {
+        logToProcessStdout("Stopping node");
+        try {
+            if (Files.exists(httpPortsFile)) {
+                Files.delete(httpPortsFile);
+            }
+            if (Files.exists(transportPortFile)) {
+                Files.delete(transportPortFile);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.
@@ -894,6 +905,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void createWorkingDir(Path distroExtractDir) throws IOException {
         syncWithLinks(distroExtractDir, distroDir);
+        // Start configuration from scratch in case of a restart
+        project.delete(configFile.getParent());
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);

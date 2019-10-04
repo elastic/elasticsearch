@@ -23,17 +23,6 @@ policy that contains a rollover action. When the index rolls over, the alias is
 updated to reflect that the index is no longer the write index. For more
 information about rollover, see <<using-policies-rollover>>.
 
-`index.lifecycle.rollover.skip_rolled`:: (Expert Setting)
-When configured to `false` {ilm} will attempt to rollover the index, in case
-the `rollover` action is configured for a phase, even if it was manually rolled
-over since the last {ilm} cycle.
-Allowing {ilm} to rollover the index will potentially fail due to
-`is_write_index` now being `false` or, if the index was manually rolled under
-a different alias than the `rollover_alias`, due to the rollover target index
-already existing.
-By default {ilm} will detect this situation and skip trying to rollover the
-index again.
-
 `indices.lifecycle.poll_interval`::
 (<<time-units, time units>>) How often {ilm} checks for indices that meet policy
 criteria. Defaults to `10m`.

@@ -59,7 +59,8 @@ has the same semantics as the standard delete API.
 *NOTE*: The final line of data must end with a newline character `\n`. 
 Each newline character may be preceded by a carriage return `\r`. 
 When sending requests to the `_bulk` endpoint,
- the `Content-Type` header should be set to `application/x-ndjson`.
+the `Content-Type` header should be set to `application/x-ndjson`.
+====
 
 Because this format uses literal `\n`'s as delimiters, 
 make sure that the JSON actions and sources are not pretty printed.

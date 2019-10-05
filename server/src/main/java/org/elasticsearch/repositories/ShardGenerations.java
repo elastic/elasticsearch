@@ -115,6 +115,8 @@ public final class ShardGenerations implements ToXContent {
         updates.shardGenerations.forEach(((indexId, updatedGens) -> {
             final List<String> existing = updatedGenerations.put(indexId, updatedGens);
             if (existing != null) {
+                assert existing.size() == updatedGens.size() :
+                    "Existing generations " + existing + " differ in length from updated generations " + updatedGens;
                 for (int i = 0; i < updatedGens.size(); ++i) {
                     if (updatedGens.get(i) == null) {
                         updatedGens.set(i, existing.get(i));
@@ -137,10 +139,10 @@ public final class ShardGenerations implements ToXContent {
         shardGenerations.forEach((indexId, gens) -> {
             final List<String> newGens = updated.get(indexId);
             assert newGens == null || gens.size() == 0
-                || newGens.size() <= gens.size() : "Previous " + gens + ", updated " + newGens;
+                || newGens.size() == gens.size() : "Previous " + gens + ", updated " + newGens;
             if (newGens != null && gens.size() != 0) {
                 for (int i = 0; i < newGens.size(); i++) {
-                    assert (newGens.get(i) == null && gens.get(i) != null) == false;
+                    assert !!(newGens.get(i) != null || gens.get(i) == null);
                 }
             }
         });

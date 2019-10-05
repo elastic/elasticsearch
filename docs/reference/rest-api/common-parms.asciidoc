@@ -486,6 +486,12 @@ tag::query[]
 <<query-dsl,Query DSL>>.
 end::query[]
 
+tag::realtime[]
+`realtime`::
+(Optional, boolean) Set to `false` to disable real time GET
+(default: `true`). See <<realtime>>.
+end::realtime[]
+
 tag::refresh[]
 `refresh`::
 (Optional, enum) If `true`, {es} refreshes the affected shards to make this
@@ -616,6 +622,12 @@ tag::stats[]
 purposes.
 end::stats[]
 
+tag::stored_fields[]
+`stored_fields`::
+(Optional, boolean) If `true`, retrieves the document fields stored in the
+index rather than the document `_source`. Defaults to `false`.
+end::stored_fields[]
+
 tag::target-index[]
 `<target-index>`::
 +
@@ -700,6 +712,6 @@ end::wait_for_active_shards[]
 
 tag::wait_for_completion[]
 `wait_for_completion`::
-(Optional, boolean) Should the request block until the operation is 
-complete. Defaults to `true`.
+(Optional, boolean) If `true`, the request blocks until the operation is complete. 
+Defaults to `true`.
 end::wait_for_completion[]

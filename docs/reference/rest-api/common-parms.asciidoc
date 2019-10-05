@@ -1,4 +1,5 @@
 
+
 tag::actions[]
 `actions`::
 +
@@ -513,7 +514,7 @@ end::query[]
 tag::realtime[]
 `realtime`::
 (Optional, boolean) If `true`, the request is real-time as opposed to near-real-time. 
-Defaults to `true`.
+Defaults to `true`. See <<realtime>>.
 end::realtime[]
 
 tag::refresh[]
@@ -645,6 +646,12 @@ tag::stats[]
 (Optional, string) Specific `tag` of the request for logging and statistical 
 purposes.
 end::stats[]
+
+tag::stored_fields[]
+`stored_fields`::
+(Optional, boolean) If `true`, retrieves the document fields stored in the
+index rather than the document `_source`. Defaults to `false`.
+end::stored_fields[]
 
 tag::target-index[]
 `<target-index>`::

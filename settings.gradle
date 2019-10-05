@@ -32,6 +32,8 @@ List projects = [
   'distribution:docker:oss-docker-build-context',
   'distribution:docker:oss-ubi-docker-build-context',
   'distribution:docker:ubi-docker-build-context',
+  'distribution:docker:oss-docker-export',
+  'distribution:docker:docker-export',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-no-jdk-deb',

@@ -237,7 +237,9 @@ CURRENT_DATE     |SCALAR
 CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
+DATEPART         |SCALAR
 DATETRUNC        |SCALAR
+DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
@@ -2414,6 +2416,80 @@ SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
 ---------------
 19
 // end::dayOfMonth
+;
+
+datePartDateTimeYears
+// tag::datePartDateTimeYears
+SELECT DATE_PART('year', '2019-09-22T11:22:33.123Z'::datetime) AS "years";
+
+   years
+----------
+2019
+// end::datePartDateTimeYears
+;
+
+datePartDateTimeWeek
+// tag::datePartDateTimeWeek
+SELECT DATE_PART('week', '2019-09-22T11:22:33.123Z'::datetime) AS week;
+
+   week
+----------
+39
+// end::datePartDateTimeWeek
+;
+
+datePartDateTimeMinutes
+// tag::datePartDateTimeMinutes
+SELECT DATE_PART('mi', '2019-09-04T11:22:33.123Z'::datetime) AS mins;
+
+   mins
+-----------
+22
+// end::datePartDateTimeMinutes
+;
+
+datePartDateTimeTzOffsetPlus-Ignore
+// The timezone is currently ignored when casting a string to datetime
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/40692
+// tag::datePartDateTimeTzOffsetPlus
+SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123+05:15'::datetime) AS tz_mins;
+
+   tz_mins
+--------------
+315
+// end::datePartDateTimeTzOffsetPlus
+;
+
+datePartDateTimeTzOffsetMinus-Ignore
+// The timezone is currently ignored when casting a string to datetime
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/40692
+// tag::datePartDateTimeTzOffsetMinus
+SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123-03:49'::datetime) AS tz_mins;
+
+   tz_mins
+--------------
+-229
+// end::datePartDateTimeTzOffsetMinus
+;
+
+datePartDateQuarter
+// tag::datePartDateQuarter
+SELECT DATE_PART('quarters', CAST('2019-09-24' AS DATE)) AS quarter;
+
+   quarter
+-------------
+3
+// end::datePartDateQuarter
+;
+
+datePartDateMonth
+// tag::datePartDateMonth
+SELECT DATE_PART('month', CAST('2019-09-24' AS DATE)) AS month;
+
+   month
+-------------
+9
+// end::datePartDateMonth
 ;
 
 truncateDateTimeMillennium

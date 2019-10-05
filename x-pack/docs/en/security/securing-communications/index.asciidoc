@@ -17,5 +17,5 @@ This section shows how to:
 The authentication of new nodes helps prevent a rogue node from joining the
 cluster and receiving data through replication.
 
-include::securing-communications/setting-up-ssl.asciidoc[]
+include::setting-up-ssl.asciidoc[]
 

@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
 
@@ -118,7 +118,7 @@ public abstract class AExpression extends ANode {
      * nodes with the constant variable set to a non-null value with {@link EConstant}.
      * @return The new child node for the parent node calling this method.
      */
-    AExpression cast(FunctionTable functions, Locals locals) {
+    AExpression cast(ScriptRoot scriptRoot, Locals locals) {
         PainlessCast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
@@ -136,7 +136,7 @@ public abstract class AExpression extends ANode {
                 // will already be the same.
 
                 EConstant econstant = new EConstant(location, constant);
-                econstant.analyze(functions, locals);
+                econstant.analyze(scriptRoot, locals);
 
                 if (!expected.equals(econstant.actual)) {
                     throw createError(new IllegalStateException("Illegal tree structure."));
@@ -170,7 +170,7 @@ public abstract class AExpression extends ANode {
                     constant = AnalyzerCaster.constCast(location, constant, cast);
 
                     EConstant econstant = new EConstant(location, constant);
-                    econstant.analyze(functions, locals);
+                    econstant.analyze(scriptRoot, locals);
 
                     if (!expected.equals(econstant.actual)) {
                         throw createError(new IllegalStateException("Illegal tree structure."));
@@ -201,7 +201,7 @@ public abstract class AExpression extends ANode {
                     // the EConstant will already be the same.
 
                     EConstant econstant = new EConstant(location, constant);
-                    econstant.analyze(functions, locals);
+                    econstant.analyze(scriptRoot, locals);
 
                     if (!actual.equals(econstant.actual)) {
                         throw createError(new IllegalStateException("Illegal tree structure."));

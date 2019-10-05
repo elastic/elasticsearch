@@ -22,13 +22,13 @@ Updates certain properties of a {dfeed}.
 
 * If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
 cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 
 [[ml-update-datafeed-desc]]
 ==== {api-description-title}
 
-If you update a {datafeed} property, you must stop and start the {dfeed} for the 
+If you update a {dfeed} property, you must stop and start the {dfeed} for the 
 change to be applied.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers

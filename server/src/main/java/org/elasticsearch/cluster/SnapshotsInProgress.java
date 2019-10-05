@@ -206,7 +206,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (!shards.equals(entry.shards)) return false;
             if (!snapshot.equals(entry.snapshot)) return false;
             if (state != entry.state) return false;
-            if (!waitingIndices.equals(entry.waitingIndices)) return false;
             if (repositoryStateId != entry.repositoryStateId) return false;
 
             return true;
@@ -220,7 +219,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             result = 31 * result + (partial ? 1 : 0);
             result = 31 * result + shards.hashCode();
             result = 31 * result + indices.hashCode();
-            result = 31 * result + waitingIndices.hashCode();
             result = 31 * result + Long.hashCode(startTime);
             result = 31 * result + Long.hashCode(repositoryStateId);
             return result;
@@ -278,10 +276,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Map<String, List<ShardId>> waitingIndicesMap = new HashMap<>();
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> entry : shards) {
                 if (entry.value.state() == ShardState.WAITING) {
-                    List<ShardId> waitingShards =
-                        waitingIndicesMap.computeIfAbsent(entry.key.getIndexName(), k -> new ArrayList<>());
-                    waitingShards.add(entry.key);
-                    waitingShards.sort(ShardId::compareTo);
+                    waitingIndicesMap.computeIfAbsent(entry.key.getIndexName(), k -> new ArrayList<>()).add(entry.key);
                 }
             }
             if (waitingIndicesMap.isEmpty()) {

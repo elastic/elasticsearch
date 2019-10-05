@@ -295,7 +295,9 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 .filter(name -> name.startsWith("discovery.zen."))
                 .collect(Collectors.toList())
                 .forEach(node.defaultConfig::remove);
-            if (nodeNames != null) {
+            if (nodeNames != null &&
+                node.settings.getOrDefault("discovery.type", "anything").equals("single-node") == false
+            ) {
                 node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
             }
             node.defaultConfig.put("discovery.seed_providers", "file");

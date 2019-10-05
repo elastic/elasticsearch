@@ -32,12 +32,13 @@ task singleNodeIntegTest(type: RestIntegTestTask) {
     mustRunAfter(precommit)
 }
 
-singleNodeIntegTestCluster {
-    numNodes = 1
+testClusters.singleNodeIntegTest {
     setting 'discovery.type', 'single-node'
 }
 
-integTestCluster.dependsOn(singleNodeIntegTestRunner, 'singleNodeIntegTestCluster#stop')
+integTest {
+    dependsOn singleNodeIntegTest
+}
 
 check.dependsOn(integTest)
 

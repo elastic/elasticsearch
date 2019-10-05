@@ -47,7 +47,7 @@ public class Histogram extends GroupingFunction {
         if (resolution == TypeResolution.TYPE_RESOLVED) {
             // interval must be Literal interval
             if (field().dataType().isDateBased()) {
-                resolution = isType(interval, d -> d.isInterval(), "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
+                resolution = isType(interval, DataType::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
             } else {
                 resolution = isNumeric(interval, "(Numeric) HISTOGRAM", ParamOrdinal.SECOND);
             }

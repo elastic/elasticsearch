@@ -135,6 +135,13 @@ Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
 
+tag::field_statistics[]
+`field_statistics`::
+(Optional, boolean) If `true`, the response includes the document count, sum of document frequencies, 
+and sum of total term frequencies.
+Defaults to `true`.
+end::field_statistics[]
+
 tag::fielddata-fields[]
 `fielddata_fields`::
 (Optional, string)
@@ -222,7 +229,7 @@ end::cat-h[]
 
 tag::help[]
 `help`::
-(Optional, boolean) If `true`, the response returns help information. Defaults
+(Optional, boolean) If `true`, the response includes help information. Defaults
 to `false`.
 end::help[]
 
@@ -444,6 +451,12 @@ Comma-separated list of node IDs or names
 used to limit returned information.
 end::node-id-query-parm[]
 
+tag::offsets[]
+`<offsets>`::
+(Optional, boolean) If `true`, the response includes term offsets.
+Defaults to `true`.
+end::offsets[]
+
 tag::parent-task-id[]
 `parent_task_id`::
 +
@@ -469,6 +482,18 @@ tag::path-pipeline[]
 used to limit the request.
 end::path-pipeline[]
 
+tag::payloads[]
+`payloads`::
+(Optional, boolean) If `true`, the response includes term payloads.
+Defaults to `true`.
+end::payloads[]
+
+tag::positions[]
+`positions`::
+(Optional, boolean) If `true`, the response includes term positions.
+Defaults to `true`.
+end::positions[]
+
 tag::preference[]
 `preference`::
 (Optional, string) Specifies the node or shard the operation should be 
@@ -488,8 +513,8 @@ end::query[]
 
 tag::realtime[]
 `realtime`::
-(Optional, boolean) Set to `false` to disable real time GET
-(default: `true`). See <<realtime>>.
+(Optional, boolean) If `true`, the request is real-time as opposed to near-real-time. 
+Defaults to `true`. See <<realtime>>.
 end::realtime[]
 
 tag::refresh[]
@@ -502,8 +527,8 @@ end::refresh[]
 
 tag::request_cache[]
 `request_cache`::
-(Optional, boolean) Specifies if the request cache should be used for this
-request. Defaults to the index-level setting.
+(Optional, boolean) If `true`, the request cache is used for this request. 
+Defaults to the index-level setting.
 end::request_cache[]
 
 tag::requests_per_second[]
@@ -645,6 +670,12 @@ tag::task-id[]
 (`node_id:task_number`).
 end::task-id[]
 
+tag::term_statistics[]
+`term_statistics`::
+(Optional, boolean) If `true`, the response includes term frequency and document frequency. 
+Defaults to `false`.
+end::term_statistics[]
+
 tag::terminate_after[]
 `terminate_after`::
 (Optional, integer) The maximum number of documents to collect for each shard, 
@@ -671,8 +702,8 @@ end::timeoutparms[]
 
 tag::cat-v[]
 `v`::
-(Optional, boolean) If `true`, the response includes column headings. Defaults
-to `false`.
+(Optional, boolean) If `true`, the response includes column headings. 
+Defaults to `false`.
 end::cat-v[]
 
 tag::version[]

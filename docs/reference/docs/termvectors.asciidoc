@@ -41,7 +41,7 @@ You can request three types of values: _term information_, _term statistics_
 and _field statistics_. By default, all term information and field
 statistics are returned for all fields but term statistics are excluded.
 
-[float]
+[[docs-termvectors-api-term-info]]
 ===== Term information
 
  * term frequency in the field (always returned)
@@ -61,7 +61,7 @@ should make sure that the string you are taking a sub-string of is also encoded
 using UTF-16.
 ======
 
-[float]
+[[docs-termvectors-api-term-stats]]
 ===== Term statistics
 
 Setting `term_statistics` to `true` (default is `false`) will
@@ -74,7 +74,7 @@ return
 By default these values are not returned since term statistics can
 have a serious performance impact.
 
-[float]
+[[docs-termvectors-api-field-stats]]
 ===== Field statistics
 
 Setting `field_statistics` to `false` (default is `true`) will
@@ -86,7 +86,7 @@ omit :
  * sum of total term frequencies (the sum of total term frequencies of
    each term in this field)
 
-[float]
+[[docs-termvectors-api-terms-filtering]]
 ===== Terms filtering
 
 With the parameter `filter`, the terms returned could also be filtered based
@@ -114,7 +114,7 @@ The following sub-parameters are supported:
 `max_word_length`::
   The maximum word length above which words will be ignored. Defaults to unbounded (`0`).
 
-[float]
+[[docs-termvectors-api-behavior]]
 ==== Behaviour
 
 The term and field statistics are not accurate. Deleted documents
@@ -159,11 +159,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=version]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
 
-
-[float]
 [[docs-termvectors-api-example]]
 ==== {api-examples-title}
 
+[[docs-termvectors-api-stored-termvectors]]
 ===== Returning stored term vectors
 
 First, we create an index that stores term vectors, payloads etc. :
@@ -306,7 +305,7 @@ Response:
 // TEST[continued]
 // TESTRESPONSE[s/"took": 6/"took": "$body.took"/]
 
-[float]
+[[docs-termvectors-api-generate-termvectors]]
 ===== Generating term vectors on the fly
 
 Term vectors which are not explicitly stored in the index are automatically
@@ -328,7 +327,6 @@ GET /twitter/_termvectors/1
 // TEST[continued]
 
 [[docs-termvectors-artificial-doc]]
-[float]
 ===== Artificial documents
 
 Term vectors can also be generated for artificial documents,
@@ -351,7 +349,6 @@ GET /twitter/_termvectors
 // TEST[continued]
 
 [[docs-termvectors-per-field-analyzer]]
-[float]
 ====== Per-field analyzer
 
 Additionally, a different analyzer than the one at the field may be provided
@@ -416,7 +413,6 @@ Response:
 
 
 [[docs-termvectors-terms-filtering]]
-[float]
 ===== Terms filtering
 
 Finally, the terms returned could be filtered based on their tf-idf scores. In

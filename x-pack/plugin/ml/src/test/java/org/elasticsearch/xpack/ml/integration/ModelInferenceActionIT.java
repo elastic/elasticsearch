@@ -110,19 +110,19 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         // Test regression
         InferModelAction.Request request = new InferModelAction.Request(modelId1, 0, toInfer, null);
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse().stream().map(InferenceResults::value).collect(Collectors.toList()),
+        assertThat(response.getInferenceResults().stream().map(InferenceResults::value).collect(Collectors.toList()),
             contains(1.3, 1.25));
 
         request = new InferModelAction.Request(modelId1, 0, toInfer2, null);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse().stream().map(InferenceResults::value).collect(Collectors.toList()),
+        assertThat(response.getInferenceResults().stream().map(InferenceResults::value).collect(Collectors.toList()),
             contains(1.65, 1.55));
 
 
         // Test classification
         request = new InferModelAction.Request(modelId2, 0, toInfer, null);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse().stream().map(InferenceResults::valueAsString).collect(Collectors.toList()),
+        assertThat(response.getInferenceResults().stream().map(InferenceResults::valueAsString).collect(Collectors.toList()),
             contains("not_to_be", "to_be"));
 
         // Get top classes
@@ -131,16 +131,17 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         assertThat(response.getResultsType(), equalTo(ClassificationInferenceResults.RESULT_TYPE));
 
         ClassificationInferenceResults classificationInferenceResults =
-            (ClassificationInferenceResults)response.getInferenceResponse().get(0);
+            (ClassificationInferenceResults)response.getInferenceResults().get(0);
 
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getLabel(), equalTo("not_to_be"));
-        assertThat(classificationInferenceResults.getTopClasses().get(1).getLabel(), equalTo("to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("to_be"));
         assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
-        classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResponse().get(1);
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getLabel(), equalTo("to_be"));
-        assertThat(classificationInferenceResults.getTopClasses().get(1).getLabel(), equalTo("not_to_be"));
+        classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(1);
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("not_to_be"));
+        // they should always be in order of Most probable to least
         assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
@@ -149,9 +150,9 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getResultsType(), equalTo(ClassificationInferenceResults.RESULT_TYPE));
 
-        classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResponse().get(0);
+        classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
         assertThat(classificationInferenceResults.getTopClasses(), hasSize(1));
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getLabel(), equalTo("to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("to_be"));
     }
 
     public void testInferMissingModel() {
@@ -271,7 +272,6 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
-
     }
 
 }

@@ -6,13 +6,12 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
@@ -39,27 +38,23 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         private final String modelId;
         private final long modelVersion;
         private final List<Map<String, Object>> objectsToInfer;
-        private final boolean cacheModel;
-        private final Integer topClasses;
+        private final int topClasses;
 
         public Request(String modelId, long modelVersion) {
             this(modelId, modelVersion, Collections.emptyList(), null);
         }
 
         public Request(String modelId, long modelVersion, List<Map<String, Object>> objectsToInfer, Integer topClasses) {
-            this.modelId = modelId;
+            this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.modelVersion = modelVersion;
-            this.objectsToInfer = objectsToInfer == null ?
-                Collections.emptyList() :
-                Collections.unmodifiableList(objectsToInfer);
-            this.cacheModel = true;
-            this.topClasses = topClasses;
+            this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
+            this.topClasses = topClasses  == null ? 0 : topClasses;
         }
 
         public Request(String modelId, long modelVersion, Map<String, Object> objectToInfer, Integer topClasses) {
             this(modelId,
                 modelVersion,
-                objectToInfer == null ? null : Arrays.asList(objectToInfer),
+                Arrays.asList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
                 topClasses);
         }
 
@@ -68,8 +63,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.modelId = in.readString();
             this.modelVersion = in.readVLong();
             this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
-            this.topClasses = in.readOptionalInt();
-            this.cacheModel = in.readBoolean();
+            this.topClasses = in.readInt();
         }
 
         public String getModelId() {
@@ -84,11 +78,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return objectsToInfer;
         }
 
-        public boolean isCacheModel() {
-            return cacheModel;
-        }
-
-        public Integer getTopClasses() {
+        public int getTopClasses() {
             return topClasses;
         }
 
@@ -103,8 +93,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeString(modelId);
             out.writeVLong(modelVersion);
             out.writeCollection(objectsToInfer, StreamOutput::writeMap);
-            out.writeOptionalInt(topClasses);
-            out.writeBoolean(cacheModel);
+            out.writeInt(topClasses);
         }
 
         @Override
@@ -115,32 +104,25 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return Objects.equals(modelId, that.modelId)
                 && Objects.equals(modelVersion, that.modelVersion)
                 && Objects.equals(topClasses, that.topClasses)
-                && Objects.equals(cacheModel, that.cacheModel)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, modelVersion, objectsToInfer, topClasses, cacheModel);
+            return Objects.hash(modelId, modelVersion, objectsToInfer, topClasses);
         }
 
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-        public RequestBuilder(ElasticsearchClient client, Request request) {
-            super(client, INSTANCE, request);
-        }
     }
 
     public static class Response extends ActionResponse {
 
-        private final List<InferenceResults<?>> inferenceResponse;
+        private final List<InferenceResults<?>> inferenceResults;
         private final String resultsType;
 
         public Response(List<InferenceResults<?>> inferenceResponse, String resultsType) {
             super();
             this.resultsType = ExceptionsHelper.requireNonNull(resultsType, "resultsType");
-            this.inferenceResponse = inferenceResponse == null ?
+            this.inferenceResults = inferenceResponse == null ?
                 Collections.emptyList() :
                 Collections.unmodifiableList(inferenceResponse);
         }
@@ -149,16 +131,16 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             super(in);
             this.resultsType = in.readString();
             if(resultsType.equals(ClassificationInferenceResults.RESULT_TYPE)) {
-                this.inferenceResponse = Collections.unmodifiableList(in.readList(ClassificationInferenceResults::new));
+                this.inferenceResults = Collections.unmodifiableList(in.readList(ClassificationInferenceResults::new));
             } else if (this.resultsType.equals(RegressionInferenceResults.RESULT_TYPE)) {
-                this.inferenceResponse = Collections.unmodifiableList(in.readList(RegressionInferenceResults::new));
+                this.inferenceResults = Collections.unmodifiableList(in.readList(RegressionInferenceResults::new));
             } else {
                 throw new IOException("Unrecognized result type [" + resultsType + "]");
             }
         }
 
-        public List<InferenceResults<?>> getInferenceResponse() {
-            return inferenceResponse;
+        public List<InferenceResults<?>> getInferenceResults() {
+            return inferenceResults;
         }
 
         public String getResultsType() {
@@ -168,7 +150,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(resultsType);
-            out.writeCollection(inferenceResponse);
+            out.writeCollection(inferenceResults);
         }
 
         @Override
@@ -176,12 +158,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             InferModelAction.Response that = (InferModelAction.Response) o;
-            return Objects.equals(resultsType, that.resultsType) && Objects.equals(inferenceResponse, that.inferenceResponse);
+            return Objects.equals(resultsType, that.resultsType) && Objects.equals(inferenceResults, that.inferenceResults);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(resultsType, inferenceResponse);
+            return Objects.hash(resultsType, inferenceResults);
         }
 
     }

@@ -62,7 +62,7 @@ public class LocalModelTests extends ESTestCase {
         model.classificationProbability(fields, 1, future);
         ClassificationInferenceResults classificationResult = (ClassificationInferenceResults)future.get();
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
-        assertThat(classificationResult.getTopClasses().get(0).getLabel(), equalTo("0"));
+        assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("0"));
 
         // Test with labels
         definition = new TrainedModelDefinition.Builder()
@@ -87,7 +87,7 @@ public class LocalModelTests extends ESTestCase {
         result = future.get();
         classificationResult = (ClassificationInferenceResults)result;
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
-        assertThat(classificationResult.getTopClasses().get(0).getLabel(), equalTo("not_to_be"));
+        assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
 
         future = new PlainActionFuture<>();
         model.classificationProbability(fields, 2, future);

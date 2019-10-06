@@ -17,6 +17,7 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final String MODEL_ID = "model_id";
 
     private final Client client;
+
     public InferenceProcessor(Client client, String tag) {
         super(tag);
         this.client = client;

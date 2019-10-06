@@ -30,17 +30,13 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     public ClassificationInferenceResults(double value, String classificationLabel, List<TopClassEntry> topClasses) {
         super(value);
         this.classificationLabel = classificationLabel;
-        this.topClasses = topClasses == null ? null : Collections.unmodifiableList(topClasses);
+        this.topClasses = topClasses == null ? Collections.emptyList() : Collections.unmodifiableList(topClasses);
     }
 
     public ClassificationInferenceResults(StreamInput in) throws IOException {
         super(in);
         this.classificationLabel = in.readOptionalString();
-        if (in.readBoolean()) {
-            this.topClasses = Collections.unmodifiableList(in.readList(TopClassEntry::new));
-        } else {
-            this.topClasses = null;
-        }
+        this.topClasses = Collections.unmodifiableList(in.readList(TopClassEntry::new));
     }
 
     public String getClassificationLabel() {
@@ -55,10 +51,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(classificationLabel);
-        out.writeBoolean(topClasses != null);
-        if (topClasses != null) {
-            out.writeCollection(topClasses);
-        }
+        out.writeCollection(topClasses);
     }
 
     @Override
@@ -66,7 +59,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         if (classificationLabel != null) {
             builder.field(CLASSIFICATION_LABEL.getPreferredName(), classificationLabel);
         }
-        if (topClasses != null) {
+        if (topClasses.isEmpty() == false) {
             builder.field(TOP_CLASSES.getPreferredName(), topClasses);
         }
         return builder;
@@ -99,24 +92,24 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public static class TopClassEntry implements ToXContentObject, Writeable {
 
-        public final ParseField LABEL = new ParseField("label");
+        public final ParseField CLASSIFICATION = new ParseField("classification");
         public final ParseField PROBABILITY = new ParseField("probability");
 
-        private final String label;
+        private final String classification;
         private final double probability;
 
-        public TopClassEntry(String label, Double probability) {
-            this.label = ExceptionsHelper.requireNonNull(label, LABEL);
+        public TopClassEntry(String classification, Double probability) {
+            this.classification = ExceptionsHelper.requireNonNull(classification, CLASSIFICATION);
             this.probability = ExceptionsHelper.requireNonNull(probability, PROBABILITY);
         }
 
         public TopClassEntry(StreamInput in) throws IOException {
-            this.label = in.readString();
+            this.classification = in.readString();
             this.probability = in.readDouble();
         }
 
-        public String getLabel() {
-            return label;
+        public String getClassification() {
+            return classification;
         }
 
         public double getProbability() {
@@ -125,14 +118,14 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(label);
+            out.writeString(classification);
             out.writeDouble(probability);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(LABEL.getPreferredName(), label);
+            builder.field(CLASSIFICATION.getPreferredName(), classification);
             builder.field(PROBABILITY.getPreferredName(), probability);
             builder.endObject();
             return builder;
@@ -143,13 +136,13 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             if (object == this) { return true; }
             if (object == null || getClass() != object.getClass()) { return false; }
             TopClassEntry that = (TopClassEntry) object;
-            return Objects.equals(label, that.label) &&
+            return Objects.equals(classification, that.classification) &&
                 Objects.equals(probability, that.probability);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(label, probability);
+            return Objects.hash(classification, probability);
         }
     }
 }

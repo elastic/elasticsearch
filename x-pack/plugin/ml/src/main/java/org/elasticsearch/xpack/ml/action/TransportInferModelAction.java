@@ -46,7 +46,7 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
                     r -> true,
                     // Always fail immediately and return an error
                     ex -> true);
-                if (request.getTopClasses() != null) {
+                if (request.getTopClasses() != 0) {
                     request.getObjectsToInfer().forEach(stringObjectMap ->
                         typedChainTaskExecutor.add(chainedTask ->
                             model.classificationProbability(stringObjectMap, request.getTopClasses(), chainedTask))

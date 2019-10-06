@@ -740,6 +740,37 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         });
     }
 
+    public void testCheckpointListenerCanInitialCancel() throws Exception {
+        // TODO: Implement
+//        long initialRestartFromValue = randomLongBetween(0, 1000);
+//        ScrollableHitSource.Checkpoint initialCheckpoint = new ScrollableHitSource.Checkpoint(initialRestartFromValue);
+//        AtomicReference<ScrollableHitSource.Checkpoint> resultCheckpoint = new AtomicReference<>();
+//        AtomicReference<BulkByScrollTask.Status> resultStatus = new AtomicReference<>();
+//        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(SeqNoFieldMapper.NAME, initialCheckpoint, (c, s) -> {
+//            assertTrue(resultCheckpoint.compareAndSet(null, c));
+//            assertTrue(resultStatus.compareAndSet(null, s));
+//        }) {
+//            @Override
+//            protected RequestWrapper<?> buildRequest(Hit doc) {
+//                return wrap(new IndexRequest().index("test"));
+//            }
+//        };
+//
+//        ScrollableHitSource.BasicHit hit = new ScrollableHitSource.BasicHit("index", "id", 0);
+//        hit.setSource(new BytesArray("{}"), XContentType.JSON);
+//        hit.setSeqNo(randomLongBetween(initialRestartFromValue, 2000));
+//        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
+//
+//        simulateScrollResponse(action, timeValueNanos(System.nanoTime()), randomIntBetween(1,1000), response, () -> {});
+//
+//        assertBusy(() -> {
+//            assertNotNull(resultCheckpoint.get());
+//            assertEquals(hit.getSeqNo(), resultCheckpoint.get().restartFromValue);
+//            assertNotNull(resultStatus.get());
+//            assertEquals(1, resultStatus.get().getCreated());
+//        });
+    }
+
     /**
      * Simulate a scroll response by setting the scroll id and firing the onScrollResponse method.
      */

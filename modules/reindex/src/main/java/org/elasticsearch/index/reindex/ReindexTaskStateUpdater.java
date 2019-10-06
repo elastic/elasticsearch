@@ -29,7 +29,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
@@ -41,7 +40,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private final ThreadPool threadPool;
     private final String persistentTaskId;
     private final long allocationId;
-    private final Consumer<BulkByScrollTask.Status> committedCallback;
+    private final ActionListener<ReindexTaskStateDoc> finishedListener;
+    private final Runnable onCancel;
     private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
 
     private int assignmentAttempts = 0;
@@ -49,14 +49,13 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private AtomicBoolean isDone = new AtomicBoolean();
 
     public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String persistentTaskId, long allocationId,
-                                   Consumer<BulkByScrollTask.Status> committedCallback) {
+                                   ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCancel) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
         this.persistentTaskId = persistentTaskId;
         this.allocationId = allocationId;
-        // TODO: At some point I think we would like to replace a single universal callback to a listener that
-        //  is passed to the checkpoint method and handles the version conflict
-        this.committedCallback = committedCallback;
+        this.finishedListener = finishedListener;
+        this.onCancel = onCancel;
     }
 
     public void assign(ActionListener<ReindexTaskStateDoc> listener) {
@@ -124,41 +123,42 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     @Override
     public void onCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
         assert checkpointThrottler != null;
+
         checkpointThrottler.accept(Tuple.tuple(checkpoint, status));
     }
 
     private void updateCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status, Runnable whenDone) {
         ReindexTaskStateDoc nextState = lastState.getStateDoc().withCheckpoint(checkpoint, status);
-        // TODO: This can fail due to conditional update. Need to hook into ability to cancel reindex process
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
         reindexIndexClient.updateReindexTaskDoc(persistentTaskId, nextState, term, seqNo, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {
                 lastState = taskState;
-                committedCallback.accept(status);
                 whenDone.run();
             }
 
             @Override
             public void onFailure(Exception e) {
+                if (e instanceof VersionConflictEngineException) {
+                    // TODO: Need to ensure that the allocation has changed
+                    if (isDone.compareAndSet(false, true)) {
+                        onCancel.run();
+                    }
+                }
                 whenDone.run();
             }
         });
     }
 
-    public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                       ActionListener<ReindexTaskStateDoc> listener) {
+    public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
         assert checkpointThrottler != null;
-        if (isDone.compareAndSet(false, true) == false) {
-            listener.onFailure(new ElasticsearchException("Reindex task already finished locally"));
-        } else {
-            checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception, listener));
+        if (isDone.compareAndSet(false, true)) {
+            checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception));
         }
     }
 
-    private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                                    ActionListener<ReindexTaskStateDoc> listener) {
+    private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
         ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(reindexResponse, exception);
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
@@ -166,14 +166,15 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
             @Override
             public void onResponse(ReindexTaskState taskState) {
                 lastState = null;
-                listener.onResponse(taskState.getStateDoc());
+                finishedListener.onResponse(taskState.getStateDoc());
 
             }
 
             @Override
             public void onFailure(Exception e) {
                 lastState = null;
-                listener.onFailure(e);
+                // TODO: Maybe retry finished write?
+                finishedListener.onFailure(e);
             }
         });
     }

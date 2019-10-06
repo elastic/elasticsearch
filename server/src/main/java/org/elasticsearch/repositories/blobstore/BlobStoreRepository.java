@@ -388,12 +388,39 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         ActionListener<Void> listener) throws IOException {
         final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
         writeIndexGen(updatedRepositoryData, repositoryStateId);
+        final ActionListener<Void> afterCleanupsListener =
+            new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(afterCleanupsListener,
+            l -> cleanupStaleBlobs(foundIndices, rootBlobs, updatedRepositoryData, ActionListener.map(l, ignored -> null))));
         deleteIndices(
             updatedRepositoryData,
             repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotId),
             snapshotId,
-            ActionListener.delegateFailure(listener,
-                (l, v) -> cleanupStaleBlobs(foundIndices, rootBlobs, updatedRepositoryData, ActionListener.map(l, ignored -> null))));
+            ActionListener.runAfter(
+                ActionListener.wrap(
+                    deleteResults -> {
+                        // Now that all metadata (RepositoryData at the repo root as well as index-N blobs in all shard paths)
+                        // has been updated we can execute the delete operations for all blobs that have become unreferenced as a result
+                        final String basePath = basePath().buildAsString();
+                        final int basePathLen = basePath.length();
+                        blobContainer().deleteBlobsIgnoringIfNotExists(
+                            Stream.concat(
+                                deleteResults.stream().flatMap(shardResult -> {
+                                    final String shardPath =
+                                        shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
+                                    return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
+                                }),
+                                deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().map(indexId ->
+                                    indexContainer(indexId).path().buildAsString() + globalMetaDataFormat.blobName(snapshotId.getUUID())))
+                                .map(absolutePath -> {
+                                    assert absolutePath.startsWith(basePath);
+                                    return absolutePath.substring(basePathLen);
+                                }).collect(Collectors.toList()));
+                    },
+                    e -> logger.warn(
+                        () -> new ParameterizedMessage("[{}] Failed to delete some blobs during snapshot delete", snapshotId), e)),
+                () -> afterCleanupsListener.onResponse(null))
+        );
     }
 
     /**
@@ -552,18 +579,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param listener       Listener to invoke when finished
      */
     private void deleteIndices(RepositoryData repositoryData, List<IndexId> indices, SnapshotId snapshotId,
-                               ActionListener<Void> listener) {
+                               ActionListener<Collection<ShardSnapshotMetaDeleteResult>> listener) {
+
         if (indices.isEmpty()) {
-            listener.onResponse(null);
+            listener.onResponse(Collections.emptyList());
             return;
         }
-        // listener to complete once all shards folders affected by this delete have been added new metadata blobs without this snapshot
-        final StepListener<Collection<ShardSnapshotMetaDeleteResult>> deleteFromMetaListener = new StepListener<>();
 
         // Listener that flattens out the delete results for each index
         final ActionListener<Collection<ShardSnapshotMetaDeleteResult>> deleteIndexMetaDataListener = new GroupedActionListener<>(
-            ActionListener.map(deleteFromMetaListener,
-                results -> results.stream().flatMap(Collection::stream).collect(Collectors.toList())), indices.size());
+            ActionListener.map(listener, res -> res.stream().flatMap(Collection::stream).collect(Collectors.toList())), indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         for (IndexId indexId : indices) {
             executor.execute(ActionRunnable.wrap(deleteIndexMetaDataListener,
@@ -606,28 +631,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }));
         }
-
-        // Delete all the now unreferenced blobs in the shard paths
-        deleteFromMetaListener.whenComplete(deleteResults -> {
-            final String basePath = basePath().buildAsString();
-            final int basePathLen = basePath.length();
-            blobContainer().deleteBlobsIgnoringIfNotExists(
-                Stream.concat(
-                    deleteResults.stream().flatMap(shardResult -> {
-                        final String shardPath = shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
-                        return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
-                    }),
-                    deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().map(
-                        indexId -> indexContainer(indexId).path().buildAsString() + globalMetaDataFormat.blobName(snapshotId.getUUID())))
-                    .map(absolutePath -> {
-                        assert absolutePath.startsWith(basePath);
-                        return absolutePath.substring(basePathLen);
-                    }).collect(Collectors.toList()));
-            listener.onResponse(null);
-        }, e -> {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to delete some blobs during snapshot delete", snapshotId), e);
-            listener.onResponse(null);
-        });
     }
 
     @Override

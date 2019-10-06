@@ -411,12 +411,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
                                 }),
                                 deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().map(indexId ->
-                                    indexContainer(indexId).path().buildAsString() + globalMetaDataFormat.blobName(snapshotId.getUUID())))
-                                .map(absolutePath -> {
-                                    assert absolutePath.startsWith(basePath);
-                                    return absolutePath.substring(basePathLen);
-                                }).collect(Collectors.toList()));
+                                    indexContainer(indexId).path().buildAsString() + globalMetaDataFormat.blobName(snapshotId.getUUID()))
+                            ).map(absolutePath -> {
+                                assert absolutePath.startsWith(basePath);
+                                return absolutePath.substring(basePathLen);
+                            }).collect(Collectors.toList()));
                     },
+                    // Any exceptions after we have updated the root level RepositoryData are only logged but won't fail the delete request
                     e -> logger.warn(
                         () -> new ParameterizedMessage("[{}] Failed to delete some blobs during snapshot delete", snapshotId), e)),
                 () -> afterCleanupsListener.onResponse(null))

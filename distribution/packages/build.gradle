@@ -231,7 +231,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       fileMode 0644
     }
     into('/usr/share/elasticsearch/bin') {
-      from "${packagingFiles}/systemd/elasticsearch-entrypoint.sh"
+      from "${packagingFiles}/systemd/systemd-entrypoint"
       fileMode 0755
     }
 

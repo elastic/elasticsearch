@@ -291,7 +291,7 @@ public abstract class Terminal {
                 }
                 if (len > maxLength) {
                     Arrays.fill(buf, '\0');
-                    throw new RuntimeException("password too long");
+                    throw new RuntimeException("Password exceeded maximum length of " + maxLength);
                 }
                 return buf;
             } catch (IOException e) {

@@ -1,27 +1,13 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.sql.parser;
-
-import org.antlr.v4.runtime.FailedPredicateException;
-import org.antlr.v4.runtime.NoViableAltException;
-import org.antlr.v4.runtime.Parser;
-import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.RecognitionException;
-import org.antlr.v4.runtime.RuleContext;
-import org.antlr.v4.runtime.RuntimeMetaData;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
-import org.antlr.v4.runtime.Vocabulary;
-import org.antlr.v4.runtime.VocabularyImpl;
-import org.antlr.v4.runtime.atn.ATN;
-import org.antlr.v4.runtime.atn.ATNDeserializer;
-import org.antlr.v4.runtime.atn.ParserATNSimulator;
-import org.antlr.v4.runtime.atn.PredictionContextCache;
+import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.tree.ParseTreeListener;
-import org.antlr.v4.runtime.tree.ParseTreeVisitor;
-import org.antlr.v4.runtime.tree.TerminalNode;
-
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.misc.*;
+import org.antlr.v4.runtime.tree.*;
 import java.util.List;
+import java.util.Iterator;
+import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class SqlBaseParser extends Parser {
@@ -44,12 +30,13 @@ class SqlBaseParser extends Parser {
     SECOND=74, SECONDS=75, SELECT=76, SHOW=77, SYS=78, TABLE=79, TABLES=80, 
     TEXT=81, TRUE=82, TO=83, TYPE=84, TYPES=85, USING=86, VERIFY=87, WHERE=88, 
     WITH=89, YEAR=90, YEARS=91, ESCAPE_ESC=92, FUNCTION_ESC=93, LIMIT_ESC=94, 
-    DATE_ESC=95, TIME_ESC=96, TIMESTAMP_ESC=97, GUID_ESC=98, ESC_END=99, EQ=100, 
-    NULLEQ=101, NEQ=102, LT=103, LTE=104, GT=105, GTE=106, PLUS=107, MINUS=108, 
-    ASTERISK=109, SLASH=110, PERCENT=111, CONCAT=112, DOT=113, PARAM=114, 
-    STRING=115, INTEGER_VALUE=116, DECIMAL_VALUE=117, IDENTIFIER=118, DIGIT_IDENTIFIER=119, 
-    TABLE_IDENTIFIER=120, QUOTED_IDENTIFIER=121, BACKQUOTED_IDENTIFIER=122, 
-    SIMPLE_COMMENT=123, BRACKETED_COMMENT=124, WS=125, UNRECOGNIZED=126, DELIMITER=127;
+    DATE_ESC=95, TIME_ESC=96, TIMESTAMP_ESC=97, GUID_ESC=98, ESC_START=99, 
+    ESC_END=100, EQ=101, NULLEQ=102, NEQ=103, LT=104, LTE=105, GT=106, GTE=107, 
+    PLUS=108, MINUS=109, ASTERISK=110, SLASH=111, PERCENT=112, CONCAT=113, 
+    DOT=114, PARAM=115, STRING=116, INTEGER_VALUE=117, DECIMAL_VALUE=118, 
+    IDENTIFIER=119, DIGIT_IDENTIFIER=120, TABLE_IDENTIFIER=121, QUOTED_IDENTIFIER=122, 
+    BACKQUOTED_IDENTIFIER=123, SIMPLE_COMMENT=124, BRACKETED_COMMENT=125, 
+    WS=126, UNRECOGNIZED=127, DELIMITER=128;
   public static final int
     RULE_singleStatement = 0, RULE_singleExpression = 1, RULE_statement = 2, 
     RULE_query = 3, RULE_queryNoWith = 4, RULE_limitClause = 5, RULE_queryTerm = 6, 
@@ -96,10 +83,9 @@ class SqlBaseParser extends Parser {
     "'PARSED'", "'PHYSICAL'", "'PLAN'", "'RIGHT'", "'RLIKE'", "'QUERY'", "'SCHEMAS'", 
     "'SECOND'", "'SECONDS'", "'SELECT'", "'SHOW'", "'SYS'", "'TABLE'", "'TABLES'", 
     "'TEXT'", "'TRUE'", "'TO'", "'TYPE'", "'TYPES'", "'USING'", "'VERIFY'", 
-    "'WHERE'", "'WITH'", "'YEAR'", "'YEARS'", "'{ESCAPE'", "'{FN'", "'{LIMIT'", 
-    "'{D'", "'{T'", "'{TS'", "'{GUID'", "'}'", "'='", "'<=>'", null, "'<'", 
-    "'<='", "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", "'||'", "'.'", 
-    "'?'"
+    "'WHERE'", "'WITH'", "'YEAR'", "'YEARS'", null, null, null, null, null, 
+    null, null, null, "'}'", "'='", "'<=>'", null, "'<'", "'<='", "'>'", "'>='", 
+    "'+'", "'-'", "'*'", "'/'", "'%'", "'||'", "'.'", "'?'"
   };
   private static final String[] _SYMBOLIC_NAMES = {
     null, null, null, null, null, "ALL", "ANALYZE", "ANALYZED", "AND", "ANY", 
@@ -114,12 +100,12 @@ class SqlBaseParser extends Parser {
     "QUERY", "SCHEMAS", "SECOND", "SECONDS", "SELECT", "SHOW", "SYS", "TABLE", 
     "TABLES", "TEXT", "TRUE", "TO", "TYPE", "TYPES", "USING", "VERIFY", "WHERE", 
     "WITH", "YEAR", "YEARS", "ESCAPE_ESC", "FUNCTION_ESC", "LIMIT_ESC", "DATE_ESC", 
-    "TIME_ESC", "TIMESTAMP_ESC", "GUID_ESC", "ESC_END", "EQ", "NULLEQ", "NEQ", 
-    "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", 
-    "CONCAT", "DOT", "PARAM", "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", 
-    "IDENTIFIER", "DIGIT_IDENTIFIER", "TABLE_IDENTIFIER", "QUOTED_IDENTIFIER", 
-    "BACKQUOTED_IDENTIFIER", "SIMPLE_COMMENT", "BRACKETED_COMMENT", "WS", 
-    "UNRECOGNIZED", "DELIMITER"
+    "TIME_ESC", "TIMESTAMP_ESC", "GUID_ESC", "ESC_START", "ESC_END", "EQ", 
+    "NULLEQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", 
+    "SLASH", "PERCENT", "CONCAT", "DOT", "PARAM", "STRING", "INTEGER_VALUE", 
+    "DECIMAL_VALUE", "IDENTIFIER", "DIGIT_IDENTIFIER", "TABLE_IDENTIFIER", 
+    "QUOTED_IDENTIFIER", "BACKQUOTED_IDENTIFIER", "SIMPLE_COMMENT", "BRACKETED_COMMENT", 
+    "WS", "UNRECOGNIZED", "DELIMITER"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
 
@@ -1177,7 +1163,7 @@ class SqlBaseParser extends Parser {
         match(TYPES);
         setState(213);
         _la = _input.LA(1);
-        if (((((_la - 107)) & ~0x3f) == 0 && ((1L << (_la - 107)) & ((1L << (PLUS - 107)) | (1L << (MINUS - 107)) | (1L << (INTEGER_VALUE - 107)) | (1L << (DECIMAL_VALUE - 107)))) != 0)) {
+        if (((((_la - 108)) & ~0x3f) == 0 && ((1L << (_la - 108)) & ((1L << (PLUS - 108)) | (1L << (MINUS - 108)) | (1L << (INTEGER_VALUE - 108)) | (1L << (DECIMAL_VALUE - 108)))) != 0)) {
           {
           setState(210);
           _la = _input.LA(1);
@@ -3628,6 +3614,7 @@ class SqlBaseParser extends Parser {
       return getRuleContext(StringContext.class,0);
     }
     public TerminalNode ESCAPE_ESC() { return getToken(SqlBaseParser.ESCAPE_ESC, 0); }
+    public TerminalNode ESC_END() { return getToken(SqlBaseParser.ESC_END, 0); }
     public PatternEscapeContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3929,7 +3916,7 @@ class SqlBaseParser extends Parser {
             setState(555);
             ((ArithmeticBinaryContext)_localctx).operator = _input.LT(1);
             _la = _input.LA(1);
-            if ( !(((((_la - 109)) & ~0x3f) == 0 && ((1L << (_la - 109)) & ((1L << (ASTERISK - 109)) | (1L << (SLASH - 109)) | (1L << (PERCENT - 109)))) != 0)) ) {
+            if ( !(((((_la - 110)) & ~0x3f) == 0 && ((1L << (_la - 110)) & ((1L << (ASTERISK - 110)) | (1L << (SLASH - 110)) | (1L << (PERCENT - 110)))) != 0)) ) {
               ((ArithmeticBinaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
             } else {
               consume();
@@ -4675,6 +4662,7 @@ class SqlBaseParser extends Parser {
       return getRuleContext(FunctionTemplateContext.class,0);
     }
     public TerminalNode FUNCTION_ESC() { return getToken(SqlBaseParser.FUNCTION_ESC, 0); }
+    public TerminalNode ESC_END() { return getToken(SqlBaseParser.ESC_END, 0); }
     public FunctionExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -5357,7 +5345,7 @@ class SqlBaseParser extends Parser {
       {
       setState(692);
       _la = _input.LA(1);
-      if ( !(((((_la - 100)) & ~0x3f) == 0 && ((1L << (_la - 100)) & ((1L << (EQ - 100)) | (1L << (NULLEQ - 100)) | (1L << (NEQ - 100)) | (1L << (LT - 100)) | (1L << (LTE - 100)) | (1L << (GT - 100)) | (1L << (GTE - 100)))) != 0)) ) {
+      if ( !(((((_la - 101)) & ~0x3f) == 0 && ((1L << (_la - 101)) & ((1L << (EQ - 101)) | (1L << (NULLEQ - 101)) | (1L << (NEQ - 101)) | (1L << (LT - 101)) | (1L << (LTE - 101)) | (1L << (GT - 101)) | (1L << (GTE - 101)))) != 0)) ) {
       _errHandler.recoverInline(this);
       } else {
         consume();
@@ -6367,7 +6355,7 @@ class SqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3\u0081\u02f9\4\2\t"+
+    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3\u0082\u02f9\4\2\t"+
     "\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13"+
     "\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
     "\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
@@ -6426,9 +6414,9 @@ class SqlBaseParser extends Parser {
     "\5\63\u02ea\n\63\3\64\3\64\3\64\5\64\u02ef\n\64\3\65\3\65\5\65\u02f3\n"+
     "\65\3\66\3\66\3\67\3\67\3\67\2\4.<8\2\4\6\b\n\f\16\20\22\24\26\30\32\34"+
     "\36 \"$&(*,.\60\62\64\668:<>@BDFHJLNPRTVXZ\\^`bdfhjl\2\22\b\2\7\7\t\t"+
-    "\36\36\66\66AAEE\4\2((SS\4\2\t\tAA\4\2%%--\3\2\32\33\3\2mn\4\2\7\7vv\4"+
-    "\2\r\r\32\32\4\2##\62\62\4\2\7\7\34\34\3\2oq\3\2fl\4\2\"\"TT\7\2\27\30"+
-    "+,8;LM\\]\3\2tu\30\2\b\t\22\23\25\27\31\31\36\36  #$&(++//\62\62\65\66"+
+    "\36\36\66\66AAEE\4\2((SS\4\2\t\tAA\4\2%%--\3\2\32\33\3\2no\4\2\7\7ww\4"+
+    "\2\r\r\32\32\4\2##\62\62\4\2\7\7\34\34\3\2pr\3\2gm\4\2\"\"TT\7\2\27\30"+
+    "+,8;LM\\]\3\2uv\30\2\b\t\22\23\25\27\31\31\36\36  #$&(++//\62\62\65\66"+
     "88::AAEGILOPRSVWYY\\\\\u0353\2n\3\2\2\2\4q\3\2\2\2\6\u00d9\3\2\2\2\b\u00e4"+
     "\3\2\2\2\n\u00e8\3\2\2\2\f\u00fd\3\2\2\2\16\u0104\3\2\2\2\20\u0106\3\2"+
     "\2\2\22\u010e\3\2\2\2\24\u012a\3\2\2\2\26\u0134\3\2\2\2\30\u013e\3\2\2"+
@@ -6489,7 +6477,7 @@ class SqlBaseParser extends Parser {
     "\3\2\2\2\u00f2\u00f0\3\2\2\2\u00f3\u00e9\3\2\2\2\u00f3\u00f4\3\2\2\2\u00f4"+
     "\u00f6\3\2\2\2\u00f5\u00f7\5\f\7\2\u00f6\u00f5\3\2\2\2\u00f6\u00f7\3\2"+
     "\2\2\u00f7\13\3\2\2\2\u00f8\u00f9\7\65\2\2\u00f9\u00fe\t\b\2\2\u00fa\u00fb"+
-    "\7`\2\2\u00fb\u00fc\t\b\2\2\u00fc\u00fe\7e\2\2\u00fd\u00f8\3\2\2\2\u00fd"+
+    "\7`\2\2\u00fb\u00fc\t\b\2\2\u00fc\u00fe\7f\2\2\u00fd\u00f8\3\2\2\2\u00fd"+
     "\u00fa\3\2\2\2\u00fe\r\3\2\2\2\u00ff\u0105\5\22\n\2\u0100\u0101\7\3\2"+
     "\2\u0101\u0102\5\n\6\2\u0102\u0103\7\4\2\2\u0103\u0105\3\2\2\2\u0104\u00ff"+
     "\3\2\2\2\u0104\u0100\3\2\2\2\u0105\17\3\2\2\2\u0106\u0108\5,\27\2\u0107"+
@@ -6588,7 +6576,7 @@ class SqlBaseParser extends Parser {
     "\65\3\2\2\2\u0217\u0218\7\64\2\2\u0218\u0219\58\35\2\u0219\67\3\2\2\2"+
     "\u021a\u021c\5j\66\2\u021b\u021d\5:\36\2\u021c\u021b\3\2\2\2\u021c\u021d"+
     "\3\2\2\2\u021d9\3\2\2\2\u021e\u021f\7\35\2\2\u021f\u0225\5j\66\2\u0220"+
-    "\u0221\7^\2\2\u0221\u0222\5j\66\2\u0222\u0223\7e\2\2\u0223\u0225\3\2\2"+
+    "\u0221\7^\2\2\u0221\u0222\5j\66\2\u0222\u0223\7f\2\2\u0223\u0225\3\2\2"+
     "\2\u0224\u021e\3\2\2\2\u0224\u0220\3\2\2\2\u0225;\3\2\2\2\u0226\u0227"+
     "\b\37\1\2\u0227\u022b\5> \2\u0228\u0229\t\7\2\2\u0229\u022b\5<\37\6\u022a"+
     "\u0226\3\2\2\2\u022a\u0228\3\2\2\2\u022b\u0238\3\2\2\2\u022c\u022d\f\5"+
@@ -6598,8 +6586,8 @@ class SqlBaseParser extends Parser {
     "\u022f\3\2\2\2\u0236\u0232\3\2\2\2\u0237\u023a\3\2\2\2\u0238\u0236\3\2"+
     "\2\2\u0238\u0239\3\2\2\2\u0239=\3\2\2\2\u023a\u0238\3\2\2\2\u023b\u0250"+
     "\5B\"\2\u023c\u0250\5H%\2\u023d\u0250\5@!\2\u023e\u0250\5R*\2\u023f\u0240"+
-    "\5^\60\2\u0240\u0241\7s\2\2\u0241\u0243\3\2\2\2\u0242\u023f\3\2\2\2\u0242"+
-    "\u0243\3\2\2\2\u0243\u0244\3\2\2\2\u0244\u0250\7o\2\2\u0245\u0250\5L\'"+
+    "\5^\60\2\u0240\u0241\7t\2\2\u0241\u0243\3\2\2\2\u0242\u023f\3\2\2\2\u0242"+
+    "\u0243\3\2\2\2\u0243\u0244\3\2\2\2\u0244\u0250\7p\2\2\u0245\u0250\5L\'"+
     "\2\u0246\u0247\7\3\2\2\u0247\u0248\5\b\5\2\u0248\u0249\7\4\2\2\u0249\u0250"+
     "\3\2\2\2\u024a\u0250\5^\60\2\u024b\u024c\7\3\2\2\u024c\u024d\5,\27\2\u024d"+
     "\u024e\7\4\2\2\u024e\u0250\3\2\2\2\u024f\u023b\3\2\2\2\u024f\u023c\3\2"+
@@ -6607,19 +6595,19 @@ class SqlBaseParser extends Parser {
     "\u0245\3\2\2\2\u024f\u0246\3\2\2\2\u024f\u024a\3\2\2\2\u024f\u024b\3\2"+
     "\2\2\u0250?\3\2\2\2\u0251\u0254\7\26\2\2\u0252\u0254\7\25\2\2\u0253\u0251"+
     "\3\2\2\2\u0253\u0252\3\2\2\2\u0254A\3\2\2\2\u0255\u0260\5D#\2\u0256\u0257"+
-    "\7_\2\2\u0257\u0258\5D#\2\u0258\u0259\7e\2\2\u0259\u0260\3\2\2\2\u025a"+
-    "\u0260\5F$\2\u025b\u025c\7_\2\2\u025c\u025d\5F$\2\u025d\u025e\7e\2\2\u025e"+
+    "\7_\2\2\u0257\u0258\5D#\2\u0258\u0259\7f\2\2\u0259\u0260\3\2\2\2\u025a"+
+    "\u0260\5F$\2\u025b\u025c\7_\2\2\u025c\u025d\5F$\2\u025d\u025e\7f\2\2\u025e"+
     "\u0260\3\2\2\2\u025f\u0255\3\2\2\2\u025f\u0256\3\2\2\2\u025f\u025a\3\2"+
     "\2\2\u025f\u025b\3\2\2\2\u0260C\3\2\2\2\u0261\u0262\7\20\2\2\u0262\u0263"+
     "\7\3\2\2\u0263\u0264\5,\27\2\u0264\u0265\7\f\2\2\u0265\u0266\5\\/\2\u0266"+
     "\u0267\7\4\2\2\u0267E\3\2\2\2\u0268\u0269\7\24\2\2\u0269\u026a\7\3\2\2"+
     "\u026a\u026b\5,\27\2\u026b\u026c\7\5\2\2\u026c\u026d\5\\/\2\u026d\u026e"+
     "\7\4\2\2\u026eG\3\2\2\2\u026f\u0275\5J&\2\u0270\u0271\7_\2\2\u0271\u0272"+
-    "\5J&\2\u0272\u0273\7e\2\2\u0273\u0275\3\2\2\2\u0274\u026f\3\2\2\2\u0274"+
+    "\5J&\2\u0272\u0273\7f\2\2\u0273\u0275\3\2\2\2\u0274\u026f\3\2\2\2\u0274"+
     "\u0270\3\2\2\2\u0275I\3\2\2\2\u0276\u0277\7!\2\2\u0277\u0278\7\3\2\2\u0278"+
     "\u0279\5`\61\2\u0279\u027a\7%\2\2\u027a\u027b\5<\37\2\u027b\u027c\7\4"+
     "\2\2\u027cK\3\2\2\2\u027d\u0283\5N(\2\u027e\u027f\7_\2\2\u027f\u0280\5"+
-    "N(\2\u0280\u0281\7e\2\2\u0281\u0283\3\2\2\2\u0282\u027d\3\2\2\2\u0282"+
+    "N(\2\u0280\u0281\7f\2\2\u0281\u0283\3\2\2\2\u0282\u027d\3\2\2\2\u0282"+
     "\u027e\3\2\2\2\u0283M\3\2\2\2\u0284\u0285\5P)\2\u0285\u0291\7\3\2\2\u0286"+
     "\u0288\5\36\20\2\u0287\u0286\3\2\2\2\u0287\u0288\3\2\2\2\u0288\u0289\3"+
     "\2\2\2\u0289\u028e\5,\27\2\u028a\u028b\7\5\2\2\u028b\u028d\5,\27\2\u028c"+
@@ -6629,12 +6617,12 @@ class SqlBaseParser extends Parser {
     "\u0295\u0299\7\63\2\2\u0296\u0299\7H\2\2\u0297\u0299\5`\61\2\u0298\u0295"+
     "\3\2\2\2\u0298\u0296\3\2\2\2\u0298\u0297\3\2\2\2\u0299Q\3\2\2\2\u029a"+
     "\u02b5\7>\2\2\u029b\u02b5\5X-\2\u029c\u02b5\5h\65\2\u029d\u02b5\5V,\2"+
-    "\u029e\u02a0\7u\2\2\u029f\u029e\3\2\2\2\u02a0\u02a1\3\2\2\2\u02a1\u029f"+
-    "\3\2\2\2\u02a1\u02a2\3\2\2\2\u02a2\u02b5\3\2\2\2\u02a3\u02b5\7t\2\2\u02a4"+
-    "\u02a5\7a\2\2\u02a5\u02a6\5j\66\2\u02a6\u02a7\7e\2\2\u02a7\u02b5\3\2\2"+
-    "\2\u02a8\u02a9\7b\2\2\u02a9\u02aa\5j\66\2\u02aa\u02ab\7e\2\2\u02ab\u02b5"+
-    "\3\2\2\2\u02ac\u02ad\7c\2\2\u02ad\u02ae\5j\66\2\u02ae\u02af\7e\2\2\u02af"+
-    "\u02b5\3\2\2\2\u02b0\u02b1\7d\2\2\u02b1\u02b2\5j\66\2\u02b2\u02b3\7e\2"+
+    "\u029e\u02a0\7v\2\2\u029f\u029e\3\2\2\2\u02a0\u02a1\3\2\2\2\u02a1\u029f"+
+    "\3\2\2\2\u02a1\u02a2\3\2\2\2\u02a2\u02b5\3\2\2\2\u02a3\u02b5\7u\2\2\u02a4"+
+    "\u02a5\7a\2\2\u02a5\u02a6\5j\66\2\u02a6\u02a7\7f\2\2\u02a7\u02b5\3\2\2"+
+    "\2\u02a8\u02a9\7b\2\2\u02a9\u02aa\5j\66\2\u02aa\u02ab\7f\2\2\u02ab\u02b5"+
+    "\3\2\2\2\u02ac\u02ad\7c\2\2\u02ad\u02ae\5j\66\2\u02ae\u02af\7f\2\2\u02af"+
+    "\u02b5\3\2\2\2\u02b0\u02b1\7d\2\2\u02b1\u02b2\5j\66\2\u02b2\u02b3\7f\2"+
     "\2\u02b3\u02b5\3\2\2\2\u02b4\u029a\3\2\2\2\u02b4\u029b\3\2\2\2\u02b4\u029c"+
     "\3\2\2\2\u02b4\u029d\3\2\2\2\u02b4\u029f\3\2\2\2\u02b4\u02a3\3\2\2\2\u02b4"+
     "\u02a4\3\2\2\2\u02b4\u02a8\3\2\2\2\u02b4\u02ac\3\2\2\2\u02b4\u02b0\3\2"+
@@ -6645,19 +6633,19 @@ class SqlBaseParser extends Parser {
     "\2\2\u02c2\u02c5\5Z.\2\u02c3\u02c4\7U\2\2\u02c4\u02c6\5Z.\2\u02c5\u02c3"+
     "\3\2\2\2\u02c5\u02c6\3\2\2\2\u02c6Y\3\2\2\2\u02c7\u02c8\t\17\2\2\u02c8"+
     "[\3\2\2\2\u02c9\u02ca\5`\61\2\u02ca]\3\2\2\2\u02cb\u02cc\5`\61\2\u02cc"+
-    "\u02cd\7s\2\2\u02cd\u02cf\3\2\2\2\u02ce\u02cb\3\2\2\2\u02cf\u02d2\3\2"+
+    "\u02cd\7t\2\2\u02cd\u02cf\3\2\2\2\u02ce\u02cb\3\2\2\2\u02cf\u02d2\3\2"+
     "\2\2\u02d0\u02ce\3\2\2\2\u02d0\u02d1\3\2\2\2\u02d1\u02d3\3\2\2\2\u02d2"+
     "\u02d0\3\2\2\2\u02d3\u02d4\5`\61\2\u02d4_\3\2\2\2\u02d5\u02d8\5d\63\2"+
     "\u02d6\u02d8\5f\64\2\u02d7\u02d5\3\2\2\2\u02d7\u02d6\3\2\2\2\u02d8a\3"+
     "\2\2\2\u02d9\u02da\5`\61\2\u02da\u02db\7\6\2\2\u02db\u02dd\3\2\2\2\u02dc"+
-    "\u02d9\3\2\2\2\u02dc\u02dd\3\2\2\2\u02dd\u02de\3\2\2\2\u02de\u02e6\7z"+
+    "\u02d9\3\2\2\2\u02dc\u02dd\3\2\2\2\u02dd\u02de\3\2\2\2\u02de\u02e6\7{"+
     "\2\2\u02df\u02e0\5`\61\2\u02e0\u02e1\7\6\2\2\u02e1\u02e3\3\2\2\2\u02e2"+
     "\u02df\3\2\2\2\u02e2\u02e3\3\2\2\2\u02e3\u02e4\3\2\2\2\u02e4\u02e6\5`"+
     "\61\2\u02e5\u02dc\3\2\2\2\u02e5\u02e2\3\2\2\2\u02e6c\3\2\2\2\u02e7\u02ea"+
-    "\7{\2\2\u02e8\u02ea\7|\2\2\u02e9\u02e7\3\2\2\2\u02e9\u02e8\3\2\2\2\u02ea"+
-    "e\3\2\2\2\u02eb\u02ef\7x\2\2\u02ec\u02ef\5l\67\2\u02ed\u02ef\7y\2\2\u02ee"+
+    "\7|\2\2\u02e8\u02ea\7}\2\2\u02e9\u02e7\3\2\2\2\u02e9\u02e8\3\2\2\2\u02ea"+
+    "e\3\2\2\2\u02eb\u02ef\7y\2\2\u02ec\u02ef\5l\67\2\u02ed\u02ef\7z\2\2\u02ee"+
     "\u02eb\3\2\2\2\u02ee\u02ec\3\2\2\2\u02ee\u02ed\3\2\2\2\u02efg\3\2\2\2"+
-    "\u02f0\u02f3\7w\2\2\u02f1\u02f3\7v\2\2\u02f2\u02f0\3\2\2\2\u02f2\u02f1"+
+    "\u02f0\u02f3\7x\2\2\u02f1\u02f3\7w\2\2\u02f2\u02f0\3\2\2\2\u02f2\u02f1"+
     "\3\2\2\2\u02f3i\3\2\2\2\u02f4\u02f5\t\20\2\2\u02f5k\3\2\2\2\u02f6\u02f7"+
     "\t\21\2\2\u02f7m\3\2\2\2g}\177\u0083\u008c\u008e\u0092\u0099\u00a0\u00a5"+
     "\u00aa\u00b2\u00b6\u00be\u00c1\u00c7\u00cc\u00cf\u00d4\u00d7\u00d9\u00e1"+

@@ -123,6 +123,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                         return;
                     }
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
+                    TestClustersAware awareTask = (TestClustersAware) task;
                     ((TestClustersAware) task).getClusters().forEach(registry::maybeStartCluster);
                 }
                 @Override

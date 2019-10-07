@@ -439,7 +439,7 @@ testClusters {
 }
 
 task run(type: RunTask) {
-  cluster = testClusters.runTask;
+  useCluster testClusters.runTask;
 }
 
 /**

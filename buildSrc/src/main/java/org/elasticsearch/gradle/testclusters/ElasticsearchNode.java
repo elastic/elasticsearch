@@ -150,7 +150,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
     private String transportPort = "0";
-    private boolean logOnConsole = false;
 
     ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
         this.path = path;
@@ -700,14 +699,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't inherit anything from the environment for as that would  lack reproducibility
         environment.clear();
         environment.putAll(getESEnvironment());
-        if (logOnConsole == false) {
-            // don't buffer all in memory, make sure we don't block on the default pipes
-            processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
-            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
-        } else {
-            processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-            processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
-        }
+
+        // don't buffer all in memory, make sure we don't block on the default pipes
+        processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
+
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
             esProcess = processBuilder.start();
@@ -1296,14 +1292,22 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    void configureForRun() {
-        httpPort = "9200";
-        transportPort = "9300";
-        logOnConsole = true;
+    void setHttpPort(String httpPort) {
+        this.httpPort = httpPort;
     }
 
-    public void waitForProcessToExit() throws InterruptedException {
-        esProcess.waitFor();
+    void setTransportPort(String transportPort) {
+        this.transportPort = transportPort;
+    }
+
+    @Internal
+    Path getEsStdoutFile() {
+        return esStdoutFile;
+    }
+
+    @Internal
+    Path getEsStderrFile() {
+        return esStderrFile;
     }
 
     private static class FileEntry implements Named {

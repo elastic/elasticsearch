@@ -133,7 +133,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
             dependsOn(project.tasks.bundlePlugin)
-            cluster = project.testClusters.integTest
+            useCluster project.testClusters.integTest
         }
     }
 

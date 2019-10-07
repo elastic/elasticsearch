@@ -1,15 +1,22 @@
 package org.elasticsearch.gradle.testclusters;
 
-import org.gradle.api.DefaultTask;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
 
-public class RunTask extends DefaultTask {
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.HashSet;
+import java.util.Set;
+
+public class RunTask extends DefaultTestClustersTask {
+
+    private static final Logger logger = Logging.getLogger(RunTask.class);
 
     private Boolean debug = false;
-
-    private ElasticsearchCluster cluster;
 
     @Option(
         option = "debug-jvm",
@@ -24,25 +31,38 @@ public class RunTask extends DefaultTask {
         return debug;
     }
 
-    @Input
-    public ElasticsearchCluster getCluster() {
-        return cluster;
-    }
-
-    public void setCluster(ElasticsearchCluster cluster) {
-        TestClustersAware.prepareClusterForUse(getProject(), this, cluster);
-        this.cluster = cluster;
+    @Override
+    public void beforeStart() {
+        int port = 8000;
+        for (ElasticsearchCluster cluster : getClusters()) {
+            for (ElasticsearchNode node : cluster.getNodes()) {
+                node.setHttpPort("9200");
+                node.setTransportPort("9300");
+                if (debug) {
+                    logger.lifecycle(
+                        "Running elasticsearch in debug mode, {} suspending until connected on port {}",
+                        node, port
+                    );
+                    node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=" + port);
+                    port += 1;
+                }
+            }
+        }
     }
 
     @TaskAction
-    public void runAndWait() {
-        cluster.freeze();
-        cluster.run(debug);
+    public void runAndWait() throws IOException {
+        Set<BufferedReader> toRead = new HashSet<>();
+        for (ElasticsearchCluster cluster : getClusters()) {
+            for (ElasticsearchNode node : cluster.getNodes()) {
+                toRead.add(Files.newBufferedReader(node.getEsStdoutFile()));
+            }
+        }
         while (Thread.currentThread().isInterrupted() == false) {
-            try {
-                Thread.sleep(Integer.MAX_VALUE);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            for (BufferedReader bufferedReader : toRead) {
+                if (bufferedReader.ready()) {
+                    logger.lifecycle(bufferedReader.readLine());
+                }
             }
         }
     }

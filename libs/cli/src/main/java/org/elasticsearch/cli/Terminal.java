@@ -44,9 +44,6 @@ public abstract class Terminal {
     /** Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses */
     private static final PrintWriter ERROR_WRITER = newErrorWriter();
 
-    /** We want a zero-length buffer so that we don't take too much from the input stream */
-    private static final int STDIN_READER_BUFFER_SIZE = 1;
-
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
     public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
 
@@ -215,9 +212,7 @@ public abstract class Terminal {
         /** visible for testing */
         BufferedReader getReader() {
             if (reader == null) {
-                reader = new BufferedReader(
-                    new InputStreamReader(System.in, Charset.defaultCharset()),
-                    STDIN_READER_BUFFER_SIZE);
+                reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             }
             return reader;
         }

@@ -97,7 +97,7 @@ public abstract class Command implements Closeable {
             if (e.exitCode == ExitCodes.USAGE) {
                 printHelp(terminal, true);
             }
-            if (e.shouldPrintOnExit) {
+            if (e.getMessage() != null) {
                 terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             }
             return e.exitCode;

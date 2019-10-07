@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.nullValue;
 
 public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
     @Override
@@ -43,14 +44,14 @@ public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testFailsWithNoKeystore() throws Exception {
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals("Exit code should be 1", HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
-        assertThat("Exception should have null message", e.getMessage(), containsString("Elasticsearch keystore not found"));
+        assertThat("Exception should have null message", e.getMessage(), is(nullValue()));
     }
 
     public void testFailsWhenKeystoreLacksPassword() throws Exception {
         createKeystore("");
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals("Exit code should be 1", HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
-        assertThat("Exception should have null message", e.getMessage(), containsString("Keystore is not password-protected"));
+        assertThat("Exception should have null message", e.getMessage(), is(nullValue()));
     }
 
     public void testSucceedsWhenKeystoreHasPassword() throws Exception {

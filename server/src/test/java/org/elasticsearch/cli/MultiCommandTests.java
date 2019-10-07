@@ -221,7 +221,7 @@ public class MultiCommandTests extends CommandTestCase {
             @Override
             protected void execute(Terminal terminal, OptionSet options) throws Exception {
                 terminal.errorPrintln(Terminal.Verbosity.NORMAL, "Dummy error");
-                throw new UserException(1, "Dummy error", false);
+                throw new UserException(1, null);
             }
         });
         mc.main(new String[]{"throw", "--silent"}, terminal);

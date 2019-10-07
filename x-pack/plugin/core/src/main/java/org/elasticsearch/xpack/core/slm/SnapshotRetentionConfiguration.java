@@ -122,13 +122,11 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
         final long nonFailedSnapshotCount = allSnapshots.stream()
             .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
             .count();
-        final long newestSuccessfulTimestamp;
-        if (sortedSnapshots.isEmpty() == false) {
-            newestSuccessfulTimestamp = sortedSnapshots.get(sortedSnapshots.size() - 1).startTime();
-        } else {
-            newestSuccessfulTimestamp = Long.MIN_VALUE;
-        }
-
+        final long newestSuccessfulTimestamp = allSnapshots.stream()
+            .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
+            .mapToLong(SnapshotInfo::startTime)
+            .max()
+            .orElse(Long.MIN_VALUE);
 
         return si -> {
             final String snapName = si.snapshotId().getName();

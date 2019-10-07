@@ -186,6 +186,20 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(true));
     }
 
+    public void testMostRecentSuccessfulTimestampIsUsed() {
+        SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 1, null, 2, 2);
+        SnapshotInfo s1 = makeInfo(1);
+        SnapshotInfo s2 = makeInfo(2);
+        SnapshotInfo s3 = makeFailureInfo(3);
+        SnapshotInfo s4 = makeFailureInfo(4);
+
+        List<SnapshotInfo> infos = Arrays.asList(s1 , s2, s3, s4);
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(false));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s3), equalTo(false));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s4), equalTo(false));
+    }
+
     private SnapshotInfo makeInfo(long startTime) {
         final Map<String, Object> meta = new HashMap<>();
         meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);

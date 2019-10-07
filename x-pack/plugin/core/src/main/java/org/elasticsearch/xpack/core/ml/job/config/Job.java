@@ -86,7 +86,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
     public static final TimeValue MIN_BACKGROUND_PERSIST_INTERVAL = TimeValue.timeValueHours(1);
-    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(100, ByteSizeUnit.MB);
+
+    /**
+     * This includes the overhead of thread stacks and data structures that the program might use that
+     * are not instrumented.  (For the <code>autodetect</code> process categorization is not instrumented,
+     * and the <code>normalize</code> process is not instrumented at all.)  But this overhead does NOT
+     * include the memory used by loading the executable code.
+     */
+    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(10, ByteSizeUnit.MB);
 
     public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 1;
 

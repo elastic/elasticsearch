@@ -74,7 +74,6 @@ public class BulkRequestModifierTests extends ESTestCase {
                 BulkItemResponse item = bulkResponse.getItems()[j];
                 assertThat(item.isFailed(), is(true));
                 assertThat(item.getFailure().getIndex(), equalTo("_index"));
-                assertThat(item.getFailure().getType(), equalTo("_type"));
                 assertThat(item.getFailure().getId(), equalTo(String.valueOf(j)));
                 assertThat(item.getFailure().getMessage(), equalTo("java.lang.RuntimeException"));
             } else {

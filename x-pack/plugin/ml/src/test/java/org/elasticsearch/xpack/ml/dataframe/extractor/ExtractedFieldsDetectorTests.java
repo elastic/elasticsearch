@@ -508,7 +508,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
     }
 

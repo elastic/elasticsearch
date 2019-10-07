@@ -2932,6 +2932,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DataFrameAnalysis outlierDetectionCustomized = OutlierDetection.builder() // <1>
                 .setMethod(OutlierDetection.Method.DISTANCE_KNN) // <2>
                 .setNNeighbors(5) // <3>
+                .setFeatureInfluenceThreshold(0.1) // <4>
+                .setComputeFeatureInfluence(true) // <5>
+                .setOutlierFraction(0.05) // <6>
+                .setStandardizationEnabled(true) // <7>
                 .build();
             // end::put-data-frame-analytics-outlier-detection-customized
 

@@ -352,7 +352,7 @@ public class IndexActionTests extends ESTestCase {
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
-        BulkItemResponse.Failure failure = new BulkItemResponse.Failure("test-index", "test-type", "anything",
+        BulkItemResponse.Failure failure = new BulkItemResponse.Failure("test-index", "anything",
                 new ElasticsearchException("anything"));
         BulkItemResponse firstResponse = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, failure);
         BulkItemResponse secondResponse;

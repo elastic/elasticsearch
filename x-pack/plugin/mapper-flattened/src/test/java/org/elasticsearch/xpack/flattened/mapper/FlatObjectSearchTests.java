@@ -233,7 +233,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(2, 100);
         int precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
 
-        BulkRequestBuilder bulkRequest = client().prepareBulk("test", "_doc")
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
         // Add a random number of documents containing a flat object field, plus
@@ -300,7 +300,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testTermsAggregation() throws IOException {
-        BulkRequestBuilder bulkRequest = client().prepareBulk("test", "_doc")
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 5; i++) {
             bulkRequest.add(client().prepareIndex()

@@ -1,4 +1,17 @@
 
+
+tag::actions[]
+`actions`::
++
+--
+(Optional, string)
+Comma-separated list or wildcard expression
+of actions used to limit the request.
+
+Omit this parameter to return all actions.
+--
+end::actions[]
+
 tag::active-only[]
 `active_only`::
 (Optional, boolean)
@@ -135,13 +148,12 @@ Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
 
-tag::index-alias-filter[]
-<<query-dsl-bool-query, Filter query>>
-used to limit the index alias.
-+
-If specified,
-the index alias only applies to documents returned by the filter.
-end::index-alias-filter[]
+tag::field_statistics[]
+`field_statistics`::
+(Optional, boolean) If `true`, the response includes the document count, sum of document frequencies, 
+and sum of total term frequencies.
+Defaults to `true`.
+end::field_statistics[]
 
 tag::fielddata-fields[]
 `fielddata_fields`::
@@ -195,6 +207,32 @@ tag::from[]
 (Optional, integer) Starting document offset. Defaults to `0`.
 end::from[]
 
+tag::generation[]
+Generation number, such as `0`. {es} increments this generation number
+for each segment written. {es} then uses this number to derive the segment name.
+end::generation[]
+
+tag::group-by[]
+`group_by`::
++
+--
+(Optional, string)
+Key used to group tasks in the response.
+
+Possible values are:
+
+`nodes`::
+(Default)
+Node ID
+
+`parents`::
+Parent task ID
+
+`none`::
+Do not group tasks.
+--
+end::group-by[]
+
 tag::groups[]
 `groups`::
 (Optional, string)
@@ -209,7 +247,7 @@ end::cat-h[]
 
 tag::help[]
 `help`::
-(Optional, boolean) If `true`, the response returns help information. Defaults
+(Optional, boolean) If `true`, the response includes help information. Defaults
 to `false`.
 end::help[]
 
@@ -424,6 +462,33 @@ tag::node-id[]
 returned information.
 end::node-id[]
 
+tag::node-id-query-parm[]
+`node_id`::
+(Optional, string)
+Comma-separated list of node IDs or names
+used to limit returned information.
+end::node-id-query-parm[]
+
+tag::offsets[]
+`<offsets>`::
+(Optional, boolean) If `true`, the response includes term offsets.
+Defaults to `true`.
+end::offsets[]
+
+tag::parent-task-id[]
+`parent_task_id`::
++
+--
+(Optional, string)
+Parent task ID
+used to limit returned information.
+
+To return all tasks,
+omit this parameter
+or use a value of `-1`.
+--
+end::parent-task-id[]
+
 tag::pipeline[]
 `pipeline`::
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
@@ -434,6 +499,18 @@ tag::path-pipeline[]
 (Optional, string) Comma-separated list or wildcard expression of pipeline IDs
 used to limit the request.
 end::path-pipeline[]
+
+tag::payloads[]
+`payloads`::
+(Optional, boolean) If `true`, the response includes term payloads.
+Defaults to `true`.
+end::payloads[]
+
+tag::positions[]
+`positions`::
+(Optional, boolean) If `true`, the response includes term positions.
+Defaults to `true`.
+end::positions[]
 
 tag::preference[]
 `preference`::
@@ -452,6 +529,12 @@ tag::query[]
 <<query-dsl,Query DSL>>.
 end::query[]
 
+tag::realtime[]
+`realtime`::
+(Optional, boolean) If `true`, the request is real-time as opposed to near-real-time. 
+Defaults to `true`. See <<realtime>>.
+end::realtime[]
+
 tag::refresh[]
 `refresh`::
 (Optional, enum) If `true`, {es} refreshes the affected shards to make this
@@ -462,8 +545,8 @@ end::refresh[]
 
 tag::request_cache[]
 `request_cache`::
-(Optional, boolean) Specifies if the request cache should be used for this
-request. Defaults to the index-level setting.
+(Optional, boolean) If `true`, the request cache is used for this request. 
+Defaults to the index-level setting.
 end::request_cache[]
 
 tag::requests_per_second[]
@@ -582,6 +665,12 @@ tag::stats[]
 purposes.
 end::stats[]
 
+tag::stored_fields[]
+`stored_fields`::
+(Optional, boolean) If `true`, retrieves the document fields stored in the
+index rather than the document `_source`. Defaults to `false`.
+end::stored_fields[]
+
 tag::target-index[]
 `<target-index>`::
 +
@@ -592,6 +681,18 @@ Name of the target index to create.
 include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 end::target-index[]
+
+tag::task-id[]
+`<task_id>`::
+(Optional, string) ID of the task to return
+(`node_id:task_number`).
+end::task-id[]
+
+tag::term_statistics[]
+`term_statistics`::
+(Optional, boolean) If `true`, the response includes term frequency and document frequency. 
+Defaults to `false`.
+end::term_statistics[]
 
 tag::terminate_after[]
 `terminate_after`::
@@ -619,8 +720,8 @@ end::timeoutparms[]
 
 tag::cat-v[]
 `v`::
-(Optional, boolean) If `true`, the response includes column headings. Defaults
-to `false`.
+(Optional, boolean) If `true`, the response includes column headings. 
+Defaults to `false`.
 end::cat-v[]
 
 tag::version[]
@@ -660,6 +761,6 @@ end::wait_for_active_shards[]
 
 tag::wait_for_completion[]
 `wait_for_completion`::
-(Optional, boolean) Should the request block until the operation is 
-complete. Defaults to `true`.
+(Optional, boolean) If `true`, the request blocks until the operation is complete. 
+Defaults to `true`.
 end::wait_for_completion[]

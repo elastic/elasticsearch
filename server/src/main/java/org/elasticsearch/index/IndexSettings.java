@@ -272,6 +272,14 @@ public final class IndexSettings {
             Property.Dynamic, Property.IndexScope);
 
     /**
+     * Controls the number of translog files that are no longer needed for persistence reasons will be kept around before being deleted.
+     * This is a safeguard making sure that the translog deletion policy won't keep too many translog files especially when they're small.
+     * This setting is intentionally not registered, it is only used in tests
+     **/
+    public static final Setting<Integer> INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING =
+        Setting.intSetting("index.translog.retention.total_files", 100, 0, Setting.Property.IndexScope);
+
+    /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
      */
     public static final Setting<TimeValue> INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING =
@@ -324,8 +332,8 @@ public final class IndexSettings {
         }
 
         @Override
-        public void validate(final String value, final Map<Setting<String>, String> settings) {
-            final String requiredPipeline = settings.get(IndexSettings.REQUIRED_PIPELINE);
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String requiredPipeline = (String) settings.get(IndexSettings.REQUIRED_PIPELINE);
             if (value.equals(IngestService.NOOP_PIPELINE_NAME) == false
                 && requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
                 throw new IllegalArgumentException(
@@ -334,8 +342,9 @@ public final class IndexSettings {
         }
 
         @Override
-        public Iterator<Setting<String>> settings() {
-            return Collections.singletonList(REQUIRED_PIPELINE).iterator();
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = Collections.singletonList(REQUIRED_PIPELINE);
+            return settings.iterator();
         }
 
     }
@@ -348,8 +357,8 @@ public final class IndexSettings {
         }
 
         @Override
-        public void validate(final String value, final Map<Setting<String>, String> settings) {
-            final String defaultPipeline = settings.get(IndexSettings.DEFAULT_PIPELINE);
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String defaultPipeline = (String) settings.get(IndexSettings.DEFAULT_PIPELINE);
             if (value.equals(IngestService.NOOP_PIPELINE_NAME) && defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
                 throw new IllegalArgumentException(
                     "index has a required pipeline [" + value + "] and a default pipeline [" + defaultPipeline + "]");
@@ -357,8 +366,9 @@ public final class IndexSettings {
         }
 
         @Override
-        public Iterator<Setting<String>> settings() {
-            return Collections.singletonList(DEFAULT_PIPELINE).iterator();
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = Collections.singletonList(DEFAULT_PIPELINE);
+            return settings.iterator();
         }
 
     }
@@ -838,6 +848,14 @@ public final class IndexSettings {
     public TimeValue getTranslogRetentionAge() {
         assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
         return translogRetentionAge;
+    }
+
+    /**
+     * Returns the maximum number of translog files that that no longer required for persistence should be kept for peer recovery
+     * when soft-deletes is disabled.
+     */
+    public int getTranslogRetentionTotalFiles() {
+        return INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.get(getSettings());
     }
 
     /**

@@ -45,6 +45,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ClusterShardLimitIT extends ESIntegTestCase {
@@ -102,24 +103,11 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         assertFalse(clusterState.getMetaData().hasIndex("should-fail"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47107")
     public void testIndexCreationOverLimitFromTemplate() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
 
-        final ShardCounts counts;
-        {
-            final ShardCounts temporaryCounts = ShardCounts.forDataNodeCount(dataNodes);
-            /*
-             * We are going to create an index that will bring us up to one below the limit; we go one below the limit to ensure the
-             * template is used instead of one shard.
-             */
-            counts = new ShardCounts(
-                temporaryCounts.shardsPerNode,
-                temporaryCounts.firstIndexShards - 1,
-                temporaryCounts.firstIndexReplicas,
-                temporaryCounts.failingIndexShards + 1,
-                temporaryCounts.failingIndexReplicas);
-        }
+        final ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
+
         setShardsPerNode(counts.getShardsPerNode());
 
         if (counts.firstIndexShards > 0) {
@@ -401,10 +389,13 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         }
 
         public static ShardCounts forDataNodeCount(int dataNodes) {
+            assertThat("this method will not work reliably with this many data nodes due to the limit of shards in a single index," +
+                "use fewer data nodes or multiple indices", dataNodes, lessThanOrEqualTo(90));
             int mainIndexReplicas = between(0, dataNodes - 1);
             int mainIndexShards = between(1, 10);
             int totalShardsInIndex = (mainIndexReplicas + 1) * mainIndexShards;
-            int shardsPerNode = (int) Math.ceil((double) totalShardsInIndex / dataNodes);
+            // Sometimes add some headroom to the limit to check that it works even if you're not already right up against the limit
+            int shardsPerNode = (int) Math.ceil((double) totalShardsInIndex / dataNodes) + between(0, 10);
             int totalCap = shardsPerNode * dataNodes;
 
             int failingIndexShards;

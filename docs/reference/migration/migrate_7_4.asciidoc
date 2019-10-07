@@ -9,8 +9,6 @@ your application to Elasticsearch 7.4.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming[7.4.0]
-
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
@@ -124,6 +122,13 @@ be disabled by setting the system property
 [discrete]
 [[breaking_74_settings_changes]]
 === Settings changes
+
+[discrete]
+[[breaking_74_unique_realm_names]]
+==== Authentication realm name uniqueness is enforced
+
+Authentication realm name uniqueness is now enforced. If you configure more than one realm of any type
+with the same name, the node fails to start.
 
 [discrete]
 [[deprecate-pidfile]]

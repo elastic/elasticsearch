@@ -1,7 +1,7 @@
 [[painless-watcher-transform-context]]
 === Watcher transform context
 
-Use a Painless script as a {xpack-ref}/transform-script.html[watch transform]
+Use a Painless script as a {ref}/transform-script.html[watch transform]
 to transform a payload into a new payload for further use in the watch.
 Transform scripts return an Object value of the new payload.
 

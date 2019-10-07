@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -86,9 +87,11 @@ final class JvmOptionsParser {
                         .filter(s -> s.trim().isEmpty() == false)
                         .collect(Collectors.toList()));
             }
-            final List<String> ergonomicJvmOptions = JvmErgonomics.choose(jvmOptions);
-            jvmOptions.addAll(ergonomicJvmOptions);
-            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
+            final List<String> substitutedJvmOptions =
+                substitutePlaceholders(jvmOptions, Collections.singletonMap("ES_TMPDIR", System.getenv("ES_TMPDIR")));
+            final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
+            substitutedJvmOptions.addAll(ergonomicJvmOptions);
+            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(substitutedJvmOptions);
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);
         } else {
@@ -112,6 +115,24 @@ final class JvmOptionsParser {
             }
             Launchers.exit(1);
         }
+    }
+
+    static List<String> substitutePlaceholders(final List<String> jvmOptions, final Map<String, String> substitutions) {
+        final Map<String, String> placeholderSubstitutions =
+            substitutions.entrySet().stream().collect(Collectors.toMap(e -> "${" + e.getKey() + "}", Map.Entry::getValue));
+        return jvmOptions.stream()
+            .map(
+                jvmOption -> {
+                    String actualJvmOption = jvmOption;
+                    int start = jvmOption.indexOf("${");
+                    if (start >= 0 && jvmOption.indexOf('}', start) > 0) {
+                        for (final Map.Entry<String, String> placeholderSubstitution : placeholderSubstitutions.entrySet()) {
+                            actualJvmOption = actualJvmOption.replace(placeholderSubstitution.getKey(), placeholderSubstitution.getValue());
+                        }
+                    }
+                    return actualJvmOption;
+                })
+            .collect(Collectors.toList());
     }
 
     /**

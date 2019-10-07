@@ -67,7 +67,9 @@ dependencies {
   testCompile project(":rest-api-spec")
   // Needed for serialization tests:
   // (In order to serialize a server side class to a client side class or the other way around)
-  testCompile project(':x-pack:plugin:core')
+  testCompile(project(':x-pack:plugin:core')) {
+      exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
+  }
 
   restSpec project(':rest-api-spec')
 }
@@ -95,6 +97,7 @@ forbiddenApisMain {
   addSignatureFiles 'http-signatures'
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
+
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")

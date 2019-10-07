@@ -87,7 +87,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
 
     @InputFiles
     @SkipWhenEmpty
-    public FileCollection files() {
+    public FileCollection getFiles() {
         return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets()
             .stream()
             .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
@@ -99,7 +99,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
     public void checkInvalidPatterns() throws IOException {
         Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
         List<String> failures = new ArrayList<>();
-        for (File f : files()) {
+        for (File f : getFiles()) {
             List<String> lines;
             try(Stream<String> stream = Files.lines(f.toPath(), StandardCharsets.UTF_8)) {
                     lines = stream.collect(Collectors.toList());

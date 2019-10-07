@@ -80,7 +80,7 @@ The top-level keys that the policy supports are described below:
 
 | `schedule` | A periodic or absolute time schedule. Supports all values
   supported by the cron scheduler:
-  {xpack-ref}/trigger-schedule.html#schedule-cron[Cron scheduler configuration]
+  <<schedule-cron,Cron scheduler configuration>>
 
 | `name` | A name automatically given to each snapshot performed by this policy.
   Supports the same <<date-math-index-names,date math>> supported in index

@@ -96,9 +96,14 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     @Before
     public void enableExporter() throws Exception {
         Settings exporterSettings = Settings.builder()
-                .put("xpack.monitoring.collection.enabled", true)
-                .put("xpack.monitoring.exporters._http.enabled", true)
-                .put("xpack.monitoring.exporters._http.host", "https://" + randomNodeHttpAddress())
+            .put("xpack.monitoring.collection.enabled", true)
+            .put("xpack.monitoring.exporters._http.enabled", true)
+            .put("xpack.monitoring.exporters._http.type", "http")
+            .put("xpack.monitoring.exporters._http.host", "https://" + randomNodeHttpAddress())
+            .put("xpack.monitoring.exporters._http.auth.username", "monitoring_agent")
+            .put("xpack.monitoring.exporters._http.auth.password", "x-pack-test-password")
+            .put("xpack.monitoring.exporters._http.ssl.verification_mode", "full")
+            .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }
@@ -106,10 +111,15 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     @After
     public void disableExporter() {
         Settings exporterSettings = Settings.builder()
-                .putNull("xpack.monitoring.collection.enabled")
-                .putNull("xpack.monitoring.exporters._http.enabled")
-                .putNull("xpack.monitoring.exporters._http.host")
-                .build();
+            .putNull("xpack.monitoring.collection.enabled")
+            .putNull("xpack.monitoring.exporters._http.enabled")
+            .putNull("xpack.monitoring.exporters._http.type")
+            .putNull("xpack.monitoring.exporters._http.host")
+            .putNull("xpack.monitoring.exporters._http.auth.username")
+            .putNull("xpack.monitoring.exporters._http.auth.password")
+            .putNull("xpack.monitoring.exporters._http.ssl.verification_mode")
+            .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
+            .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }
 
@@ -169,4 +179,5 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
         }
         return NetworkAddress.format(randomFrom(httpAddresses));
     }
+
 }

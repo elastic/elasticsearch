@@ -1077,9 +1077,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new MetaDataIndexUpgradeService(
                         settings, namedXContentRegistry,
                         mapperRegistry,
-                        indexScopedSettings,
-                        Collections.emptyList()
-                    ),
+                        indexScopedSettings),
                     clusterSettings
                 );
                 actions.put(PutMappingAction.INSTANCE,

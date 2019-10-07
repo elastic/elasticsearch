@@ -546,7 +546,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         scoreScript.setScorer(scorer);
                     }
 
-                    double result = scoreScript.execute();
+                    double result = scoreScript.execute(null);
                     return new Response(result);
                 }, indexService);
             } else {

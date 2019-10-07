@@ -431,12 +431,12 @@ public class Setting<T> implements ToXContentObject {
         try {
             T parsed = parser.apply(value);
             if (validate) {
-                final Iterator<Setting<T>> it = validator.settings();
-                final Map<Setting<T>, T> map;
+                final Iterator<Setting<?>> it = validator.settings();
+                final Map<Setting<?>, Object> map;
                 if (it.hasNext()) {
                     map = new HashMap<>();
                     while (it.hasNext()) {
-                        final Setting<T> setting = it.next();
+                        final Setting<?> setting = it.next();
                         map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
                     }
                 } else {
@@ -474,7 +474,7 @@ public class Setting<T> implements ToXContentObject {
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
-    public final String getRaw(final Settings settings) {
+    private String getRaw(final Settings settings) {
         checkDeprecation(settings);
         return innerGetRaw(settings);
     }
@@ -863,7 +863,7 @@ public class Setting<T> implements ToXContentObject {
          * @param value    the value of this setting
          * @param settings a map from the settings specified by {@link #settings()}} to their values
          */
-        default void validate(T value, Map<Setting<T>, T> settings) {
+        default void validate(T value, Map<Setting<?>, Object> settings) {
         }
 
         /**
@@ -873,7 +873,7 @@ public class Setting<T> implements ToXContentObject {
          *
          * @return the settings on which the validity of this setting depends.
          */
-        default Iterator<Setting<T>> settings() {
+        default Iterator<Setting<?>> settings() {
             return Collections.emptyIterator();
         }
 
@@ -1072,6 +1072,11 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
+    public static Setting<String> simpleString(String key, String defaultValue, Validator<String> validator, Property... properties) {
+        validator.validate(defaultValue);
+        return new Setting<>(new SimpleKey(key), null, s -> defaultValue, Function.identity(), validator, properties);
+    }
+
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
         return simpleString(key, fallback, Function.identity(), properties);
     }
@@ -1242,6 +1247,15 @@ public class Setting<T> implements ToXContentObject {
         return listSetting(key, null, singleValueParser, (s) -> defaultStringValue, properties);
     }
 
+    public static <T> Setting<List<T>> listSetting(
+        final String key,
+        final List<String> defaultStringValue,
+        final Function<String, T> singleValueParser,
+        final Validator<List<T>> validator,
+        final Property... properties) {
+        return listSetting(key, null, singleValueParser, (s) -> defaultStringValue, validator, properties);
+    }
+
     // TODO this one's two argument get is still broken
     public static <T> Setting<List<T>> listSetting(
             final String key,
@@ -1265,13 +1279,23 @@ public class Setting<T> implements ToXContentObject {
             final Function<String, T> singleValueParser,
             final Function<Settings, List<String>> defaultStringValue,
             final Property... properties) {
+        return listSetting(key, fallbackSetting, singleValueParser, defaultStringValue, v -> {}, properties);
+    }
+
+    static <T> Setting<List<T>> listSetting(
+        final String key,
+        final @Nullable Setting<List<T>> fallbackSetting,
+        final Function<String, T> singleValueParser,
+        final Function<Settings, List<String>> defaultStringValue,
+        final Validator<List<T>> validator,
+        final Property... properties) {
         if (defaultStringValue.apply(Settings.EMPTY) == null) {
             throw new IllegalArgumentException("default value function must not return null");
         }
         Function<String, List<T>> parser = (s) ->
-                parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
+            parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
-        return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, properties);
+        return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, validator, properties);
     }
 
     private static List<String> parseableStringToList(String parsableString) {
@@ -1318,13 +1342,14 @@ public class Setting<T> implements ToXContentObject {
                 final @Nullable Setting<List<T>> fallbackSetting,
                 final Function<Settings, List<String>> defaultStringValue,
                 final Function<String, List<T>> parser,
+                final Validator<List<T>> validator,
                 final Property... properties) {
             super(
                     new ListKey(key),
                     fallbackSetting,
                     s -> Setting.arrayToParsableString(defaultStringValue.apply(s)),
                     parser,
-                    v -> {},
+                    validator,
                     properties);
             this.defaultStringValue = defaultStringValue;
         }

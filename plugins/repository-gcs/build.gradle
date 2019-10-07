@@ -137,7 +137,7 @@ task thirdPartyTest(type: Test) {
   include '**/GoogleCloudStorageThirdPartyTests.class'
   systemProperty 'test.google.account', gcsServiceAccount ? Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath())) : ""
   systemProperty 'test.google.bucket', gcsBucket ? gcsBucket : ""
-  systemProperty 'test.google.base', gcsBasePath ? gcsBasePath : "/"
+  systemProperty 'test.google.base', (gcsBasePath ? gcsBasePath : "/") + "_third_party_tests_" + project.testSeed
 }
 
 if (gcsServiceAccount || gcsBucket || gcsBasePath) {

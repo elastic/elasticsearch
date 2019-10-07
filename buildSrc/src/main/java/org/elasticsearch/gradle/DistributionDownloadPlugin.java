@@ -202,17 +202,22 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
 
         String extension = distribution.getType().toString();
-        String classifier = "x86_64";
-        if (distribution.getVersion().before("7.0.0")) {
-            classifier = null; // no platform specific distros before 7.0
-        } else if (distribution.getType() == Type.ARCHIVE) {
+        String classifier = ":x86_64";
+        if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
-            classifier = distribution.getPlatform() + "-" + classifier;
+            if (distribution.getVersion().onOrAfter("7.0.0")) {
+                classifier = ":" + distribution.getPlatform() + "-x86_64";
+            } else {
+                classifier = "";
+            }
         } else if (distribution.getType() == Type.DEB) {
-            classifier = "amd64";
+            classifier = ":amd64";
         }
-        return FAKE_IVY_GROUP + ":elasticsearch" + (distribution.getFlavor() == Flavor.OSS ? "-oss:" : ":")
-            + distribution.getVersion() + (classifier == null ? "" : ":" + classifier) + "@" + extension;
+        String flavor = "";
+        if (distribution.getFlavor() == Flavor.OSS && distribution.getVersion().onOrAfter("6.3.0")) {
+            flavor = "-oss";
+        }
+        return FAKE_IVY_GROUP + ":elasticsearch" + flavor + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 
     private static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
@@ -246,8 +251,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             projectName += "no-jdk-";
         }
         if (distribution.getType() == Type.ARCHIVE) {
-            Platform platform = distribution.getPlatform();
-            projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
+            if (distribution.getVersion().onOrAfter("7.0.0")) {
+                Platform platform = distribution.getPlatform();
+                projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
+            } else {
+                projectName = distribution.getFlavor().equals(Flavor.DEFAULT) ?"zip" : "oss-zip";
+            }
         } else {
             projectName += distribution.getType();
         }

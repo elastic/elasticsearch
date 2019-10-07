@@ -28,6 +28,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -61,11 +62,11 @@ final class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
-        getter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-        setter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
+        getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
+        setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
 
         if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
             getter.typeParameters.get(0) != int.class)) {
@@ -83,8 +84,8 @@ final class PSubListShortcut extends AStoreable {
 
         if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
             index.expected = int.class;
-            index.analyze(locals);
-            index = index.cast(locals);
+            index.analyze(scriptRoot, locals);
+            index = index.cast(scriptRoot, locals);
 
             actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {

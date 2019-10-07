@@ -25,11 +25,10 @@ points to it called `current_year`, and a user with the following role:
 
 The user attempts to retrieve a document from `current_year`:
 
-[source,shell]
+[source,console]
 -------------------------------------------------------------------------------
 GET /current_year/event/1
 -------------------------------------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/event\/1\n{}\n/]
 
 The above request gets rejected, although the user has `read` privilege on the
@@ -52,7 +51,7 @@ Unlike creating indices, which requires the `create_index` privilege, adding,
 removing and retrieving aliases requires the `manage` permission. Aliases can be
 added to an index directly as part of the index creation:
 
-[source,shell]
+[source,console]
 -------------------------------------------------------------------------------
 PUT /2015
 {
@@ -61,11 +60,10 @@ PUT /2015
     }
 }
 -------------------------------------------------------------------------------
-// CONSOLE
 
 or via the dedicated aliases api if the index already exists:
 
-[source,shell]
+[source,console]
 -------------------------------------------------------------------------------
 POST /_aliases
 {
@@ -74,7 +72,6 @@ POST /_aliases
     ]
 }
 -------------------------------------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT 2015\n/]
 
 The above requests both require the `manage` privilege on the alias name as well

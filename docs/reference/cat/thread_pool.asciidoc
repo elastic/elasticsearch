@@ -14,6 +14,8 @@ pools.
 
 `GET /_cat/thread_pool/<thread_pool>`
 
+`GET /_cat/thread_pool`
+
 [[cat-thread-pool-path-params]]
 ==== {api-path-parms-title}
 
@@ -24,6 +26,8 @@ request. Accepts wildcard expressions.
 
 [[cat-thread-pool-query-params]]
 ==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
@@ -108,6 +112,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
 `size`::
 (Optional, <<size-units, size unit>>) Multiplier used to display quantities.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 

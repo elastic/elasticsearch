@@ -20,6 +20,23 @@
         "type":"string",
         "description":"a short version of the Accept header, e.g. json, yaml"
       },
+      "bytes":{
+        "type":"enum",
+        "description":"The unit in which to display byte values",
+        "options":[
+          "b",
+          "k",
+          "kb",
+          "m",
+          "mb",
+          "g",
+          "gb",
+          "t",
+          "tb",
+          "p",
+          "pb"
+        ]
+      },
       "node_id":{
         "type":"list",
         "description":"A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
@@ -48,6 +65,19 @@
       "s":{
         "type":"list",
         "description":"Comma-separated list of column names or column aliases to sort by"
+      },
+      "time":{
+        "type":"enum",
+        "description":"The unit in which to display time values",
+        "options":[
+          "d (Days)",
+          "h (Hours)",
+          "m (Minutes)",
+          "s (Seconds)",
+          "ms (Milliseconds)",
+          "micros (Microseconds)",
+          "nanos (Nanoseconds)"
+        ]
       },
       "v":{
         "type":"boolean",

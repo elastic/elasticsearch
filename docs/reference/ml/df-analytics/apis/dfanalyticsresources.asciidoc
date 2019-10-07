@@ -134,7 +134,7 @@ An `outlier_detection` configuration object has the following properties:
   {oldetection}. For example, 0.05 means it is assumed that 5% of values are real outliers 
   and 95% are inliers.
   
-`standardize_columns`::
+`standardization_enabled`::
   (boolean) If `true`, then the following operation is performed on the columns 
   before computing outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to 
   `true`. For more information, see 

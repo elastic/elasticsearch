@@ -26,7 +26,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Type;
 
 import java.util.Objects;
@@ -60,14 +60,14 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (expected == null) {
             ref = null;
             actual = String.class;
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
-            ref = FunctionRef.create(locals.getPainlessLookup(), functions, location, expected, type, call, 0);
+            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, expected, type, call, 0);
             actual = expected;
         }
     }

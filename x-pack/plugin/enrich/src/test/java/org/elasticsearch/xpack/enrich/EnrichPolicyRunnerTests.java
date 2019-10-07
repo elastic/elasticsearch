@@ -156,6 +156,90 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
+    public void testRunnerGeoMatchType() throws Exception {
+        final String sourceIndex = "source-index";
+        IndexResponse indexRequest = client().index(new IndexRequest()
+            .index(sourceIndex)
+            .id("id")
+            .source(
+                "{" +
+                    "\"location\":" +
+                    "\"POINT(10.0 10.0)\"," +
+                    "\"zipcode\":90210" +
+                    "}",
+                XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertEquals(RestStatus.CREATED, indexRequest.status());
+
+        SearchResponse sourceSearchResponse = client().search(
+            new SearchRequest(sourceIndex)
+                .source(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.matchAllQuery()))).actionGet();
+        assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+        assertNotNull(sourceDocMap);
+        assertThat(sourceDocMap.get("location"), is(equalTo("POINT(10.0 10.0)")));
+        assertThat(sourceDocMap.get("zipcode"), is(equalTo(90210)));
+
+        List<String> enrichFields = Arrays.asList("zipcode");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.GEO_MATCH_TYPE, null, Arrays.asList(sourceIndex), "location", enrichFields);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<PolicyExecutionResult> listener = createTestListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        // Validate Index definition
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        GetIndexResponse enrichIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        assertThat(enrichIndex.getIndices().length, equalTo(1));
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+
+        // Validate Mapping
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> field1 = (Map<?, ?>) properties.get("location");
+        assertNotNull(field1);
+        assertThat(field1.get("type"), is(equalTo("geo_shape")));
+        assertNull(field1.get("doc_values"));
+
+        // Validate document structure
+        SearchResponse enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1")
+                .source(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.matchAllQuery()))).actionGet();
+
+        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        assertNotNull(enrichDocument);
+        assertThat(enrichDocument.size(), is(equalTo(2)));
+        assertThat(enrichDocument.get("location"), is(equalTo("POINT(10.0 10.0)")));
+        assertThat(enrichDocument.get("zipcode"), is(equalTo(90210)));
+
+        // Validate segments
+        validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+    }
+
     public void testRunnerMultiSource() throws Exception {
         String baseSourceName = "source-index-";
         int numberOfSourceIndices = 3;

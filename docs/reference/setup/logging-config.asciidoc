@@ -215,10 +215,8 @@ You can disable it in the `config/log4j2.properties` file by setting the depreca
 log level to `error` like this:
 [source,properties]
 --------------------------------------------------
-...
 logger.deprecation.name = org.elasticsearch.deprecation
 logger.deprecation.level = error
-...
 --------------------------------------------------
 
 

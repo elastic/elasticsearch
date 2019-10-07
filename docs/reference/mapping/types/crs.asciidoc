@@ -37,7 +37,7 @@ PUT /example
     "mappings": {
         "properties": {
             “projected_shape” : {
-                “type” : “geo_shape”,
+                "type" : "geo_shape",
                 "crs": {
                     "type": "name",
                     "properties": {

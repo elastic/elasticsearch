@@ -32,14 +32,9 @@ be secured as well, or at least communicate with the cluster in a secured way:
 * {kibana-ref}/secure-reporting.html[Reporting]
 * {winlogbeat-ref}/securing-beats.html[Winlogbeat]
 
-include::ccs-clients-integrations/cross-cluster.asciidoc[]
-
-include::ccs-clients-integrations/java.asciidoc[]
-
-include::ccs-clients-integrations/http.asciidoc[]
-
-include::ccs-clients-integrations/hadoop.asciidoc[]
-
-include::ccs-clients-integrations/beats.asciidoc[]
-
-include::ccs-clients-integrations/monitoring.asciidoc[]
+include::cross-cluster.asciidoc[]
+include::java.asciidoc[]
+include::http.asciidoc[]
+include::hadoop.asciidoc[]
+include::beats.asciidoc[]
+include::monitoring.asciidoc[]

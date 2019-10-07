@@ -6,7 +6,7 @@
 
 Retrieves multiple JSON documents by ID. 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget
 {
@@ -124,7 +124,7 @@ If there is a failure getting a particular document, the error is included in pl
 
 If you specify an index in the request URI, only the document IDs are required in the request body:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_mget
 {
@@ -140,11 +140,10 @@ GET /twitter/_mget
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 And type:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_doc/_mget
 {
@@ -162,7 +161,7 @@ GET /test/_doc/_mget
 
 You can use the `ids` element to simplify the request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_mget
 {
@@ -184,7 +183,7 @@ For example, the following request sets `_source` to false for document 1 to exc
 source entirely, retrieves `field3` and `field4` from document 2, and retrieves the `user` field
 from document 3 but filters out the `user.location` field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget
 {
@@ -213,7 +212,6 @@ GET /_mget
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 [[mget-fields]]
 ===== Get stored fields
@@ -226,7 +224,7 @@ to use when there are no per-document instructions.
 For example, the following request retrieves `field1` and `field2` from document 1, and
 `field3` and `field4`from document 2:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget
 {
@@ -246,13 +244,12 @@ GET /_mget
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The following request retrieves `field1` and `field2` from all documents by default.
 These default fields are returned for document 1, but 
 overridden to return `field3` and `field4` for document 2.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_doc/_mget?stored_fields=field1,field2
 {
@@ -275,7 +272,7 @@ If routing is used during indexing, you need to specify the routing value to ret
 For example, the following request fetches `test/_doc/2`  from the shard corresponding to routing key `key1`,
 and fetches `test/_doc/1` from the shard corresponding to routing key `key2`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget?routing=key1
 {

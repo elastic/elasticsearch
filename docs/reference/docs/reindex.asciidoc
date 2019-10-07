@@ -16,7 +16,7 @@ Reindex does not copy the settings from the source index.
 Mappings, shard counts, replicas, and so on must be configured ahead of time.
 =================================================
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -28,12 +28,11 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 {
   "took" : 147,
@@ -158,7 +157,7 @@ starting the next set. This is "bursty" instead of "smooth".
 The value of `requests_per_second` can be changed on a running reindex using
 the `_rethrottle` API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 --------------------------------------------------
@@ -356,7 +355,7 @@ For example, you can use the following request to copy all documents from
 the `source` index with the company name `cat` into the `dest` index with
 routing set to `cat`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -374,7 +373,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT source\n/]
 
 
@@ -382,7 +380,7 @@ POST _reindex
 By default `_reindex` uses scroll batches of 1000. You can change the
 batch size with the `size` field in the `source` element:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -396,13 +394,12 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT source\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -415,7 +412,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT source\n/]
 
 [[docs-reindex-api-query-params]]
@@ -587,7 +583,7 @@ the `conflicts` option to prevent reindex from aborting on version conflicts.
 You can limit the documents by adding a query to the `source`.
 For example, the following request only copies tweets made by `kimchy` into `new_twitter`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -634,7 +630,7 @@ If possible, it's better to use a more selective query instead of `max_docs` and
 
 For example, following request copies 10000 documents from `twitter` into `new_twitter`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -657,7 +653,7 @@ The `index` attribute in `source` can be a list, allowing you to copy from lots
 of sources in one request. This will copy documents from the
 `twitter` and `blog` indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -696,7 +692,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[docs-reindex-change-name]]
@@ -705,7 +700,7 @@ POST _reindex
 `_reindex` can be used to build a copy of an index with renamed fields. Say you
 create an index containing documents that look like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?refresh
 {
@@ -713,12 +708,11 @@ POST test/_doc/1?refresh
   "flag": "foo"
 }
 --------------------------------------------------
-// CONSOLE
 
 but you don't like the name `flag` and want to replace it with `tag`.
 `_reindex` can create the other index for you:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -733,21 +727,19 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Now you can get the new document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET test2/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 which will return:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 {
   "found": true,
@@ -789,7 +781,7 @@ The script below extracts the date from the index name and creates a new index
 with `-1` appended. All data from `metricbeat-2016.05.31` will be reindexed
 into `metricbeat-2016.05.31-1`.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST _reindex
 {
@@ -809,12 +801,11 @@ POST _reindex
 
 All documents from the previous metricbeat indices can now be found in the `*-1` indices.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET metricbeat-2016.05.30-1/_doc/1
 GET metricbeat-2016.05.31-1/_doc/1
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The previous method can also be used in conjunction with <<docs-reindex-change-name, changing a field name>>
@@ -825,7 +816,7 @@ to load only the existing data into the new index and rename any fields if neede
 
 `_reindex` can be used to extract a random subset of an index for testing:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST _reindex
 {
@@ -845,7 +836,6 @@ POST _reindex
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 <1> `_reindex` defaults to sorting by `_doc` so `random_score` will not have any

@@ -18,6 +18,7 @@ Evaluation configuration objects relate to the <<evaluate-dfanalytics>>.
 Available evaluation types:
 * `binary_soft_classification`
 * `regression`
+* `classification`
 --
   
 `query`::
@@ -96,3 +97,38 @@ which outputs a prediction of values.
 `metrics`::
   (object) Specifies the metrics that are used for the evaluation. Available 
   metrics are `r_squared` and `mean_squared_error`.
+  
+  
+[[classification-evaluation-resources]]
+==== {classification-cap} evaluation objects
+
+{classification-cap} evaluation evaluates the results of a {classification} 
+analysis which outputs 
+
+
+[discrete]
+[[classification-evaluation-resources-properties]]
+===== {api-definitions-title}
+
+`actual_field`::
+  (string) The field of the `index` which contains the ground truth. The data 
+  type of this field can be boolean or integer. If the data type is integer, the 
+  value has to be either `0` (false) or `1` (true).
+  
+`metrics`::
+  (object) Specifies the metrics that are used for the evaluation. Available 
+  metric is `multiclass_confusion_matrix`.
+  
+`size`:::
+  (integer) Restrict the number of classes that the
+  `multiclass_confusion_matrix` is calculated on. The evaluation uses the 
+  classes that occur the most frequently in the dataset. For example, if the 
+  `size` is set to 20 and the number of classes in the dataset is 50, then the 
+  matrix in the response will contain the 20 most common classes in the dataset 
+  and an `_other_` object which accumulates all the other categories that 
+  couldn't fit into the response. Defaults to 10. Maximum value is 1000.
+  
+`predicted_field`::
+  (string) The field in the `index` that contains the predicted value, in other 
+  words the results of the {classification} analysis. The data type of this 
+  field is string.

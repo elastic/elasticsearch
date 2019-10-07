@@ -36,6 +36,8 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
+
 public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
     // TODO should we have regression/classification sub-classes that accept the builder?
@@ -112,8 +114,8 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceParams params) {
         if (targetType != TargetType.CLASSIFICATION && params.getNumTopClasses() != 0) {
-            throw new UnsupportedOperationException(
-                "Cannot return top classes for target_type [" + targetType.toString() + "]");
+            throw ExceptionsHelper.badRequestException(
+                "Cannot return top classes for target_type [{}]", targetType.toString());
         }
         List<Double> features = featureNames.stream().map(f ->
             fields.get(f) instanceof Number ? ((Number) fields.get(f)).doubleValue() : null
@@ -134,7 +136,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             case CLASSIFICATION:
                 List<ClassificationInferenceResults.TopClassEntry> topClasses =
                     InferenceHelpers.topClasses(classificationProbability(value), classificationLabels, params.getNumTopClasses());
-                return new ClassificationInferenceResults(value, classificationLabel(value), topClasses);
+                return new ClassificationInferenceResults(value, classificationLabel(value, classificationLabels), topClasses);
             case REGRESSION:
                 return new RegressionInferenceResults(value);
             default:
@@ -173,21 +175,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         // TODO, eventually have TreeNodes contain confidence levels
         list.set(Double.valueOf(inferenceValue).intValue(), 1.0);
         return list;
-    }
-
-    private String classificationLabel(double inferenceValue) {
-        assert inferenceValue == Math.rint(inferenceValue);
-        if (classificationLabels == null) {
-            return String.valueOf(inferenceValue);
-        }
-        int label = Double.valueOf(inferenceValue).intValue();
-        if (label < 0 || label >= classificationLabels.size()) {
-            throw ExceptionsHelper.badRequestException(
-                    "model returned classification value of [{}] which is not a valid index in classification labels [{}]",
-                    label,
-                    classificationLabels);
-        }
-        return classificationLabels.get(label);
     }
 
     @Override

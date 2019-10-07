@@ -40,22 +40,16 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
 
         ActionListener<Model> getModelListener = ActionListener.wrap(
             model -> {
-                TypedChainTaskExecutor<InferenceResults<?>> typedChainTaskExecutor =
+                TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor =
                     new TypedChainTaskExecutor<>(client.threadPool().executor(ThreadPool.Names.SAME),
                     // run through all tasks
                     r -> true,
                     // Always fail immediately and return an error
                     ex -> true);
-                if (request.getTopClasses() != 0) {
-                    request.getObjectsToInfer().forEach(stringObjectMap ->
-                        typedChainTaskExecutor.add(chainedTask ->
-                            model.classificationProbability(stringObjectMap, request.getTopClasses(), chainedTask))
-                    );
-                } else {
-                    request.getObjectsToInfer().forEach(stringObjectMap ->
-                        typedChainTaskExecutor.add(chainedTask -> model.infer(stringObjectMap, chainedTask))
-                    );
-                }
+                request.getObjectsToInfer().forEach(stringObjectMap ->
+                    typedChainTaskExecutor.add(chainedTask ->
+                        model.infer(stringObjectMap, request.getParams(), chainedTask)));
+
                 typedChainTaskExecutor.execute(ActionListener.wrap(
                     inferenceResultsInterfaces ->
                         listener.onResponse(new InferModelAction.Response(inferenceResultsInterfaces, model.getResultsType())),

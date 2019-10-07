@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -38,24 +39,24 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         private final String modelId;
         private final long modelVersion;
         private final List<Map<String, Object>> objectsToInfer;
-        private final int topClasses;
+        private final InferenceParams params;
 
         public Request(String modelId, long modelVersion) {
-            this(modelId, modelVersion, Collections.emptyList(), null);
+            this(modelId, modelVersion, Collections.emptyList(), InferenceParams.EMPTY_PARAMS);
         }
 
-        public Request(String modelId, long modelVersion, List<Map<String, Object>> objectsToInfer, Integer topClasses) {
+        public Request(String modelId, long modelVersion, List<Map<String, Object>> objectsToInfer, InferenceParams inferenceParams) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.modelVersion = modelVersion;
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
-            this.topClasses = topClasses  == null ? 0 : topClasses;
+            this.params = inferenceParams == null ? InferenceParams.EMPTY_PARAMS : inferenceParams;
         }
 
-        public Request(String modelId, long modelVersion, Map<String, Object> objectToInfer, Integer topClasses) {
+        public Request(String modelId, long modelVersion, Map<String, Object> objectToInfer, InferenceParams params) {
             this(modelId,
                 modelVersion,
                 Arrays.asList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
-                topClasses);
+                params);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -63,7 +64,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.modelId = in.readString();
             this.modelVersion = in.readVLong();
             this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
-            this.topClasses = in.readInt();
+            this.params = new InferenceParams(in);
         }
 
         public String getModelId() {
@@ -78,8 +79,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return objectsToInfer;
         }
 
-        public int getTopClasses() {
-            return topClasses;
+        public InferenceParams getParams() {
+            return params;
         }
 
         @Override
@@ -93,7 +94,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeString(modelId);
             out.writeVLong(modelVersion);
             out.writeCollection(objectsToInfer, StreamOutput::writeMap);
-            out.writeInt(topClasses);
+            params.writeTo(out);
         }
 
         @Override
@@ -103,23 +104,23 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             InferModelAction.Request that = (InferModelAction.Request) o;
             return Objects.equals(modelId, that.modelId)
                 && Objects.equals(modelVersion, that.modelVersion)
-                && Objects.equals(topClasses, that.topClasses)
+                && Objects.equals(params, that.params)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, modelVersion, objectsToInfer, topClasses);
+            return Objects.hash(modelId, modelVersion, objectsToInfer, params);
         }
 
     }
 
     public static class Response extends ActionResponse {
 
-        private final List<InferenceResults<?>> inferenceResults;
+        private final List<InferenceResults> inferenceResults;
         private final String resultsType;
 
-        public Response(List<InferenceResults<?>> inferenceResponse, String resultsType) {
+        public Response(List<InferenceResults> inferenceResponse, String resultsType) {
             super();
             this.resultsType = ExceptionsHelper.requireNonNull(resultsType, "resultsType");
             this.inferenceResults = inferenceResponse == null ?
@@ -139,7 +140,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             }
         }
 
-        public List<InferenceResults<?>> getInferenceResults() {
+        public List<InferenceResults> getInferenceResults() {
             return inferenceResults;
         }
 

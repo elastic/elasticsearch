@@ -29,7 +29,7 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
             resultType);
     }
 
-    private static InferenceResults<?> randomInferenceResult(String resultType) {
+    private static InferenceResults randomInferenceResult(String resultType) {
         if (resultType.equals(ClassificationInferenceResults.RESULT_TYPE)) {
             return ClassificationInferenceResultsTests.createRandomResults();
         } else if (resultType.equals(RegressionInferenceResults.RESULT_TYPE)) {

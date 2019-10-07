@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
@@ -26,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 
@@ -65,11 +66,13 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2, 0)
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
+                .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
                 .setTrainedModel(buildClassification()))
             .build(Version.CURRENT);
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1, 0)
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
+                .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
                 .setTrainedModel(buildRegression()))
             .build(Version.CURRENT);
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
@@ -110,23 +113,26 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         // Test regression
         InferModelAction.Request request = new InferModelAction.Request(modelId1, 0, toInfer, null);
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResults().stream().map(InferenceResults::value).collect(Collectors.toList()),
+        assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.3, 1.25));
 
         request = new InferModelAction.Request(modelId1, 0, toInfer2, null);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResults().stream().map(InferenceResults::value).collect(Collectors.toList()),
+        assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.65, 1.55));
 
 
         // Test classification
         request = new InferModelAction.Request(modelId2, 0, toInfer, null);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResults().stream().map(InferenceResults::valueAsString).collect(Collectors.toList()),
+        assertThat(response.getInferenceResults()
+                .stream()
+                .map(i -> ((SingleValueInferenceResults)i).valueAsString())
+                .collect(Collectors.toList()),
             contains("not_to_be", "to_be"));
 
         // Get top classes
-        request = new InferModelAction.Request(modelId2, 0, toInfer, 2);
+        request = new InferModelAction.Request(modelId2, 0, toInfer, new InferenceParams(2));
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getResultsType(), equalTo(ClassificationInferenceResults.RESULT_TYPE));
 
@@ -146,7 +152,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         // Test that top classes restrict the number returned
-        request = new InferModelAction.Request(modelId2, 0, toInfer2, 1);
+        request = new InferModelAction.Request(modelId2, 0, toInfer2, new InferenceParams(1));
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getResultsType(), equalTo(ClassificationInferenceResults.RESULT_TYPE));
 

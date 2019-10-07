@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 
 import java.util.Map;
 
@@ -14,7 +15,6 @@ public interface Model {
 
     String getResultsType();
 
-    void infer(Map<String, Object> fields, ActionListener<InferenceResults<?>> listener);
+    void infer(Map<String, Object> fields, InferenceParams inferenceParams, ActionListener<InferenceResults> listener);
 
-    void classificationProbability(Map<String, Object> fields, int topN, ActionListener<InferenceResults<?>> listener);
 }

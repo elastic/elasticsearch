@@ -6,14 +6,27 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+
+import java.util.HashMap;
+
+import static org.hamcrest.Matchers.equalTo;
 
 
 public class RegressionInferenceResultsTests extends AbstractWireSerializingTestCase<RegressionInferenceResults> {
 
     public static RegressionInferenceResults createRandomResults() {
         return new RegressionInferenceResults(randomDouble());
+    }
+
+    public void testWriteResults() {
+        RegressionInferenceResults result = new RegressionInferenceResults(0.3);
+        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        result.writeResult(document, "result_field");
+
+        assertThat(document.getFieldValue("result_field", Double.class), equalTo(0.3));
     }
 
     @Override

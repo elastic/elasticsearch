@@ -1,5 +1,11 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -7,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -49,5 +54,21 @@ public final class InferenceHelpers {
         }
 
         return topClassEntries;
+    }
+
+
+    public static String classificationLabel(double inferenceValue, @Nullable List<String> classificationLabels) {
+        assert inferenceValue == Math.rint(inferenceValue);
+        if (classificationLabels == null) {
+            return String.valueOf(inferenceValue);
+        }
+        int label = Double.valueOf(inferenceValue).intValue();
+        if (label < 0 || label >= classificationLabels.size()) {
+            throw ExceptionsHelper.badRequestException(
+                "model returned classification value of [{}] which is not a valid index in classification labels [{}]",
+                label,
+                classificationLabels);
+        }
+        return classificationLabels.get(label);
     }
 }

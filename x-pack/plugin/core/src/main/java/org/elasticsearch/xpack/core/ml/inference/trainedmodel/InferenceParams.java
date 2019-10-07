@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.ParseField;
@@ -13,6 +18,8 @@ import java.util.Objects;
 public class InferenceParams implements ToXContentObject, Writeable {
 
     public static ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
+
+    public static InferenceParams EMPTY_PARAMS = new InferenceParams(0);
 
     private final int numTopClasses;
 

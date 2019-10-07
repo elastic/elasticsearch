@@ -23,21 +23,18 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.ArrayDeque;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ModelLoadingService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ModelLoadingService.class);
-    // TODO should these be ConcurrentHashMaps if all interactions are synchronized?
-    private final ConcurrentHashMap<String, Optional<Model>> loadedModels = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Queue<ActionListener<Model>>> loadingListeners = new ConcurrentHashMap<>();
+    private final Map<String, MaybeModel> loadedModels = new HashMap<>();
+    private final Map<String, Queue<ActionListener<Model>>> loadingListeners = new HashMap<>();
     private final TrainedModelProvider provider;
     private final ThreadPool threadPool;
 
@@ -49,10 +46,10 @@ public class ModelLoadingService implements ClusterStateListener {
 
     public void getModel(String modelId, long modelVersion, ActionListener<Model> modelActionListener) {
         String key = modelKey(modelId, modelVersion);
-        Optional<Model> cachedModel = loadedModels.get(key);
+        MaybeModel cachedModel = loadedModels.get(key);
         if (cachedModel != null) {
-            if (cachedModel.isPresent()) {
-                modelActionListener.onResponse(cachedModel.get());
+            if (cachedModel.isSuccess()) {
+                modelActionListener.onResponse(cachedModel.getModel());
                 return;
             }
         }
@@ -77,10 +74,10 @@ public class ModelLoadingService implements ClusterStateListener {
      */
     private boolean loadModelIfNecessary(String key, String modelId, long modelVersion, ActionListener<Model> modelActionListener) {
         synchronized (loadingListeners) {
-            Optional<Model> cachedModel = loadedModels.get(key);
+            MaybeModel cachedModel = loadedModels.get(key);
             if (cachedModel != null) {
-                if (cachedModel.isPresent()) {
-                    modelActionListener.onResponse(cachedModel.get());
+                if (cachedModel.isSuccess()) {
+                    modelActionListener.onResponse(cachedModel.getModel());
                     return true;
                 }
                 // If the loaded model entry is there but is not present, that means the previous load attempt ran into an issue
@@ -121,11 +118,11 @@ public class ModelLoadingService implements ClusterStateListener {
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such
             // Consequently, we should not store the retrieved model
             if (listeners != null) {
-                loadedModels.put(modelKey, Optional.of(loadedModel));
+                loadedModels.put(modelKey, MaybeModel.of(loadedModel));
             }
         }
         if (listeners != null) {
-            for(ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+            for (ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
                 listener.onResponse(loadedModel);
             }
         }
@@ -138,11 +135,11 @@ public class ModelLoadingService implements ClusterStateListener {
             if (listeners != null) {
                 // If we failed to load and there were listeners present, that means that this model is referenced by a processor
                 // Add an empty entry here so that we can attempt to load and cache the model again when it is accessed again.
-                loadedModels.computeIfAbsent(modelKey, (key) -> Optional.empty());
+                loadedModels.computeIfAbsent(modelKey, (key) -> MaybeModel.of(failure));
             }
         }
         if (listeners != null) {
-            for(ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+            for (ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
                 listener.onFailure(failure);
             }
         }
@@ -159,9 +156,7 @@ public class ModelLoadingService implements ClusterStateListener {
             synchronized (loadingListeners) {
                 // If we had models still loading here but are no longer referenced
                 // we should remove them from loadingListeners and alert the listeners
-                Iterator<String> keyIterator = loadingListeners.keys().asIterator();
-                while(keyIterator.hasNext()) {
-                    String modelKey = keyIterator.next();
+                for(String modelKey : loadingListeners.keySet()) {
                     if (allReferencedModelKeys.contains(modelKey) == false) {
                         drainWithFailure.addAll(loadingListeners.remove(modelKey));
                     }
@@ -170,14 +165,12 @@ public class ModelLoadingService implements ClusterStateListener {
                 // Remove all cached models that are not referenced by any processors
                 loadedModels.keySet().retainAll(allReferencedModelKeys);
 
-                // After removing the unreferenced models, now we need to know what referenced models should be loaded
-
                 // Remove all that are currently being loaded
                 allReferencedModelKeys.removeAll(loadingListeners.keySet());
 
                 // Remove all that are fully loaded, will attempt empty model loading again
                 loadedModels.forEach((id, optionalModel) -> {
-                    if(optionalModel.isPresent()) {
+                    if(optionalModel.isSuccess()) {
                         allReferencedModelKeys.remove(id);
                     }
                 });
@@ -246,6 +239,42 @@ public class ModelLoadingService implements ClusterStateListener {
             });
         }
         return allReferencedModelKeys;
+    }
+
+    private static class MaybeModel {
+
+        private final Model model;
+        private final Exception exception;
+
+        static MaybeModel of(Model model) {
+            return new MaybeModel(model, null);
+        }
+
+        static MaybeModel of(Exception exception) {
+            return new MaybeModel(null, exception);
+        }
+
+        private MaybeModel(Model model, Exception exception) {
+            this.model = model;
+            this.exception = exception;
+        }
+
+        Model getModel() {
+            return model;
+        }
+
+        Exception getException() {
+            return exception;
+        }
+
+        boolean isSuccess() {
+            return this.model != null;
+        }
+
+        boolean isFailure() {
+            return this.exception != null;
+        }
+
     }
 
 }

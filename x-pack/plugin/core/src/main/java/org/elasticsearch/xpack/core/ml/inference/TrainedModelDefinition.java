@@ -18,6 +18,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class TrainedModelDefinition implements ToXContentObject, Writeable {
@@ -116,6 +119,15 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
 
     public Input getInput() {
         return input;
+    }
+
+    private void preProcess(Map<String, Object> fields) {
+        preProcessors.forEach(preProcessor -> preProcessor.process(fields));
+    }
+
+    public InferenceResults infer(Map<String, Object> fields, InferenceParams params) {
+        preProcess(fields);
+        return trainedModel.infer(fields, params);
     }
 
     @Override

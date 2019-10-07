@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class ClassificationInferenceResults extends SingleValueInferenceResults {
 
@@ -95,7 +96,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         if (topClasses.isEmpty()) {
             document.setFieldValue(resultField, valueAsString());
         } else {
-            document.setFieldValue(resultField, topClasses.stream().map(TopClassEntry::asValueMap));
+            document.setFieldValue(resultField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
     }
 

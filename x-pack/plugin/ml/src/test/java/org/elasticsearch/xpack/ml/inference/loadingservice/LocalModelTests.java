@@ -9,6 +9,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
@@ -35,6 +37,7 @@ public class LocalModelTests extends ESTestCase {
     public void testClassificationInfer() throws Exception {
         String modelId = "classification_model";
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
+            .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(false))
             .build();
@@ -46,64 +49,40 @@ public class LocalModelTests extends ESTestCase {
             put("categorical", "dog");
         }};
 
-        PlainActionFuture<InferenceResults<?>> future = new PlainActionFuture<>();
-        model.infer(fields, future);
-        InferenceResults<?> result = future.get();
+        SingleValueInferenceResults result = getSingleValue(model, fields, InferenceParams.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), is("0.0"));
 
-        future = new PlainActionFuture<>();
-        model.classificationProbability(fields, 0, future);
-        result = future.get();
-        assertThat(result.value(), equalTo(0.0));
-        assertThat(result.valueAsString(), is("0.0"));
-
-        future = new PlainActionFuture<>();
-        model.classificationProbability(fields, 1, future);
-        ClassificationInferenceResults classificationResult = (ClassificationInferenceResults)future.get();
+        ClassificationInferenceResults classificationResult =
+            (ClassificationInferenceResults)getSingleValue(model, fields, new InferenceParams(1));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("0"));
 
         // Test with labels
         definition = new TrainedModelDefinition.Builder()
+            .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(true))
             .build();
         model = new LocalModel(modelId, definition);
-        future = new PlainActionFuture<>();
-        model.infer(fields, future);
-        result = future.get();
+        result = getSingleValue(model, fields, InferenceParams.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
 
-        future = new PlainActionFuture<>();
-        model.classificationProbability(fields, 0, future);
-        result = future.get();
-        assertThat(result.value(), equalTo(0.0));
-        assertThat(result.valueAsString(), equalTo("not_to_be"));
-
-        future = new PlainActionFuture<>();
-        model.classificationProbability(fields, 1, future);
-        result = future.get();
-        classificationResult = (ClassificationInferenceResults)result;
+        classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new InferenceParams(1));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
 
-        future = new PlainActionFuture<>();
-        model.classificationProbability(fields, 2, future);
-        result = future.get();
-        classificationResult = (ClassificationInferenceResults)result;
+        classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new InferenceParams(2));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
 
-        future = new PlainActionFuture<>();
-        model.classificationProbability(fields, -1, future);
-        result = future.get();
-        classificationResult = (ClassificationInferenceResults)result;
+        classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new InferenceParams(-1));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
     }
 
     public void testRegression() throws Exception {
         TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
+            .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
@@ -115,15 +94,22 @@ public class LocalModelTests extends ESTestCase {
             put("categorical", "dog");
         }};
 
-        PlainActionFuture<InferenceResults<?>> future = new PlainActionFuture<>();
-        model.infer(fields, future);
-        InferenceResults<?> results = future.get();
+        SingleValueInferenceResults results = getSingleValue(model, fields, InferenceParams.EMPTY_PARAMS);
         assertThat(results.value(), equalTo(1.3));
 
-        PlainActionFuture<InferenceResults<?>> failedFuture = new PlainActionFuture<>();
-        model.classificationProbability(fields, -1, failedFuture);
+        PlainActionFuture<InferenceResults> failedFuture = new PlainActionFuture<>();
+        model.infer(fields, new InferenceParams(2), failedFuture);
         ExecutionException ex = expectThrows(ExecutionException.class, failedFuture::get);
-        assertThat(ex.getCause().getMessage(), equalTo("top result probabilities is only available for classification models"));
+        assertThat(ex.getCause().getMessage(),
+            equalTo("Cannot return top classes for target_type [regression] and aggregate_output [weighted_sum]"));
+    }
+
+    private static SingleValueInferenceResults getSingleValue(Model model,
+                                                              Map<String, Object> fields,
+                                                              InferenceParams params) throws Exception {
+        PlainActionFuture<InferenceResults> future = new PlainActionFuture<>();
+        model.infer(fields, params, future);
+        return (SingleValueInferenceResults)future.get();
     }
 
     private static Map<String, String> oneHotMap() {

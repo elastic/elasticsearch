@@ -1,15 +1,13 @@
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.gradle.Docker.checkVersion;
 import static org.elasticsearch.gradle.Docker.extractVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
-public class DockerTests {
+public class DockerTests extends GradleUnitTestCase {
 
     @Test
     public void testExtractVersion() {

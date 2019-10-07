@@ -1,0 +1,26 @@
+String buildNumber = System.getenv('BUILD_NUMBER')
+
+if (buildNumber) {
+    String uploadFile = "build/${buildNumber}.tar.bz2"
+    project.gradle.buildFinished { result ->
+        println "build complete, generating: $uploadFile"
+        project.sync {
+            from fileTree(projectDir)
+            include "**/*.hprof"
+            include "**/build/testclusters/**"
+            exclude "**/build/testclusters/**/data"
+            exclude "**/build/testclusters/**/distro"
+            exclude "**/build/testclusters/**/repo"
+            exclude "**/build/testclusters/**/extract"
+            exclude "build/upload-files"
+            into "build/upload-files"
+            includeEmptyDirs = false
+        }
+        if (project.file(uploadFile)) {
+            project.delete(uploadFile)
+        }
+        ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
+            fileset(dir: "build/upload-files")
+        }
+    }
+}

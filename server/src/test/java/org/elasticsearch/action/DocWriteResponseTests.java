@@ -46,8 +46,8 @@ public class DocWriteResponseTests extends ESTestCase {
                         17,
                         0,
                         Result.CREATED) {};
-        assertEquals("/index/type/id", response.getLocation(null));
-        assertEquals("/index/type/id?routing=test_routing", response.getLocation("test_routing"));
+        assertEquals("/index/_doc/id", response.getLocation(null));
+        assertEquals("/index/_doc/id?routing=test_routing", response.getLocation("test_routing"));
     }
 
     public void testGetLocationNonAscii() {
@@ -59,8 +59,8 @@ public class DocWriteResponseTests extends ESTestCase {
                         17,
                         0,
                         Result.CREATED) {};
-        assertEquals("/index/type/%E2%9D%A4", response.getLocation(null));
-        assertEquals("/index/type/%E2%9D%A4?routing=%C3%A4", response.getLocation("ä"));
+        assertEquals("/index/_doc/%E2%9D%A4", response.getLocation(null));
+        assertEquals("/index/_doc/%E2%9D%A4?routing=%C3%A4", response.getLocation("ä"));
     }
 
     public void testGetLocationWithSpaces() {
@@ -72,8 +72,8 @@ public class DocWriteResponseTests extends ESTestCase {
                         17,
                         0,
                         Result.CREATED) {};
-        assertEquals("/index/type/a+b", response.getLocation(null));
-        assertEquals("/index/type/a+b?routing=c+d", response.getLocation("c d"));
+        assertEquals("/index/_doc/a+b", response.getLocation(null));
+        assertEquals("/index/_doc/a+b?routing=c+d", response.getLocation("c d"));
     }
 
     /**

@@ -575,11 +575,11 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex2")));
 
         BulkRequest bulkRequest2 = new BulkRequest();
-        bulkRequest2.add(new IndexRequest("bulkindex1", "index1_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
-            .add(new IndexRequest("bulkindex2", "index2_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
-            .add(new IndexRequest("bulkindex2", "index2_type").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
-            .add(new UpdateRequest("bulkindex2", "index2_type", "2").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
-            .add(new DeleteRequest("bulkindex2", "index2_type", "3"))
+        bulkRequest2.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
+            .add(new IndexRequest("bulkindex2").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
+            .add(new IndexRequest("bulkindex2").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
+            .add(new UpdateRequest("bulkindex2", "2").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
+            .add(new DeleteRequest("bulkindex2", "3"))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
         BulkResponse bulkResponse = client().bulk(bulkRequest2).get();

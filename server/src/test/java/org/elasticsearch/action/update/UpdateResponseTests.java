@@ -57,7 +57,7 @@ public class UpdateResponseTests extends ESTestCase {
         {
             UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 0, NOT_FOUND);
             String output = Strings.toString(updateResponse);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\"," +
+            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\"," +
                     "\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0}}", output);
         }
         {

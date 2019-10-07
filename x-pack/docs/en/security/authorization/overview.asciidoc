@@ -1,0 +1,75 @@
+[role="xpack"]
+[[authorization]]
+== User authorization
+
+The {stack-security-features} add _authorization_, which is the process of determining whether the user behind an incoming request is allowed to execute
+the request. 
+
+This process takes place after the user is successfully identified and 
+<<setting-up-authentication,authenticated>>. 
+
+[[roles]]
+[float]
+=== Role-based access control
+
+The {security-features} provide a role-based access control (RBAC) mechanism,
+which enables you to authorize users by assigning privileges to roles and
+assigning roles to users or groups. 
+
+image::security/authorization/images/authorization.png[This image illustrates role-based access control]
+
+The authorization process revolves around the following constructs:
+
+_Secured Resource_::
+A resource to which access is restricted. Indices, aliases, documents, fields,
+users, and the {es} cluster itself are all examples of secured objects.
+
+_Privilege_::
+A named group of one or more actions that a user may execute against a
+secured resource. Each secured resource has its own sets of available privileges.
+For example, `read` is an index privilege that represents all actions that enable
+reading the indexed/stored data. For a complete list of available privileges
+see <<security-privileges>>.
+
+_Permissions_::
+A set of one or more privileges against a secured resource. Permissions can
+easily be described in words, here are few examples:
+ * `read` privilege on the `products` index
+ * `manage` privilege on the cluster
+ * `run_as` privilege on `john` user
+ * `read` privilege on documents that match query X
+ * `read` privilege on `credit_card` field
+
+_Role_::
+A named set of permissions
+
+_User_::
+The authenticated user.
+
+_Group_::
+One or more groups to which a user belongs. Groups are not supported in some 
+realms, such as native, file, or PKI realms. 
+
+A role has a unique name and identifies a set of permissions that translate to
+privileges on resources. You can associate a user or group with an arbitrary 
+number of roles. When you map roles to groups, the roles of a user in that group 
+are the combination of the roles assigned to that group and the roles assigned 
+to that user. Likewise, the total set of permissions that a user has is defined 
+by the union of the permissions in all its roles.
+
+The method for assigning roles to users varies depending on which realms you use 
+to authenticate users. For more information, see <<mapping-roles>>.
+
+[[attributes]]
+[float]
+=== Attribute-based access control
+
+The {security-features} also provide an attribute-based access control (ABAC)
+mechanism, which enables you to use attributes to restrict access to documents
+in search queries and aggregations. For example, you can assign attributes to
+users and documents, then implement an access policy in a role definition. Users
+with that role can read a specific document only if they have all the required
+attributes. 
+
+For more information, see 
+https://www.elastic.co/blog/attribute-based-access-control-with-xpack[Document-level attribute-based access control with X-Pack 6.1].

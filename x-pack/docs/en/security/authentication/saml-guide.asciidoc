@@ -394,6 +394,7 @@ services it offers.
 By default the Elastic Stack will support SAML SLO if the following are true:
 
 - Your IdP metadata specifies that the IdP offers a SLO service
+- Your IdP releases a NameID in the subject of the SAML assertion that it issues for your users
 - You configure `sp.logout`
 - The setting `idp.use_single_logout` is not `false`
 
@@ -631,7 +632,7 @@ to grant roles to users authenticating via SAML.
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `saml1` realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/saml-kibana
 {
@@ -642,7 +643,6 @@ PUT /_security/role_mapping/saml-kibana
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 
@@ -668,7 +668,7 @@ below.
 This mapping grants the {es} `finance_data` role, to any users who authenticate
 via the `saml1` realm with the `finance-team` group.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/saml-finance
 {
@@ -680,7 +680,6 @@ PUT /_security/role_mapping/saml-finance
   ] }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 If your users also exist in a repository that can be directly accessed by {es}
@@ -838,6 +837,7 @@ It is possible to have one or more {kib} instances that use SAML, while other
 instances use basic authentication against another realm type (e.g.
 <<native-realm, Native>> or <<ldap-realm, LDAP>>).
 
+[[saml-troubleshooting]]
 === Troubleshooting SAML Realm Configuration
 
 The SAML 2.0 specification offers a lot of options and flexibility for the implementers

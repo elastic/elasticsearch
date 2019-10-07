@@ -27,7 +27,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -54,7 +54,7 @@ public class BroadcastActionsIT extends ESIntegTestCase {
         for (int i = 0; i < 5; i++) {
             // test successful
             SearchResponse countResponse = client().prepareSearch("test").setSize(0)
-                    .setQuery(termQuery("_type", "type1"))
+                    .setQuery(matchAllQuery())
                     .get();
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));

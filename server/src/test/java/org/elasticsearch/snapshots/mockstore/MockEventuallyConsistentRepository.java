@@ -268,7 +268,6 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             @Override
             public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
-                // TODO: test eventually consistent listing behavior for everything but listing out the root level index-N blobs
                 return Maps.ofEntries(
                     listBlobs().entrySet().stream().filter(entry -> entry.getKey().startsWith(blobNamePrefix)).collect(Collectors.toList())
                 );

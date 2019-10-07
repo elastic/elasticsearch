@@ -642,7 +642,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     deleteIdxMetaListener.onResponse(null);
                     return;
                 }
-
                 final int shardCount = indexMetaData.getNumberOfShards();
                 assert shardCount > 0 : "index did not have positive shard count, get [" + shardCount + "]";
                 // Listener for collecting the results of removing the snapshot from each shard's metadata in the current index

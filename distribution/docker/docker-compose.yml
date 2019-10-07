@@ -6,6 +6,13 @@ services:
     environment:  
        - cluster.name=elasticsearch-default
        - discovery.type=single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536   
     ports:
       - "9200"
   elasticsearch-oss:
@@ -13,5 +20,12 @@ services:
     environment:  
        - cluster.name=elasticsearch-oss
        - discovery.type=single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "9200"

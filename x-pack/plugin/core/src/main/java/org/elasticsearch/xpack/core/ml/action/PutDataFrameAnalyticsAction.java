@@ -119,7 +119,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
         Response() {}
 
-        Response(StreamInput in) throws IOException {
+        public Response(StreamInput in) throws IOException {
             super(in);
             config = new DataFrameAnalyticsConfig(in);
         }

@@ -552,7 +552,7 @@ OP or a third party (see <<third-party-login>>). In order to do so, you must exp
 OpenID Connect authentication endpoint within {kib}, so that the {kib} server will
 not reject these external messages.
 
-
+[[oidc-without-kibana]]
 === OpenID Connect without {kib}
 
 The OpenID Connect realm is designed to allow users to authenticate to {kib} and as

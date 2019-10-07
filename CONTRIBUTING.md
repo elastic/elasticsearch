@@ -109,17 +109,16 @@ and `JAVA11_HOME` available so that the tests can pass.
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script in the root of the repository.
 
-We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
-minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
-IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+We support development in the Eclipse and IntelliJ IDEs. 
+For Eclipse, the minimum version that we support is [4.13][eclipse]. 
+For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
 
 ### Configuring IDEs And Running Tests
 
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`
-then `File: Import: Existing Projects into Workspace`. Select the
-option `Search for nested projects`. Additionally you will want to
-ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
-accordingly to avoid GC overhead errors.
+then `File: Import: Gradle : Existing Gradle Project`.
+Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying 
+`eclipse.ini` accordingly to avoid GC overhead and OOM errors.
 
 IntelliJ users can automatically configure their IDE: `./gradlew idea`
 then `File->New Project From Existing Sources`. Point to the root of
@@ -437,6 +436,6 @@ Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
-[eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
+[eclipse]: https://download.eclipse.org/eclipse/downloads/drops4/R-4.13-201909161045/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
 [shadow-plugin]: https://github.com/johnrengelman/shadow

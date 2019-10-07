@@ -45,12 +45,6 @@ def pluginsCount = 0
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
-  setting 'xpack.monitoring.exporters._http.type', 'http'
-  setting 'xpack.monitoring.exporters._http.enabled', 'false'
-  setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
-  setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
-  setting 'xpack.monitoring.exporters._http.ssl.verification_mode', 'full'
-  setting 'xpack.monitoring.exporters._http.ssl.certificate_authorities', 'testnode.crt'
 
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'

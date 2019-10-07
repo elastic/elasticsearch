@@ -24,6 +24,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 
@@ -119,26 +120,26 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         // This feature vector should hit the right child of the root node
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(0.3, tree.infer(featureMap), 0.00001);
+        assertThat(0.3, closeTo(tree.infer(featureMap), 0.00001));
 
         // This should hit the left child of the left child of the root node
         // i.e. it takes the path left, left
         featureVector = Arrays.asList(0.3, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(0.1, tree.infer(featureMap), 0.00001);
+        assertThat(0.1, closeTo(tree.infer(featureMap), 0.00001));
 
         // This should hit the right child of the left child of the root node
         // i.e. it takes the path left, right
         featureVector = Arrays.asList(0.3, 0.9);
         featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(0.2, tree.infer(featureMap), 0.00001);
+        assertThat(0.2, closeTo(tree.infer(featureMap), 0.00001));
 
         // This should handle missing values and take the default_left path
         featureMap = new HashMap<>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};
-        assertEquals(0.1, tree.infer(featureMap), 0.00001);
+        assertThat(0.1, closeTo(tree.infer(featureMap), 0.00001));
     }
 
     public void testTreeClassificationProbability() {

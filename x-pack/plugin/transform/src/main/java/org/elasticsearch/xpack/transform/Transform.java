@@ -53,6 +53,14 @@ import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
+import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
+import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
+import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
+import org.elasticsearch.xpack.core.transform.action.compat.PutTransformActionDeprecated;
+import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
+import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
+import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
@@ -62,6 +70,14 @@ import org.elasticsearch.xpack.transform.action.TransportPutTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
+import org.elasticsearch.xpack.transform.action.compat.TransportDeleteTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.action.compat.TransportGetTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.action.compat.TransportGetTransformStatsActionDeprecated;
+import org.elasticsearch.xpack.transform.action.compat.TransportPreviewTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.action.compat.TransportPutTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.action.compat.TransportStartTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.action.compat.TransportStopTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.action.compat.TransportUpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -74,6 +90,14 @@ import org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
+import org.elasticsearch.xpack.transform.rest.action.compat.RestDeleteTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.rest.action.compat.RestGetTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.rest.action.compat.RestGetTransformStatsActionDeprecated;
+import org.elasticsearch.xpack.transform.rest.action.compat.RestPreviewTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.rest.action.compat.RestPutTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.rest.action.compat.RestStartTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.rest.action.compat.RestStopTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.rest.action.compat.RestUpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
@@ -98,7 +122,7 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     private final boolean enabled;
     private final Settings settings;
-    private final SetOnce<TransformConfigManager> transformsConfigManager = new SetOnce<>();
+    private final SetOnce<TransformConfigManager> transformConfigManager = new SetOnce<>();
     private final SetOnce<TransformAuditor> transformAuditor = new SetOnce<>();
     private final SetOnce<TransformCheckpointService> transformCheckpointService = new SetOnce<>();
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
@@ -127,7 +151,17 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new RestGetTransformAction(restController),
                 new RestGetTransformStatsAction(restController),
                 new RestPreviewTransformAction(restController),
-                new RestUpdateTransformAction(restController)
+                new RestUpdateTransformAction(restController),
+
+                // deprecated endpoints, to be removed for 8.0.0
+                new RestPutTransformActionDeprecated(restController),
+                new RestStartTransformActionDeprecated(restController),
+                new RestStopTransformActionDeprecated(restController),
+                new RestDeleteTransformActionDeprecated(restController),
+                new RestGetTransformActionDeprecated(restController),
+                new RestGetTransformStatsActionDeprecated(restController),
+                new RestPreviewTransformActionDeprecated(restController),
+                new RestUpdateTransformActionDeprecated(restController)
         );
     }
 
@@ -148,6 +182,17 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new ActionHandler<>(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
                 new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
                 new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
+
+                // deprecated actions, to be removed for 8.0.0
+                new ActionHandler<>(PutTransformActionDeprecated.INSTANCE, TransportPutTransformActionDeprecated.class),
+                new ActionHandler<>(StartTransformActionDeprecated.INSTANCE, TransportStartTransformActionDeprecated.class),
+                new ActionHandler<>(StopTransformActionDeprecated.INSTANCE, TransportStopTransformActionDeprecated.class),
+                new ActionHandler<>(DeleteTransformActionDeprecated.INSTANCE, TransportDeleteTransformActionDeprecated.class),
+                new ActionHandler<>(GetTransformActionDeprecated.INSTANCE, TransportGetTransformActionDeprecated.class),
+                new ActionHandler<>(GetTransformStatsActionDeprecated.INSTANCE, TransportGetTransformStatsActionDeprecated.class),
+                new ActionHandler<>(PreviewTransformActionDeprecated.INSTANCE, TransportPreviewTransformActionDeprecated.class),
+                new ActionHandler<>(UpdateTransformActionDeprecated.INSTANCE, TransportUpdateTransformActionDeprecated.class),
+
                 usageAction,
                 infoAction);
     }
@@ -159,7 +204,7 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, TASK_THREAD_POOL_NAME, 4, 4,
-                "data_frame.task_thread_pool");
+                "transform.task_thread_pool");
 
         return Collections.singletonList(indexing);
     }
@@ -172,12 +217,12 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
         transformAuditor.set(new TransformAuditor(client, clusterService.getNodeName()));
-        transformsConfigManager.set(new TransformConfigManager(client, xContentRegistry));
+        transformConfigManager.set(new TransformConfigManager(client, xContentRegistry));
         transformCheckpointService.set(new TransformCheckpointService(client,
-                                                                      transformsConfigManager.get(),
+                                                                      transformConfigManager.get(),
                                                                       transformAuditor.get()));
 
-        return Arrays.asList(transformsConfigManager.get(), transformAuditor.get(), transformCheckpointService.get());
+        return Arrays.asList(transformConfigManager.get(), transformAuditor.get(), transformCheckpointService.get());
     }
 
     @Override
@@ -208,14 +253,14 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
         schedulerEngine.set(new SchedulerEngine(settings, Clock.systemUTC()));
 
         // the transforms config manager should have been created
-        assert transformsConfigManager.get() != null;
+        assert transformConfigManager.get() != null;
         // the auditor should have been created
         assert transformAuditor.get() != null;
         assert transformCheckpointService.get() != null;
 
         return Collections.singletonList(
             new TransformPersistentTasksExecutor(client,
-                transformsConfigManager.get(),
+                transformConfigManager.get(),
                 transformCheckpointService.get(),
                 schedulerEngine.get(),
                 transformAuditor.get(),

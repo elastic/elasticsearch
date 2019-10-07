@@ -54,7 +54,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
@@ -399,20 +398,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("index", response.getResponses()[1].getIndex());
             assertEquals(Collections.singletonMap("field", "value2"), response.getResponses()[1].getResponse().getSource());
         }
-    }
-
-    public void testMultiGetWithTypes() throws IOException {
-        BulkRequest bulk = new BulkRequest();
-        bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulk.add(new IndexRequest("index", "type", "id1")
-            .source("{\"field\":\"value1\"}", XContentType.JSON));
-        bulk.add(new IndexRequest("index", "type", "id2")
-            .source("{\"field\":\"value2\"}", XContentType.JSON));
-
-        highLevelClient().bulk(bulk, expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        multiGetRequest.add("index", "id1");
-        multiGetRequest.add("index", "id2");
     }
 
     public void testIndex() throws IOException {
@@ -897,7 +882,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
             assertEquals(i, bulkItemResponse.getItemId());
             assertEquals("index", bulkItemResponse.getIndex());
-            assertEquals("_doc", bulkItemResponse.getType());
             assertEquals(String.valueOf(i), bulkItemResponse.getId());
 
             DocWriteRequest.OpType requestOpType = bulkRequest.requests().get(i).opType();

@@ -28,6 +28,7 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.symbol.FunctionTable;
@@ -81,13 +82,13 @@ public final class SClass extends AStatement {
     private final ScriptClassInfo scriptClassInfo;
     private final String name;
     private final Printer debugStream;
-    private final List<SFunction> functions;
+    private final List<SFunction> functions = new ArrayList<>();
     private final Globals globals;
     private final List<AStatement> statements;
 
     private CompilerSettings settings;
 
-    private FunctionTable table;
+    private ScriptRoot table;
     private Locals mainMethod;
     private final Set<String> extractedVariables;
     private final List<org.objectweb.asm.commons.Method> getMethods;
@@ -99,12 +100,16 @@ public final class SClass extends AStatement {
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.name = Objects.requireNonNull(name);
         this.debugStream = debugStream;
-        this.functions = Collections.unmodifiableList(functions);
+        this.functions.addAll(Objects.requireNonNull(functions));
         this.statements = Collections.unmodifiableList(statements);
         this.globals = new Globals(new BitSet(sourceText.length()));
 
         this.extractedVariables = new HashSet<>();
         this.getMethods = new ArrayList<>();
+    }
+
+    void addFunction(SFunction function) {
+        functions.add(function);
     }
 
     @Override
@@ -134,30 +139,34 @@ public final class SClass extends AStatement {
     }
 
     public void analyze(PainlessLookup painlessLookup) {
-        table = new FunctionTable();
+        table = new ScriptRoot(painlessLookup, settings, scriptClassInfo, this);
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);
 
             String key = FunctionTable.buildLocalFunctionKey(function.name, function.parameters.size());
 
-            if (table.getFunction(key) != null) {
-                throw createError(new IllegalArgumentException("function [" + key + "] already defined"));
+            if (table.getFunctionTable().getFunction(key) != null) {
+                throw createError(new IllegalArgumentException("Illegal duplicate functions [" + key + "]."));
             }
 
-            table.addFunction(function.name, function.returnType, function.typeParameters, false);
+            table.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, false);
         }
 
-        Locals locals = Locals.newProgramScope(scriptClassInfo, painlessLookup);
+        Locals locals = Locals.newProgramScope();
         analyze(table, locals);
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals program) {
-        for (SFunction function : this.functions) {
+    void analyze(ScriptRoot scriptRoot, Locals program) {
+        // copy protection is required because synthetic functions are
+        // added for lambdas/method references and analysis here is
+        // only for user-defined functions
+        List<SFunction> functions = new ArrayList<>(this.functions);
+        for (SFunction function : functions) {
             Locals functionLocals =
                 Locals.newFunctionScope(program, function.returnType, function.parameters, settings.getMaxLoopCounter());
-            function.analyze(functions, functionLocals);
+            function.analyze(scriptRoot, functionLocals);
         }
 
         if (statements == null || statements.isEmpty()) {
@@ -188,8 +197,7 @@ public final class SClass extends AStatement {
             }
 
             statement.lastSource = statement == last;
-
-            statement.analyze(functions, mainMethod);
+            statement.analyze(scriptRoot, mainMethod);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
@@ -281,15 +289,6 @@ public final class SClass extends AStatement {
             function.write(classWriter, globals);
         }
 
-        // Write all synthetic functions. Note that this process may add more :)
-        while (!globals.getSyntheticMethods().isEmpty()) {
-            List<SFunction> current = new ArrayList<>(globals.getSyntheticMethods().values());
-            globals.getSyntheticMethods().clear();
-            for (SFunction function : current) {
-                function.write(classWriter, globals);
-            }
-        }
-
         // Write the constants
         if (false == globals.getConstantInitializers().isEmpty()) {
             Collection<Constant> inits = globals.getConstantInitializers().values();
@@ -348,7 +347,7 @@ public final class SClass extends AStatement {
         bytes = classWriter.getClassBytes();
 
         Map<String, Object> statics = new HashMap<>();
-        statics.put("$FUNCTIONS", table);
+        statics.put("$FUNCTIONS", table.getFunctionTable());
 
         for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
             statics.put(instanceBinding.getValue(), instanceBinding.getKey());

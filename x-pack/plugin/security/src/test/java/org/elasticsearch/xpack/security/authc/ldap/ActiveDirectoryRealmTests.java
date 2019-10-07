@@ -533,12 +533,12 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 .put(getFullSettingKey(realmIdentifier.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                         "ad.test.elasticsearch.com")
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true);
-        if (randomBoolean()) {
+        if (inFipsJvm()) {
             builder.put(getFullSettingKey(realmIdentifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
                     VerificationMode.CERTIFICATE);
         } else {
             builder.put(getFullSettingKey(realmIdentifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
-                    VerificationMode.NONE);
+                    randomBoolean() ? VerificationMode.CERTIFICATE : VerificationMode.NONE);
         }
         return builder.put(extraSettings).build();
     }

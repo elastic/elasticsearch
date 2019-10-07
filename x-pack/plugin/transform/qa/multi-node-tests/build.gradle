@@ -5,9 +5,6 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  if (isEclipse) {
-    testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-  }
   testCompile project(path: xpackModule('transform'), configuration: 'runtime')
 }
 

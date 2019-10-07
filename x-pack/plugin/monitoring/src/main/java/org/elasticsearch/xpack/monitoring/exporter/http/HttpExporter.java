@@ -44,10 +44,10 @@ import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 
 import javax.net.ssl.SSLContext;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,9 +82,78 @@ public class HttpExporter extends Exporter {
      * A string array representing the Elasticsearch node(s) to communicate with over HTTP(S).
      */
     public static final Setting.AffixSetting<List<String>> HOST_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","host",
-                    (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
-                            Property.Dynamic, Property.NodeScope));
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "host",
+                key -> Setting.listSetting(
+                    key,
+                    Collections.emptyList(),
+                    Function.identity(),
+                    new Setting.Validator<>() {
+
+                        @Override
+                        public void validate(final List<String> value) {
+
+                        }
+
+                        @Override
+                        public void validate(final List<String> hosts, final Map<Setting<?>, Object> settings) {
+                            final String namespace =
+                                HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
+                            final String type = (String) settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+
+                            if (hosts.isEmpty()) {
+                                final String defaultType =
+                                    Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace).get(Settings.EMPTY);
+                                if (Objects.equals(type, defaultType)) {
+                                    // hosts can only be empty if the type is unset
+                                    return;
+                                } else {
+                                    throw new SettingsException("host list for [" + key + "] is empty but type is [" + type + "]");
+                                }
+                            } else if ("http".equals(type) == false) {
+                                // the hosts can only be non-empty if the type is "http"
+                                throw new SettingsException("host list for [" + key + "] is set but type is [" + type + "]");
+                            }
+
+                            boolean httpHostFound = false;
+                            boolean httpsHostFound = false;
+
+                            // every host must be configured
+                            for (final String host : hosts) {
+                                final HttpHost httpHost;
+
+                                try {
+                                    httpHost = HttpHostBuilder.builder(host).build();
+                                } catch (final IllegalArgumentException e) {
+                                    throw new SettingsException("[" + key + "] invalid host: [" + host + "]", e);
+                                }
+
+                                if ("http".equals(httpHost.getSchemeName())) {
+                                    httpHostFound = true;
+                                } else {
+                                    httpsHostFound = true;
+                                }
+
+                                // fail if we find them configuring the scheme/protocol in different ways
+                                if (httpHostFound && httpsHostFound) {
+                                    throw new SettingsException("[" + key + "] must use a consistent scheme: http or https");
+                                }
+                            }
+                        }
+
+                        @Override
+                        public Iterator<Setting<?>> settings() {
+                            final String namespace =
+                                HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
+                            final List<Setting<?>> settings = List.of(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+                            return settings.iterator();
+                        }
+
+                    },
+                    Property.Dynamic,
+                    Property.NodeScope));
+
     /**
      * Master timeout associated with bulk requests.
      */
@@ -383,43 +452,17 @@ public class HttpExporter extends Exporter {
      */
     private static HttpHost[] createHosts(final Config config) {
         final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        String configKey = HOST_SETTING.getConcreteSettingForNamespace(config.name()).getKey();
-
-        if (hosts.isEmpty()) {
-            throw new SettingsException("missing required setting [" + configKey + "]");
-        }
 
         final List<HttpHost> httpHosts = new ArrayList<>(hosts.size());
-        boolean httpHostFound = false;
-        boolean httpsHostFound = false;
 
-        // every host must be configured
         for (final String host : hosts) {
-            final HttpHost httpHost;
-
-            try {
-                httpHost = HttpHostBuilder.builder(host).build();
-            } catch (IllegalArgumentException e) {
-                throw new SettingsException("[" + configKey + "] invalid host: [" + host + "]", e);
-            }
-
-            if ("http".equals(httpHost.getSchemeName())) {
-                httpHostFound = true;
-            } else {
-                httpsHostFound = true;
-            }
-
-            // fail if we find them configuring the scheme/protocol in different ways
-            if (httpHostFound && httpsHostFound) {
-                throw new SettingsException("[" + configKey + "] must use a consistent scheme: http or https");
-            }
-
+            final HttpHost httpHost = HttpHostBuilder.builder(host).build();
             httpHosts.add(httpHost);
         }
 
         logger.debug("exporter [{}] using hosts {}", config.name(), hosts);
 
-        return httpHosts.toArray(new HttpHost[httpHosts.size()]);
+        return httpHosts.toArray(new HttpHost[0]);
     }
 
     /**

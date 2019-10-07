@@ -319,10 +319,14 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        for (Type type : Arrays.asList(Type.DEB, Type.RPM)) {
+        for (Type type : Arrays.asList(Type.DEB, Type.RPM, Type.DOCKER)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
+                    // We should never add a Docker distro with bundledJdk == false
+                    boolean skip = type == Type.DOCKER && bundledJdk == false;
+                    if (skip == false) {
+                        addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
+                    }
                 }
             }
             // upgrade version is always bundled jdk
@@ -386,6 +390,11 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
-        return "destructiveDistroTest." + distroId(distro.getType(), distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk());
+        Type type = distro.getType();
+        return "destructiveDistroTest." + distroId(
+            type,
+            distro.getPlatform(),
+            distro.getFlavor(),
+            distro.getBundledJdk());
     }
 }

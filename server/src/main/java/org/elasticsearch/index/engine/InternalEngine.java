@@ -187,7 +187,8 @@ public class InternalEngine extends Engine {
         super(engineConfig);
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
                 engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
-                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
+                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
+                engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
         );
         store.incRef();
         IndexWriter writer = null;

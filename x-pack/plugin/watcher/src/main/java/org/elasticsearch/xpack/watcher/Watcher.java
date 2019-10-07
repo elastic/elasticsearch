@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -395,6 +396,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             .setBulkActions(SETTING_BULK_ACTIONS.get(settings))
             .setBulkSize(SETTING_BULK_SIZE.get(settings))
             .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
+            .setBackoffPolicy(BackoffPolicy.noBackoff())
             .build();
 
         HistoryStore historyStore = new HistoryStore(bulkProcessor);

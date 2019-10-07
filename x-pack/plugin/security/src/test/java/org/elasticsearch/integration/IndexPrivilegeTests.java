@@ -356,7 +356,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
         assertAccessIsAllowed("u13",
                 "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u13", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+        assertAccessIsAllowed("u13", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsAllowed("u13", "PUT", "/a/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertBodyHasAccessIsDenied("u13", "PUT", "/b/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u13",

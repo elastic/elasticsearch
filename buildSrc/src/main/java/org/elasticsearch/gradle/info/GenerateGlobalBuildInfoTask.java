@@ -120,9 +120,9 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
     @TaskAction
     public void generate() {
-        String javaVendor = System.getProperty("java.vendor");
+        String javaVendorVersion = System.getProperty("java.vendor.version", System.getProperty("java.vendor"));
         String gradleJavaVersion = System.getProperty("java.version");
-        String gradleJavaVersionDetails = javaVendor + " " + gradleJavaVersion + " [" + System.getProperty("java.vm.name")
+        String gradleJavaVersionDetails = javaVendorVersion + " " + gradleJavaVersion + " [" + System.getProperty("java.vm.name")
             + " " + System.getProperty("java.vm.version") + "]";
 
         String compilerJavaVersionDetails = gradleJavaVersionDetails;
@@ -231,8 +231,10 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
      */
     private String findJavaVersionDetails(File javaHome) {
         String versionInfoScript = "print(" +
-            "java.lang.System.getProperty(\"java.vendor\") + \" \" + java.lang.System.getProperty(\"java.version\") + " +
-            "\" [\" + java.lang.System.getProperty(\"java.vm.name\") + \" \" + java.lang.System.getProperty(\"java.vm.version\") + \"]\");";
+            "java.lang.System.getProperty(\"java.vendor.version\", java.lang.System.getProperty(\"java.vendor\")) + \" \" + " +
+            "java.lang.System.getProperty(\"java.version\") + \" [\" + " +
+            "java.lang.System.getProperty(\"java.vm.name\") + \" \" + " +
+            "java.lang.System.getProperty(\"java.vm.version\") + \"]\");";
         return runJavaAsScript(javaHome, versionInfoScript).trim();
     }
 

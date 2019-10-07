@@ -22,7 +22,7 @@ you might want to just use the default search and scroll behavior.
 When you create or update an {anomaly-job}, you can include the names of
 aggregations, for example:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/farequote
 {
@@ -40,7 +40,6 @@ PUT _ml/anomaly_detectors/farequote
   }
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:setup:farequote_data]
 
 In this example, the `airline`, `responsetime`, and `time` fields are
@@ -53,7 +52,7 @@ aggregated. It applies to all detectors in the job.
 
 The aggregations are defined in the {dfeed} as follows:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/datafeeds/datafeed-farequote
 {
@@ -88,7 +87,6 @@ PUT _ml/datafeeds/datafeed-farequote
   }
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:setup:farequote_job]
 
 In this example, the aggregations have names that match the fields that they

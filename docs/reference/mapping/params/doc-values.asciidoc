@@ -21,7 +21,7 @@ All fields which support doc values have them enabled by default. If you are
 sure that you don't need to sort or aggregate on a field, or access the field
 value from a script, you can disable doc values in order to save disk space:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -38,7 +38,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `status_code` field has `doc_values` enabled by default.
 <2> The `session_id` has `doc_values` disabled, but can still be queried.
 

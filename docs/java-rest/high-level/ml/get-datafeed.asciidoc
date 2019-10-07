@@ -3,6 +3,7 @@
 :request: GetDatafeedRequest
 :response: GetDatafeedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get datafeed API
 

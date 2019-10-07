@@ -68,6 +68,10 @@ public class AzureBlobStore implements BlobStore {
         return container;
     }
 
+    public AzureStorageService getService() {
+        return service;
+    }
+
     /**
      * Gets the configured {@link LocationMode} for the Azure storage requests.
      */

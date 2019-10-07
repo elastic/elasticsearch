@@ -74,7 +74,8 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         return ClusterState.builder(currentState)
             .metaData(MetaData.builder(currentState.metaData())
                 .putCustom(SnapshotLifecycleMetadata.TYPE,
-                    new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(), newMode)))
+                    new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(),
+                        newMode, currentMetadata.getStats())))
             .build();
     }
 

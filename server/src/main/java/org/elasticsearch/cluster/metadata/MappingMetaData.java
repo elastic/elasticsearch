@@ -126,12 +126,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         }
     }
 
-    void updateDefaultMapping(MappingMetaData defaultMapping) {
-        if (routing == Routing.EMPTY) {
-            routing = defaultMapping.routing();
-        }
-    }
-
     public String type() {
         return this.type;
     }

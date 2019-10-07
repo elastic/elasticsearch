@@ -2265,7 +2265,7 @@ public class TranslogTests extends ESTestCase {
         // engine blows up, after committing the above generation
         translog.close();
         TranslogConfig config = translog.getConfig();
-        final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1);
+        final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1, 0);
         deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, Long.MAX_VALUE));
         deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
         translog = new Translog(config, translog.getTranslogUUID(), deletionPolicy,
@@ -2285,7 +2285,6 @@ public class TranslogTests extends ESTestCase {
      * Tests the situation where the node crashes after a translog gen was committed to lucene, but before the translog had the chance
      * to clean up its files.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46267")
     public void testRecoveryFromFailureOnTrimming() throws IOException {
         Path tempDir = createTempDir();
         final FailSwitch fail = new FailSwitch();
@@ -2325,7 +2324,7 @@ public class TranslogTests extends ESTestCase {
                 // expected...
             }
         }
-        final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1);
+        final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1, 0);
         deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, Long.MAX_VALUE));
         deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy,

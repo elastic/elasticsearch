@@ -29,7 +29,7 @@ For more information about those properties,
 see {ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 1: Analyzing transactions with the lat_long function
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/anomaly_detectors/example1
 {
@@ -46,7 +46,6 @@ PUT _ml/anomaly_detectors/example1
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 If you use this `lat_long` function in a detector in your {anomaly-job}, it

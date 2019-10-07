@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,8 +42,8 @@ public class MockSearchServiceTests extends ESTestCase {
     public void testAssertNoInFlightContext() {
         final long nowInMillis = randomNonNegativeLong();
         SearchContext s = new TestSearchContext(new QueryShardContext(0,
-            new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), null, null, null, null, null, null,
-            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null)) {
+            new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null)) {
 
             @Override
             public SearchShardTarget shardTarget() {

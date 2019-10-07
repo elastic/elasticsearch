@@ -6,11 +6,10 @@
 
 Retrieves <<mapping,mapping definitions>> for indices in a cluster.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_mapping
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings
@@ -62,22 +61,20 @@ single call. General usage of the API follows the following syntax:
 list of names. To get mappings for all indices you can use `_all` for `{index}`.
 The following are some examples:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter,kimchy/_mapping
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/PUT kimchy\nPUT book\n/]
 
 If you want to get mappings of all indices and types then the following
 two examples are equivalent:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_all/_mapping
 
 GET /_mapping
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]

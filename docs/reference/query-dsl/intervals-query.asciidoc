@@ -24,7 +24,7 @@ favorite food` immediately followed by `hot water` or `cold porridge` in the
 This search would match a `my_text` value of `my favorite food is cold
 porridge` but not `when it's cold my favorite food is porridge`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -56,7 +56,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[intervals-top-level-params]]
 ==== Top-level parameters for `intervals`
@@ -273,7 +272,7 @@ The following search includes a `filter` rule. It returns documents that have
 the words `hot` and `porridge` within 10 positions of each other, without the
 word `salty` in between:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -296,7 +295,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[interval-script-filter]]
 ===== Script filters
@@ -305,7 +303,7 @@ You can use a script to filter intervals based on their start position, end
 position, and internal gap count. The following `filter` script uses the
 `interval` variable with the `start`, `end`, and `gaps` methods:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -325,7 +323,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[interval-minimization]]
@@ -337,7 +334,7 @@ when using `max_gaps` restrictions or filters. For example, take the
 following query, searching for `salty` contained within the phrase `hot
 porridge`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -359,7 +356,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 This query does *not* match a document containing the phrase `hot porridge is
 salty porridge`, because the intervals returned by the match query for `hot
@@ -373,7 +369,7 @@ cause surprises when used in combination with `max_gaps`. Consider the
 following query, searching for `the` immediately followed by `big` or `big bad`,
 immediately followed by `wolf`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -398,7 +394,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Counter-intuitively, this query does *not* match the document `the big bad
 wolf`, because the `any_of` rule in the middle only produces intervals
@@ -407,7 +402,7 @@ starting at the same position, and so being minimized away. In these cases,
 it's better to rewrite the query so that all of the options are explicitly
 laid out at the top level:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -431,4 +426,3 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE

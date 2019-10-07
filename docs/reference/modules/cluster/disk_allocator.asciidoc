@@ -52,14 +52,13 @@ threshold).
 
 An example of resetting the read-only index block on the `twitter` index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
   "index.blocks.read_only_allow_delete": null
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 --
 
@@ -88,7 +87,7 @@ An example of updating the low watermark to at least 100 gigabytes free, a high
 watermark of at least 50 gigabytes free, and a flood stage watermark of 10
 gigabytes free, and updating the information about the cluster every minute:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -100,4 +99,3 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE

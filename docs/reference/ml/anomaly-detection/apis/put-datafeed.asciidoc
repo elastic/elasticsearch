@@ -21,7 +21,7 @@ Instantiates a {dfeed}.
 * You must create an {anomaly-job} before you create a {dfeed}.  
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
 cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-put-datafeed-desc]]
 ==== {api-description-title}
@@ -114,7 +114,7 @@ see <<ml-datafeed-resource>>.
 
 The following example creates the `datafeed-total-requests` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/datafeeds/datafeed-total-requests
 {
@@ -122,11 +122,11 @@ PUT _ml/datafeeds/datafeed-total-requests
   "indices": ["server-metrics"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_job]
 
 When the {dfeed} is created, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "datafeed_id": "datafeed-total-requests",

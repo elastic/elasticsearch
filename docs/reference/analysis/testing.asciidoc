@@ -5,7 +5,7 @@ terms produced by an analyzer. A built-in analyzer (or combination of built-in
 tokenizer, token filters, and character filters) can be specified inline in
 the request:
 
-[source,js]
+[source,console]
 -------------------------------------
 POST _analyze
 {
@@ -20,7 +20,6 @@ POST _analyze
   "text":      "Is this déja vu?"
 }
 -------------------------------------
-// CONSOLE
 
 
 
@@ -39,7 +38,7 @@ highlighting search snippets).
 Alternatively, a <<analysis-custom-analyzer,`custom` analyzer>> can be
 referred to when running the `analyze` API on a specific index:
 
-[source,js]
+[source,console]
 -------------------------------------
 PUT my_index
 {
@@ -79,7 +78,6 @@ GET my_index/_analyze <3>
   "text":  "Is this déjà vu?"
 }
 -------------------------------------
-// CONSOLE
 
 <1> Define a `custom` analyzer called `std_folded`.
 <2> The field `my_text` uses the `std_folded` analyzer.

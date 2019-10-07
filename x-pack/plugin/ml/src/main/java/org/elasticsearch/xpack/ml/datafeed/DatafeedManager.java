@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -95,7 +96,12 @@ public class DatafeedManager {
 
                         @Override
                         public void onFailure(Exception e) {
-                            finishHandler.accept(e);
+                            if (e instanceof ResourceNotFoundException) {
+                                // The task was stopped in the meantime, no need to do anything
+                                logger.info("[{}] Aborting as datafeed has been stopped", datafeedId);
+                            } else {
+                                finishHandler.accept(e);
+                            }
                         }
                     });
                 }, finishHandler::accept

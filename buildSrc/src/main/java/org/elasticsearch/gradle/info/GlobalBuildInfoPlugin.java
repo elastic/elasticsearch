@@ -95,6 +95,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
             ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
+            ext.set("isCi", System.getenv("JENKINS_URL") != null);
         });
     }
 

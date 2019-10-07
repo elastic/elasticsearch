@@ -59,7 +59,7 @@ NOTE: At least one of "id", "name", "username" and "realm_name" must be specifie
 
 If you create an API key as follows:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/api_key
 {
@@ -67,13 +67,11 @@ POST /_security/api_key
   "role_descriptors": {}
 }
 ------------------------------------------------------------
-// CONSOLE
-// TEST
 
 A successful call returns a JSON structure that provides
 API key information. For example:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "id":"VuaCfGcBCdbkQm-e5aOx",
@@ -86,80 +84,72 @@ API key information. For example:
 
 You can use the following example to retrieve the API key by ID:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx
 --------------------------------------------------
-// CONSOLE
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
 
 You can use the following example to retrieve the API key by name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/api_key?name=my-api-key
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The following example retrieves all API keys for the `native1` realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/api_key?realm_name=native1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The following example retrieves all API keys for the user `myuser` in all realms:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/api_key?username=myuser
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The following example retrieves all API keys owned by the currently authenticated user:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/api_key?owner=true
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Following creates an API key
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/api_key
 {
   "name": "my-api-key-1"
 }
 ------------------------------------------------------------
-// CONSOLE
 
 The following example retrieves the API key identified by the specified `id` if
 it is owned by the currently authenticated user:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx&owner=true
 --------------------------------------------------
-// CONSOLE
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
 
 Finally, the following example retrieves all API keys for the user `myuser` in
  the `native1` realm immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/api_key?username=myuser&realm_name=native1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 A successful call returns a JSON structure that contains the information of one or more API keys that were retrieved.

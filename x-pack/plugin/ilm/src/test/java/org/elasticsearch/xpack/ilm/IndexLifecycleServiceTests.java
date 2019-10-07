@@ -50,6 +50,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.node.Node.NODE_MASTER_SETTING;
@@ -304,5 +305,22 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event("foo", randomLong(), randomLong());
         indexLifecycleService.triggered(schedulerEvent);
         Mockito.verifyZeroInteractions(indicesClient, clusterService);
+    }
+
+    public void testParsingOriginationDateBeforeIndexCreation() {
+        Settings indexSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
+        Index index = new Index("invalid_index_name", UUID.randomUUID().toString());
+        expectThrows(IllegalArgumentException.class,
+            "The parse origination date setting was configured for index " + index.getName() +
+                " but the index name did not match the expected format",
+            () -> indexLifecycleService.beforeIndexAddedToCluster(index, indexSettings)
+        );
+
+        // disabling the parsing origination date setting should prevent the validation from throwing exception
+        try {
+            indexLifecycleService.beforeIndexAddedToCluster(index, Settings.EMPTY);
+        } catch (Exception e) {
+            fail("Did not expect the before index validation to throw an exception as the parse origination date setting was not set");
+        }
     }
 }

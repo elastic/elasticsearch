@@ -60,7 +60,7 @@ without affecting the cluster's master-level availability. A node can be added
 to the voting configuration exclusion list using the
 <<voting-config-exclusions>> API. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # Add node to voting configuration exclusions list and wait for the system
 # to auto-reconfigure the node out of the voting configuration up to the
@@ -71,7 +71,6 @@ POST /_cluster/voting_config_exclusions/node_name
 # auto-reconfiguration up to one minute
 POST /_cluster/voting_config_exclusions/node_name?timeout=1m
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:this would break the test cluster if executed]
 
 The node that should be added to the exclusions list is specified using
@@ -104,11 +103,10 @@ reconfigure the voting configuration to remove that node and prevents it from
 returning to the voting configuration once it has removed. The current list of
 exclusions is stored in the cluster state and can be inspected as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.cluster_coordination.voting_config_exclusions
 --------------------------------------------------
-// CONSOLE
 
 This list is limited in size by the `cluster.max_voting_config_exclusions` 
 setting, which defaults to `10`. See <<modules-discovery-settings>>. Since
@@ -123,7 +121,7 @@ down permanently, its exclusion can be removed after it is shut down and removed
 from the cluster. Exclusions can also be cleared if they were created in error
 or were only required temporarily:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # Wait for all the nodes with voting configuration exclusions to be removed from
 # the cluster and then remove all the exclusions, allowing any node to return to
@@ -134,4 +132,3 @@ DELETE /_cluster/voting_config_exclusions
 # to return to the voting configuration in the future.
 DELETE /_cluster/voting_config_exclusions?wait_for_removal=false
 --------------------------------------------------
-// CONSOLE

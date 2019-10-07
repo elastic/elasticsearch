@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -34,22 +35,30 @@ import java.util.Map;
 
 class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
-    GeoCentroidAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config,
-            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    GeoCentroidAggregatorFactory(String name,
+                                    ValuesSourceConfig<ValuesSource.GeoPoint> config,
+                                    QueryShardContext queryShardContext,
+                                    AggregatorFactory parent,
+                                    AggregatorFactories.Builder subFactoriesBuilder,
+                                    Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new GeoCentroidAggregator(name, context, parent, null, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new GeoCentroidAggregator(name, searchContext, parent, null, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
-        return new GeoCentroidAggregator(name, context, parent, valuesSource, pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new GeoCentroidAggregator(name, searchContext, parent, valuesSource, pipelineAggregators, metaData);
     }
 }

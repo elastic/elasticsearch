@@ -38,7 +38,7 @@ A `cumulative_cardinality` aggregation looks like this in isolation:
 
 The following snippet calculates the cumulative cardinality of the total daily `users`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /user_hits/_search
 {
@@ -65,14 +65,13 @@ GET /user_hits/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:user_hits]
 
 <1> `buckets_path` instructs this aggregation to use the output of the `distinct_users` aggregation for the cumulative cardinality
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,
@@ -138,7 +137,7 @@ are added each day, rather than the total cumulative count.
 
 This can be accomplished by adding a `derivative` aggregation to our query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /user_hits/_search
 {
@@ -170,13 +169,12 @@ GET /user_hits/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:user_hits]
 
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

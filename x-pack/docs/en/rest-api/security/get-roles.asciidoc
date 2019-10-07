@@ -23,8 +23,9 @@ privilege.
 [[security-api-get-role-desc]]
 ==== {api-description-title}
 
-For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+The role management APIs are generally the preferred way to manage roles, rather than using
+<<roles-management-file,file-based role management>>. The get roles
+API cannot retrieve roles that are defined in roles files.
 
 [[security-api-get-role-path-params]]
 ==== {api-path-parms-title}
@@ -51,14 +52,13 @@ If the role is not defined in the native realm, the request returns 404.
 The following example retrieves information about the `my_admin_role` role in 
 the native realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/role/my_admin_role
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:admin_role]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my_admin_role": {
@@ -83,14 +83,12 @@ GET /_security/role/my_admin_role
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 To retrieve all roles, omit the role name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/role
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 

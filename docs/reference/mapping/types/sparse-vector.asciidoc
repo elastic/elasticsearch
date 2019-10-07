@@ -23,7 +23,7 @@ are dimensions, and fields values are values for these dimensions.
 Dimensions are integer values from `0` to `65535` encoded as strings.
 Dimensions don't need to be in order.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -52,7 +52,6 @@ PUT my_index/_doc/2
 }
 
 --------------------------------------------------
-// CONSOLE
 
 Internally, each document's sparse vector is encoded as a binary
 doc value. Its size in bytes is equal to

@@ -41,7 +41,6 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
@@ -110,7 +109,7 @@ public class SearchTransportService {
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
     }
 
-    public void sendCanMatch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task, final
+    public void sendCanMatch(Transport.Connection connection, final ShardSearchRequest request, SearchTask task, final
                             ActionListener<SearchService.CanMatchResponse> listener) {
         transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchService.CanMatchResponse::new));
@@ -121,13 +120,13 @@ public class SearchTransportService {
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, (in) -> TransportResponse.Empty.INSTANCE));
     }
 
-    public void sendExecuteDfs(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
+    public void sendExecuteDfs(Transport.Connection connection, final ShardSearchRequest request, SearchTask task,
                                final SearchActionListener<DfsSearchResult> listener) {
         transportService.sendChildRequest(connection, DFS_ACTION_NAME, request, task,
                 new ConnectionCountingHandler<>(listener, DfsSearchResult::new, clientConnections, connection.getNode().getId()));
     }
 
-    public void sendExecuteQuery(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
+    public void sendExecuteQuery(Transport.Connection connection, final ShardSearchRequest request, SearchTask task,
                                  final SearchActionListener<SearchPhaseResult> listener) {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
@@ -307,7 +306,7 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             (in) -> TransportResponse.Empty.INSTANCE);
 
-        transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
+        transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
             (request, channel, task) -> {
                 searchService.executeDfsPhase(request, (SearchTask) task, taskInfoAwareActionListener(
                     new ActionListener<SearchPhaseResult>() {
@@ -332,7 +331,7 @@ public class SearchTransportService {
             });
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
+        transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
             (request, channel, task) -> {
                 searchService.executeQueryPhase(request, (SearchTask) task, taskInfoAwareActionListener(
                     new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request), transportService.getLocalNode().getId(), task));
@@ -379,7 +378,7 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
 
         // this is cheap, it does not fetch during the rewrite phase, so we can let it quickly execute on a networking thread
-        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
+        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
             (request, channel, task) -> {
                 searchService.canMatch(request, taskInfoAwareActionListener(
                     new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request), transportService.getLocalNode().getId(), task));

@@ -37,7 +37,7 @@ versions << [
   'hadoop2': '2.8.1'
 ]
 
-testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
+testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
 
 configurations {
   hdfsFixture
@@ -68,13 +68,17 @@ dependencies {
   hdfsFixture project(':test:fixtures:hdfs-fixture')
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
-  testRuntime files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab").parent)
+  if (isEclipse == false) {
+      testRuntime files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab").parent)
+  }
 }
 
 normalization {
     runtimeClasspath {
         // ignore generated keytab files for the purposes of build avoidance
         ignore '*.keytab'
+        // ignore fixture ports file which is on the classpath primarily to pacify the security manager
+        ignore '*HdfsFixture/**'
     }
 }
 
@@ -153,15 +157,14 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
                   .resolve("secureHaHdfsFixture")
                   .resolve("ports")
           nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
-          classpath += files(path)
         } else {
           Path path = buildDir.toPath()
                   .resolve("fixtures")
                   .resolve("haHdfsFixture")
                   .resolve("ports")
           nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
-          classpath += files(path)
         }
+        classpath += files("$buildDir/fixtures")
       }
 
       if (integTestTaskName.contains("Secure")) {

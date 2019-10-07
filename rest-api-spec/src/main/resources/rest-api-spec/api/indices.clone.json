@@ -16,12 +16,10 @@
           "parts": {
             "index": {
               "type": "string",
-              "required": true,
               "description": "The name of the source index to clone"
             },
             "target": {
               "type": "string",
-              "required": true,
               "description": "The name of the target index to clone into"
             }
           }

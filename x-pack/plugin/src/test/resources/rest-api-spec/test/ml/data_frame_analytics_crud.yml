@@ -1232,6 +1232,346 @@ setup:
   - is_true: version
 
 ---
+"Test put classification given dependent_variable is not defined":
+
+  - do:
+      catch: /parse_exception/
+      ml.put_data_frame_analytics:
+        id: "classification-without-dependent-variable"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {}
+            }
+          }
+
+---
+"Test put classification given negative lambda":
+
+  - do:
+      catch: /\[lambda\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "classification-negative-lambda"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "lambda": -1.0
+              }
+            }
+          }
+
+---
+"Test put classification given negative gamma":
+
+  - do:
+      catch: /\[gamma\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "classification-negative-gamma"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "gamma": -1.0
+              }
+            }
+          }
+
+---
+"Test put classification given eta less than 1e-3":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-eta-greater-less-than-valid"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "eta": 0.0009
+              }
+            }
+          }
+
+---
+"Test put classification given eta greater than one":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-eta-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "eta": 1.00001
+              }
+            }
+          }
+
+---
+"Test put classification given maximum_number_trees is zero":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-maximum-number-trees-is-zero"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 0
+              }
+            }
+          }
+
+---
+"Test put classification given maximum_number_trees is greater than 2k":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-maximum-number-trees-greater-than-2k"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 2001
+              }
+            }
+          }
+
+---
+"Test put classification given feature_bag_fraction is negative":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-feature-bag-fraction-is-negative"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": -0.0001
+              }
+            }
+          }
+
+---
+"Test put classification given feature_bag_fraction is greater than one":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-feature-bag-fraction-is-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": 1.0001
+              }
+            }
+          }
+
+---
+"Test put classification given num_top_classes is less than zero":
+
+  - do:
+      catch: /\[num_top_classes\] must be an integer in \[0, 1000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-less-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "num_top_classes": -1
+              }
+            }
+          }
+
+---
+"Test put classification given num_top_classes is greater than 1k":
+
+  - do:
+      catch: /\[num_top_classes\] must be an integer in \[0, 1000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-greater-than-hundred"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "num_top_classes": 1001
+              }
+            }
+          }
+
+---
+"Test put classification given training_percent is less than one":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-less-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "training_percent": 0.999
+              }
+            }
+          }
+
+---
+"Test put classification given training_percent is greater than hundred":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-greater-than-hundred"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "training_percent": 100.1
+              }
+            }
+          }
+
+---
+"Test put classification given valid":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "valid-classification"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "lambda": 3.14,
+                "gamma": 0.42,
+                "eta": 0.5,
+                "maximum_number_trees": 400,
+                "feature_bag_fraction": 0.3,
+                "training_percent": 60.3
+              }
+            }
+          }
+  - match: { id: "valid-classification" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "classification":{
+      "dependent_variable": "foo",
+      "lambda": 3.14,
+      "gamma": 0.42,
+      "eta": 0.5,
+      "maximum_number_trees": 400,
+      "feature_bag_fraction": 0.3,
+      "training_percent": 60.3,
+      "num_top_classes": 0
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
 "Test put with description":
 
   - do:

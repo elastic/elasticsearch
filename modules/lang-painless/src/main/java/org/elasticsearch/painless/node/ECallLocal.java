@@ -28,6 +28,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
@@ -76,8 +77,8 @@ public final class ECallLocal extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        localFunction = functions.getFunction(name, arguments.size());
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        localFunction = scriptRoot.getFunctionTable().getFunction(name, arguments.size());
 
         // user cannot call internal functions, reset to null if an internal function is found
         if (localFunction != null && localFunction.isInternal()) {
@@ -85,14 +86,14 @@ public final class ECallLocal extends AExpression {
         }
 
         if (localFunction == null) {
-            importedMethod = locals.getPainlessLookup().lookupImportedPainlessMethod(name, arguments.size());
+            importedMethod = scriptRoot.getPainlessLookup().lookupImportedPainlessMethod(name, arguments.size());
 
             if (importedMethod == null) {
-                classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
+                classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
 
                 // check to see if this class binding requires an implicit this reference
                 if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
-                        classBinding.typeParameters.get(0) == locals.getBaseClass()) {
+                        classBinding.typeParameters.get(0) == scriptRoot.getScriptClassInfo().getBaseClass()) {
                     classBinding = null;
                 }
 
@@ -103,11 +104,11 @@ public final class ECallLocal extends AExpression {
                     // will likely involve adding a class instance binding where any instance can have a class binding
                     // as part of its API.  However, the situation at run-time is difficult and will modifications that
                     // are a substantial change if even possible to do.
-                    classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
+                    classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
 
                     if (classBinding != null) {
                         if (classBinding.typeParameters.isEmpty() == false &&
-                                classBinding.typeParameters.get(0) == locals.getBaseClass()) {
+                                classBinding.typeParameters.get(0) == scriptRoot.getScriptClassInfo().getBaseClass()) {
                             classBindingOffset = 1;
                         } else {
                             classBinding = null;
@@ -115,7 +116,7 @@ public final class ECallLocal extends AExpression {
                     }
 
                     if (classBinding == null) {
-                        instanceBinding = locals.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
+                        instanceBinding = scriptRoot.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
 
                         if (instanceBinding == null) {
                             throw createError(new IllegalArgumentException(
@@ -152,8 +153,8 @@ public final class ECallLocal extends AExpression {
 
             expression.expected = typeParameters.get(argument + classBindingOffset);
             expression.internal = true;
-            expression.analyze(functions, locals);
-            arguments.set(argument, expression.cast(functions, locals));
+            expression.analyze(scriptRoot, locals);
+            arguments.set(argument, expression.cast(scriptRoot, locals));
         }
 
         statement = true;

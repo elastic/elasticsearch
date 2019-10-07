@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.util.List;
@@ -26,13 +27,7 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable {
      * @return The predicted value. For classification this will be discrete values (e.g. 0.0, or 1.0).
      *                              For regression this is continuous.
      */
-    double infer(Map<String, Object> fields);
-
-    /**
-     * @param fields similar to {@link TrainedModel#infer(Map)}, but fields are already in order and doubles
-     * @return The predicted value.
-     */
-    double infer(List<Double> fields);
+    InferenceResults infer(Map<String, Object> fields, InferenceParams params);
 
     /**
      * @return {@link TargetType} for the model.
@@ -40,26 +35,7 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable {
     TargetType targetType();
 
     /**
-     * This gathers the probabilities for each potential classification value.
-     *
-     * The probabilities are indexed by classification ordinal label encoding.
-     * The length of this list is equal to the number of classification labels.
-     *
-     * This only should return if the implementation model is inferring classification values and not regression
-     * @param fields The fields and their values to infer against
-     * @return The probabilities of each classification value
-     */
-    List<Double> classificationProbability(Map<String, Object> fields);
-
-    /**
-     * @param fields similar to {@link TrainedModel#classificationProbability(Map)} but the fields are already in order and doubles
-     * @return The probabilities of each classification value
-     */
-    List<Double> classificationProbability(List<Double> fields);
-
-    /**
-     * The ordinal encoded list of the classification labels.
-     * @return Oridinal encoded list of classification labels.
+     * @return Ordinal encoded list of classification labels.
      */
     @Nullable
     List<String> classificationLabels();

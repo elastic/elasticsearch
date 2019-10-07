@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -106,15 +108,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     @Override
-    public double infer(Map<String, Object> fields) {
+    public InferenceResults infer(Map<String, Object> fields, InferenceParams params) {
         List<Double> features = featureNames.stream().map(f -> ((Number)fields.get(f)).doubleValue()).collect(Collectors.toList());
         return infer(features);
-    }
-
-    @Override
-    public double infer(List<Double> fields) {
-        List<Double> processedInferences = inferAndProcess(fields);
-        return outputAggregator.aggregate(processedInferences);
     }
 
     @Override

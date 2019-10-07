@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-public interface InferenceResults<T> extends ToXContentObject, Writeable {
+public interface InferenceResults extends NamedXContentObject, NamedWriteable {
 
-    String resultType();
-
-    T value();
-
-    String valueAsString();
+    void writeResult(IngestDocument document, String resultField);
 
 }

@@ -13,6 +13,11 @@ import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -105,18 +110,34 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     @Override
-    public double infer(Map<String, Object> fields) {
+    public InferenceResults infer(Map<String, Object> fields, InferenceParams params) {
+        if (targetType != TargetType.CLASSIFICATION && params.getNumTopClasses() != 0) {
+            throw new UnsupportedOperationException(
+                "Cannot return top classes for target_type [" + targetType.toString() + "]");
+        }
         List<Double> features = featureNames.stream().map(f -> (Double) fields.get(f)).collect(Collectors.toList());
-        return infer(features);
+        return infer(features, params);
     }
 
-    @Override
-    public double infer(List<Double> features) {
+    private InferenceResults infer(List<Double> features, InferenceParams params) {
         TreeNode node = nodes.get(0);
         while(node.isLeaf() == false) {
             node = nodes.get(node.compare(features));
         }
-        return node.getLeafValue();
+        return buildResult(node.getLeafValue(), params);
+    }
+
+    private InferenceResults buildResult(Double value, InferenceParams params) {
+        switch (targetType) {
+            case CLASSIFICATION:
+                List<ClassificationInferenceResults.TopClassEntry> topClasses =
+                    InferenceHelpers.topClasses(classificationProbability(value), classificationLabels, params.getNumTopClasses());
+                return new ClassificationInferenceResults(value, classificationLabel(value), topClasses);
+            case REGRESSION:
+                return new RegressionInferenceResults(value);
+            default:
+                throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
+        }
     }
 
     /**
@@ -140,31 +161,31 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return targetType;
     }
 
-    @Override
-    public List<Double> classificationProbability(Map<String, Object> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
-            throw new UnsupportedOperationException(
-                "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
-        }
-        return classificationProbability(featureNames.stream().map(f -> (Double) fields.get(f)).collect(Collectors.toList()));
-    }
-
-    @Override
-    public List<Double> classificationProbability(List<Double> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
-            throw new UnsupportedOperationException(
-                "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
-        }
-        double label = infer(fields);
+    private List<Double> classificationProbability(double inferenceValue) {
         // If we are classification, we should assume that the inference return value is whole.
-        assert label == Math.rint(label);
+        assert inferenceValue == Math.rint(inferenceValue);
         double maxCategory = this.highestOrderCategory.get();
         // If we are classification, we should assume that the largest leaf value is whole.
         assert maxCategory == Math.rint(maxCategory);
         List<Double> list = new ArrayList<>(Collections.nCopies(Double.valueOf(maxCategory + 1).intValue(), 0.0));
         // TODO, eventually have TreeNodes contain confidence levels
-        list.set(Double.valueOf(label).intValue(), 1.0);
+        list.set(Double.valueOf(inferenceValue).intValue(), 1.0);
         return list;
+    }
+
+    private String classificationLabel(double inferenceValue) {
+        assert inferenceValue == Math.rint(inferenceValue);
+        if (classificationLabels == null) {
+            return String.valueOf(inferenceValue);
+        }
+        int label = Double.valueOf(inferenceValue).intValue();
+        if (label < 0 || label >= classificationLabels.size()) {
+            throw ExceptionsHelper.badRequestException(
+                    "model returned classification value of [{}] which is not a valid index in classification labels [{}]",
+                    label,
+                    classificationLabels);
+        }
+        return classificationLabels.get(label);
     }
 
     @Override

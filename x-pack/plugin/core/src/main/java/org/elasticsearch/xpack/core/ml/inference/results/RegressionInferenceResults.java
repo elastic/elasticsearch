@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,11 +37,6 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
-    public String resultType() {
-        return RESULT_TYPE;
-    }
-
-    @Override
     public boolean equals(Object object) {
         if (object == this) { return true; }
         if (object == null || getClass() != object.getClass()) { return false; }
@@ -50,5 +47,22 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     @Override
     public int hashCode() {
         return Objects.hash(value());
+    }
+
+    @Override
+    public void writeResult(IngestDocument document, String resultField) {
+        ExceptionsHelper.requireNonNull(document, "document");
+        ExceptionsHelper.requireNonNull(resultField, "resultField");
+        document.setFieldValue(resultField, value());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return RESULT_TYPE;
+    }
+
+    @Override
+    public String getName() {
+        return RESULT_TYPE;
     }
 }

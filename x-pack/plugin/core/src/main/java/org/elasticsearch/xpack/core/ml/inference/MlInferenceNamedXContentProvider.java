@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
@@ -99,6 +102,14 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(new NamedWriteableRegistry.Entry(OutputAggregator.class,
             WeightedMode.NAME.getPreferredName(),
             WeightedMode::new));
+
+        // Inference Results
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
+            ClassificationInferenceResults.RESULT_TYPE,
+            ClassificationInferenceResults::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
+            RegressionInferenceResults.RESULT_TYPE,
+            RegressionInferenceResults::new));
 
         return namedWriteables;
     }

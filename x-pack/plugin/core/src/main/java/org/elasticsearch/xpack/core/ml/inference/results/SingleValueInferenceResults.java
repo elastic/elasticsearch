@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public abstract class SingleValueInferenceResults implements InferenceResults<Double> {
+public abstract class SingleValueInferenceResults implements InferenceResults {
 
     public final ParseField VALUE = new ParseField("value");
 
@@ -26,12 +26,10 @@ public abstract class SingleValueInferenceResults implements InferenceResults<Do
         this.value = value;
     }
 
-    @Override
     public Double value() {
         return value;
     }
 
-    @Override
     public String valueAsString() {
         return String.valueOf(value);
     }

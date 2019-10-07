@@ -390,8 +390,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         writeIndexGen(updatedRepositoryData, repositoryStateId);
         final ActionListener<Void> afterCleanupsListener =
             new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
+
+        // Run unreferenced blobs cleanup in parallel to snapshot deletion
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(afterCleanupsListener,
             l -> cleanupStaleBlobs(foundIndices, rootBlobs, updatedRepositoryData, ActionListener.map(l, ignored -> null))));
+
         deleteIndices(
             updatedRepositoryData,
             repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotId),

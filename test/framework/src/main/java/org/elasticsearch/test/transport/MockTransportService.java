@@ -99,6 +99,10 @@ public final class MockTransportService extends TransportService {
         }
     }
 
+    public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool) {
+        return createNewService(settings, version, threadPool, null);
+    }
+
     public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
                                                         @Nullable ClusterSettings clusterSettings) {
         MockNioTransport mockTransport = newMockTransport(settings, version, threadPool);

@@ -33,4 +33,4 @@ $ErrorActionPreference="Continue"
    -x :distribution:packages:buildOssRpm `
    -x :distribution:packages:buildRpm `
 
-exit $?
+exit $LastExitCode

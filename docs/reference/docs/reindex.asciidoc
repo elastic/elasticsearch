@@ -701,7 +701,7 @@ POST _reindex
 `_reindex` can be used to build a copy of an index with renamed fields. Say you
 create an index containing documents that look like this:
 
-[source,console]
+[source,js]
 --------------------------------------------------
 POST test/_doc/1?refresh
 {
@@ -709,6 +709,7 @@ POST test/_doc/1?refresh
   "flag": "foo"
 }
 --------------------------------------------------
+// CONSOLE
 
 but you don't like the name `flag` and want to replace it with `tag`.
 `_reindex` can create the other index for you:

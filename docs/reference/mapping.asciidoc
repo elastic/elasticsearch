@@ -5,7 +5,7 @@
 --
 
 Mapping is the process of defining how a document, and the fields it contains,
-are stored and indexed.  For instance, use mappings to define:
+are stored and indexed. For instance, use mappings to define:
 
 * which string fields should be treated as full text fields.
 * which fields contain numbers, dates, or geolocations.
@@ -20,7 +20,7 @@ are stored and indexed.  For instance, use mappings to define:
 Each index has one _mapping type_ which determines how the document will be
 indexed.
 
-deprecated[6.0.0,See <<removal-of-types>>].
+deprecated::[6.0.0,See <<removal-of-types>>]
 
 A mapping type has:
 

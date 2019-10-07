@@ -435,11 +435,11 @@ public class ExecutionService {
                 }
                 try {
                     deleteTrigger(triggeredWatch.id());
-                } catch (Exception exc2) {
+                } catch (Exception exc) {
                     logger.error((Supplier<?>) () ->
                         new ParameterizedMessage(
                             "Error deleting entry from .triggered_watches for watch [{}] after thread pool rejection",
-                            triggeredWatch.id()), exc2);
+                            triggeredWatch.id()), exc);
                 }
             }));
         }

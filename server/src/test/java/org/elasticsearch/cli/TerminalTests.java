@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.cli.Terminal.SystemTerminal.readLineToCharArray;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TerminalTests extends ESTestCase {
@@ -181,7 +182,7 @@ public class TerminalTests extends ESTestCase {
         byte[] source = "hellohellohello!\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(source);
              InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-            terminal.readLineToCharArray(reader, 10);
+            readLineToCharArray(reader, 10);
         }
     }
 
@@ -189,7 +190,7 @@ public class TerminalTests extends ESTestCase {
         Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
         try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
              InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-            char[] result = terminal.readLineToCharArray(reader, 10);
+            char[] result = readLineToCharArray(reader, 10);
             assertThat(result, equalTo(expected.toCharArray()));
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -202,7 +203,7 @@ public class TerminalTests extends ESTestCase {
              InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             char[] result;
             for (String exp : expected) {
-                result = terminal.readLineToCharArray(reader, 10);
+                result = readLineToCharArray(reader, 10);
                 assertThat(result, equalTo(exp.toCharArray()));
             }
         } catch (IOException e) {

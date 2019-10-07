@@ -72,7 +72,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        return new RangeAggregator(name, factories, valuesSource, config.format(), rangeFactory, ranges, keyed, searchContext, parent,
+        return new RangeAggregator(name, factories, valuesSource, config, rangeFactory, ranges, keyed, searchContext, parent,
                 pipelineAggregators, metaData);
     }
 

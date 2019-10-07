@@ -194,6 +194,19 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value, boolean coerce) {
+                float parsedValue = parse(value, coerce);
+                byte[] bytes = new byte[Integer.BYTES];
+                HalfFloatPoint.encodeDimension(parsedValue, bytes, 0);
+                return bytes;
+            }
+
+            @Override
+            public int bytesPerEncodedPoint() {
+                return Integer.BYTES;
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -291,6 +304,19 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value, boolean coerce) {
+                float parsedValue = parse(value, coerce);
+                byte[] bytes = new byte[Integer.BYTES];
+                FloatPoint.encodeDimension(parsedValue, bytes, 0);
+                return bytes;
+            }
+
+            @Override
+            public int bytesPerEncodedPoint() {
+                return Integer.BYTES;
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -374,6 +400,19 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return DoublePoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public byte[] encodePoint(Number value, boolean coerce) {
+                double parsedValue = parse(value, coerce);
+                byte[] bytes = new byte[Long.BYTES];
+                DoublePoint.encodeDimension(parsedValue, bytes, 0);
+                return bytes;
+            }
+
+            @Override
+            public int bytesPerEncodedPoint() {
+                return Long.BYTES;
             }
 
             @Override
@@ -474,6 +513,21 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value, boolean coerce) {
+                int parsedValue = parse(value, coerce);
+
+                // Same as integer
+                byte[] bytes = new byte[Integer.BYTES];
+                IntPoint.encodeDimension(parsedValue, bytes, 0);
+                return bytes;
+            }
+
+            @Override
+            public int bytesPerEncodedPoint() {
+                return Integer.BYTES;
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -535,6 +589,21 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value, boolean coerce) {
+                int parsedValue = parse(value, coerce);
+
+                // Same as integer
+                byte[] bytes = new byte[Integer.BYTES];
+                IntPoint.encodeDimension(parsedValue, bytes, 0);
+                return bytes;
+            }
+
+            @Override
+            public int bytesPerEncodedPoint() {
+                return Integer.BYTES;
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.shortValue(coerce);
             }
@@ -589,6 +658,19 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return IntPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public byte[] encodePoint(Number value, boolean coerce) {
+                int parsedValue = parse(value, coerce);
+                byte[] bytes = new byte[Integer.BYTES];
+                IntPoint.encodeDimension(parsedValue, bytes, 0);
+                return bytes;
+            }
+
+            @Override
+            public int bytesPerEncodedPoint() {
+                return Integer.BYTES;
             }
 
             @Override
@@ -711,6 +793,19 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value, boolean coerce) {
+                long parsedValue = parse(value, coerce);
+                byte[] bytes = new byte[Long.BYTES];
+                LongPoint.encodeDimension(parsedValue, bytes, 0);
+                return bytes;
+            }
+
+            @Override
+            public int bytesPerEncodedPoint() {
+                return Long.BYTES;
+            }
+
+            @Override
             public Long parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.longValue(coerce);
             }
@@ -827,6 +922,8 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
         public abstract Number parse(Object value, boolean coerce);
         public abstract Number parsePoint(byte[] value);
+        public abstract byte[] encodePoint(Number value, boolean coerce);
+        public abstract int bytesPerEncodedPoint();
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
         Number valueForSearch(Number value) {
@@ -977,6 +1074,14 @@ public class NumberFieldMapper extends FieldMapper {
 
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
+        }
+
+        public byte[] encodePoint(Number value, boolean coerce) {
+            return type.encodePoint(value, coerce);
+        }
+
+        public int bytesPerEncodedPoint() {
+            return type.bytesPerEncodedPoint();
         }
 
         @Override

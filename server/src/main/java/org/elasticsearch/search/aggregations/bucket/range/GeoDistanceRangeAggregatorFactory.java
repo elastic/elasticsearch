@@ -81,9 +81,8 @@ public class GeoDistanceRangeAggregatorFactory
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
         DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
-        return new RangeAggregator(name, factories, distanceSource, config.format(), rangeFactory, ranges, keyed, searchContext,
-                parent,
-                pipelineAggregators, metaData);
+        return new RangeAggregator(name, factories, distanceSource, config, rangeFactory, ranges, keyed, searchContext,
+            parent, pipelineAggregators, metaData);
     }
 
     private static class DistanceSource extends ValuesSource.Numeric {

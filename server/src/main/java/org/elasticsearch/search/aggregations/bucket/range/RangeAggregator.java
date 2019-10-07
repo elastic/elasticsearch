@@ -18,8 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.DocIdSetBuilder;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +36,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -40,6 +50,7 @@ import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -47,6 +58,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+
+import static org.apache.lucene.util.FutureArrays.compareUnsigned;
 
 public class RangeAggregator extends BucketsAggregator {
 
@@ -217,33 +231,59 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    final ValuesSource.Numeric valuesSource;
+    private final ValuesSource.Numeric valuesSource;
     final DocValueFormat format;
     final Range[] ranges;
+
     final boolean keyed;
-    final InternalRange.Factory rangeFactory;
+    private final InternalRange.Factory rangeFactory;
+    private final double[] maxTo;
 
-    final double[] maxTo;
+    private BiFunction<Number, Boolean, byte[]> pointEncoder;
+    private final String pointField;
+    private final boolean canOptimize;
+    private byte[][] encodedRanges;
 
-    public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+
+    public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, ValuesSourceConfig<?> config,
+                           InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context, Aggregator parent,
+                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, context, parent, pipelineAggregators, metaData);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
-        this.format = format;
+        this.format = config.format();
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
-
         this.ranges = ranges;
+        this.pointEncoder = configurePointEncoder(context, parent, config);
 
-        maxTo = new double[this.ranges.length];
-        maxTo[0] = this.ranges[0].to;
-        for (int i = 1; i < this.ranges.length; ++i) {
-            maxTo[i] = Math.max(this.ranges[i].to,maxTo[i-1]);
+        // Unbounded ranges collect most documents, so the BKD optimization doesn't
+        // help nearly as much
+        boolean rangesAreBounded = Double.isFinite(ranges[0].from);
+
+        maxTo = new double[ranges.length];
+        maxTo[0] = ranges[0].to;
+        for (int i = 1; i < ranges.length; ++i) {
+            maxTo[i] = Math.max(ranges[i].to, maxTo[i-1]);
+            rangesAreBounded &= Double.isFinite(ranges[i].to);
         }
 
+        if (pointEncoder != null && rangesAreBounded) {
+            pointField = config.fieldContext().field();
+            encodedRanges = new byte[ranges.length * 2][];
+            for (int i = 0; i < ranges.length; i++) {
+                byte[] from = Double.isFinite(ranges[i].from) ? pointEncoder.apply(ranges[i].from, false) : null;
+                byte[] to = Double.isFinite(ranges[i].to) ? pointEncoder.apply(ranges[i].to, false) : null;
+                encodedRanges[i*2] = from;
+                encodedRanges[i*2 + 1] = to;
+            }
+            canOptimize = true;
+        } else {
+            pointField = null;
+            pointEncoder = null;
+            canOptimize = false;
+        }
     }
 
     @Override
@@ -257,6 +297,24 @@ public class RangeAggregator extends BucketsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
+
+        if (valuesSource == null) {
+            if (parent != null) {
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            } else {
+                // we have no parent and the values source is empty so we can skip collecting hits.
+                throw new CollectionTerminatedException();
+            }
+        }
+
+        if (canOptimize) {
+            // if we can optimize, and we decide the optimization is better than DV collection,
+            // this will use the BKD to collect hits and then throw a CollectionTerminatedException
+            tryBKDOptimization(ctx, sub);
+        }
+
+        // We either cannot optimize, or have decided DVs would be faster so
+        // fall back to collecting all the values from DVs directly
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -265,12 +323,14 @@ public class RangeAggregator extends BucketsAggregator {
                     final int valuesCount = values.docValueCount();
                     for (int i = 0, lo = 0; i < valuesCount; ++i) {
                         final double value = values.nextValue();
-                        lo = collect(doc, value, bucket, lo);
+                        lo = collectValue(doc, value, bucket, lo, sub);
                     }
                 }
             }
+        };
+    }
 
-    private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
+    private int collectValue(int doc, double value, long owningBucketOrdinal, int lowBound, LeafBucketCollector sub) throws IOException {
         int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
         int mid = (lo + hi) >>> 1;
         while (lo <= hi) {
@@ -312,13 +372,179 @@ public class RangeAggregator extends BucketsAggregator {
 
         for (int i = startLo; i <= endHi; ++i) {
             if (ranges[i].matches(value)) {
-                        collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
+                collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
             }
         }
 
         return endHi + 1;
     }
+
+    /**
+     * Attempt to collect these ranges via the BKD tree instead of DocValues.
+     *
+     * This estimates the number of matching points in the BKD tree.  If it is
+     * less than 75% of maxDoc we attempt to use the BKD tree to collect values.
+     * The BKD tree is potentially much faster than DV collection because
+     * we only need to inspect leaves that overlap each range, rather than
+     * collecting all the values as with DVs.  And since we only care about doc
+     * counts, we don't need to decode values when an entire leaf matches.
+     *
+     * If we use the BKD tree, when it is done collecting values a
+     * {@link CollectionTerminatedException} is thrown to signal completion
+     */
+    private void tryBKDOptimization(LeafReaderContext ctx, LeafBucketCollector sub) throws CollectionTerminatedException, IOException {
+        final PointValues pointValues = ctx.reader().getPointValues(pointField);
+        if (pointValues != null) {
+            PointValues.IntersectVisitor[] visitors = new PointValues.IntersectVisitor[ranges.length];
+            DocIdSetBuilder[] results = new DocIdSetBuilder[ranges.length];
+
+            final Bits liveDocs = ctx.reader().getLiveDocs();
+            int maxDoc = ctx.reader().maxDoc();
+            long estimatedPoints = 0;
+            for (int i = 0; i < ranges.length; i++) {
+                // OK to allocate DocIdSetBuilder now since it allocates memory lazily and the
+                // estimation won't call `grow()` on the visitor (only once we start intersecting)
+                results[i]  = new DocIdSetBuilder(maxDoc);
+                visitors[i] = getVisitor(liveDocs, encodedRanges[i * 2], encodedRanges[i * 2 + 1], results[i]);
+                estimatedPoints += pointValues.estimatePointCount(visitors[i]);
+            }
+
+            if (estimatedPoints < maxDoc * 0.75) {
+                // We collect ranges individually since a doc can land in multiple ranges.
+                for (int i = 0; i < ranges.length; i++) {
+                    pointValues.intersect(visitors[i]);
+                    DocIdSetIterator iter = results[i].build().iterator();
+                    while (iter.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        // Now that we know the matching docs, collect the bucket and sub-aggs
+                        //
+                        // NOTE: because we're in the BKD optimization, we know there is no parent agg
+                        // and bucket ordinals are zero-based offset by range ordinal
+                        collectBucket(sub, iter.docID(), i);
+                    }
+                    // free this DocIdSet since we no longer need it, and it could be holding
+                    // non-negligible amount of memory
+                    results[i] = null;
+                }
+                throw new CollectionTerminatedException();
+            }
+        }
+    }
+
+    /**
+     * Returns a BKD intersection visitor for the provided range (`from` inclusive, `to` exclusive)
+     */
+    private PointValues.IntersectVisitor getVisitor(Bits liveDocs, byte[] from, byte[] to, DocIdSetBuilder result) {
+
+
+        return new PointValues.IntersectVisitor() {
+            DocIdSetBuilder.BulkAdder adder;
+
+            @Override
+            public void grow(int count) {
+                adder = result.grow(count);
+            }
+
+            @Override
+            public void visit(int docID) {
+                if ((liveDocs == null || liveDocs.get(docID))) {
+                    adder.add(docID);
+                }
+            }
+
+            @Override
+            public void visit(int docID, byte[] packedValue) {
+                int packedLength = packedValue.length;
+
+                // Value is inside range if value >= from && value < to
+                boolean inside = (from == null || compareUnsigned(packedValue, 0, packedValue.length, from, 0, from.length) >= 0)
+                    && (to == null || compareUnsigned(packedValue, 0, packedLength, to, 0, to.length) < 0);
+
+                if (inside) {
+                    visit(docID);
+                }
+            }
+
+            @Override
+            public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
+                int packedLength = packedValue.length;
+
+                // Value is inside range if value >= from && value < to
+                boolean inside = (from == null || compareUnsigned(packedValue, 0, packedValue.length, from, 0, from.length) >= 0)
+                    && (to == null || compareUnsigned(packedValue, 0, packedLength, to, 0, to.length) < 0);
+
+                if (inside) {
+                    while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        visit(iterator.docID());
+                    }
+                }
+            }
+
+            @Override
+            public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+
+                int packedLength = minPackedValue.length;
+
+                // max < from (exclusive, since ranges are inclusive on from)
+                if (from != null && compareUnsigned(maxPackedValue, 0, packedLength, from, 0, from.length) < 0) {
+                    return PointValues.Relation.CELL_OUTSIDE_QUERY;
+                }
+                // min >= from (inclusive, since ranges are exclusive on to)
+                if (to != null && compareUnsigned(minPackedValue, 0, packedLength, to, 0, to.length) >= 0) {
+                    return PointValues.Relation.CELL_OUTSIDE_QUERY;
+                }
+
+                // Leaf is fully inside this range if min >= from && max < to
+                if (
+                    // `from` is unbounded or `min >= from`
+                    (from == null || compareUnsigned(minPackedValue, 0, packedLength, from, 0, from.length) >= 0)
+                    &&
+                        // `to` is unbounded or `max < to`
+                    (to == null || compareUnsigned(maxPackedValue, 0, packedLength, to, 0, to.length) < 0)
+                ) {
+                    return PointValues.Relation.CELL_INSIDE_QUERY;
+                }
+
+                // If we're not outside, and not fully inside, we must be crossing
+                return PointValues.Relation.CELL_CROSSES_QUERY;
+
+            }
         };
+    }
+
+    /**
+     * Returns a converter for point values if BKD optimization is applicable to
+     * the context or <code>null</code> otherwise.  Optimization criteria is:
+     * - Match_all query
+     * - no parent agg
+     * - no script
+     * - no missing value
+     * - has indexed points
+     *
+     * @param context The {@link SearchContext} of the aggregation.
+     * @param parent The parent aggregator.
+     * @param config The config for the values source metric.
+     */
+    private BiFunction<Number, Boolean, byte[]> configurePointEncoder(SearchContext context, Aggregator parent,
+                                          ValuesSourceConfig<?> config) {
+        if (context.query() != null &&
+            context.query().getClass() != MatchAllDocsQuery.class) {
+            return null;
+        }
+        if (parent != null) {
+            return null;
+        }
+        if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
+            MappedFieldType fieldType = config.fieldContext().fieldType();
+            if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
+                return null;
+            }
+            if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+                return ((NumberFieldMapper.NumberFieldType) fieldType)::encodePoint;
+            } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
+                return NumberFieldMapper.NumberType.LONG::encodePoint;
+            }
+        }
+        return null;
     }
 
     private long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
@@ -328,13 +554,13 @@ public class RangeAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         consumeBucketsAndMaybeBreak(ranges.length);
-        List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
+        List<InternalRange.Bucket> buckets = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
             final long bucketOrd = subBucketOrdinal(owningBucketOrdinal, i);
-            org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd),
-                            bucketAggregations(bucketOrd), keyed, format);
+            InternalRange.Bucket bucket =
+                rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd),
+                    bucketAggregations(bucketOrd), keyed, format);
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
@@ -344,11 +570,10 @@ public class RangeAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
-        List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
+        List<InternalRange.Bucket> buckets = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
-            org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format);
+            InternalRange.Bucket bucket = rangeFactory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format);
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields

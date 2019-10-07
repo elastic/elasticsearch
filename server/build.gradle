@@ -133,7 +133,7 @@ dependencies {
 
 }
 
-compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
+// compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 forbiddenPatterns {

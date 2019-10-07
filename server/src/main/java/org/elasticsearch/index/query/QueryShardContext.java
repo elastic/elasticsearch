@@ -190,6 +190,7 @@ public class QueryShardContext extends QueryRewriteContext {
         return bitsetFilterCache.getBitSetProducer(filter);
     }
 
+    @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
         return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
     }
@@ -366,6 +367,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public void executeAsyncActions(ActionListener listener) {
         failIfFrozen();
         super.executeAsyncActions(listener);

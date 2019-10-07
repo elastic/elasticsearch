@@ -664,67 +664,6 @@ the units of the `radius` will default to `METERS`.
 *NOTE:* Neither GeoJSON or WKT support a point-radius circle type.
 
 [float]
-[[crs]]
-==== Coordinate Reference Systems and Projected Data
-
-Preserving the source data's original
-https://en.wikipedia.org/wiki/Spatial_reference_system[Coordinate Reference System (CRS)]
-is one of the most important characteristics of a good
-https://en.wikipedia.org/wiki/Spatial_data_infrastructure[Spatial Data Infrastructure (SDI)].
-Spatial Indexers often require geospatial units be in the form of decimal degrees
-latitude, longitude projected on a model of the earth's surface using the
-https://en.wikipedia.org/wiki/World_Geodetic_System[WGS 1984] reference datum.
-Often times, however, many source data use other
-https://spatialreference.org/ref/epsg/[coordinate reference systems]
-to preserve spatial accuracy.
-
-For this reason, the `geo_shape` field type enables users to define the source
-data coordinate reference system by providing a https://geojson.org/geojson-spec#named-crs[`crs`]
-definition in the field mapping. Based on the `crs` provided Elasticsearch will
-preserve the accuracy of the data within the index. NOTE: Only two-dimensional
-reference systems are supported at this time.
-
-Below is an example mapping configuration for indexing spatial data in the
-UTM Zone 14 N source reference system using the European Petroleum Survey Group
-(EPSG) standard CRS definition:
-
-[source,console]
---------------------------------------------------
-PUT /example
-{
-    "mappings": {
-        "properties": {
-            “projected_shape” : {
-                “type” : “geo_shape”,
-                "crs": {
-                    "type": "name",
-                    "properties": {
-                        "name": "EPSG:32614"
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-
-Shapes can then be indexed using either standard GeoJSON or WKT format with
-coordinates provided in the defined projection:
-
-[source,console]
---------------------------------------------------
-POST /example/_doc
-{
-    "projected_shape" : {
-        "type" : "polygon",
-        "coordinates" : [
-            [ [166021.4431, 0.0], [833978.5569, 9329005.1825], [833978.5569, 0.0], [166021.4431, 0.0] ]
-        ]
-    }
-}
---------------------------------------------------
-
-[float]
 ==== Sorting and Retrieving index Shapes
 
 Due to the complex input structure and index representation of shapes,

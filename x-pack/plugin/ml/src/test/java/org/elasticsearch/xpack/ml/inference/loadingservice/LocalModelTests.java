@@ -119,7 +119,7 @@ public class LocalModelTests extends ESTestCase {
         return oneHotEncoding;
     }
 
-    private static TrainedModel buildClassification(boolean includeLabels) {
+    public static TrainedModel buildClassification(boolean includeLabels) {
         List<String> featureNames = Arrays.asList("foo", "bar", "animal_cat", "animal_dog");
         Tree tree1 = Tree.builder()
             .setFeatureNames(featureNames)
@@ -165,7 +165,7 @@ public class LocalModelTests extends ESTestCase {
             .build();
     }
 
-    private static TrainedModel buildRegression() {
+    public static TrainedModel buildRegression() {
         List<String> featureNames = Arrays.asList("foo", "bar", "animal_cat", "animal_dog");
         Tree tree1 = Tree.builder()
             .setFeatureNames(featureNames)

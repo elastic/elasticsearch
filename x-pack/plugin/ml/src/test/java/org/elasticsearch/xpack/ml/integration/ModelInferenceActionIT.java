@@ -17,13 +17,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedMode;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedSum;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -40,6 +33,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests.buildClassification;
+import static org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests.buildRegression;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,7 +62,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
                 .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
-                .setTrainedModel(buildClassification()))
+                .setTrainedModel(buildClassification(true)))
             .build(Version.CURRENT);
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1, 0)
             .setDefinition(new TrainedModelDefinition.Builder()
@@ -167,97 +162,6 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         } catch (ElasticsearchException ex) {
             assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model, 0)));
         }
-    }
-
-    private static TrainedModel buildClassification() {
-        List<String> featureNames = Arrays.asList("foo", "bar", "animal_cat", "animal_dog");
-        Tree tree1 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(0.5))
-            .addNode(TreeNode.builder(1).setLeafValue(1.0))
-            .addNode(TreeNode.builder(2)
-                .setThreshold(0.8)
-                .setSplitFeature(1)
-                .setLeftChild(3)
-                .setRightChild(4))
-            .addNode(TreeNode.builder(3).setLeafValue(0.0))
-            .addNode(TreeNode.builder(4).setLeafValue(1.0)).build();
-        Tree tree2 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(3)
-                .setThreshold(1.0))
-            .addNode(TreeNode.builder(1).setLeafValue(0.0))
-            .addNode(TreeNode.builder(2).setLeafValue(1.0))
-            .build();
-        Tree tree3 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(1.0))
-            .addNode(TreeNode.builder(1).setLeafValue(1.0))
-            .addNode(TreeNode.builder(2).setLeafValue(0.0))
-            .build();
-        return Ensemble.builder()
-            .setClassificationLabels(Arrays.asList("not_to_be", "to_be"))
-            .setTargetType(TargetType.CLASSIFICATION)
-            .setFeatureNames(featureNames)
-            .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(Arrays.asList(0.7, 0.5, 1.0)))
-            .build();
-    }
-
-    private static TrainedModel buildRegression() {
-        List<String> featureNames = Arrays.asList("foo", "bar", "animal_cat", "animal_dog");
-        Tree tree1 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(0.5))
-            .addNode(TreeNode.builder(1).setLeafValue(0.3))
-            .addNode(TreeNode.builder(2)
-                .setThreshold(0.0)
-                .setSplitFeature(3)
-                .setLeftChild(3)
-                .setRightChild(4))
-            .addNode(TreeNode.builder(3).setLeafValue(0.1))
-            .addNode(TreeNode.builder(4).setLeafValue(0.2)).build();
-        Tree tree2 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(2)
-                .setThreshold(1.0))
-            .addNode(TreeNode.builder(1).setLeafValue(1.5))
-            .addNode(TreeNode.builder(2).setLeafValue(0.9))
-            .build();
-        Tree tree3 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(1)
-                .setThreshold(0.2))
-            .addNode(TreeNode.builder(1).setLeafValue(1.5))
-            .addNode(TreeNode.builder(2).setLeafValue(0.9))
-            .build();
-        return Ensemble.builder()
-            .setTargetType(TargetType.REGRESSION)
-            .setFeatureNames(featureNames)
-            .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedSum(Arrays.asList(0.5, 0.5, 0.5)))
-            .build();
     }
 
     private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId, long modelVersion) {

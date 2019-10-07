@@ -25,8 +25,7 @@ beta[]
 `data_frame_transforms_admin` role has these privileges. You must also
 have `read` and `view_index_metadata` privileges on the source index and `read`,
 `create_index`, and `index` privileges on the destination index. For more
-information, see {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+information, see <<security-privileges>> and <<built-in-roles>>.
 
 [[update-transform-desc]]
 ==== {api-description-title}

@@ -26,7 +26,6 @@ import org.joni.Option;
 import org.joni.Regex;
 import org.joni.Region;
 import org.joni.Syntax;
-import org.joni.exception.ValueException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -150,17 +149,14 @@ public final class Grok {
     }
 
     public String groupMatch(String name, Region region, String pattern) {
-        try {
-            int number = GROK_PATTERN_REGEX.nameToBackrefNumber(name.getBytes(StandardCharsets.UTF_8), 0,
-                    name.getBytes(StandardCharsets.UTF_8).length, region);
-            int begin = region.beg[number];
-            int end = region.end[number];
-            return new String(pattern.getBytes(StandardCharsets.UTF_8), begin, end - begin, StandardCharsets.UTF_8);
-        } catch (StringIndexOutOfBoundsException e) {
-            return null;
-        } catch (ValueException e) {
+        int number = GROK_PATTERN_REGEX.nameToBackrefNumber(name.getBytes(StandardCharsets.UTF_8), 0,
+            name.getBytes(StandardCharsets.UTF_8).length, region);
+        int begin = region.beg[number];
+        int end = region.end[number];
+        if (begin < 0) { // no match found
             return null;
         }
+        return new String(pattern.getBytes(StandardCharsets.UTF_8), begin, end - begin, StandardCharsets.UTF_8);
     }
 
     /**
@@ -175,7 +171,9 @@ public final class Grok {
         int result;
         try {
             threadWatchdog.register();
-            result = matcher.search(0, grokPatternBytes.length, Option.NONE);
+            result = matcher.searchInterruptible(0, grokPatternBytes.length, Option.NONE);
+        } catch (InterruptedException e) {
+            result = Matcher.INTERRUPTED;
         } finally {
             threadWatchdog.unregister();
         }
@@ -224,7 +222,9 @@ public final class Grok {
         int result;
         try {
             threadWatchdog.register();
-            result = matcher.search(0, text.length(), Option.DEFAULT);
+            result = matcher.searchInterruptible(0, text.length(), Option.DEFAULT);
+        } catch (InterruptedException e) {
+            result = Matcher.INTERRUPTED;
         } finally {
             threadWatchdog.unregister();
         }
@@ -244,7 +244,9 @@ public final class Grok {
         int result;
         try {
             threadWatchdog.register();
-            result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
+            result = matcher.searchInterruptible(0, textAsBytes.length, Option.DEFAULT);
+        } catch (InterruptedException e) {
+            result = Matcher.INTERRUPTED;
         } finally {
             threadWatchdog.unregister();
         }

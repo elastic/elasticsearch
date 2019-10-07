@@ -9,6 +9,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -57,11 +59,12 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
     @Override
     public NativeAnalyticsProcess createAnalyticsProcess(DataFrameAnalyticsConfig config, AnalyticsProcessConfig analyticsProcessConfig,
-                                                         ExecutorService executorService, Consumer<String> onProcessCrash) {
+                                                         @Nullable BytesReference state, ExecutorService executorService,
+                                                         Consumer<String> onProcessCrash) {
         String jobId = config.getId();
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
-                true, false, true, true, false, config.getAnalysis().persistsState());
+                true, false, true, true, state != null, config.getAnalysis().persistsState());
 
         // The extra 2 are for the checksum and the control field
         int numberOfFields = analyticsProcessConfig.cols() + 2;
@@ -69,8 +72,8 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
 
         NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, nativeController, processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), null, numberOfFields,
-                filesToDelete, onProcessCrash, analyticsProcessConfig);
+                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(),
+                processPipes.getRestoreStream().orElse(null), numberOfFields, filesToDelete, onProcessCrash, analyticsProcessConfig);
 
         try {
             startProcess(config, executorService, processPipes, analyticsProcess);

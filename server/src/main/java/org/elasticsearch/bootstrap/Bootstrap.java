@@ -273,32 +273,39 @@ final class Bootstrap {
      * beyond the newline, making it unsuitable for repeated readings from the stream.
      */
     static char[] readPassphrase(InputStream stream, int maxLength) throws IOException {
-        int count;
         char[] buf = new char[maxLength + 2]; // potentially two terminating characters
 
         try(InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-            count = reader.read(buf);
-        }
-
-        if (count < 0) {
-            throw new IllegalStateException("Keystore passphrase required but none provided.");
-        }
-
-        int pos = 0;
-        for (char c : buf) {
-            if (c == '\r' || c == '\n' || pos == count) {
-                break;
+            int len = 0;
+            int next;
+            while ((next = reader.read()) != -1) {
+                char nextChar = (char) next;
+                if (nextChar == '\n') {
+                    break;
+                }
+                if (len < buf.length) {
+                    buf[len] = nextChar;
+                }
+                len++;
             }
-            pos++;
-        }
 
-        if (pos > maxLength) {
-            throw new IllegalStateException("Password exceeds max length of " + maxLength);
-        }
+            if (len > 0 && len < buf.length && buf[len-1] == '\r') {
+                len--;
+            }
 
-        char[] result = Arrays.copyOf(buf, pos);
-        Arrays.fill(buf, '\0');
-        return result;
+            if (len == 0) {
+                throw new IllegalStateException("Keystore passphrase required but none provided.");
+            }
+
+            if (len > maxLength) {
+                Arrays.fill(buf, '\0');
+                throw new IllegalStateException("Password exceeded maximum length of " + maxLength);
+            }
+
+            char[] shortResult = Arrays.copyOf(buf, len);
+            Arrays.fill(buf, '\0');
+            return shortResult;
+        }
     }
 
     private static Environment createEnvironment(

@@ -80,23 +80,36 @@ public class BootstrapTests extends ESTestCase {
     }
 
     public void testReadCharsFromStdin() throws Exception {
-        assertPassphraseRead("\n", "");
-        assertPassphraseRead("\r", "");
-        assertPassphraseRead("\r\n", "");
-
         assertPassphraseRead("hello", "hello");
         assertPassphraseRead("hello\n", "hello");
-        assertPassphraseRead("hello\r", "hello");
         assertPassphraseRead("hello\r\n", "hello");
 
         assertPassphraseRead("hellohello", "hellohello");
         assertPassphraseRead("hellohello\n", "hellohello");
-        assertPassphraseRead("hellohello\r", "hellohello");
         assertPassphraseRead("hellohello\r\n", "hellohello");
 
         assertPassphraseRead("hello\nhi\n", "hello");
-        assertPassphraseRead("hello\rhi\r", "hello");
         assertPassphraseRead("hello\r\nhi\r\n", "hello");
+    }
+
+    public void testPassphraseTooLong() throws Exception {
+        expectedException.expect(RuntimeException.class);
+        expectedException.expectMessage("Password exceeded maximum length of 10");
+        // read from an input stream to a character array
+        byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
+        try (InputStream stream = new ByteArrayInputStream(source)) {
+            Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
+        }
+    }
+
+    public void testNoPassPhraseProvided() throws Exception {
+        expectedException.expect(RuntimeException.class);
+        expectedException.expectMessage("Keystore passphrase required but none provided.");
+        // read from an input stream to a character array
+        byte[] source = "\r\n".getBytes(StandardCharsets.UTF_8);
+        try (InputStream stream = new ByteArrayInputStream(source)) {
+            Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
+        }
     }
 
     private void assertPassphraseRead(String source, String expected) {
@@ -108,13 +121,4 @@ public class BootstrapTests extends ESTestCase {
         }
     }
 
-    public void testOverflow() throws Exception {
-        expectedException.expect(RuntimeException.class);
-        expectedException.expectMessage("Password exceeds max length of 10");
-        // read from an input stream to a character array
-        byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
-        try (InputStream stream = new ByteArrayInputStream(source)) {
-            Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
-        }
-    }
 }

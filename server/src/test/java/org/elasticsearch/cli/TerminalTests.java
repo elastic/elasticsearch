@@ -156,33 +156,29 @@ public class TerminalTests extends ESTestCase {
 
     public void testSystemTerminalReadsSingleLines() throws Exception {
         assertRead("\n", "");
-        assertRead("\r", "");
         assertRead("\r\n", "");
 
         assertRead("hello\n", "hello");
-        assertRead("hello\r", "hello");
         assertRead("hello\r\n", "hello");
 
         assertRead("hellohello\n", "hellohello");
-        assertRead("hellohello\r", "hellohello");
         assertRead("hellohello\r\n", "hellohello");
     }
 
     public void testSystemTerminalReadsMultipleLines() throws Exception {
         assertReadLines("hello\nhello\n", "hello", "hello");
-        assertReadLines("hello\rhello\r", "hello", "hello");
         assertReadLines("hello\r\nhello\r\n", "hello", "hello");
 
         assertReadLines("one\ntwo\n\nthree", "one", "two", "", "three");
         assertReadLines("one\r\ntwo\r\n\r\nthree", "one", "two", "", "three");
     }
 
-    public void testOverflow() throws Exception {
+    public void testSystemTerminalLineExceedsMaxCharacters() throws Exception {
         Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
         expectedException.expect(RuntimeException.class);
-        expectedException.expectMessage("password too long");
+        expectedException.expectMessage("Input exceeded maximum length of 10");
         // read from an input stream to a character array
-        byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
+        byte[] source = "hellohellohello!\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(source);
              InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             terminal.readLineToCharArray(reader, 10);

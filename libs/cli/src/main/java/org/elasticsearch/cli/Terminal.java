@@ -258,42 +258,34 @@ public abstract class Terminal {
          *
          * Visible for testing.
          */
-        char[] readLineToCharArray(Reader reader, int maxLength) {
-            char[] buf = new char[maxLength];
+        static char[] readLineToCharArray(Reader reader, int maxLength) {
+            char[] buf = new char[maxLength + 2];
             try {
                 int len = 0;
                 int next;
                 while ((next = reader.read()) != -1) {
                     char nextChar = (char) next;
                     if (nextChar == '\n') {
-                        if (ignoreNextNewline) {
-                            ignoreNextNewline = false;
-                            continue;
-                        } else {
-                            break;
-                        }
-                    }
-                    if (nextChar == '\r') {
-                        ignoreNextNewline = true;
                         break;
                     }
-                    ignoreNextNewline = false;
-                    if (len < maxLength) {
+                    if (len < buf.length) {
                         buf[len] = nextChar;
                     }
                     len++;
                 }
 
-                if (len < maxLength) {
-                    char[] shortResult = Arrays.copyOf(buf, len);
-                    Arrays.fill(buf, '\0');
-                    return shortResult;
+                if (len > 0 && len < buf.length && buf[len-1] == '\r') {
+                    len--;
                 }
+
                 if (len > maxLength) {
                     Arrays.fill(buf, '\0');
-                    throw new RuntimeException("Password exceeded maximum length of " + maxLength);
+                    throw new RuntimeException("Input exceeded maximum length of " + maxLength);
                 }
-                return buf;
+
+                char[] shortResult = Arrays.copyOf(buf, len);
+                Arrays.fill(buf, '\0');
+                return shortResult;
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

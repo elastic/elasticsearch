@@ -248,8 +248,10 @@ public abstract class Terminal {
         }
 
         /**
-         * This method has to keep track of a little bit of state in order to account for
-         * line breaks in a system-independent way.
+         * Read from the reader until we find a newline. If that newline
+         * character is immediately preceded by a carriage return, we have
+         * a Windows-style newline, so we discard the carriage return as well
+         * as the newline.
          *
          * Visible for testing.
          */

@@ -22,7 +22,6 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.hamcrest.CoreMatchers;
 import org.junit.BeforeClass;
@@ -50,6 +49,7 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
+import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
@@ -98,9 +98,9 @@ public class PackageTests extends PackagingTestCase {
         try {
             Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.APPEND);
-            awaitElasticsearchStartup(Packages.startElasticsearch(sh));
+            awaitElasticsearchStartup(startElasticsearch());
             runElasticsearchTests();
-            Packages.stopElasticsearch(sh);
+            stopElasticsearch();
         } finally {
             Files.write(installation.envFile, originalEnvFile);
         }
@@ -125,9 +125,9 @@ public class PackageTests extends PackagingTestCase {
             sh.run("unlink /usr/bin/java");
             unlinked = true;
 
-            awaitElasticsearchStartup(Packages.startElasticsearch(sh));
+            awaitElasticsearchStartup(startElasticsearch());
             runElasticsearchTests();
-            Packages.stopElasticsearch(sh);
+            stopElasticsearch();
         } finally {
             if (unlinked) {
                 sh.run("ln -sf " + readlink.stdout.trim() + " /usr/bin/java");
@@ -149,7 +149,7 @@ public class PackageTests extends PackagingTestCase {
 
     public void test40StartServer() throws Exception {
         String start = sh.runIgnoreExitCode("date ").stdout.trim();
-        awaitElasticsearchStartup(Packages.startElasticsearch(sh));
+        awaitElasticsearchStartup(startElasticsearch());
 
         String journalEntries = sh.runIgnoreExitCode("journalctl _SYSTEMD_UNIT=elasticsearch.service " +
             "--since \"" + start + "\" --output cat | wc -l").stdout.trim();
@@ -228,10 +228,10 @@ public class PackageTests extends PackagingTestCase {
             installation = installPackage(distribution());
             assertInstalled(distribution());
 
-            awaitElasticsearchStartup(Packages.startElasticsearch(sh));
-            awaitElasticsearchStartup(Packages.restartElasticsearch(sh));
+            awaitElasticsearchStartup(startElasticsearch());
+            awaitElasticsearchStartup(restartElasticsearch(sh));
             runElasticsearchTests();
-            Packages.stopElasticsearch(sh);
+            stopElasticsearch();
         } finally {
             cleanup();
         }
@@ -242,9 +242,9 @@ public class PackageTests extends PackagingTestCase {
         try {
             installation = installPackage(distribution());
             FileUtils.rm(installation.pidDir);
-            awaitElasticsearchStartup(Packages.startElasticsearch(sh));
+            awaitElasticsearchStartup(startElasticsearch());
             assertPathsExist(installation.pidDir);
-            Packages.stopElasticsearch(sh);
+            stopElasticsearch();
         } finally {
             cleanup();
         }
@@ -252,10 +252,10 @@ public class PackageTests extends PackagingTestCase {
 
     public void test73gcLogsExist() throws Exception {
         installation = installPackage(distribution());
-        awaitElasticsearchStartup(Packages.startElasticsearch(sh));
+        awaitElasticsearchStartup(startElasticsearch());
         // it can be gc.log or gc.log.0.current
         assertThat(installation.logs, fileWithGlobExist("gc.log*"));
-        Packages.stopElasticsearch(sh);
+        stopElasticsearch();
     }
 
     // TEST CASES FOR SYSTEMD ONLY
@@ -274,13 +274,13 @@ public class PackageTests extends PackagingTestCase {
 
         sh.run("systemd-tmpfiles --create");
 
-        awaitElasticsearchStartup(Packages.startElasticsearch(sh));
+        awaitElasticsearchStartup(startElasticsearch());
 
         final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
 
         assertTrue(Files.exists(pidFile));
 
-        Packages.stopElasticsearch(sh);
+        stopElasticsearch();
     }
 
     public void test81CustomPathConfAndJvmOptions() throws Exception {
@@ -288,7 +288,7 @@ public class PackageTests extends PackagingTestCase {
 
         assertPathsExist(installation.envFile);
 
-        Packages.stopElasticsearch(sh);
+        stopElasticsearch();
 
         // The custom config directory is not under /tmp or /var/tmp because
         // systemd's private temp directory functionally means different
@@ -317,13 +317,13 @@ public class PackageTests extends PackagingTestCase {
             append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
             append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
 
-            awaitElasticsearchStartup(Packages.startElasticsearch(sh));
+            awaitElasticsearchStartup(startElasticsearch());
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, CoreMatchers.containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, CoreMatchers.containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
-            Packages.stopElasticsearch(sh);
+            stopElasticsearch();
 
         } finally {
             rm(installation.envFile);
@@ -353,7 +353,7 @@ public class PackageTests extends PackagingTestCase {
 
         installation = installPackage(distribution());
 
-        awaitElasticsearchStartup(Packages.startElasticsearch(sh));
+        awaitElasticsearchStartup(startElasticsearch());
 
         final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
         assertTrue(Files.exists(pidFile));
@@ -370,6 +370,6 @@ public class PackageTests extends PackagingTestCase {
         String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout.trim();
         assertThat(maxAddressSpace, equalTo("unlimited"));
 
-        Packages.stopElasticsearch(sh);
+        stopElasticsearch();
     }
 }

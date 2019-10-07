@@ -53,7 +53,8 @@ parameter is set to 'true' as they are assumed to be the currently authenticated
 
 NOTE: When none of the parameters "id", "name", "username" and "realm_name"
 are specified, and the "owner" is set to false then it will retrieve all API
-keys if the user is authorized to do so.
+keys if the user is authorized. If the user is not authorized to retrieve other user's
+API keys, then an error will be returned.
 
 [[security-api-get-api-key-example]]
 ==== {api-examples-title}

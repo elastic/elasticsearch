@@ -16,10 +16,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 
@@ -27,6 +29,9 @@ import java.util.function.BiFunction;
  * A holder for the current state of the license for all xpack features.
  */
 public class XPackLicenseState {
+
+    public static final Set<OperationMode> FIPS_ALLOWED_LICENSE_OPERATION_MODES =
+        EnumSet.of(License.OperationMode.PLATINUM, License.OperationMode.TRIAL);
 
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;

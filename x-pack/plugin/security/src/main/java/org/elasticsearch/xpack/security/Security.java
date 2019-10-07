@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -248,7 +247,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -265,6 +263,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.license.XPackLicenseState.FIPS_ALLOWED_LICENSE_OPERATION_MODES;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -275,8 +274,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     private static final Logger logger = LogManager.getLogger(Security.class);
-    static final EnumSet<License.OperationMode> FIPS_ALLOWED_LICENSE_OPERATION_MODES =
-        EnumSet.of(License.OperationMode.PLATINUM, License.OperationMode.TRIAL);
 
     private final Settings settings;
     private final Environment env;
@@ -307,7 +304,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         this.env = new Environment(settings, configPath);
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
-            runStartupChecks(settings, getLicenseState());
+            runStartupChecks(settings);
             // we load them all here otherwise we can't access secure settings since they are closed once the checks are
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
@@ -326,10 +323,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     }
 
-    private void runStartupChecks(Settings settings, XPackLicenseState licenseState) {
+    private static void runStartupChecks(Settings settings) {
         validateRealmSettings(settings);
         if (XPackSettings.FIPS_MODE_ENABLED.get(settings)) {
-            validateForFips(settings, licenseState);
+            validateForFips(settings);
         }
     }
 
@@ -833,7 +830,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
     }
 
-    static void validateForFips(Settings settings, XPackLicenseState licenseState) {
+    static void validateForFips(Settings settings) {
         final List<String> validationErrors = new ArrayList<>();
         Settings keystoreTypeSettings = settings.filter(k -> k.endsWith("keystore.type"))
             .filter(k -> settings.get(k).equalsIgnoreCase("jks"));
@@ -843,8 +840,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         Settings keystorePathSettings = settings.filter(k -> k.endsWith("keystore.path"))
             .filter(k -> settings.hasValue(k.replace(".path", ".type")) == false);
-        // Default Keystore type is JKS in JDK8 and PKCS12 in > JDK9 if not explicitly set
-        if (keystorePathSettings.isEmpty() == false && JavaVersion.current().compareTo(JavaVersion.parse("9")) < 0) {
+        if (keystorePathSettings.isEmpty() == false && SSLConfigurationSettings.inferKeyStoreType(null).equals("jks")) {
             validationErrors.add("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
                 "revisit [" + keystorePathSettings.toDelimitedString(',') + "] settings");
         }
@@ -854,9 +850,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 "appropriate value for [ " + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey() + " ] setting.");
         }
 
-        if (licenseState != null && FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(licenseState.getOperationMode()) == false) {
-            validationErrors.add("FIPS mode is only allowed with a Platinum or Trial license");
-        }
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();
             sb.append("Validation for FIPS 140 mode failed: \n");

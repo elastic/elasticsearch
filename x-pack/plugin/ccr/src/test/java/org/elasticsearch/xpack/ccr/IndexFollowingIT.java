@@ -757,7 +757,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final String followerIndex = "follow-test-index";
         expectThrows(IndexClosedException.class,
             () -> followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).actionGet());
-        assertFalse(ESIntegTestCase.indexExists(followerIndex, followerClient()));
+        assertFalse(followerClient().admin().indices().prepareExists(followerIndex).get().isExists());
     }
 
     public void testResumeFollowOnClosedIndex() throws Exception {

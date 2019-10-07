@@ -881,22 +881,16 @@ public class ApiKeyService {
     public void getApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
                            ActionListener<GetApiKeyResponse> listener) {
         ensureEnabled();
-        if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
-            && Strings.hasText(apiKeyId) == false) {
-            logger.trace("none of the parameters [api key id, api key name, username, realm name] were specified for retrieval");
-            listener.onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
-        } else {
-            findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
-                ActionListener.wrap(apiKeyInfos -> {
-                    if (apiKeyInfos.isEmpty()) {
-                        logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
-                            realmName, username, apiKeyName, apiKeyId);
-                        listener.onResponse(GetApiKeyResponse.emptyResponse());
-                    } else {
-                        listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
-                    }
-                }, listener::onFailure));
-        }
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
+            ActionListener.wrap(apiKeyInfos -> {
+                if (apiKeyInfos.isEmpty()) {
+                    logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
+                        realmName, username, apiKeyName, apiKeyId);
+                    listener.onResponse(GetApiKeyResponse.emptyResponse());
+                } else {
+                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
+                }
+            }, listener::onFailure));
     }
 
     /**

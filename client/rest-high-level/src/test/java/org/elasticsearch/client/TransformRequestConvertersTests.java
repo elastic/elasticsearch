@@ -24,7 +24,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.core.PageParams;
-import org.elasticsearch.client.transform.TransformNamedXContentProvider;
 import org.elasticsearch.client.transform.DeleteTransformRequest;
 import org.elasticsearch.client.transform.GetTransformRequest;
 import org.elasticsearch.client.transform.GetTransformStatsRequest;
@@ -32,6 +31,7 @@ import org.elasticsearch.client.transform.PreviewTransformRequest;
 import org.elasticsearch.client.transform.PutTransformRequest;
 import org.elasticsearch.client.transform.StartTransformRequest;
 import org.elasticsearch.client.transform.StopTransformRequest;
+import org.elasticsearch.client.transform.TransformNamedXContentProvider;
 import org.elasticsearch.client.transform.UpdateTransformRequest;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigTests;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
-public class DataFrameRequestConvertersTests extends ESTestCase {
+public class TransformRequestConvertersTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -73,7 +73,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         Request request = TransformRequestConverters.putTransform(putRequest);
         assertThat(request.getParameters(), not(hasKey("defer_validation")));
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + putRequest.getConfig().getId()));
+        assertThat(request.getEndpoint(), equalTo("/_transform/" + putRequest.getConfig().getId()));
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             TransformConfig parsedConfig = TransformConfig.PARSER.apply(parser, null);
@@ -92,7 +92,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         Request request = TransformRequestConverters.updateTransform(updateDataFrameTransformRequest);
         assertThat(request.getParameters(), not(hasKey("defer_validation")));
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + transformId + "/_update"));
+        assertThat(request.getEndpoint(), equalTo("/_transform/" + transformId + "/_update"));
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             TransformConfigUpdate parsedConfig = TransformConfigUpdate.fromXContent(parser);
@@ -109,7 +109,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         Request request = TransformRequestConverters.deleteTransform(deleteRequest);
 
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo"));
+        assertThat(request.getEndpoint(), equalTo("/_transform/foo"));
 
         assertThat(request.getParameters(), not(hasKey("force")));
 
@@ -129,7 +129,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         Request request = TransformRequestConverters.startTransform(startRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + startRequest.getId() + "/_start"));
+        assertThat(request.getEndpoint(), equalTo("/_transform/" + startRequest.getId() + "/_start"));
 
         if (timeValue != null) {
             assertTrue(request.getParameters().containsKey("timeout"));
@@ -153,7 +153,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         Request request = TransformRequestConverters.stopTransform(stopRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + stopRequest.getId() + "/_stop"));
+        assertThat(request.getEndpoint(), equalTo("/_transform/" + stopRequest.getId() + "/_stop"));
 
         if (waitForCompletion != null) {
             assertTrue(request.getParameters().containsKey("wait_for_completion"));
@@ -181,7 +181,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         Request request = TransformRequestConverters.previewTransform(previewRequest);
 
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/_preview"));
+        assertThat(request.getEndpoint(), equalTo("/_transform/_preview"));
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             TransformConfig parsedConfig = TransformConfig.PARSER.apply(parser, null);
@@ -194,7 +194,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         Request request = TransformRequestConverters.getTransformStats(getStatsRequest);
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo/_stats"));
+        assertThat(request.getEndpoint(), equalTo("/_transform/foo/_stats"));
 
         assertFalse(request.getParameters().containsKey("from"));
         assertFalse(request.getParameters().containsKey("size"));
@@ -224,7 +224,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         Request request = TransformRequestConverters.getTransform(getRequest);
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/bar"));
+        assertThat(request.getEndpoint(), equalTo("/_transform/bar"));
 
         assertFalse(request.getParameters().containsKey("from"));
         assertFalse(request.getParameters().containsKey("size"));
@@ -254,6 +254,6 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         Request request = TransformRequestConverters.getTransform(getRequest);
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo,bar,baz"));
+        assertThat(request.getEndpoint(), equalTo("/_transform/foo,bar,baz"));
     }
 }

@@ -302,9 +302,9 @@ public class DoSection implements ExecutableSection {
                      * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
                      */
                 } else // noinspection StatementWithEmptyBody
-                    if (message.startsWith("[types removal]")) {
+                    if (message.startsWith("[types removal]") || message.startsWith("[_data_frame/transforms/] is deprecated")) {
                     /*
-                     * We skip warnings related to types deprecation so that we can continue to run the many
+                     * We skip warnings related to types deprecation and transform rename so that we can continue to run the many
                      * mixed-version tests that used typed APIs.
                      */
                 } else if (expected.remove(message) == false) {

@@ -32,6 +32,6 @@ public class RestStartTransformAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "data_frame_start_transform_action";
+        return "transform_start_transform_action";
     }
 }

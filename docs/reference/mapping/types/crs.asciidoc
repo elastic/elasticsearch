@@ -23,9 +23,6 @@ definition in the field mapping. Based on the `crs` provided Elasticsearch will
 preserve the accuracy of the data within the index. NOTE: Only two-dimensional
 reference systems are supported at this time.
 
-[float]
-===== Indexing Example
-
 Below is an example mapping configuration for indexing spatial data in the
 UTM Zone 14 N source reference system using the European Petroleum Survey Group
 (EPSG) standard CRS definition:
@@ -67,10 +64,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
-===== Searching
-
-The coordinate reference system functionality is largerly handled by
+*NOTE:* The coordinate reference system functionality is largerly handled by
 https://projects.eclipse.org/projects/locationtech.proj4j[Proj4J] which does not not
 validate the CRS. It is therefore the user's responsibility to ensure Query coordinates
 are in the same reference system as the indexed data.

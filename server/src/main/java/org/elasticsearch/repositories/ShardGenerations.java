@@ -67,7 +67,7 @@ public final class ShardGenerations implements ToXContent {
             assert updatedGenerations != null
                 : "Index [" + indexId + "] present in previous shard generations, but missing from updated generations";
             if (oldGens.isEmpty() == false && oldGens.equals(updatedGenerations) == false) {
-                assert oldGens.size() == updatedGenerations.size();
+                assert oldGens.size() <= updatedGenerations.size();
                 for (int i = 0; i < oldGens.size(); i++) {
                     final String oldGeneration = oldGens.get(i);
                     if (updatedGenerations.get(i) != null && oldGeneration != null
@@ -91,12 +91,8 @@ public final class ShardGenerations implements ToXContent {
      */
     public String getShardGen(IndexId indexId, int shardId) {
         final List<String> generations = shardGenerations.get(indexId);
-        if (generations == null) {
+        if (generations == null || generations.size() < shardId + 1) {
             return null;
-        }
-        if (generations.size() < shardId + 1) {
-            throw new IllegalArgumentException(
-                "Index [" + indexId + "] only has [" + generations.size() + "] shards but requested shard [" + shardId + "]");
         }
         return generations.get(shardId);
     }

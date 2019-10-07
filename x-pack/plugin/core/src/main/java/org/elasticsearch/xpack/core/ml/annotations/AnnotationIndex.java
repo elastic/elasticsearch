@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -84,7 +85,7 @@ public class AnnotationIndex {
                             e -> {
                                 // Possible that the index was created while the request was executing,
                                 // so we need to handle that possibility
-                                if (e instanceof ResourceAlreadyExistsException) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                                     // Create the alias
                                     createAliasListener.onResponse(true);
                                 } else {

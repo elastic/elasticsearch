@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -195,7 +196,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     @Override
                     public void onFailure(Exception e) {
                         final int slot = counter.incrementAndGet();
-                        if ((e instanceof ResourceNotFoundException &&
+                        if ((ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException &&
                             Strings.isAllOrWildcard(new String[]{request.getDatafeedId()})) == false) {
                             failures.set(slot - 1, e);
                         }
@@ -244,7 +245,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     });
                 },
                 e -> {
-                    if (e instanceof ResourceNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                         // the task has disappeared so must have stopped
                         listener.onResponse(new StopDatafeedAction.Response(true));
                     } else {

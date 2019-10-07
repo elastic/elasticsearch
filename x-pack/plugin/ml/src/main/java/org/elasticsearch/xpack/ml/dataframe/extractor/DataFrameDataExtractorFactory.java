@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
@@ -219,7 +220,7 @@ public class DataFrameDataExtractorFactory {
                 docValueFieldsLimitListener.onResponse(minDocValueFieldsLimit);
             },
             e -> {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     docValueFieldsLimitListener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
                         + ((IndexNotFoundException) e).getIndex() + " does not exist"));
                 } else {

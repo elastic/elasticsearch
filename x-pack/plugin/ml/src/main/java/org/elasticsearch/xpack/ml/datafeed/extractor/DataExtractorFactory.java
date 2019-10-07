@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
@@ -59,9 +60,10 @@ public interface DataExtractorFactory {
                 }
             },
             e -> {
-                if (e instanceof IndexNotFoundException) {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()
-                        + "] cannot retrieve data because index " + ((IndexNotFoundException)e).getIndex() + " does not exist"));
+                        + "] cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"));
                 } else {
                     listener.onFailure(e);
                 }

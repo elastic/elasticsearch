@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -467,7 +468,7 @@ public class MlConfigMigrator {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
                         },
                         e -> {
-                            if (e instanceof VersionConflictEngineException) {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                                 // the snapshot already exists
                                 listener.onResponse(Boolean.TRUE);
                             } else {

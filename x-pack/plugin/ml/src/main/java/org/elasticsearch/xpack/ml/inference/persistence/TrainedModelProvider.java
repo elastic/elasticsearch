@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -72,7 +73,7 @@ public class TrainedModelProvider {
                                 trainedModelConfig.getModelId(),
                                 trainedModelConfig.getModelVersion()),
                             e);
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             listener.onFailure(new ResourceAlreadyExistsException(
                                 Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS,
                                     trainedModelConfig.getModelId(), trainedModelConfig.getModelVersion())));

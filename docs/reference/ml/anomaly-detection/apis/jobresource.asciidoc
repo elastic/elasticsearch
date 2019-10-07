@@ -33,7 +33,7 @@ so do not set the `background_persist_interval` value too low.
 `custom_settings`::
   (object) Advanced configuration option. Contains custom meta data about the
   job. For example, it can contain custom URL information as shown in
-  {xpack-ref}/ml-configuring-url.html[Adding Custom URLs to Machine Learning Results].
+  {stack-ov}/ml-configuring-url.html[Adding Custom URLs to Machine Learning Results].
 
 `data_description`::
   (object) Describes the data format and how APIs parse timestamp fields.
@@ -110,7 +110,7 @@ An analysis configuration object has the following properties:
   be categorized. The resulting categories must be used in a detector by setting
   `by_field_name`, `over_field_name`, or `partition_field_name` to the keyword
   `mlcategory`. For more information, see
-  {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+  {stack-ov}/ml-configuring-categories.html[Categorizing Log Messages].
 
 `categorization_filters`::
   (array of strings) If `categorization_field_name` is specified,
@@ -120,7 +120,7 @@ An analysis configuration object has the following properties:
   tune the categorization by excluding sequences from consideration when
   categories are defined. For example, you can exclude SQL statements that
   appear in your log files. For more information, see
-  {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+  {stack-ov}/ml-configuring-categories.html[Categorizing Log Messages].
   This property cannot be used at the same time as `categorization_analyzer`.
   If you only want to define simple regular expression filters that are applied
   prior to tokenization, setting this property is the easiest method.
@@ -243,14 +243,14 @@ NOTE: The `field_name` cannot contain double quotes or backslashes.
 `function`::
   (string) The analysis function that is used. 
   For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`. For more
-  information, see {xpack-ref}/ml-functions.html[Function Reference].
+  information, see {stack-ov}/ml-functions.html[Function Reference].
 
 `over_field_name`::
   (string) The field used to split the data.
   In particular, this property is used for analyzing the splits with respect to
   the history of all splits. It is used for finding unusual values in the
   population of all splits. For more information, see
-  {xpack-ref}/ml-configuring-pop.html[Performing Population Analysis].
+  {stack-ov}/ml-configuring-pop.html[Performing population analysis].
 
 `partition_field_name`::
   (string) The field used to segment the analysis.
@@ -406,7 +406,7 @@ the categorization analyzer produces then you find the original document that
 the categorization field value came from.
 
 For more information, see
-{xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
 
 [float]
 [[ml-detector-custom-rule]]
@@ -489,7 +489,7 @@ The `analysis_limits` object has the following properties:
 --
 NOTE: The `categorization_examples_limit` only applies to analysis that uses categorization.
 For more information, see
-{xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
 
 --
 

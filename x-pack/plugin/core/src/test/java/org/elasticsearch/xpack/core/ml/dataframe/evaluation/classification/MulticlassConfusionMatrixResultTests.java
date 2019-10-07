@@ -19,13 +19,7 @@ import java.util.stream.Stream;
 
 public class MulticlassConfusionMatrixResultTests extends AbstractSerializingTestCase<MulticlassConfusionMatrix.Result> {
 
-    @Override
-    protected MulticlassConfusionMatrix.Result doParseInstance(XContentParser parser) throws IOException {
-        return MulticlassConfusionMatrix.Result.fromXContent(parser);
-    }
-
-    @Override
-    protected MulticlassConfusionMatrix.Result createTestInstance() {
+    public static MulticlassConfusionMatrix.Result createRandom() {
         int numClasses = randomIntBetween(2, 100);
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
         Map<String, Map<String, Long>> confusionMatrix = new TreeMap<>();
@@ -40,6 +34,16 @@ public class MulticlassConfusionMatrixResultTests extends AbstractSerializingTes
         }
         long otherClassesCount = randomNonNegativeLong();
         return new MulticlassConfusionMatrix.Result(confusionMatrix, otherClassesCount);
+    }
+
+    @Override
+    protected MulticlassConfusionMatrix.Result doParseInstance(XContentParser parser) throws IOException {
+        return MulticlassConfusionMatrix.Result.fromXContent(parser);
+    }
+
+    @Override
+    protected MulticlassConfusionMatrix.Result createTestInstance() {
+        return createRandom();
     }
 
     @Override

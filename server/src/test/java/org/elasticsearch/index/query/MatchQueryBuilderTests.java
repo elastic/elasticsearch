@@ -31,6 +31,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
@@ -471,6 +472,18 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 new SpanTermQuery(new Term(STRING_FIELD_NAME, "dogs")),
                 new SpanTermQuery(new Term(STRING_FIELD_NAME, "dog"))
             }))
+            .build();
+        assertEquals(expected, actual);
+    }
+
+
+    public void testAliasWithSynonyms() throws Exception {
+        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+        final Query actual = matchQuery.parse(Type.PHRASE, STRING_ALIAS_FIELD_NAME, "dogs");
+        Query expected = new SynonymQuery.Builder(STRING_FIELD_NAME)
+            .addTerm(new Term(STRING_FIELD_NAME, "dogs"))
+            .addTerm(new Term(STRING_FIELD_NAME, "dog"))
             .build();
         assertEquals(expected, actual);
     }

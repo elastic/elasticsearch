@@ -105,7 +105,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 0,
-                null,
+                new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
@@ -210,7 +210,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 0,
-                null,
+                new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
@@ -313,7 +313,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         shardsIter,
                         new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                         0,
-                        null,
+                        new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
                         new ArraySearchPhaseResults<>(shardsIter.size()),
                         request.getMaxConcurrentShardRequests(),
                         SearchResponse.Clusters.EMPTY) {
@@ -418,7 +418,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 0,
-                null,
+                new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {

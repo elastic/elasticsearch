@@ -90,7 +90,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                     Collections.singletonList(
                         new SearchShardIterator(null, null, Collections.emptyList(), null)
                     )
-                ), timeProvider, 0, null,
+                ), timeProvider, 0, new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
                 results, request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
             @Override

@@ -20,12 +20,15 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.tasks.Task;
@@ -70,46 +73,44 @@ public class SearchTaskStatus implements Task.Status {
     void phaseStarted(String phase, int expectedOps) {
         assert readOnly == false;
         boolean result = currentPhase.compareAndSet(null, new PhaseInfo(phase, expectedOps));
-        assert result : "another phase has not properly completed";
+        assert result : "another previous phase has not normally completed";
     }
 
     void phaseFailed(String phase, Throwable t) {
         assert readOnly == false;
-        PhaseInfo previous = currentPhase.getAndSet(null);
-        PhaseInfo phaseInfo;
-        //it could be that onPhaseFailure gets called before phaseStarted has been called
-        if (previous == null) {
-            phaseInfo = new PhaseInfo(phase, t);
-        } else {
-            assert previous.name.equals(phase) : "current phase [" + previous.name +
-                "] is not the phase that's been completed [" + phase + "]";
-            phaseInfo = new PhaseInfo(previous, t);
-        }
+        PhaseInfo current = currentPhase.getAndSet(null);
+        assert current != null : "no current phase running, though [" + phase + "] has failed";
+        assert current.name.equals(phase) : "current phase [" + current.name +
+                "] is not the phase that's failed [" + phase + "]";
+        PhaseInfo phaseInfo = new PhaseInfo(current, t);
         phases.add(phaseInfo);
     }
 
     void phaseCompleted(String phase) {
         assert readOnly == false;
-        PhaseInfo previous = currentPhase.getAndSet(null);
-        assert previous.name.equals(phase) : "current phase [" + previous.name +
+        PhaseInfo current = currentPhase.getAndSet(null);
+        assert current != null : "no current phase running, though [" + phase + "] has completed";
+        assert current.name.equals(phase) : "current phase [" + current.name +
             "] is not the phase that's been completed [" + phase + "]";
-        phases.add(previous);
+        phases.add(current);
     }
 
     void shardProcessed(String phase, SearchPhaseResult searchPhaseResult) {
         assert readOnly == false;
-        PhaseInfo phaseInfo = currentPhase.get();
-        assert phase.equals(phaseInfo.name) : "phase mismatch: current phase is [" + phaseInfo.name +
+        PhaseInfo current = currentPhase.get();
+        assert current != null : "no current phase running, though shards are being report processed for [" + phase + "]";
+        assert phase.equals(current.name) : "phase mismatch: current phase is [" + current.name +
             "] while shards are being reported processed for [" + phase + "]";
-        phaseInfo.shardProcessed(searchPhaseResult.getSearchShardTarget().getShardId(), searchPhaseResult.getTaskInfo());
+        current.shardProcessed(searchPhaseResult.getSearchShardTarget().getShardId(), searchPhaseResult.getTaskInfo());
     }
 
     void shardFailed(String phase, ShardId shardId, Exception e) {
         assert readOnly == false;
-        PhaseInfo phaseInfo = currentPhase.get();
-        assert phase.equals(phaseInfo.name) : "phase mismatch: current phase is [" + phaseInfo.name +
-            "] while shards are being reported processed for [" + phase + "]";
-        phaseInfo.shardFailed(shardId, e);
+        PhaseInfo current = currentPhase.get();
+        assert current != null : "no current phase running, though shards are being reported failed for [" + phase + "]";
+        assert phase.equals(current.name) : "phase mismatch: current phase is [" + current.name +
+            "] while shards are being reported failed for [" + phase + "]";
+        current.shardFailed(shardId, e);
     }
 
     @Override

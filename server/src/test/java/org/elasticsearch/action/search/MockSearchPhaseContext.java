@@ -50,6 +50,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     SearchRequest searchRequest = new SearchRequest();
     AtomicInteger phasesExecuted = new AtomicInteger();
     AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
+    private final MainSearchTask task = new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap());
 
     public MockSearchPhaseContext(int numShards) {
         this.numShards = numShards;
@@ -74,7 +75,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public MainSearchTask getTask() {
-        return new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap());
+        return task;
     }
 
     @Override

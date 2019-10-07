@@ -65,6 +65,8 @@ final class ExpandSearchPhase extends SearchPhase {
 
     @Override
     public void run() {
+        //TODO we can't really tell how many shards this runs on, we could say 0 whenever nothing has to happen, but what otherwise?
+        context.getTask().getStatus().phaseStarted(getName(), -1);
         if (isCollapseRequest() && searchResponse.hits().getHits().length > 0) {
             SearchRequest searchRequest = context.getRequest();
             CollapseBuilder collapseBuilder = searchRequest.source().collapse();

@@ -332,7 +332,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     return;
                 }
             }
-            task.getStatus().phaseCompleted(getName());
+            task.getStatus().phaseCompleted(currentPhase.getName());
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()
                     .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));

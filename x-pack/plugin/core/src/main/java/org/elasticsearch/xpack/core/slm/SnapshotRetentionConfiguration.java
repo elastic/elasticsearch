@@ -119,7 +119,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
         final List<SnapshotInfo> sortedSnapshots = allSnapshots.stream()
             .sorted(Comparator.comparingLong(SnapshotInfo::startTime))
             .collect(Collectors.toList());
-        final long nonFailedSnapshotCount = allSnapshots.stream()
+        final long successfulSnapshotCount = allSnapshots.stream()
             .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
             .count();
         final long newestSuccessfulTimestamp = allSnapshots.stream()
@@ -142,21 +142,21 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             // snapshots, then allow the oldest N (where N is the number over the maximum snapshot
             // count) snapshots to be eligible for deletion
             if (this.maximumSnapshotCount != null) {
-                if (nonFailedSnapshotCount > this.maximumSnapshotCount) {
-                    final long snapsToDelete = nonFailedSnapshotCount - this.maximumSnapshotCount;
+                if (successfulSnapshotCount > this.maximumSnapshotCount) {
+                    final long snapsToDelete = successfulSnapshotCount - this.maximumSnapshotCount;
                     final boolean eligible = sortedSnapshots.stream()
                         .limit(snapsToDelete)
                         .anyMatch(s -> s.equals(si));
 
                     if (eligible) {
                         logger.trace("[{}]: ELIGIBLE as it is one of the {} oldest snapshots with " +
-                                "{} total snapshots ({} total), over the limit of {} maximum snapshots",
-                            snapName, snapsToDelete, nonFailedSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
+                                "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
+                            snapName, snapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
                         return true;
                     } else {
                         logger.trace("[{}]: INELIGIBLE as it is not one of the {} oldest snapshots with " +
                                 "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
-                            snapName, snapsToDelete, nonFailedSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
+                            snapName, snapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
                         return false;
                     }
                 }
@@ -166,11 +166,15 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             // if we haven't hit the minimum then we need to keep the snapshot regardless of
             // expiration time
             if (this.minimumSnapshotCount != null) {
-                if (nonFailedSnapshotCount <= this.minimumSnapshotCount && SnapshotState.FAILED.equals(si.state()) == false) {
-                    logger.trace("[{}]: INELIGIBLE as there are {} non-failed snapshots ({} total) and {} minimum snapshots needed",
-                        snapName, nonFailedSnapshotCount, totalSnapshotCount, this.minimumSnapshotCount);
-                    return false;
-                }
+                if (successfulSnapshotCount <= this.minimumSnapshotCount)
+                    if (SnapshotState.FAILED.equals(si.state()) == false) {
+                        logger.trace("[{}]: INELIGIBLE as there are {} non-failed snapshots ({} total) and {} minimum snapshots needed",
+                            snapName, successfulSnapshotCount, totalSnapshotCount, this.minimumSnapshotCount);
+                        return false;
+                    } else {
+                        logger.trace("[{}]: SKIPPING minimum snapshot count check as this snapshot is {} and not counted " +
+                            "towards the minimum snapshot count.", snapName, SnapshotState.FAILED);
+                    }
             }
 
             // Finally, check the expiration time of the snapshot, if it is past, then it is
@@ -179,7 +183,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                 final TimeValue snapshotAge = new TimeValue(nowSupplier.getAsLong() - si.startTime());
 
                 if (this.minimumSnapshotCount != null) {
-                    final long eligibleForExpiration = nonFailedSnapshotCount - minimumSnapshotCount;
+                    final long eligibleForExpiration = successfulSnapshotCount - minimumSnapshotCount;
 
                     // Only the oldest N snapshots are actually eligible, since if we went below this we
                     // would fall below the configured minimum number of snapshots to keep

@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.gradle.Docker.getDockerAvailability;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
@@ -319,7 +320,16 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        for (Type type : Arrays.asList(Type.DEB, Type.RPM, Type.DOCKER)) {
+        final List<Type> applicableTypes = new ArrayList<>();
+        applicableTypes.add(Type.DEB);
+        applicableTypes.add(Type.RPM);
+
+        final String buildDockerProperty = System.getProperty("build.docker");
+        if ((buildDockerProperty == null || "true".equals(buildDockerProperty)) && getDockerAvailability().isAvailable()) {
+            applicableTypes.add(Type.DOCKER);
+        }
+
+        for (Type type : applicableTypes) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     // We should never add a Docker distro with bundledJdk == false

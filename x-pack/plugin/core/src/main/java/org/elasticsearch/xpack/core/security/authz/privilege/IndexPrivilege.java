@@ -48,8 +48,8 @@ public final class IndexPrivilege extends Privilege {
             ClusterSearchShardsAction.NAME);
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
             PutMappingAction.NAME);
-    private static final Automaton CREATE_DOC_AUTOMATON = Automatons.minusAndMinimize(CREATE_AUTOMATON,
-        patterns("indices:data/write/index:op_type/index"));
+    private static final Automaton CREATE_DOC_AUTOMATON = patterns("indices:data/write/index", "indices:data/write/index[*",
+        "indices:data/write/index:op_type/create", "indices:data/write/bulk*", PutMappingAction.NAME);
     private static final Automaton INDEX_AUTOMATON =
             patterns("indices:data/write/index*", "indices:data/write/bulk*", "indices:data/write/update*", PutMappingAction.NAME);
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
@@ -75,7 +75,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege INDEX =               new IndexPrivilege("index",               INDEX_AUTOMATON);
     public static final IndexPrivilege DELETE =              new IndexPrivilege("delete",              DELETE_AUTOMATON);
     public static final IndexPrivilege WRITE =               new IndexPrivilege("write",               WRITE_AUTOMATON);
-    public static final IndexPrivilege CREATE_DOC =         new IndexPrivilege("create_doc",         CREATE_DOC_AUTOMATON);
+    public static final IndexPrivilege CREATE_DOC =          new IndexPrivilege("create_doc",          CREATE_DOC_AUTOMATON);
     public static final IndexPrivilege MONITOR =             new IndexPrivilege("monitor",             MONITOR_AUTOMATON);
     public static final IndexPrivilege MANAGE =              new IndexPrivilege("manage",              MANAGE_AUTOMATON);
     public static final IndexPrivilege DELETE_INDEX =        new IndexPrivilege("delete_index",        DELETE_INDEX_AUTOMATON);

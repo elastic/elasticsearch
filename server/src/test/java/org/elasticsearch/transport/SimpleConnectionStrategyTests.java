@@ -240,14 +240,6 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
     }
 
     private static List<Supplier<TransportAddress>> addresses(final TransportAddress... addresses) {
-        if (addresses.length == 0) {
-            return Collections.emptyList();
-        } else if (addresses.length == 1) {
-            return Collections.singletonList(() -> addresses[0]);
-        } else {
-            return Arrays.stream(addresses)
-                .map(s -> (Supplier<TransportAddress>) () -> s)
-                .collect(Collectors.toList());
-        }
+        return Arrays.stream(addresses).map(s -> (Supplier<TransportAddress>) () -> s).collect(Collectors.toList());
     }
 }

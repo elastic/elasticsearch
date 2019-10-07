@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 
 public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
+    private static final int MAX_CONNECT_ATTEMPTS_PER_RUN = 3;
     private static final Logger logger = LogManager.getLogger(SimpleConnectionStrategy.class);
 
     private final int maxNumRemoteConnections;
@@ -55,6 +56,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                              int maxNumRemoteConnections, List<Supplier<TransportAddress>> addresses) {
         super(clusterAlias, transportService, connectionManager);
         this.maxNumRemoteConnections = maxNumRemoteConnections;
+        assert addresses.isEmpty() == false : "Cannot use simple connection strategy with no configured addresses";
         this.addresses = addresses;
         // TODO: Move into the ConnectionManager
         this.profile = new ConnectionProfile.Builder()
@@ -129,7 +131,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private void openConnections(ActionListener<Void> finished, int attemptNumber) {
-        if (attemptNumber <= 3) {
+        if (attemptNumber <= MAX_CONNECT_ATTEMPTS_PER_RUN) {
             List<TransportAddress> resolved = addresses.stream().map(Supplier::get).collect(Collectors.toList());
 
             int remaining = maxNumRemoteConnections - connectionManager.size();
@@ -179,9 +181,12 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                     });
             }
         } else {
-            if (connectionManager.size() == 0) {
+            int openConnections = connectionManager.size();
+            if (openConnections == 0) {
                 finished.onFailure(new IllegalStateException("Unable to open any simple connections to remote cluster"));
             } else {
+                logger.trace("unable to open maximum number of connections [opened: {}, maximum: {}]", openConnections,
+                    maxNumRemoteConnections);
                 finished.onResponse(null);
             }
         }

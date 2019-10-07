@@ -65,11 +65,15 @@ Only one of these indices
 has an `is_write_index` value of `true`.
 +
 In this scenario,
-the rollover request adds the alias
+the rollover request treats the index
+with a `is_write_index` value of `true`
+as the rolled over index.
++
+The request adds the alias
 to the newly created target index
-and assigns that index
+and assigns the target index
 an `is_write_index` value of `true`.
-The request assigns rolled over indices
+The request assigns the rolled over index
 an `is_write_index` value of `false`.
 
 

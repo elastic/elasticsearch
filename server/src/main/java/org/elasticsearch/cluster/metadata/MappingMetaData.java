@@ -83,6 +83,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         this.routing = new Routing(docMapper.routingFieldMapper().required());
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetaData(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -93,6 +94,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         initMappers((Map<String, Object>) mappingMap.get(this.type));
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
@@ -104,6 +106,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         initMappers(withoutType);
     }
 
+    @SuppressWarnings("unchecked")
     private void initMappers(Map<String, Object> withoutType) {
         if (withoutType.containsKey("_routing")) {
             boolean required = false;
@@ -137,6 +140,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     /**
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {

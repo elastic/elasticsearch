@@ -302,6 +302,7 @@ public abstract class AbstractScopedSettings {
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
      */
+    @SuppressWarnings("rawtypes")
     public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
         List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {

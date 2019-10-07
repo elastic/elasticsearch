@@ -26,13 +26,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -160,8 +161,22 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
-                int numOfConnections = randomIntBetween(4, 8);
+                StubbableTransport stubbableTransport = new StubbableTransport(localService.transport);
+                ConnectionManager connectionManager = new ConnectionManager(profile, stubbableTransport);
+                AtomicInteger address1Attempts = new AtomicInteger(0);
+                AtomicInteger address2Attempts = new AtomicInteger(0);
+                stubbableTransport.setDefaultConnectBehavior((transport, discoveryNode, profile, listener) -> {
+                    if (discoveryNode.getAddress().equals(address1)) {
+                        address1Attempts.incrementAndGet();
+                        transport.openConnection(discoveryNode, profile, listener);
+                    } else if (discoveryNode.getAddress().equals(address2)) {
+                        address2Attempts.incrementAndGet();
+                        transport.openConnection(discoveryNode, profile, listener);
+                    } else {
+                        throw new AssertionError("Unexpected address");
+                    }
+                });
+                int numOfConnections = 5;
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
                          numOfConnections, addresses(address1, address2))) {
@@ -172,7 +187,12 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
-                    assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertEquals(4 ,connectionManager.size());
+                    assertEquals(4 ,connectionManager.getAllConnectedNodes().stream().map(n -> n.getAddress().equals(address1)).count());
+                    // Three attempts on first round, one attempts on second round, zero attempts on third round
+                    assertEquals(4, address1Attempts.get());
+                    // Two attempts on first round, one attempt on second round, one attempt on third round
+                    assertEquals(4, address2Attempts.get());
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
                     assertTrue(strategy.assertNoRunningConnections());
                 }
@@ -231,8 +251,11 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
-                    assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
-                    assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
+                    if (connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1))) {
+                        assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
+                    } else {
+                        assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
+                    }
                     assertTrue(strategy.assertNoRunningConnections());
                 }
             }

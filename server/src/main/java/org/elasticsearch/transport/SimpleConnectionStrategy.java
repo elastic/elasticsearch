@@ -22,22 +22,18 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.core.internal.io.IOUtils;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -47,9 +43,9 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     private static final Logger logger = LogManager.getLogger(SimpleConnectionStrategy.class);
 
     private final int maxNumRemoteConnections;
-    private final AtomicLong counter = new AtomicLong();
+    private final AtomicLong counter = new AtomicLong(0);
     private final List<Supplier<TransportAddress>> addresses;
-    private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
+    private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
     private final ConnectionProfile profile;
 
     SimpleConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
@@ -76,57 +72,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private void performSimpleConnectionProcess(Iterator<Supplier<TransportAddress>> addressIter, ActionListener<Void> listener) {
-        final Consumer<Exception> onFailure = e -> {
-            if (e instanceof ConnectTransportException || e instanceof IOException || e instanceof IllegalStateException) {
-                // ISE if we fail the handshake with an version incompatible node
-                if (addressIter.hasNext()) {
-                    logger.debug(() -> new ParameterizedMessage(
-                        "handshaking with external cluster [{}] failed moving to next address", clusterAlias), e);
-                    performSimpleConnectionProcess(addressIter, listener);
-                    return;
-                }
-            }
-            logger.warn(() -> new ParameterizedMessage("handshaking with external cluster [{}] failed", clusterAlias), e);
-            listener.onFailure(e);
-        };
-
-
-        final StepListener<Void> handshakeStep = new StepListener<>();
-
-        if (remoteClusterName.get() == null) {
-            final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
-            final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
-            TransportAddress address = addressIter.next().get();
-            DiscoveryNode handshakeNode = new DiscoveryNode(clusterAlias + "#" + address, address,
-                Version.CURRENT.minimumCompatibilityVersion());
-            connectionManager.openConnection(handshakeNode, profile, openConnectionStep);
-
-            openConnectionStep.whenComplete(connection -> {
-                ConnectionProfile connectionProfile = connectionManager.getConnectionManager().getConnectionProfile();
-                transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
-                    getRemoteClusterNamePredicate(remoteClusterName.get()), new ActionListener<>() {
-                        @Override
-                        public void onResponse(TransportService.HandshakeResponse handshakeResponse) {
-                            if (remoteClusterName.get() == null) {
-                                assert handshakeResponse.getClusterName().value() != null;
-                                remoteClusterName.set(handshakeResponse.getClusterName());
-                            }
-                            IOUtils.closeWhileHandlingException(connection);
-                            handshakeStep.onResponse(null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            IOUtils.closeWhileHandlingException(connection);
-                            handshakeStep.onFailure(e);
-                        }
-                    });
-            }, onFailure);
-        } else {
-            handshakeStep.onResponse(null);
-        }
-
-        handshakeStep.whenComplete(v -> openConnections(listener, 1), onFailure);
+        openConnections(listener, 1);
 
     }
 
@@ -166,19 +112,19 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                 String id = clusterAlias + "#" + address;
                 DiscoveryNode node = new DiscoveryNode(id, address, Version.CURRENT.minimumCompatibilityVersion());
 
-                ConnectionManager.ConnectionValidator validator = transportService.clusterNameOnlyValidator(node, remoteClusterName.get());
+                ConnectionManager.ConnectionValidator validator = clusterNameValidator(node);
                 connectionManager.connectToNode(node, profile, validator, new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void v) {
-                            compositeListener.onResponse(v);
-                        }
+                    @Override
+                    public void onResponse(Void v) {
+                        compositeListener.onResponse(v);
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.debug(() -> new ParameterizedMessage("failed to open remote connection to address {}", address), e);
-                            compositeListener.onFailure(e);
-                        }
-                    });
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(() -> new ParameterizedMessage("failed to open remote connection to address {}", address), e);
+                        compositeListener.onFailure(e);
+                    }
+                });
             }
         } else {
             int openConnections = connectionManager.size();
@@ -194,7 +140,23 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
     private TransportAddress nextAddress(List<TransportAddress> resolvedAddresses) {
         long curr;
-        while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE) ;
+        while ((curr = counter.getAndIncrement()) == Long.MIN_VALUE) ;
         return resolvedAddresses.get(Math.floorMod(curr, resolvedAddresses.size()));
+    }
+
+    private ConnectionManager.ConnectionValidator clusterNameValidator(DiscoveryNode node) {
+        return (newConnection, actualProfile, listener) ->
+            transportService.handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true,
+                ActionListener.map(listener, resp -> {
+                    ClusterName remote = resp.getClusterName();
+                    if (remoteClusterName.compareAndSet(null, remote)) {
+                        return null;
+                    } else {
+                        if (remoteClusterName.get().equals(remote) == false) {
+                            throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+                        }
+                        return null;
+                    }
+                }));
     }
 }

@@ -90,7 +90,7 @@ configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
 For more information, see
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications].
+<<tls-http>>.
 
 [[saml-enable-token]]
 ==== Enable the token service
@@ -382,7 +382,7 @@ successfully authenticated, the Authentication Statement of the SAML Response
 contains an indication of the restrictions that were satisfied.
 
 You can define the Authentication Context Class Reference values by using the `req_authn_context_class_ref` option in the SAML realm configuration. See 
-{ref}/security-settings.html#ref-saml-settings[SAML realm settings]. 
+<<ref-saml-settings>>. 
 
 {es} supports only the `exact` comparison method for the Authentication Context. 
 When it receives the Authentication Response from the IdP, {es} examines the 
@@ -501,7 +501,7 @@ You should consult the documentation for your IdP to determine what formats they
 support. Since PEM format is the most commonly supported format, the examples
 below will generate certificates in that format.
 
-Using the {ref}/certutil.html[`elasticsearch-certutil`] tool, you can generate a
+Using the <<certutil,`elasticsearch-certutil` tool>>, you can generate a
 signing certificate with the following command:
 
 [source, sh]
@@ -541,7 +541,7 @@ The path to the PEM formatted key file. e.g. `saml/saml-sign.key`
 
 `signing.secure_key_passphrase`::
 The passphrase for the key, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 If you wish to use *PKCS#12 formatted* files or a *Java Keystore* for
@@ -555,7 +555,7 @@ The alias of the key within the keystore. e.g. `signing-key`
 
 `signing.keystore.secure_password`::
 The passphrase for the keystore, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 If you wish to sign some, but not all outgoing *SAML messages*, then you
@@ -592,7 +592,7 @@ The path to the PEM formatted key file. e.g. `saml/saml-crypt.key`
 
 `encryption.secure_key_passphrase`::
 The passphrase for the key, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 If you wish to use *PKCS#12 formatted* files or a *Java Keystore* for SAML
@@ -606,7 +606,7 @@ The alias of the key within the keystore. e.g. `encryption-key`
 
 `encryption.keystore.secure_password`::
 The passphrase for the keystore, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 [[saml-sp-metadata]]
@@ -619,7 +619,7 @@ between the IdP and the SP.
 The Elastic Stack supports generating such a metadata file using the
 `bin/elasticsearch-saml-metadata` command in your {es} directory.
 
-The {ref}/saml-metadata.html[documentation for the elasticsearch-saml-metadata utility]
+The <<saml-metadata,documentation for the elasticsearch-saml-metadata utility>>
 describes how to run it, and the available command line options.
 
 [[saml-role-mapping]]
@@ -631,10 +631,10 @@ access any data.
 
 Your SAML users cannot do anything until they are assigned roles. This can be done
 through either the
-{ref}/security-api-put-role-mapping.html[add role mapping API], or with
-<<authorization_realms, authorization realms>>.
+<<security-api-put-role-mapping,add role mapping API>> or with
+<<authorization_realms,authorization realms>>.
 
-NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files]
+NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via SAML.
 
 This is an example of a simple role mapping that grants the `kibana_user` role
@@ -665,7 +665,7 @@ mapping are derived from the SAML attributes as follows:
 - `metadata`: See <<saml-user-metadata>>
 
 For more information, see <<mapping-roles>> and
-{ref}/security-api.html#security-role-mapping-apis[role mapping APIs]. 
+<<security-role-mapping-apis>>. 
 
 If your IdP has the ability to provide groups or roles to Service Providers,
 then you should map this SAML attribute to the `attributes.groups` setting in
@@ -853,5 +853,5 @@ Additionally, different security domains have different security requirements th
 specific configuration to be satisfied.
 A conscious effort has been made to mask this complexity with sane defaults and the detailed
 documentation above but in case you encounter issues while configuring a SAML realm, you can
-look through our {stack-ov}/trb-security-saml.html[SAML troubleshooting documentation] that has
+look through our <<trb-security-saml,SAML troubleshooting documentation>> that has
 suggestions and resolutions for common issues.

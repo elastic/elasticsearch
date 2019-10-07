@@ -160,4 +160,4 @@ curl -XPUT -u elastic 'http://<host>:<port>/_license?acknowledge=true' -H "Conte
 // NOTCONSOLE
 
 For more information about the features that are disabled when you downgrade
-your license, see {xpack-ref}/license-expiration.html[License Expiration].
+your license, see {stack-ov}/license-expiration.html[License Expiration].

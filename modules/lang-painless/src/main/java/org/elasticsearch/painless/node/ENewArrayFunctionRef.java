@@ -75,6 +75,7 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
         function.analyze(scriptRoot, Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
                 function.parameters, 0, settings.getMaxLoopCounter()));
         scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true);
+        scriptRoot.getClassNode().addFunction(function);
 
         if (expected == null) {
             ref = null;
@@ -97,8 +98,6 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
             // push a null instruction as a placeholder for future lambda instructions
             methodWriter.push((String)null);
         }
-
-        globals.addSyntheticMethod(function);
     }
 
     @Override

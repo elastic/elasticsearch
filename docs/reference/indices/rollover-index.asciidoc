@@ -45,13 +45,14 @@ automatically roll over indices when a condition is met, you can use {es}'s
 The rollover index API accepts a single alias name
 and a list of `conditions`.
 To request a rollover,
-the specified alias must point to a write index,
-indicated by the `is_write_index` value.
+the specified alias must point to an index
+with an `is_write_index` flag
+that is unconfigured (`null`) or `true`.
 Depending on this value,
 the rollover request updates the alias metadata as follows:
 
 . The alias points to a single index
-with an unconfigured `is_write_index` value,
+with an unconfigured `is_write_index` flag,
 which defaults to `null`.
 +
 In this scenario,
@@ -62,19 +63,19 @@ from the rolled over index.
 
 . The alias points to one or more indices.
 Only one of these indices
-has an `is_write_index` value of `true`.
+has an `is_write_index` flag of `true`.
 +
 In this scenario,
 the rollover request treats the index
-with an `is_write_index` value of `true`
+with an `is_write_index` flag of `true`
 as the rolled over index.
 +
 The request adds the alias
 to the newly created target index
 and assigns the target index
-an `is_write_index` value of `true`.
+an `is_write_index` flag of `true`.
 The request assigns the rolled over index
-an `is_write_index` value of `false`.
+an `is_write_index` flag of `false`.
 
 
 [[rollover-wait-active-shards]]

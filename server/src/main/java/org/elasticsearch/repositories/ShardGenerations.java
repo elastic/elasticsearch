@@ -64,18 +64,19 @@ public final class ShardGenerations implements ToXContent {
         previous.shardGenerations.forEach(((indexId, oldGens) -> {
             final List<String> updatedGenerations = shardGenerations.get(indexId);
             final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
-            if (updatedGenerations != null) {
-                if (oldGens.isEmpty() == false && oldGens.equals(updatedGenerations) == false) {
-                    assert oldGens.size() == updatedGenerations.size();
-                    for (int i = 0; i < oldGens.size(); i++) {
-                        if (updatedGenerations.get(i) != null && oldGens.get(i) != null
-                            && oldGens.get(i).equals(updatedGenerations.get(i)) == false) {
-                            obsoleteShardIndices.put(i, oldGens.get(i));
-                        }
+            assert updatedGenerations != null
+                : "Index [" + indexId + "] present in previous shard generations, but missing from updated generations";
+            if (oldGens.isEmpty() == false && oldGens.equals(updatedGenerations) == false) {
+                assert oldGens.size() == updatedGenerations.size();
+                for (int i = 0; i < oldGens.size(); i++) {
+                    final String oldGeneration = oldGens.get(i);
+                    if (updatedGenerations.get(i) != null && oldGeneration != null
+                        && oldGeneration.equals(updatedGenerations.get(i)) == false) {
+                        obsoleteShardIndices.put(i, oldGeneration);
                     }
                 }
-                result.put(indexId, obsoleteShardIndices);
             }
+            result.put(indexId, obsoleteShardIndices);
         }));
         return result;
     }
@@ -142,7 +143,7 @@ public final class ShardGenerations implements ToXContent {
                 || newGens.size() == gens.size() : "Previous " + gens + ", updated " + newGens;
             if (newGens != null && gens.size() != 0) {
                 for (int i = 0; i < newGens.size(); i++) {
-                    assert !!(newGens.get(i) != null || gens.get(i) == null);
+                    assert newGens.get(i) != null || gens.get(i) == null;
                 }
             }
         });

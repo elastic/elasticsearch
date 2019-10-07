@@ -392,8 +392,49 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         Map<String, BlobMetaData> rootBlobs, RepositoryData repositoryData, Version version,
                                         ActionListener<Void> listener) throws IOException {
 
-        // listener to complete once all shards folders affected by this delete have been added new metadata blobs without this snapshot
-        final CheckedConsumer<Collection<ShardSnapshotMetaDeleteResult>, IOException> deleteFromMetaListener;
+        // Listener that resolves the given listener passed to this method once both cleanup steps have completed.
+        // Any failures encountered by this listener are ignored as they were already logged by the throwing code.
+        final ActionListener<Void> afterCleanupsListener =
+            new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
+
+        // Listener to invoke once we've written the latest repository data and updated all shard metadata.
+        // Any failure past this point will only be logged.
+        final ActionListener<Collection<ShardSnapshotMetaDeleteResult>> afterUpdateAllMetadata = ActionListener.runAfter(
+            ActionListener.wrap(
+                deleteResults -> {
+                    // Now that all metadata (RepositoryData at the repo root as well as index-N blobs in all shard paths)
+                    // has been updated we can execute the delete operations for all blobs that have become unreferenced as a result
+                    final String basePath = basePath().buildAsString();
+                    final int basePathLen = basePath.length();
+                    blobContainer().deleteBlobsIgnoringIfNotExists(
+                        Stream.concat(
+                            deleteResults.stream().flatMap(shardResult -> {
+                                final String shardPath =
+                                    shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
+                                return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
+                            }),
+                            deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().map(indexId ->
+                                indexContainer(indexId).path().buildAsString() + globalMetaDataFormat.blobName(snapshotId.getUUID()))
+                        ).map(absolutePath -> {
+                            assert absolutePath.startsWith(basePath);
+                            return absolutePath.substring(basePathLen);
+                        }).collect(Collectors.toList()));
+                },
+                // Any exceptions after we have updated the root level RepositoryData are only logged but won't fail the delete request
+                e -> logger.warn(
+                    () -> new ParameterizedMessage("[{}] Failed to delete some blobs during snapshot delete", snapshotId), e)),
+            () -> afterCleanupsListener.onResponse(null));
+
+        // Consumer to invoke once an updated ShardGeneration instance is ready to be written or with null for BwC if no ShardGenerations
+        // are written
+        final CheckedConsumer<ShardGenerations, IOException> onShardGenerations = shardGens -> {
+            final RepositoryData updatedRepoData = repositoryData.removeSnapshot(snapshotId, shardGens);
+            // Write out new RepositoryData
+            writeIndexGen(updatedRepoData, repositoryStateId, version);
+            // Run unreferenced blobs cleanup in parallel to snapshot deletion
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(afterCleanupsListener,
+                l -> cleanupStaleBlobs(foundIndices, rootBlobs, updatedRepoData, ActionListener.map(l, ignored -> null))));
+        };
 
         if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
             // New path that updates the pointer to each deleted shard's generation in the root RepositoryData
@@ -406,137 +447,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Note: If we fail updating any of the individual shard paths, none of them are changed since the newly created
             //       index-${gen_uuid} will not be referenced by the existing RepositoryData and new RepositoryData is only
             //       written if all shard paths have been successfully updated.
-            deleteFromMetaListener = res -> {
+            deleteIndices(repositoryData, snapshotId, version, ActionListener.wrap(res -> {
                 final ShardGenerations.Builder builder = ShardGenerations.builder();
                 for (ShardSnapshotMetaDeleteResult newGen : res) {
                     builder.add(newGen.indexId, newGen.shardId, newGen.newGeneration);
                 }
-                final RepositoryData newRepoData =
-                    writeAndGetNewRepoData(snapshotId, repositoryStateId, version, repositoryData, builder.build());
-                afterDeleteFromMeta(snapshotId, listener, rootBlobs, foundIndices, newRepoData, res);
-            };
+                onShardGenerations.accept(builder.build());
+                afterUpdateAllMetadata.onResponse(res);
+            }, listener::onFailure));
         } else {
-            final RepositoryData newRepoData = writeAndGetNewRepoData(snapshotId, repositoryStateId, version, repositoryData, null);
-            deleteFromMetaListener = res -> afterDeleteFromMeta(snapshotId, listener, rootBlobs, foundIndices, newRepoData, res);
+            onShardGenerations.accept(null);
+            deleteIndices(repositoryData, snapshotId, version, afterUpdateAllMetadata);
         }
-
-        final List<IndexId> indices = repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotId);
-
-        if (indices.isEmpty()) {
-            // No indices folders have to be updated, we go straight to the next step
-            deleteFromMetaListener.accept(Collections.emptyList());
-            return;
-        }
-
-        // Listener that flattens out the delete results for each index
-        final ActionListener<Collection<ShardSnapshotMetaDeleteResult>> deleteIndexMetaDataListener = new GroupedActionListener<>(
-            ActionListener.wrap(
-                idxs -> deleteFromMetaListener.accept(idxs.stream().flatMap(Collection::stream).collect(Collectors.toList())),
-                listener::onFailure), indices.size());
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        for (IndexId indexId : indices) {
-            final Set<SnapshotId> survivingSnapshots = repositoryData.getSnapshots(indexId).stream()
-                .filter(id -> id.equals(snapshotId) == false).collect(Collectors.toSet());
-            executor.execute(ActionRunnable.wrap(deleteIndexMetaDataListener, deleteIdxMetaListener -> {
-                final IndexMetaData indexMetaData;
-                try {
-                    indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
-                } catch (Exception ex) {
-                    logger.warn(() ->
-                        new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, indexId.getName()), ex);
-                    // Just invoke the listener without any shard generations to count it down, this index will be cleaned up
-                    // by the stale data cleanup in the end.
-                    deleteIdxMetaListener.onResponse(null);
-                    return;
-                }
-
-                final int shardCount = indexMetaData.getNumberOfShards();
-                assert shardCount > 0 : "index did not have positive shard count, get [" + shardCount + "]";
-                // Listener for collecting the results of removing the snapshot from each shard's metadata in the current index
-                final ActionListener<ShardSnapshotMetaDeleteResult> allShardsListener =
-                    new GroupedActionListener<>(deleteIdxMetaListener, shardCount);
-                final Index index = indexMetaData.getIndex();
-                for (int shardId = 0; shardId < shardCount; shardId++) {
-                    final ShardId shard = new ShardId(index, shardId);
-                    executor.execute(new AbstractRunnable() {
-                        @Override
-                        protected void doRun() throws Exception {
-                            final BlobContainer shardContainer = shardContainer(indexId, shard);
-                            final Set<String> blobs = getShardBlobs(shard, shardContainer);
-                            final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
-                            final String newGen;
-                            if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
-                                newGen = UUIDs.randomBase64UUID();
-                                blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(blobs, shardContainer,
-                                    repositoryData.shardGenerations().getShardGen(indexId, shard.getId())).v1();
-                            } else {
-                                Tuple<BlobStoreIndexShardSnapshots, Long> tuple =
-                                    buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
-                                newGen = Long.toString(tuple.v2() + 1);
-                                blobStoreIndexShardSnapshots = tuple.v1();
-                            }
-                            allShardsListener.onResponse(deleteShardSnapshot(survivingSnapshots, indexId, shard, snapshotId,
-                                shardContainer, blobs, blobStoreIndexShardSnapshots, newGen));
-                        }
-
-                        @Override
-                        public void onFailure(Exception ex) {
-                            logger.warn(
-                                () -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
-                                    snapshotId, indexId.getName(), shard.id()), ex);
-                            // Just passing null here to count down the listener instead of failing it, the stale data left
-                            // behind here will be retried in the next delete or repository cleanup
-                            allShardsListener.onResponse(null);
-                        }
-                    });
-                }
-            }));
-        }
-    }
-
-    private void afterDeleteFromMeta(SnapshotId snapshotId, ActionListener<Void> listener, Map<String, BlobMetaData> rootBlobs,
-                                     Map<String, BlobContainer> foundIndices, RepositoryData updatedRepositoryData,
-                                     Collection<ShardSnapshotMetaDeleteResult> deleteResults) {
-
-        final ActionListener<Void> afterCleanupsListener =
-            new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
-
-        // Run unreferenced blobs cleanup in parallel to snapshot deletion
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(afterCleanupsListener,
-            l -> cleanupStaleBlobs(foundIndices, rootBlobs, updatedRepositoryData, ActionListener.map(l, ignored -> null))));
-
-        // Now that all metadata (RepositoryData at the repo root as well as index-N blobs in all shard paths)
-        // has been updated we can execute the delete operations for all blobs that have become unreferenced as a result
-        try {
-            final String basePath = basePath().buildAsString();
-            final int basePathLen = basePath.length();
-            blobContainer().deleteBlobsIgnoringIfNotExists(
-                Stream.concat(
-                    deleteResults.stream().flatMap(shardResult -> {
-                        final String shardPath =
-                            shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
-                        return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
-                    }),
-                    deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().map(indexId ->
-                        indexContainer(indexId).path().buildAsString() + globalMetaDataFormat.blobName(snapshotId.getUUID()))
-                ).map(absolutePath -> {
-                    assert absolutePath.startsWith(basePath);
-                    return absolutePath.substring(basePathLen);
-                }).collect(Collectors.toList()));
-        } catch (Exception e) {
-            // Any exceptions after we have updated the root level RepositoryData are only logged but won't fail the delete request
-            logger.warn(
-                () -> new ParameterizedMessage("[{}] Failed to delete some blobs during snapshot delete", snapshotId), e);
-        }
-        afterCleanupsListener.onResponse(null);
-    }
-
-    private RepositoryData writeAndGetNewRepoData(SnapshotId snapshotId, long repositoryStateId, Version version,
-                                                  RepositoryData repositoryData, @Nullable ShardGenerations gens) throws IOException {
-        final RepositoryData newRepoData = repositoryData.removeSnapshot(snapshotId, gens);
-        // Write out new RepositoryData
-        writeIndexGen(newRepoData, repositoryStateId, version);
-        return newRepoData;
     }
 
     /**
@@ -688,6 +610,83 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return deleteResult;
     }
 
+    /**
+     * @param repositoryData RepositoryData before removing snapshot
+     * @param snapshotId     SnapshotId to remove from all the given indices
+     * @param listener       Listener to invoke when finished
+     */
+    private void deleteIndices(RepositoryData repositoryData, SnapshotId snapshotId, Version version,
+                               ActionListener<Collection<ShardSnapshotMetaDeleteResult>> listener) {
+        final List<IndexId> indices = repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotId);
+        if (indices.isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+            return;
+        }
+
+        // Listener that flattens out the delete results for each index
+        final ActionListener<Collection<ShardSnapshotMetaDeleteResult>> deleteIndexMetaDataListener = new GroupedActionListener<>(
+            ActionListener.map(listener, res -> res.stream().flatMap(Collection::stream).collect(Collectors.toList())), indices.size());
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        for (IndexId indexId : indices) {
+            final Set<SnapshotId> survivingSnapshots = repositoryData.getSnapshots(indexId).stream()
+                .filter(id -> id.equals(snapshotId) == false).collect(Collectors.toSet());
+            executor.execute(ActionRunnable.wrap(deleteIndexMetaDataListener, deleteIdxMetaListener -> {
+                final IndexMetaData indexMetaData;
+                try {
+                    indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
+                } catch (Exception ex) {
+                    logger.warn(() ->
+                        new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, indexId.getName()), ex);
+                    // Just invoke the listener without any shard generations to count it down, this index will be cleaned up
+                    // by the stale data cleanup in the end.
+                    deleteIdxMetaListener.onResponse(null);
+                    return;
+                }
+
+                final int shardCount = indexMetaData.getNumberOfShards();
+                assert shardCount > 0 : "index did not have positive shard count, get [" + shardCount + "]";
+                // Listener for collecting the results of removing the snapshot from each shard's metadata in the current index
+                final ActionListener<ShardSnapshotMetaDeleteResult> allShardsListener =
+                    new GroupedActionListener<>(deleteIdxMetaListener, shardCount);
+                final Index index = indexMetaData.getIndex();
+                for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                    final ShardId shard = new ShardId(index, shardId);
+                    executor.execute(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            final BlobContainer shardContainer = shardContainer(indexId, shard);
+                            final Set<String> blobs = getShardBlobs(shard, shardContainer);
+                            final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
+                            final String newGen;
+                            if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                                newGen = UUIDs.randomBase64UUID();
+                                blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(blobs, shardContainer,
+                                    repositoryData.shardGenerations().getShardGen(indexId, shard.getId())).v1();
+                            } else {
+                                Tuple<BlobStoreIndexShardSnapshots, Long> tuple =
+                                    buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+                                newGen = Long.toString(tuple.v2() + 1);
+                                blobStoreIndexShardSnapshots = tuple.v1();
+                            }
+                            allShardsListener.onResponse(deleteShardSnapshot(survivingSnapshots, indexId, shard, snapshotId,
+                                shardContainer, blobs, blobStoreIndexShardSnapshots, newGen));
+                        }
+
+                        @Override
+                        public void onFailure(Exception ex) {
+                            logger.warn(
+                                () -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
+                                    snapshotId, indexId.getName(), shard.id()), ex);
+                            // Just passing null here to count down the listener instead of failing it, the stale data left behind
+                            // here will be retried in the next delete or repository cleanup
+                            allShardsListener.onResponse(null);
+                        }
+                    });
+                }
+            }));
+        }
+    }
+
     @Override
     public void finalizeSnapshot(final SnapshotId snapshotId,
                                  final ShardGenerations shardGenerations,
@@ -754,18 +753,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }));
     }
 
+    // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data
     private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) {
         final List<String> toDelete = new ArrayList<>();
         final int prefixPathLen = basePath().buildAsString().length();
+        updatedRepositoryData.shardGenerations().obsoleteShardGenerations(existingRepositoryData.shardGenerations()).forEach(
+            (indexId, gens) -> gens.forEach((shardId, oldGen) -> toDelete.add(
+                shardContainer(indexId, shardId).path().buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen)));
         try {
-            for (Map.Entry<IndexId, Map<Integer, String>> entry :
-                updatedRepositoryData.shardGenerations().obsoleteShardGenerations(existingRepositoryData.shardGenerations()).entrySet()) {
-                final IndexId indexId = entry.getKey();
-                for (Map.Entry<Integer, String> shardEntry : entry.getValue().entrySet()) {
-                    toDelete.add(shardContainer(indexId, shardEntry.getKey()).path().buildAsString().substring(prefixPathLen)
-                        + INDEX_FILE_PREFIX + shardEntry.getValue());
-                }
-            }
             blobContainer().deleteBlobsIgnoringIfNotExists(toDelete);
         } catch (Exception e) {
             logger.warn("Failed to clean up old shard generation blobs", e);

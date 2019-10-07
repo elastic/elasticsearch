@@ -13,11 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAction.Response> {

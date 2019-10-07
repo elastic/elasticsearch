@@ -77,14 +77,14 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     };
 
     private XContentBuilder createMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_shape");
         if (randomBoolean()) {
             xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
             .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
         }
-        xcb = xcb.endObject().endObject().endObject().endObject();
+        xcb = xcb.endObject().endObject().endObject();
 
         return xcb;
     }
@@ -180,7 +180,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testIndexedShapeReference() throws Exception {
         String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", mapping, XContentType.JSON).get();
         createIndex("shapes");
         ensureGreen();
 
@@ -217,7 +217,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
      public void testIndexedShapeReferenceWithTypes() throws Exception {
         String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", mapping, XContentType.JSON).get();
         createIndex("shapes");
         ensureGreen();
 
@@ -289,7 +289,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
-        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape").get();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", "location", "type=geo_shape").get();
 
         String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 

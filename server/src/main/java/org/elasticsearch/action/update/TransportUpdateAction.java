@@ -238,7 +238,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 if (indexServiceOrNull !=  null) {
                     IndexShard shard = indexService.getShardOrNull(shardId.getId());
                     if (shard != null) {
-                        shard.noopUpdate(MapperService.SINGLE_MAPPING_NAME);
+                        shard.noopUpdate();
                     }
                 }
                 listener.onResponse(update);

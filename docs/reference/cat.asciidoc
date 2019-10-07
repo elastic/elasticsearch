@@ -230,6 +230,8 @@ include::cat/recovery.asciidoc[]
 
 include::cat/repositories.asciidoc[]
 
+include::cat/tasks.asciidoc[]
+
 include::cat/thread_pool.asciidoc[]
 
 include::cat/shards.asciidoc[]

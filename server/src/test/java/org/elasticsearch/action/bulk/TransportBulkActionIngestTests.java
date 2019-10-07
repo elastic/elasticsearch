@@ -190,6 +190,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ImmutableOpenMap<String, DiscoveryNode> ingestNodes = ImmutableOpenMap.<String, DiscoveryNode>builder(2)
             .fPut("node1", remoteNode1).fPut("node2", remoteNode2).build();
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
+        when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         MetaData metaData = MetaData.builder().indices(ImmutableOpenMap.<String, IndexMetaData>builder()

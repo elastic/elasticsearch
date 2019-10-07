@@ -63,7 +63,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("days"), l("foo"), randomZone()).makePipe().asProcessor().process(null));
-        assertEquals("A datetime/date is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime is required; received [foo]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));

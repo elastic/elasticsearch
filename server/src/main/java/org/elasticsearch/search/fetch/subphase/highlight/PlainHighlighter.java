@@ -139,7 +139,8 @@ public class PlainHighlighter implements Highlighter {
                 // the plain highlighter will parse the source and try to analyze it.
                 return null;
             } else {
-                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+                throw new FetchPhaseExecutionException(context.shardTarget(),
+                    "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }
         }
         if (field.fieldOptions().scoreOrdered()) {
@@ -178,7 +179,8 @@ public class PlainHighlighter implements Highlighter {
             try {
                 end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, fieldType.name(), fieldContents);
             } catch (Exception e) {
-                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+                throw new FetchPhaseExecutionException(context.shardTarget(),
+                    "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }
             if (end > 0) {
                 return new HighlightField(highlighterContext.fieldName, new Text[] { new Text(fieldContents.substring(0, end)) });

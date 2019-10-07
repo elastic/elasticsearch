@@ -113,25 +113,15 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         return true;
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        // we create and disable the exporter to avoid the cluster actually using it (thus speeding up tests)
-        // we make an exporter on demand per test
-        return Settings.builder()
-                       .put(super.nodeSettings(nodeOrdinal))
-                       .put("xpack.monitoring.exporters._http.type", "http")
-                       .put("xpack.monitoring.exporters._http.ssl.truststore.password", "foobar") // ensure that ssl can be used by settings
-                       .put("xpack.monitoring.exporters._http.headers.ignored", "value") // ensure that headers can be used by settings
-                       .put("xpack.monitoring.exporters._http.enabled", false)
-                       .build();
-    }
-
     private Settings.Builder baseSettings() {
         return Settings.builder()
-                       .put("xpack.monitoring.exporters._http.type", "http")
-                       .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
-                       .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", clusterAlertBlacklist)
-                       .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", includeOldTemplates);
+            .put("xpack.monitoring.exporters._http.enabled", false)
+            .put("xpack.monitoring.exporters._http.type", "http")
+            .put("xpack.monitoring.exporters._http.ssl.truststore.password", "foobar") // ensure that ssl can be used by settings
+            .put("xpack.monitoring.exporters._http.headers.ignored", "value") // ensure that headers can be used by settings
+            .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+            .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", clusterAlertBlacklist)
+            .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", includeOldTemplates);
     }
 
     public void testExport() throws Exception {

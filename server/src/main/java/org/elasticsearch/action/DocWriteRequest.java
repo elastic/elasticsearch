@@ -235,9 +235,6 @@ public interface DocWriteRequest<T> extends IndicesRequest {
             validationException = addValidationError("illegal version value [" + version + "] for version type ["
                 + versionType.name() + "]", validationException);
         }
-        if (versionType == VersionType.FORCE) {
-            validationException = addValidationError("version type [force] may no longer be used", validationException);
-        }
 
         if (versionType == VersionType.INTERNAL && version != Versions.MATCH_ANY && version != Versions.MATCH_DELETED) {
             validationException = addValidationError("internal versioning can not be used for optimistic concurrency control. " +

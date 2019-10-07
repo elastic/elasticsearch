@@ -212,7 +212,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
                         new SourceToParse("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO, 0, randomNonNegativeLong(),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                         false);
             }
             final IndexShard recoveredReplica =

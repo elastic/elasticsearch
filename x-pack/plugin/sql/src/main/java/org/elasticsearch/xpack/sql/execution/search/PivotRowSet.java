@@ -60,6 +60,10 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
                 currentRowGroupKey = key;
                 // save the data
                 data.add(currentRow);
+
+                if (limit > 0 && data.size() == limit) {
+                    break;
+                }
                 // create a new row
                 currentRow = new Object[columnCount()];
             }
@@ -76,19 +80,23 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
             }
         }
         
-        // add the last group if any of the following matches:
-        // a. the last key has been sent before (it's the last page)
-        if ((previousLastKey != null && sameCompositeKey(previousLastKey, currentRowGroupKey))) {
+        // check the last group using the following:
+        // a. limit has been reached, the rest of the data is ignored.
+        if (limit > 0 && data.size() == limit) {
+            afterKey = null;
+        }
+        // b. the last key has been sent before (it's the last page)
+        else if ((previousLastKey != null && sameCompositeKey(previousLastKey, currentRowGroupKey))) {
             data.add(currentRow);
             afterKey = null;
         }
-        // b. all the values are initialized (there might be another page but no need to ask for the group again)
-        // c. or no data was added (typically because there's a null value such as the group)
+        // c. all the values are initialized (there might be another page but no need to ask for the group again)
+        // d. or no data was added (typically because there's a null value such as the group)
         else if (hasNull(currentRow) == false || data.isEmpty()) {
             data.add(currentRow);
             afterKey = currentRowGroupKey;
         }
-        //otherwise we can't tell whether it's complete or not
+        // otherwise we can't tell whether it's complete or not
         // so discard the last group and ask for it on the next page
         else {
             afterKey = lastCompletedGroupKey;

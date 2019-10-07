@@ -182,7 +182,7 @@ public final class RepositoryData {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
         return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots,
-            this.shardGenerations.updatedGenerations(shardGenerations));
+            ShardGenerations.builder().add(this.shardGenerations).add(shardGenerations).build());
     }
 
     /**
@@ -236,8 +236,8 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, set);
         }
 
-        final ShardGenerations updatedGenerations = updatedShardGenerations == null ? null
-            : shardGenerations.updatedGenerations(updatedShardGenerations).forIndices(indexSnapshots.keySet());
+        final ShardGenerations updatedGenerations = updatedShardGenerations == null ? null :
+            ShardGenerations.builder().add(shardGenerations).add(updatedShardGenerations).filterByIndices(indexSnapshots.keySet()).build();
 
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, updatedGenerations);
     }

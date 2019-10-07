@@ -111,45 +111,6 @@ public final class ShardGenerations implements ToXContent {
         return builder;
     }
 
-    ShardGenerations updatedGenerations(ShardGenerations updates) {
-        final Map<IndexId, List<String>> updatedGenerations = new HashMap<>(this.shardGenerations);
-        updates.shardGenerations.forEach(((indexId, updatedGens) -> {
-            final List<String> existing = updatedGenerations.put(indexId, updatedGens);
-            if (existing != null) {
-                assert existing.size() == updatedGens.size() :
-                    "Existing generations " + existing + " differ in length from updated generations " + updatedGens;
-                for (int i = 0; i < updatedGens.size(); ++i) {
-                    if (updatedGens.get(i) == null) {
-                        updatedGens.set(i, existing.get(i));
-                    }
-                }
-            }
-        }));
-        assert assertShardGensUpdateConsistent(updatedGenerations);
-        return new ShardGenerations(updatedGenerations);
-    }
-
-    ShardGenerations forIndices(Set<IndexId> indices) {
-        final Map<IndexId, List<String>> updatedGenerations = new HashMap<>(this.shardGenerations);
-        updatedGenerations.keySet().retainAll(indices);
-        assert assertShardGensUpdateConsistent(updatedGenerations);
-        return new ShardGenerations(updatedGenerations);
-    }
-
-    private boolean assertShardGensUpdateConsistent(Map<IndexId, List<String>> updated) {
-        shardGenerations.forEach((indexId, gens) -> {
-            final List<String> newGens = updated.get(indexId);
-            assert newGens == null || gens.size() == 0
-                || newGens.size() == gens.size() : "Previous " + gens + ", updated " + newGens;
-            if (newGens != null && gens.size() != 0) {
-                for (int i = 0; i < newGens.size(); i++) {
-                    assert newGens.get(i) != null || gens.get(i) == null;
-                }
-            }
-        });
-        return true;
-    }
-
     @Override
     public boolean equals(final Object o) {
         if (this == o) {
@@ -168,28 +129,47 @@ public final class ShardGenerations implements ToXContent {
     }
 
     public static Builder builder() {
-         return new Builder();
+        return new Builder();
     }
 
     public static final class Builder {
 
-         private final Map<IndexId, Map<Integer, String>> raw = new HashMap<>();
+        private final Map<IndexId, Map<Integer, String>> raw = new HashMap<>();
 
-         public Builder add(IndexId indexId, int shardId, String generation) {
-             raw.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
-             return this;
-         }
+        public Builder filterByIndices(Set<IndexId> indices) {
+            raw.keySet().retainAll(indices);
+            return this;
+        }
 
-         public ShardGenerations build() {
-             return new ShardGenerations(raw.entrySet().stream().collect(Collectors.toMap(
-                 Map.Entry::getKey,
-                 entry -> {
-                     final int size = entry.getValue().keySet().stream().mapToInt(i -> i).max().orElse(-1) + 1;
-                     final String[] gens = new String[size];
-                     entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
-                     return Arrays.asList(gens);
-                 }
-             )));
-         }
+        public Builder add(ShardGenerations shardGenerations) {
+            shardGenerations.shardGenerations.forEach((indexId, gens) -> {
+                for (int i = 0; i < gens.size(); i++) {
+                    final String gen = gens.get(i);
+                    if (gen != null) {
+                        add(indexId, i, gens.get(i));
+                    }
+                }
+            });
+            return this;
+        }
+
+        public Builder add(IndexId indexId, int shardId, String generation) {
+            raw.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
+            return this;
+        }
+
+        public ShardGenerations build() {
+            return new ShardGenerations(raw.entrySet().stream().collect(Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> {
+                    final Set<Integer> shardIds = entry.getValue().keySet();
+                    assert shardIds.isEmpty() == false;
+                    final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
+                    final String[] gens = new String[size];
+                    entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
+                    return Arrays.asList(gens);
+                }
+            )));
+        }
     }
 }

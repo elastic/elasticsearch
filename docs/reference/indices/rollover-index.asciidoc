@@ -60,8 +60,9 @@ to the newly created target index
 and removes the alias
 from the rolled over index.
 
-. The alias points to one or more indices
-with an `is_write_index` value of `true`.
+. The alias points to one or more indices.
+Only one of these indices
+has an `is_write_index` value of `true`.
 +
 In this scenario,
 the rollover request adds the alias

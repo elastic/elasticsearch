@@ -42,19 +42,34 @@ NOTE: To roll over an index, a condition must be met *when you call the API*.
 automatically roll over indices when a condition is met, you can use {es}'s
 <<index-lifecycle-management, index lifecycle management (ILM) policies>>.
 
-The API accepts a single alias name and a list of `conditions`. The alias must point to a write index for
-a Rollover request to be valid. There are two ways this can be achieved, and depending on the configuration, the
-alias metadata will be updated differently. The two scenarios are as follows:
+The rollover index API accepts a single alias name
+and a list of `conditions`.
+To request a rollover,
+the specified alias must point to a write index,
+indicated by the `is_write_index` value.
+Depending on this value,
+the rollover request updates the alias metadata as follows:
 
- - The alias only points to a single index with `is_write_index` not configured (defaults to `null`).
+. The alias points to a single index
+with an unconfigured `is_write_index` value,
+which defaults to `null`.
++
+In this scenario,
+the rollover request adds the alias
+to the newly created target index
+and removes the alias
+from the rolled over index.
 
-In this scenario, the original index will have their rollover alias will be added to the newly created index, and removed
-from the original (rolled-over) index.
-
- - The alias points to one or more indices with `is_write_index` set to `true` on the index to be rolled over (the write index).
-
-In this scenario, the write index will have its rollover alias' `is_write_index` set to `false`, while the newly created index
-will now have the rollover alias pointing to it as the write index with `is_write_index` as `true`.
+. The alias points to one or more indices
+with an `is_write_index` value of `true`.
++
+In this scenario,
+the rollover request adds the alias
+to the newly created target index
+and assigns that index
+an `is_write_index` value of `true`.
+The request assigns rolled over indices
+an `is_write_index` value of `false`.
 
 
 [[rollover-wait-active-shards]]

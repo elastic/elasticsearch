@@ -18,7 +18,7 @@ Posts scheduled events in a calendar.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-post-calendar-event-desc]]
 ==== {api-description-title}

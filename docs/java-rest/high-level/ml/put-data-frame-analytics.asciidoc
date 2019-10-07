@@ -96,6 +96,10 @@ include-tagged::{doc-tests-file}[{api}-outlier-detection-customized]
 <1> Constructing a new OutlierDetection object
 <2> The method used to perform the analysis
 <3> Number of neighbors taken into account during analysis
+<4> The min `outlier_score` required to compute feature influence
+<5> Whether to compute feature influence
+<6> The proportion of the data set that is assumed to be outlying prior to outlier detection
+<7> Whether to apply standardization to feature values
 
 ===== Regression
 

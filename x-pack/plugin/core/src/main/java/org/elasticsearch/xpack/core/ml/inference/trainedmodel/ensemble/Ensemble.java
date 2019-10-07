@@ -113,27 +113,19 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return infer(features);
     }
 
+
     @Override
     public TargetType targetType() {
         return targetType;
     }
 
-    @Override
-    public List<Double> classificationProbability(Map<String, Object> fields) {
+    private List<Double> classificationProbability(Map<String, Object> fields) {
         if ((targetType == TargetType.CLASSIFICATION) == false) {
             throw new UnsupportedOperationException(
                 "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
         }
         List<Double> features = featureNames.stream().map(f -> ((Number)fields.get(f)).doubleValue()).collect(Collectors.toList());
         return classificationProbability(features);
-    }
-
-    @Override
-    public List<Double> classificationProbability(List<Double> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
-            throw new UnsupportedOperationException(
-                "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
-        }
         return inferAndProcess(fields);
     }
 
@@ -142,7 +134,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return classificationLabels;
     }
 
-    private List<Double> inferAndProcess(List<Double> fields) {
+    private List<Double> inferAndProcess(Map<String, Object> fields) {
         List<Double> modelInferences = models.stream().map(m -> m.infer(fields)).collect(Collectors.toList());
         return outputAggregator.processValues(modelInferences);
     }
@@ -206,15 +198,6 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public void validate() {
-        if (this.featureNames != null) {
-            if (this.models.stream()
-                .anyMatch(trainedModel -> trainedModel.getFeatureNames().equals(this.featureNames) == false)) {
-                throw ExceptionsHelper.badRequestException(
-                    "[{}] must be the same and in the same order for each of the {}",
-                    FEATURE_NAMES.getPreferredName(),
-                    TRAINED_MODELS.getPreferredName());
-            }
-        }
         if (outputAggregator.expectedValueSize() != null &&
             outputAggregator.expectedValueSize() != models.size()) {
             throw ExceptionsHelper.badRequestException(

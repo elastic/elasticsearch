@@ -27,6 +27,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 
 import java.io.File;
@@ -107,14 +108,17 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         return nodes.getAt(clusterName + "-0");
     }
 
+    @Internal
     public int getNumberOfNodes() {
         return nodes.size();
     }
 
+    @Internal
     public String getName() {
         return clusterName;
     }
 
+    @Internal
     public String getPath() {
         return path;
     }
@@ -346,24 +350,28 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    @Internal
     public String getHttpSocketURI() {
         waitForAllConditions();
         return getFirstNode().getHttpSocketURI();
     }
 
     @Override
+    @Internal
     public String getTransportPortURI() {
         waitForAllConditions();
         return getFirstNode().getTransportPortURI();
     }
 
     @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
     }
 
     @Override
+    @Internal
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
@@ -387,6 +395,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    @Internal
     public boolean isProcessAlive() {
         return nodes.stream().noneMatch(node -> node.isProcessAlive() == false);
     }

@@ -115,7 +115,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             throw new UnsupportedOperationException(
                 "Cannot return top classes for target_type [" + targetType.toString() + "]");
         }
-        List<Double> features = featureNames.stream().map(f -> (Double) fields.get(f)).collect(Collectors.toList());
+        List<Double> features = featureNames.stream().map(f ->
+            fields.get(f) instanceof Number ? ((Number) fields.get(f)).doubleValue() : null
+        ).collect(Collectors.toList());
         return infer(features, params);
     }
 

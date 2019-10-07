@@ -4,9 +4,9 @@
 <titleabbrev>Type exists</titleabbrev>
 ++++
 
-deprecated[7.0.0, Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.]
+deprecated::[7.0.0, Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.]
 
-Checks if a <<mapping-type-field, mapping type>> exists.
+Checks if a <<mapping-type-field,mapping type>> exists.
 
 [source,console]
 ----

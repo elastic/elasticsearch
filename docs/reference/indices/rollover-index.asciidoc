@@ -66,7 +66,7 @@ has an `is_write_index` value of `true`.
 +
 In this scenario,
 the rollover request treats the index
-with a `is_write_index` value of `true`
+with an `is_write_index` value of `true`
 as the rolled over index.
 +
 The request adds the alias

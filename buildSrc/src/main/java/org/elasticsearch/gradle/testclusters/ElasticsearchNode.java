@@ -42,6 +42,7 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -169,6 +170,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         setVersion(VersionProperties.getElasticsearch());
     }
 
+    @Input
+    @Optional
     public String getName() {
         return nameCustomization.apply(name);
     }
@@ -178,6 +181,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return distributions.get(currentDistro).getVersion();
     }
 
+    @Internal
     public Path getDistroDir() {
         return workingDir.resolve("distro").resolve(getVersion() + "-" + testDistribution);
     }
@@ -348,6 +352,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         jvmArgs.addAll(Arrays.asList(values));
     }
 
+    @Internal
     public Path getConfigDir() {
         return configFile.getParent();
     }
@@ -370,6 +375,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.javaHome = javaHome;
     }
 
+    @Internal
     public File getJavaHome() {
         return javaHome;
     }
@@ -490,16 +496,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         start();
     }
 
-    @Override
-    public void goToNextVersion() {
+    void goToNextVersion() {
         if (currentDistro + 1 >= distributions.size()) {
             throw new TestClustersException("Ran out of versions to go to for " + this);
         }
         logToProcessStdout("Switch version from " + getVersion() + " to " + distributions.get(currentDistro + 1).getVersion());
-        stop(false);
         currentDistro += 1;
         setting("node.attr.upgraded", "true");
-        start();
     }
 
     private boolean isSettingTrue(String name) {
@@ -706,29 +709,37 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    @Internal
     public String getHttpSocketURI() {
         return getHttpPortInternal().get(0);
     }
 
     @Override
+    @Internal
     public String getTransportPortURI() {
         return getTransportPortInternal().get(0);
     }
 
     @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
+        waitForAllConditions();
         return getHttpPortInternal();
     }
 
     @Override
+    @Internal
     public List<String> getAllTransportPortURI() {
+        waitForAllConditions();
         return getTransportPortInternal();
     }
 
+    @Internal
     public File getServerLog() {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
     }
 
+    @Internal
     public File getAuditLog() {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
     }
@@ -760,6 +771,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             logFileContents("Standard error of node", esStderrFile);
         }
         esProcess = null;
+        // Clean up the ports file in case this is started again.
+        try {
+            if (Files.exists(httpPortsFile)) {
+                Files.delete(httpPortsFile);
+            }
+            if (Files.exists(transportPortFile)) {
+                Files.delete(transportPortFile);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -1088,30 +1110,30 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Input
-    private Set<URI> getRemotePlugins() {
+    public Set<URI> getRemotePlugins() {
         Set<URI> file = plugins.stream().filter(uri -> uri.getScheme().equalsIgnoreCase("file") == false).collect(Collectors.toSet());
         return file;
     }
 
     @Classpath
-    private List<File> getInstalledClasspath() {
+    public List<File> getInstalledClasspath() {
         return getInstalledFileSet(filter -> filter.include("**/*.jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    private List<File> getInstalledFiles() {
+    public List<File> getInstalledFiles() {
         return getInstalledFileSet(filter -> filter.exclude("**/*.jar"));
     }
 
     @Classpath
-    private Set<File> getDistributionClasspath() {
+    public Set<File> getDistributionClasspath() {
         return getDistributionFiles(filter -> filter.include("**/*.jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    private Set<File> getDistributionFiles() {
+    public Set<File> getDistributionFiles() {
         return getDistributionFiles(filter -> filter.exclude("**/*.jar"));
     }
 
@@ -1128,41 +1150,42 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Nested
-    private Map<String, CharSequence> getKeystoreSettings() {
-        return keystoreSettings;
+    public List<?> getKeystoreSettings() {
+        return keystoreSettings.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, File> getKeystoreFiles() {
-        return keystoreFiles;
+    public List<?> getKeystoreFiles() {
+        return keystoreFiles.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, CharSequence> getSettings() {
-        return settings;
+    public List<?> getSettings() {
+        return settings.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, CharSequence> getSystemProperties() {
-        return systemProperties;
+    public List<?> getSystemProperties() {
+        return systemProperties.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, CharSequence> getEnvironment() {
-        return environment;
+    public List<?> getEnvironment() {
+        return environment.getNormalizedCollection();
     }
 
     @Nested
-    private List<CharSequence> getJvmArgs() {
-        return jvmArgs;
+    public List<?> getJvmArgs() {
+        return jvmArgs.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, File> getExtraConfigFiles() {
-        return extraConfigFiles;
+    public List<?> getExtraConfigFiles() {
+        return extraConfigFiles.getNormalizedCollection();
     }
 
     @Override
+    @Internal
     public boolean isProcessAlive() {
         requireNonNull(
             esProcess,
@@ -1228,6 +1251,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return Files.exists(httpPortsFile) && Files.exists(transportPortFile);
     }
 
+    @Internal
     public boolean isHttpSslEnabled() {
         return Boolean.valueOf(
             settings.getOrDefault("xpack.security.http.ssl.enabled", "false").toString()

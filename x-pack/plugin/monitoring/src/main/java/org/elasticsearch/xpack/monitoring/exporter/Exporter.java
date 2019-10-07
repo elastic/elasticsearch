@@ -13,11 +13,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -27,19 +30,52 @@ public abstract class Exporter implements AutoCloseable {
             Setting.affixKeySetting("xpack.monitoring.exporters.","enabled",
                     key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
 
-    private static final Setting.AffixSetting<String> TYPE_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","type",
-                    key -> Setting.simpleString(key, v -> {
-                        switch (v) {
-                            case "":
-                            case "http":
-                            case "local":
-                                break;
-                            default:
-                                throw new IllegalArgumentException("only exporter types [http] and [local] are allowed [" + v +
-                                        "] is invalid");
-                        }
-                    }, Property.Dynamic, Property.NodeScope));
+    public static final Setting.AffixSetting<String> TYPE_SETTING = Setting.affixKeySetting(
+        "xpack.monitoring.exporters.",
+        "type",
+        key -> Setting.simpleString(
+            key,
+            new Setting.Validator<>() {
+
+                @Override
+                public void validate(final String value) {
+
+                }
+
+                @Override
+                public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                    switch (value) {
+                        case "":
+                            break;
+                        case "http":
+                            // if the type is http, then hosts must be set
+                            final String namespace = TYPE_SETTING.getNamespace(TYPE_SETTING.getConcreteSetting(key));
+                            final Setting<List<String>> hostsSetting = HttpExporter.HOST_SETTING.getConcreteSettingForNamespace(namespace);
+                            @SuppressWarnings("unchecked") final List<String> hosts = (List<String>) settings.get(hostsSetting);
+                            if (hosts.isEmpty()) {
+                                throw new SettingsException("host list for [" + hostsSetting.getKey() + "] is empty");
+                            }
+                            break;
+                        case "local":
+                            break;
+                        default:
+                            throw new SettingsException(
+                                "type [" + value + "] for key [" + key + "] is invalid, only [http] and [local] are allowed");
+                    }
+
+                }
+
+                @Override
+                public Iterator<Setting<?>> settings() {
+                    final String namespace =
+                        Exporter.TYPE_SETTING.getNamespace(Exporter.TYPE_SETTING.getConcreteSetting(key));
+                    final List<Setting<?>> settings = List.of(HttpExporter.HOST_SETTING.getConcreteSettingForNamespace(namespace));
+                    return settings.iterator();
+                }
+
+            },
+            Property.Dynamic,
+            Property.NodeScope));
     /**
      * Every {@code Exporter} adds the ingest pipeline to bulk requests, but they should, at the exporter level, allow that to be disabled.
      * <p>

@@ -14,7 +14,7 @@ requires some <<pki-realm-for-proxied-clients,additional configuration>>. On
 authentication and to submit the client certificates to {es} for further
 validation by a PKI realm.
 
-For more general information, see {stack-ov}/pki-realm.html[PKI user authentication].
+For more general information, see <<pki-realm>>.
 
 [float]
 [role="xpack"]
@@ -209,11 +209,9 @@ certificate as the means of authentication) and inspect the metadata field in
 the result. The user's distinguished name will be populated under the `pki_dn`
 key. You can also use the authenticate API to validate your role mapping.
 
-For more information, see 
-{stack-ov}/mapping-roles.html[Mapping Users and Groups to Roles].
+For more information, see <<mapping-roles>>.
 
-NOTE: The PKI realm supports
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+NOTE: The PKI realm supports <<authorization_realms,authorization realms>> as an
 alternative to role mapping.
 
 --
@@ -254,9 +252,8 @@ PKI certificate authentication].
 A PKI realm with `delegation.enabled` still works unchanged for clients
 connecting directly to {es}. Directly authenticated users, and users that are PKI
 authenticated by delegation to {kib} both follow the same
-{stack-ov}/mapping-roles.html[role mapping rules] or
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms
-configurations].
+<<mapping-roles,role mapping rules>> or
+<<authorization_realms,authorization realms configurations>>.
 
 However, if you use the <<security-role-mapping-apis,role mapping APIs>>,
 you can distinguish between users that are authenticated by delegation and

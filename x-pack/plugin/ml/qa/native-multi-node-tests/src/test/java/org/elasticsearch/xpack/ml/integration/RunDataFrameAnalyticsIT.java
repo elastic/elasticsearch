@@ -72,7 +72,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_few_docs";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null, new OutlierDetection());
+        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
+            new OutlierDetection.Builder().build());
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -147,7 +148,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml", new OutlierDetection());
+        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
+            new OutlierDetection.Builder().build());
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -216,7 +218,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_more_fields_than_docvalue_limit";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null, new OutlierDetection());
+        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
+            new OutlierDetection.Builder().build());
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -279,7 +282,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_stop_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml", new OutlierDetection());
+        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
+            new OutlierDetection.Builder().build());
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -347,7 +351,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setId(id)
             .setSource(new DataFrameAnalyticsSource(sourceIndex, null))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
         registerAnalytics(config);
         putAnalytics(config);
@@ -405,7 +409,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_pre_existing_dest_index";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, destIndex, null, new OutlierDetection());
+        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, destIndex, null, new OutlierDetection.Builder().build());
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -461,7 +465,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null))
             .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .setModelMemoryLimit(modelMemoryLimit)
             .build();
 
@@ -503,7 +507,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_stop_and_restart";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml", new OutlierDetection());
+        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
+            new OutlierDetection.Builder().build());
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -544,5 +549,93 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgress(id, 100, 100, 100, 100);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+    }
+
+    public void testOutlierDetectionWithCustomParams() throws Exception {
+        String sourceIndex = "test-outlier-detection-with-custom-params";
+
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (int i = 0; i < 5; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+
+            // We insert one odd value out of 5 for one feature
+            String docId = i == 0 ? "outlier" : "normal" + i;
+            indexRequest.id(docId);
+            indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1.0, "categorical_1", "foo_" + i);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_outlier_detection_with_custom_params";
+        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
+            new OutlierDetection.Builder()
+                .setNNeighbors(3)
+                .setMethod(OutlierDetection.Method.DISTANCE_KNN)
+                .setFeatureInfluenceThreshold(0.01)
+                .setComputeFeatureInfluence(false)
+                .setOutlierFraction(0.04)
+                .setStandardizationEnabled(true)
+                .build());
+        registerAnalytics(config);
+        putAnalytics(config);
+
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
+
+        startAnalytics(id);
+        waitUntilAnalyticsIsStopped(id);
+
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
+        double scoreOfOutlier = 0.0;
+        double scoreOfNonOutlier = -1.0;
+        for (SearchHit hit : sourceData.getHits()) {
+            GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
+            assertThat(destDocGetResponse.isExists(), is(true));
+            Map<String, Object> sourceDoc = hit.getSourceAsMap();
+            Map<String, Object> destDoc = destDocGetResponse.getSource();
+            for (String field : sourceDoc.keySet()) {
+                assertThat(destDoc.containsKey(field), is(true));
+                assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
+            }
+            assertThat(destDoc.containsKey("ml"), is(true));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+
+            assertThat(resultsObject.containsKey("outlier_score"), is(true));
+            assertThat(resultsObject.containsKey("feature_influence"), is(false));
+
+            double outlierScore = (double) resultsObject.get("outlier_score");
+            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+            if (hit.getId().equals("outlier")) {
+                scoreOfOutlier = outlierScore;
+            } else {
+                if (scoreOfNonOutlier < 0) {
+                    scoreOfNonOutlier = outlierScore;
+                } else {
+                    assertThat(outlierScore, equalTo(scoreOfNonOutlier));
+                }
+            }
+        }
+        assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-outlier-detection-with-custom-params-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-custom-params-results]",
+            "Finished analysis");
     }
 }

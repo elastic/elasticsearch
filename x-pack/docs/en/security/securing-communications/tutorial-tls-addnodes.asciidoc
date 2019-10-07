@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="trial"]
+[testenv="gold+"]
 [[encrypting-communications-hosts]]
 === Add nodes to your cluster
 

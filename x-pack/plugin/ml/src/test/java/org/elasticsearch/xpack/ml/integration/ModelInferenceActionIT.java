@@ -134,7 +134,6 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         // Get top classes
         request = new InferModelAction.Request(modelId2, 0, toInfer, new InferenceParams(2));
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getResultsType(), equalTo(ClassificationInferenceResults.RESULT_TYPE));
 
         ClassificationInferenceResults classificationInferenceResults =
             (ClassificationInferenceResults)response.getInferenceResults().get(0);
@@ -154,7 +153,6 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         // Test that top classes restrict the number returned
         request = new InferModelAction.Request(modelId2, 0, toInfer2, new InferenceParams(1));
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getResultsType(), equalTo(ClassificationInferenceResults.RESULT_TYPE));
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
         assertThat(classificationInferenceResults.getTopClasses(), hasSize(1));

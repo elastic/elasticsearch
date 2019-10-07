@@ -52,7 +52,7 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
 
                 typedChainTaskExecutor.execute(ActionListener.wrap(
                     inferenceResultsInterfaces ->
-                        listener.onResponse(new InferModelAction.Response(inferenceResultsInterfaces, model.getResultsType())),
+                        listener.onResponse(new InferModelAction.Response(inferenceResultsInterfaces)),
                     listener::onFailure
                 ));
             },

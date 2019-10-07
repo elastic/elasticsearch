@@ -12,9 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -118,40 +116,24 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
     public static class Response extends ActionResponse {
 
         private final List<InferenceResults> inferenceResults;
-        private final String resultsType;
 
-        public Response(List<InferenceResults> inferenceResponse, String resultsType) {
+        public Response(List<InferenceResults> inferenceResults) {
             super();
-            this.resultsType = ExceptionsHelper.requireNonNull(resultsType, "resultsType");
-            this.inferenceResults = inferenceResponse == null ?
-                Collections.emptyList() :
-                Collections.unmodifiableList(inferenceResponse);
+            this.inferenceResults = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(inferenceResults, "inferenceResults"));
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.resultsType = in.readString();
-            if(resultsType.equals(ClassificationInferenceResults.RESULT_TYPE)) {
-                this.inferenceResults = Collections.unmodifiableList(in.readList(ClassificationInferenceResults::new));
-            } else if (this.resultsType.equals(RegressionInferenceResults.RESULT_TYPE)) {
-                this.inferenceResults = Collections.unmodifiableList(in.readList(RegressionInferenceResults::new));
-            } else {
-                throw new IOException("Unrecognized result type [" + resultsType + "]");
-            }
+            this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableList(InferenceResults.class));
         }
 
         public List<InferenceResults> getInferenceResults() {
             return inferenceResults;
         }
 
-        public String getResultsType() {
-            return resultsType;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(resultsType);
-            out.writeCollection(inferenceResults);
+            out.writeNamedWriteableList(inferenceResults);
         }
 
         @Override
@@ -159,12 +141,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             InferModelAction.Response that = (InferModelAction.Response) o;
-            return Objects.equals(resultsType, that.resultsType) && Objects.equals(inferenceResults, that.inferenceResults);
+            return Objects.equals(inferenceResults, that.inferenceResults);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(resultsType, inferenceResults);
+            return Objects.hash(inferenceResults);
         }
 
     }

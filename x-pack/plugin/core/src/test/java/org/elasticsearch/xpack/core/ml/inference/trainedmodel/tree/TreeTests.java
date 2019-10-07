@@ -135,7 +135,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         assertThat(0.2, closeTo(tree.infer(featureMap), 0.00001));
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2) {{
+        featureMap = new HashMap<String, Object>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};
@@ -173,7 +173,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         assertEquals(Arrays.asList(1.0, 0.0), tree.classificationProbability(featureMap));
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2) {{
+        featureMap = new HashMap<String, Object>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};

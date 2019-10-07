@@ -263,7 +263,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         }
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2) {{
+        featureMap = new HashMap<String, Object>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};
@@ -330,7 +330,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         featureMap = zipObjMap(featureNames, featureVector);
         assertEquals(1.0, ensemble.infer(featureMap), 0.00001);
 
-        featureMap = new HashMap<>(2) {{
+        featureMap = new HashMap<String, Object>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};
@@ -394,7 +394,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         featureMap = zipObjMap(featureNames, featureVector);
         assertEquals(1.0, ensemble.infer(featureMap), 0.00001);
 
-        featureMap = new HashMap<>(2) {{
+        featureMap = new HashMap<String, Object>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};

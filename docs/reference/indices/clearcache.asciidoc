@@ -125,7 +125,7 @@ POST /twitter/_cache/clear?fields=foo,bar   <1>
 
 
 [[clear-cache-api-multi-ex]]
-===== Clear all caches for several indices
+===== Clear caches for several indices
 
 [source,console]
 ----
@@ -135,7 +135,7 @@ POST /kimchy,elasticsearch/_cache/clear
 
 
 [[clear-cache-api-all-ex]]
-===== Clear all caches for all indices
+===== Clear caches for all indices
 
 [source,console]
 ----

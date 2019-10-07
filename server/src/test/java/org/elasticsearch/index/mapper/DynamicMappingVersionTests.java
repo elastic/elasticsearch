@@ -42,7 +42,7 @@ public class DynamicMappingVersionTests extends ESSingleNodeTestCase {
     public void testDynamicMappingDefault() throws IOException {
         MapperService mapperService = createIndex("my-index").mapperService();
         DocumentMapper documentMapper = mapperService
-            .documentMapperWithAutoCreate("my-type").getDocumentMapper();
+            .documentMapperWithAutoCreate("my-type");
 
         ParsedDocument parsedDoc = documentMapper.parse(
             new SourceToParse("my-index", "my-type", "1", BytesReference

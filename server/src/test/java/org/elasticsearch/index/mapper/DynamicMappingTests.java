@@ -448,7 +448,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         // Even if the dynamic type of our new field is long, we already have a mapping for the same field
         // of type string so it should be mapped as a string
-        DocumentMapper newMapper = indexService.mapperService().documentMapperWithAutoCreate("type2").getDocumentMapper();
+        DocumentMapper newMapper = indexService.mapperService().documentMapperWithAutoCreate("type2");
         Mapper update = parse(newMapper, indexService.mapperService().documentMapperParser(),
                 XContentFactory.jsonBuilder().startObject()
                     .field("my_field1", 42)

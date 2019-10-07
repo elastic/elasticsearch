@@ -71,6 +71,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -628,17 +629,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return type;
     }
 
+    public DocumentMapper documentMapperWithAutoCreate(String type) {
+        return documentMapperWithAutoCreate(type, m -> {});
+    }
+
     /**
-     * Returns the document mapper created, including a mapping update if the
-     * type has been dynamically created.
+     * If the document mapper is already set, returns it.  If not, then creates
+     * one, and calls the updateConsumer with a mapping update before
+     * returning the new mapper.
      */
-    public DocumentMapperForType documentMapperWithAutoCreate(String type) {
+    public DocumentMapper documentMapperWithAutoCreate(String type, Consumer<Mapping> updateConsumer) {
         DocumentMapper mapper = documentMapper(type);
         if (mapper != null) {
-            return new DocumentMapperForType(mapper, null);
+            return mapper;
         }
         mapper = parse(type, null);
-        return new DocumentMapperForType(mapper, mapper.mapping());
+        updateConsumer.accept(mapper.mapping());
+        return mapper;
     }
 
     /**

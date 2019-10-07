@@ -6,7 +6,7 @@
 
 package org.elasticsearch.repositories.encrypted;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -26,17 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
-
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.IllegalBlockSizeException;
@@ -47,6 +36,16 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
@@ -63,7 +62,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     // given the mode, the IV and the tag length, the maximum "chunk" size is ~64GB, we set it to 32GB to err on the safe side
     public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.GB);
 
-    private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
+    private static final BouncyCastleFipsProvider BC_PROV = new BouncyCastleFipsProvider();
 
     private final BlobStoreRepository delegatedRepository;
     private final SecretKey masterSecretKey;

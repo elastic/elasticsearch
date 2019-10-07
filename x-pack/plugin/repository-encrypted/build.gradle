@@ -3,13 +3,14 @@ evaluationDependsOn(xpackModule('core'))
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'repository-encrypted'
-    description 'Elasticsearch Expanded Pack Plugin - client-side AES-GCM encrypted repositories.'
+    description 'Elasticsearch Expanded Pack Plugin - client-side encrypted repositories.'
     classname 'org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin'
     extendedPlugins = ['x-pack-core']
 }
 
 dependencies {
-  compile 'org.bouncycastle:bcprov-jdk15on:1.62'
+  compile "org.bouncycastle:bc-fips:1.0.1"
+  compile "org.bouncycastle:bcpkix-fips:1.0.3"
 }
 
 integTest.enabled = false

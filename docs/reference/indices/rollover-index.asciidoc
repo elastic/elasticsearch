@@ -58,8 +58,8 @@ In this case,
 the rollover request:
 
 . Creates a new index
-. Sets `is_write_index` to `true` for the new index.
-. Sets `is_write_index` to `false` for the original index.
+. Sets `is_write_index` to `true` for the new index
+. Sets `is_write_index` to `false` for the original index
 
 
 [[rollover-wait-active-shards]]

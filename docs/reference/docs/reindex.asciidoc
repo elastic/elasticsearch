@@ -125,7 +125,6 @@ for index in i1 i2 i3 i4 i5; do
   }'
 done
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 [[docs-reindex-throttle]]
 ===== Throttling
@@ -229,7 +228,7 @@ POST new_twitter/_search?size=0&filter_path=hits.total
 
 which results in a sensible `total` like this one:
 
-[source,console-result]
+[source,js]
 ----------------------------------------------------------------
 {
   "hits": {
@@ -240,6 +239,7 @@ which results in a sensible `total` like this one:
   }
 }
 ----------------------------------------------------------------
+// TESTRESPONSE
 
 [[docs-reindex-automatic-slice]]
 ====== Automatic slicing
@@ -271,7 +271,7 @@ POST new_twitter/_search?size=0&filter_path=hits.total
 
 which results in a sensible `total` like this one:
 
-[source,console-result]
+[source,js]
 ----------------------------------------------------------------
 {
   "hits": {
@@ -282,6 +282,7 @@ which results in a sensible `total` like this one:
   }
 }
 ----------------------------------------------------------------
+// TESTRESPONSE
 
 Setting `slices` to `auto` will let Elasticsearch choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If

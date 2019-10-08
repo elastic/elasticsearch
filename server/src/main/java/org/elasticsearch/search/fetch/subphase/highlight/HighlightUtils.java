@@ -23,8 +23,8 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -48,10 +48,10 @@ public final class HighlightUtils {
      */
     public static List<Object> loadFieldValues(SearchContextHighlight.Field field,
                                                MappedFieldType fieldType,
-                                               SearchContext searchContext,
-                                               FetchSubPhase.HitContext hitContext) throws IOException {
+                                               QueryShardContext context,
+                                               FetchSubPhase.HitContext hitContext,
+                                               boolean forceSource) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
-        boolean forceSource = searchContext.highlight().forceSource(field);
         List<Object> textsToHighlight;
         if (!forceSource && fieldType.stored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
@@ -62,7 +62,7 @@ public final class HighlightUtils {
                 textsToHighlight = Collections.emptyList();
             }
         } else {
-            SourceLookup sourceLookup = searchContext.lookup().source();
+            SourceLookup sourceLookup = context.lookup().source();
             sourceLookup.setSegmentAndDocument(hitContext.readerContext(), hitContext.docId());
             textsToHighlight = sourceLookup.extractRawValues(fieldType.name());
         }

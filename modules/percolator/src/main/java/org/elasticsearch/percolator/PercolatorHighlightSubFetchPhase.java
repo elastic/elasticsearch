@@ -102,7 +102,8 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                         // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
                         highlight.globalForceSource(true);
                         QueryShardContext shardContext = new QueryShardContext(context.getQueryShardContext());
-                        shardContext.lookup().source().setSegmentAndDocument(percolatorLeafReaderContext, segmentDocId);
+                        shardContext.freezeContext();
+                        shardContext.lookup().source().setSegmentAndDocument(percolatorLeafReaderContext, slot);
                         shardContext.lookup().source().setSource(document);
                         hitContext.reset(
                             new SearchHit(slot, "unknown", Collections.emptyMap()),

@@ -44,6 +44,9 @@ public class HighlightPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.highlight() == null) {
+            return;
+        }
         hitExecute(context.shardTarget(), context.getQueryShardContext(), context.parsedQuery().query(), context.highlight(), hitContext);
     }
 
@@ -52,9 +55,6 @@ public class HighlightPhase implements FetchSubPhase {
                            Query query,
                            SearchContextHighlight highlight,
                            HitContext hitContext) {
-        if (highlight == null) {
-            return;
-        }
         Map<String, HighlightField> highlightFields = new HashMap<>();
         for (SearchContextHighlight.Field field : highlight.fields()) {
             Collection<String> fieldNamesToHighlight;
@@ -125,6 +125,5 @@ public class HighlightPhase implements FetchSubPhase {
             }
         }
         hitContext.hit().highlightFields(highlightFields);
-
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -158,13 +157,13 @@ public class IndexingIT extends AbstractRollingTestCase {
                     }
                 }
 
-                if (minNodeVersion.before(Version.V_8_0_0)) {
+                if (minNodeVersion.before(Version.V_7_5_0)) {
                     ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                     assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
                     assertThat(e.getMessage(),
-                        // if request goes to 8.0+ node
+                        // if request goes to 7.5+ node
                         either(containsString("optype create not supported for indexing requests without explicit id until"))
-                            // if request goes to 7.x node
+                            // if request goes to < 7.5 node
                             .or(containsString("an id must be provided if version type or value are set")
                             ));
                 } else {
@@ -182,12 +181,11 @@ public class IndexingIT extends AbstractRollingTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"_doc\"}}\n");
+            b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         bulk.setJsonEntity(b.toString());
         client().performRequest(bulk);
     }

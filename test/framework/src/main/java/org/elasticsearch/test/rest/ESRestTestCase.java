@@ -707,7 +707,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
             policies = entityAsMap(response);
         } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode() ||
+                RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
                 // If bad request returned, SLM is not enabled.
                 return;
             }

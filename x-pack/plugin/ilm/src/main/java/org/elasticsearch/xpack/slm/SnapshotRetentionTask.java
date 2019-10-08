@@ -90,8 +90,12 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID + " but it was " + event.getJobName();
 
         final ClusterState state = clusterService.state();
-        if (SnapshotLifecycleService.ilmStoppedOrStopping(state)) {
-            logger.debug("skipping SLM retention as ILM is currently stopped or stopping");
+
+        // Skip running retention if SLM is disabled, however, even if it's
+        // disabled we allow manual running.
+        if (SnapshotLifecycleService.slmStoppedOrStopping(state) &&
+            event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID) == false) {
+            logger.debug("skipping SLM retention as SLM is currently stopped or stopping");
             return;
         }
 

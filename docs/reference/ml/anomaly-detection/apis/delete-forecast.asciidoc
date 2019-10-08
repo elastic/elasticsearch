@@ -25,7 +25,7 @@ retention period with the `expires_in` parameter in the <<ml-forecast,forecast j
 
 NOTE: When you delete a job its associated forecasts are deleted. 
 
-For more information, see {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the Future].
+For more information, see {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the future].
 
 [[ml-delete-forecast-path-parms]]
 ==== {api-path-parms-title}
@@ -56,7 +56,7 @@ For more information, see {stack-ov}/ml-overview.html#ml-forecasting[Forecasting
 ==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 
 [[ml-delete-forecast-example]]

@@ -52,7 +52,7 @@ forecast. For more information about this property, see <<ml-job-resource>>.
 ==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 [[ml-forecast-example]]
 ==== {api-examples-title}

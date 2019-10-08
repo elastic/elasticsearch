@@ -34,7 +34,7 @@ events and delete the calendar, see the
 ==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security privileges].
+For more information, see <<security-privileges>>.
 
 [[ml-delete-calendar-event-example]]
 ==== {api-examples-title}

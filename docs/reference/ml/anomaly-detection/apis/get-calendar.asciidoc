@@ -20,7 +20,7 @@ Retrieves configuration information for calendars.
 
 * You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-get-calendar-desc]]
 ==== {api-description-title}

@@ -15,7 +15,7 @@ Removes roles in the native realm.
 ==== Description
 
 The role management APIs are generally the preferred way to manage roles, rather than using
-{stack-ov}/defining-roles.html#roles-management-file[file-based role management]. The delete roles API cannot remove roles that are defined in roles files.
+<<roles-management-file,file-based role management>>. The delete roles API cannot remove roles that are defined in roles files.
 
 ==== Path Parameters
 

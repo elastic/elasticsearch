@@ -25,8 +25,8 @@ associated with any job are also deleted.
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{stack-ov}/security-privileges.html[Security Privileges] and
-{stack-ov}/built-in-roles.html[Built-in Roles].
+<<security-privileges>> and
+<<built-in-roles>>.
 
 [[ml-delete-expired-data-example]]
 ==== {api-examples-title}

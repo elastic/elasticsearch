@@ -23,9 +23,7 @@ You also need `read` and `view_index_metadata` index privileges on the source
 index and `read`, `create_index`, and `index` privileges on the destination
 index. 
 
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 --
 
 . Choose your _source index_.

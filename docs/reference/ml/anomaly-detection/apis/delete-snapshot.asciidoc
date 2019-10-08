@@ -33,7 +33,7 @@ the `model_snapshot_id` in the results from the get jobs API.
 ==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 [[ml-delete-snapshot-example]]
 ==== {api-examples-title}

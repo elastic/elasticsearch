@@ -21,8 +21,8 @@ Returns defaults and limits used by machine learning.
 * You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API.  The `machine_learning_admin` and `machine_learning_user`
 roles provide these privileges. For more information, see
-{stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+<<security-privileges>> and
+<<built-in-roles>>.
 
 [[get-ml-info-desc]]
 ==== {api-description-title}

@@ -52,7 +52,7 @@ If you want to resend data, then delete the intervening results.
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-revert-snapshot-example]]
 ==== {api-examples-title}

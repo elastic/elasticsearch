@@ -21,7 +21,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public final class ShardGenerations implements ToXContent {
+public final class ShardGenerations implements ToXContentFragment {
 
     public static final ShardGenerations EMPTY = ShardGenerations.builder().build();
 
@@ -100,11 +100,9 @@ public final class ShardGenerations implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(RepositoryData.SHARDS);
         for (Map.Entry<IndexId, List<String>> entry : shardGenerations.entrySet()) {
             builder.array(entry.getKey().getId(), entry.getValue().toArray(Strings.EMPTY_ARRAY));
         }
-        builder.endObject();
         return builder;
     }
 
@@ -123,6 +121,11 @@ public final class ShardGenerations implements ToXContent {
     @Override
     public int hashCode() {
         return Objects.hash(shardGenerations);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static Builder builder() {

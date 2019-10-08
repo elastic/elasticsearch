@@ -93,6 +93,8 @@ buildRestTests.docs = fileTree(projectDir) {
 
 listSnippets.docs = buildRestTests.docs
 
+listConsoleCandidates.docs = buildRestTests.docs
+
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:

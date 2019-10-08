@@ -38,7 +38,7 @@ public class ReaperPlugin implements Plugin<Project> {
         Path inputDir = project.getRootDir().toPath().resolve(".gradle")
             .resolve("reaper").resolve("build-" + ProcessHandle.current().pid());
         ReaperService service = project.getExtensions().create("reaper", ReaperService.class,
-            project.getLogger(), project.getBuildDir().toPath(), inputDir);
+            project, project.getBuildDir().toPath(), inputDir);
 
         project.getGradle().buildFinished(result -> service.shutdown());
     }

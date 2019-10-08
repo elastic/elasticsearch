@@ -96,6 +96,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
             ext.set("isCi", System.getenv("JENKINS_URL") != null);
+            ext.set("isInternal", GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
         });
     }
 

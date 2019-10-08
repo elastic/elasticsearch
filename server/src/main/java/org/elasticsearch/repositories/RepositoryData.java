@@ -179,7 +179,7 @@ public final class RepositoryData {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
         return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots,
-            ShardGenerations.builder().add(this.shardGenerations).add(shardGenerations).build());
+            ShardGenerations.builder().addAll(this.shardGenerations).addAll(shardGenerations).build());
     }
 
     /**
@@ -232,7 +232,8 @@ public final class RepositoryData {
         }
 
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots,
-            ShardGenerations.builder().add(shardGenerations).add(updatedShardGenerations).filterByIndices(indexSnapshots.keySet()).build()
+            ShardGenerations.builder().addAll(shardGenerations).addAll(updatedShardGenerations)
+                .retainIndices(indexSnapshots.keySet()).build()
         );
     }
 
@@ -313,8 +314,7 @@ public final class RepositoryData {
         return snapshotIndices;
     }
 
-    public static final String SHARDS = "shards";
-
+    private static final String SHARD_GENERATIONS = "shard_generations";
     private static final String SNAPSHOTS = "snapshots";
     private static final String INDICES = "indices";
     private static final String INDEX_ID = "id";
@@ -356,7 +356,7 @@ public final class RepositoryData {
         builder.endObject();
 
         if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
-            builder.startObject(RepositoryData.SHARDS);
+            builder.startObject(RepositoryData.SHARD_GENERATIONS);
             shardGenerations.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
         } else {
@@ -468,7 +468,7 @@ public final class RepositoryData {
                         assert indexId != null;
                         indexSnapshots.put(indexId, snapshotIds);
                     }
-                } else if (SHARDS.equals(field)) {
+                } else if (SHARD_GENERATIONS.equals(field)) {
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                             final String indexId = parser.currentName();

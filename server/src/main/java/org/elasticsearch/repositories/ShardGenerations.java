@@ -136,12 +136,12 @@ public final class ShardGenerations implements ToXContentFragment {
 
         private final Map<IndexId, Map<Integer, String>> raw = new HashMap<>();
 
-        public Builder filterByIndices(Set<IndexId> indices) {
+        public Builder retainIndices(Set<IndexId> indices) {
             raw.keySet().retainAll(indices);
             return this;
         }
 
-        public Builder add(ShardGenerations shardGenerations) {
+        public Builder addAll(ShardGenerations shardGenerations) {
             shardGenerations.shardGenerations.forEach((indexId, gens) -> {
                 for (int i = 0; i < gens.size(); i++) {
                     final String gen = gens.get(i);

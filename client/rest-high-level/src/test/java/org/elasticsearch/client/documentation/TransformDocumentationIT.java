@@ -42,16 +42,16 @@ import org.elasticsearch.client.transform.StopTransformRequest;
 import org.elasticsearch.client.transform.StopTransformResponse;
 import org.elasticsearch.client.transform.UpdateTransformRequest;
 import org.elasticsearch.client.transform.UpdateTransformResponse;
-import org.elasticsearch.client.transform.transforms.TransformIndexerStats;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
-import org.elasticsearch.client.transform.transforms.TransformProgress;
-import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.NodeAttributes;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.client.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.client.transform.transforms.TransformProgress;
+import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
@@ -219,7 +219,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testUpdateDataFrameTransform() throws IOException, InterruptedException {
+    public void testUpdateTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
         RestHighLevelClient client = highLevelClient();

@@ -69,6 +69,7 @@ PUT /twitter/_settings
 
 `cluster.routing.allocation.disk.include_relocations`::
 
+    deprecated[7.5, Future versions will always account for relocations.]
     Defaults to +true+, which means that Elasticsearch will take into account
     shards that are currently being relocated to the target node when computing
     a node's disk usage. Taking relocating shards' sizes into account may,

@@ -119,7 +119,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
 
                         @Override
                         public void onFailure(Exception e) {
-                            if (e instanceof ResourceNotFoundException) {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 // the task has been removed in between
                                 listener.onResponse(true);
                             } else {

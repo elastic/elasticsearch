@@ -1,13 +1,11 @@
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
-import java.util.function.Predicate;
 
 public class SetOnceTests extends ESTestCase {
 

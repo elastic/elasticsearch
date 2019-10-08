@@ -2454,9 +2454,9 @@ SELECT DATE_ADD('seconds', -1234, '2019-09-04T11:22:33.000Z'::datetime) AS "-123
 
 dateAddDateQuarters
 // tag::dateAddDateQuarters
-SELECT DATE_ADD('qq', -412, '2019-09-04'::date) AS "-412 quarters";
+SELECT DATE_ADD('qq', -417, '2019-09-04'::date) AS "-417 quarters";
 
-      -412 quarters
+      -417 quarters
 ------------------------
 1915-06-04T00:00:00.000Z
 // end::dateAddDateQuarters

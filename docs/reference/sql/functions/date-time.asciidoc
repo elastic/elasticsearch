@@ -302,18 +302,22 @@ s|abbreviations
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateTimeYears]
 --------------------------------------------------
 
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateTimeWeeks]
 --------------------------------------------------
 
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateTimeSeconds]
 --------------------------------------------------
 
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateQuarters]
 --------------------------------------------------
 
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateMinutes]
 --------------------------------------------------

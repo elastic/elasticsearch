@@ -115,8 +115,8 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceParams params) {
-        if ((targetType != TargetType.CLASSIFICATION || outputAggregator instanceof WeightedMode == false) &&
-            params.getNumTopClasses() != 0) {
+        if (params.getNumTopClasses() != 0 &&
+            (targetType != TargetType.CLASSIFICATION || outputAggregator.providesProbabilities() == false)) {
             throw ExceptionsHelper.badRequestException(
                 "Cannot return top classes for target_type [{}] and aggregate_output [{}]",
                 targetType,

@@ -44,4 +44,6 @@ public interface OutputAggregator extends NamedXContentObject, NamedWriteable {
      * @return The name of the output aggregator
      */
     String getName();
+
+    boolean providesProbabilities();
 }

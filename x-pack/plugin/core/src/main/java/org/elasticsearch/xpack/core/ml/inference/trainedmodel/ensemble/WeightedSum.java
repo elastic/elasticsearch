@@ -135,4 +135,9 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
     public Integer expectedValueSize() {
         return weights == null ? null : this.weights.size();
     }
+
+    @Override
+    public boolean providesProbabilities() {
+        return false;
+    }
 }

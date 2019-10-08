@@ -45,7 +45,6 @@ public final class InferenceHelpers {
                     classificationLabels);
         }
 
-
         int count = numToInclude < 0 ? probabilities.size() : numToInclude;
         List<ClassificationInferenceResults.TopClassEntry> topClassEntries = new ArrayList<>(count);
         for(int i = 0; i < count; i++) {

@@ -113,7 +113,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             openConnectionStep.whenComplete(connection -> {
                 ConnectionProfile connectionProfile = connectionManager.getConnectionManager().getConnectionProfile();
                 transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
-                    getRemoteClusterNamePredicate(remoteClusterName.get()), handshakeStep);
+                    getRemoteClusterNamePredicate(), handshakeStep);
             }, onFailure);
 
             final StepListener<Void> fullConnectionStep = new StepListener<>();
@@ -244,6 +244,21 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         public String executor() {
             return ThreadPool.Names.MANAGEMENT;
         }
+    }
+
+    private Predicate<ClusterName> getRemoteClusterNamePredicate() {
+        return new Predicate<>() {
+            @Override
+            public boolean test(ClusterName c) {
+                return remoteClusterName.get() == null || c.equals(remoteClusterName.get());
+            }
+
+            @Override
+            public String toString() {
+                return remoteClusterName.get() == null ? "any cluster name"
+                    : "expected remote cluster name [" + remoteClusterName.get().value() + "]";
+            }
+        };
     }
 
     private static DiscoveryNode maybeAddProxyAddress(String proxyAddress, DiscoveryNode node) {

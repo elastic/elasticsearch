@@ -47,6 +47,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     private final List<Supplier<TransportAddress>> addresses;
     private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
     private final ConnectionProfile profile;
+    private final ConnectionManager.ConnectionValidator clusterNameValidator;
 
     SimpleConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                              int maxNumRemoteConnections, List<Supplier<TransportAddress>> addresses) {
@@ -59,6 +60,20 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
             .addConnections(1, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING)
             .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY)
             .build();
+        this.clusterNameValidator = (newConnection, actualProfile, listener) ->
+            transportService.handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true,
+                ActionListener.map(listener, resp -> {
+                    ClusterName remote = resp.getClusterName();
+                    if (remoteClusterName.compareAndSet(null, remote)) {
+                        return null;
+                    } else {
+                        if (remoteClusterName.get().equals(remote) == false) {
+                            DiscoveryNode node = newConnection.getNode();
+                            throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+                        }
+                        return null;
+                    }
+                }));
     }
 
     @Override
@@ -73,7 +88,6 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
     private void performSimpleConnectionProcess(Iterator<Supplier<TransportAddress>> addressIter, ActionListener<Void> listener) {
         openConnections(listener, 1);
-
     }
 
     private void openConnections(ActionListener<Void> finished, int attemptNumber) {
@@ -111,9 +125,8 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                 TransportAddress address = nextAddress(resolved);
                 String id = clusterAlias + "#" + address;
                 DiscoveryNode node = new DiscoveryNode(id, address, Version.CURRENT.minimumCompatibilityVersion());
-
-                ConnectionManager.ConnectionValidator validator = clusterNameValidator(node);
-                connectionManager.connectToNode(node, profile, validator, new ActionListener<>() {
+                
+                connectionManager.connectToNode(node, profile, clusterNameValidator, new ActionListener<>() {
                     @Override
                     public void onResponse(Void v) {
                         compositeListener.onResponse(v);
@@ -121,7 +134,8 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug(() -> new ParameterizedMessage("failed to open remote connection to address {}", address), e);
+                        logger.debug(new ParameterizedMessage("failed to open remote connection [remote cluster: {}, address: {}]",
+                            clusterAlias, address), e);
                         compositeListener.onFailure(e);
                     }
                 });
@@ -129,10 +143,11 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
         } else {
             int openConnections = connectionManager.size();
             if (openConnections == 0) {
-                finished.onFailure(new IllegalStateException("Unable to open any simple connections to remote cluster"));
+                finished.onFailure(new IllegalStateException("Unable to open any simple connections to remote cluster [" + clusterAlias
+                    + "]"));
             } else {
-                logger.trace("unable to open maximum number of connections [opened: {}, maximum: {}]", openConnections,
-                    maxNumRemoteConnections);
+                logger.debug("unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]", clusterAlias,
+                    openConnections, maxNumRemoteConnections);
                 finished.onResponse(null);
             }
         }
@@ -142,21 +157,5 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
         long curr;
         while ((curr = counter.getAndIncrement()) == Long.MIN_VALUE) ;
         return resolvedAddresses.get(Math.floorMod(curr, resolvedAddresses.size()));
-    }
-
-    private ConnectionManager.ConnectionValidator clusterNameValidator(DiscoveryNode node) {
-        return (newConnection, actualProfile, listener) ->
-            transportService.handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true,
-                ActionListener.map(listener, resp -> {
-                    ClusterName remote = resp.getClusterName();
-                    if (remoteClusterName.compareAndSet(null, remote)) {
-                        return null;
-                    } else {
-                        if (remoteClusterName.get().equals(remote) == false) {
-                            throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
-                        }
-                        return null;
-                    }
-                }));
     }
 }

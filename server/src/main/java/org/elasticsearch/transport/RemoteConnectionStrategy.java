@@ -25,7 +25,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,7 +36,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
@@ -165,20 +163,5 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             }
         }
         return result;
-    }
-
-    static Predicate<ClusterName> getRemoteClusterNamePredicate(ClusterName remoteClusterName) {
-        return new Predicate<>() {
-            @Override
-            public boolean test(ClusterName c) {
-                return remoteClusterName == null || c.equals(remoteClusterName);
-            }
-
-            @Override
-            public String toString() {
-                return remoteClusterName == null ? "any cluster name"
-                    : "expected remote cluster name [" + remoteClusterName.value() + "]";
-            }
-        };
     }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.client.Client;
@@ -40,7 +39,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
@@ -132,8 +130,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete snap-${uuid}.dat file for this snapshot to simulate concurrent delete");
         IOUtils.rm(repoPath.resolve(BlobStoreRepository.SNAPSHOT_PREFIX + response.getSnapshotInfo().snapshotId().getUUID() + ".dat"));
 
-        GetSnapshotsResponse snapshotsResponse = client().admin().cluster()
-            .getSnapshots(new GetSnapshotsRequest(new String[] {"test-repo"}, new String[] {"test-snap"})).actionGet();
-        assertThat(snapshotsResponse.getFailedResponses().get("test-repo"), instanceOf(SnapshotMissingException.class));
+        expectThrows(SnapshotMissingException.class, () -> client().admin().cluster()
+            .getSnapshots(new GetSnapshotsRequest("test-repo", new String[] {"test-snap"})).actionGet());
     }
 }

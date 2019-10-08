@@ -12,6 +12,7 @@ performance of your {es} cluster.
 * <<how-monitoring-works>>
 * <<collecting-monitoring-data>>
 * <<configuring-metricbeat>>
+* <<monitoring-tribe>>
 * <<config-monitoring-indices>>
 * <<es-monitoring-collectors>>
 * <<es-monitoring-exporters>>

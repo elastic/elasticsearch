@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.test.NodeInfo
-
 import java.nio.charset.StandardCharsets
 
 apply plugin: 'elasticsearch.docs-test'

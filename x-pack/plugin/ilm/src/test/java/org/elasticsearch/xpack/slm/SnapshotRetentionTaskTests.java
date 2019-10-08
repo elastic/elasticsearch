@@ -442,7 +442,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        void getAllSuccessfulSnapshots(Collection<String> repositories,
+        void getAllRetainableSnapshots(Collection<String> repositories,
                                        ActionListener<Map<String, List<SnapshotInfo>>> listener,
                                        Consumer<Exception> errorHandler) {
             listener.onResponse(this.snapshotRetriever.get());

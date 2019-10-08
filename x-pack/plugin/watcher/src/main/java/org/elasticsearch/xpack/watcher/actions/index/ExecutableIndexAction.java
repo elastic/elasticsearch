@@ -201,7 +201,6 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                     .field("failed", item.isFailed())
                     .field("message", item.getFailureMessage())
                     .field("id", item.getId())
-                    .field("type", item.getType())
                     .field("index", item.getIndex())
                     .endObject();
         } else {

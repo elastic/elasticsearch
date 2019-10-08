@@ -60,7 +60,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.gradle.Docker.getDockerAvailability;
+import static org.elasticsearch.gradle.DockerUtils.getDockerAvailability;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
@@ -320,16 +320,15 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        final List<Type> applicableTypes = new ArrayList<>();
-        applicableTypes.add(Type.DEB);
-        applicableTypes.add(Type.RPM);
-
         final String buildDockerProperty = System.getProperty("build.docker");
-        if ((buildDockerProperty == null || "true".equals(buildDockerProperty)) && getDockerAvailability().isAvailable()) {
-            applicableTypes.add(Type.DOCKER);
-        }
+        final boolean shouldAddDocker = (buildDockerProperty == null || "true".equals(buildDockerProperty))
+            && getDockerAvailability().isAvailable();
 
-        for (Type type : applicableTypes) {
+        final List<Type> applicablePackageTypes = shouldAddDocker
+            ? List.of(Type.DEB, Type.RPM, Type.DOCKER)
+            : List.of(Type.DEB, Type.RPM);
+
+        for (Type type : applicablePackageTypes) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     // We should never add a Docker distro with bundledJdk == false
@@ -347,6 +346,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 addDistro(distributions, type, null, Flavor.OSS, true, upgradeVersion.toString(), upgradeDistros);
             }
         }
+
         for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {

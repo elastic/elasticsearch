@@ -3,11 +3,11 @@ package org.elasticsearch.gradle;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.gradle.Docker.checkVersion;
-import static org.elasticsearch.gradle.Docker.extractVersion;
+import static org.elasticsearch.gradle.DockerUtils.checkVersion;
+import static org.elasticsearch.gradle.DockerUtils.extractVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class DockerTests extends GradleUnitTestCase {
+public class DockerUtilsTests extends GradleUnitTestCase {
 
     @Test
     public void testExtractVersion() {

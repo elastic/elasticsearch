@@ -83,9 +83,9 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
-import static org.elasticsearch.gradle.Docker.DOCKER_BINARIES
-import static org.elasticsearch.gradle.Docker.getDockerAvailability
-import static org.elasticsearch.gradle.Docker.getDockerPath
+import static DockerUtils.DOCKER_BINARIES
+import static DockerUtils.getDockerAvailability
+import static DockerUtils.getDockerPath
 import static org.elasticsearch.gradle.tool.Boilerplate.findByName
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
@@ -190,7 +190,7 @@ class BuildPlugin implements Plugin<Project> {
              */
 
             // check if the Docker binary exists and record its path
-            final String dockerBinary = getDockerPath()
+            final String dockerBinary = getDockerPath().orElse(null)
 
             final boolean buildDocker
             final String buildDockerProperty = System.getProperty("build.docker")
@@ -211,7 +211,7 @@ class BuildPlugin implements Plugin<Project> {
                 final List<String> tasks = taskGraph.allTasks.intersect(ext.get('requiresDocker') as List<Task>).collect { "  ${it.path}".toString()}
 
                 if (tasks.isEmpty() == false) {
-                    final Docker.DockerAvailability dockerAvailability = getDockerAvailability()
+                    final DockerUtils.DockerAvailability dockerAvailability = getDockerAvailability()
 
                     if (dockerAvailability.isAvailable() == true) {
                         return

@@ -415,7 +415,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return typesAllowed == null || typesAllowed.contains(scriptType.getName());
     }
 
-    public boolean isContextEnabled(ScriptContext scriptContext) {
+    public boolean isContextEnabled(ScriptContext<?> scriptContext) {
         return contextsAllowed == null || contextsAllowed.contains(scriptContext.name);
     }
 

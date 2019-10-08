@@ -301,10 +301,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return "shardId[" + shardId() + "]";
     }
 
+    @SuppressWarnings("rawtypes")
     public Rewriteable<Rewriteable> getRewriteable() {
         return new RequestRewritable(this);
     }
 
+    @SuppressWarnings("rawtypes")
     static class RequestRewritable implements Rewriteable<Rewriteable> {
 
         final ShardSearchRequest request;

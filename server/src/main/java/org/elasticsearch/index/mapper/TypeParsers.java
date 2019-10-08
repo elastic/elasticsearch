@@ -170,6 +170,7 @@ public class TypeParsers {
     /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
      */
+    @SuppressWarnings("rawtypes")
     public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
                                   Mapper.TypeParser.ParserContext parserContext) {
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
@@ -216,6 +217,7 @@ public class TypeParsers {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext,
                                           String propName, Object propNode) {
         if (propName.equals("fields")) {
@@ -255,7 +257,6 @@ public class TypeParsers {
                 if (!(multiFieldEntry.getValue() instanceof Map)) {
                     throw new MapperParsingException("illegal field [" + multiFieldName + "], only fields can be specified inside fields");
                 }
-                @SuppressWarnings("unchecked")
                 Map<String, Object> multiFieldNodes = (Map<String, Object>) multiFieldEntry.getValue();
 
                 String type;

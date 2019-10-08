@@ -42,6 +42,13 @@ public final class TypeResolutions {
         return isType(e, DataType::isDateBased, operationName, paramOrd, "date", "datetime");
     }
 
+    public static TypeResolution isDateOrInterval(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isDateOrIntervalBased, operationName, paramOrd, "date","datetime",
+            "interval_year","interval_month","interval_day","interval_hour","interval_minute","interval_second",
+            "interval_year_to_month","interval_day_to_hour","interval_day_to_minute","interval_day_to_second","interval_hour_to_minute",
+            "interval_hour_to_second","interval_minute_to_second");
+    }
+
     public static TypeResolution isDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, DataType::isDateOrTimeBased, operationName, paramOrd, "date", "time", "datetime");
     }

@@ -235,10 +235,14 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         return lines;
     }
 
-    double calculateShift(double lon, int direction) {
+    /**
+     * Calculates how many degres the given longitude needs to be moved east in order to be in -180 - +180. +180 is inclusive only
+     * if include180 is true.
+     */
+    double calculateShift(double lon, boolean include180) {
         double normalized = GeoUtils.centeredModulus(lon, 360);
         double shift = Math.round(normalized - lon);
-        if (direction >= 0 && normalized == 180.0) {
+        if (!include180 && normalized == 180.0) {
             shift = shift - 360;
         }
         return shift;
@@ -261,13 +265,13 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         while (i < lons.length) {
             // Check where the line is going east (+1), west (-1) or directly north/south (0)
             int direction = Double.compare(lons[i], lons[i - 1]);
-            double newShift = calculateShift(lons[i - 1], direction);
+            double newShift = calculateShift(lons[i - 1], direction < 0);
             // first point lon + shift is always between -180.0 and +180.0
             if (i - offset > 1 && newShift != shift) {
                 // Jumping over anti-meridian - we need to start a new segment
                 double[] partLons = Arrays.copyOfRange(lons, offset, i);
                 double[] partLats = Arrays.copyOfRange(lats, offset, i);
-                shift(shift, partLons);
+                performShift(shift, partLons);
                 shift = newShift;
                 offset = i - 1;
                 parts.add(new Line(partLons, partLats));
@@ -281,7 +285,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                     double[] partLats = Arrays.copyOfRange(lats, offset, i + 1);
                     lons[i - 1] = partLons[partLons.length - 1] = (direction > 0 ? DATELINE : -DATELINE) - shift;
                     lats[i - 1] = partLats[partLats.length - 1] = lats[i - 1] + (lats[i] - lats[i - 1]) * t;
-                    shift(shift, partLons);
+                    performShift(shift, partLons);
                     offset = i - 1;
                     parts.add(new Line(partLons, partLats));
                 } else {
@@ -292,12 +296,12 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         }
 
         if (offset == 0) {
-            shift(shift, lons);
+            performShift(shift, lons);
             parts.add(new Line(lons, lats));
         } else if (offset < lons.length - 1) {
             double[] partLons = Arrays.copyOfRange(lons, offset, lons.length);
             double[] partLats = Arrays.copyOfRange(lats, offset, lats.length);
-            shift(shift, partLons);
+            performShift(shift, partLons);
             parts.add(new Line(partLons, partLats));
         }
         return parts;
@@ -322,7 +326,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
     /**
      * shifts all coordinates by shift
      */
-    private static void shift(double shift, double[] lons) {
+    private static void performShift(double shift, double[] lons) {
         if (shift != 0) {
             for (int j = 0; j < lons.length; j++) {
                 lons[j] = lons[j] + shift;

@@ -216,6 +216,10 @@ def ubuntu_docker(config)
 
     # Add vagrant to the Docker group, so that it can run commands
     usermod -aG docker vagrant
+
+    # Enable IPv4 forwarding
+    sed -i '/net.ipv4.ip_forward/s/^#//' /etc/sysctl.conf
+    systemctl restart networking
   SHELL
 end
 

@@ -55,9 +55,6 @@ public class DiskThresholdSettings {
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.flood_stage"),
             new FloodStageValidator(),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true,
-            Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -68,7 +65,6 @@ public class DiskThresholdSettings {
     private volatile Double freeDiskThresholdHigh;
     private volatile ByteSizeValue freeBytesThresholdLow;
     private volatile ByteSizeValue freeBytesThresholdHigh;
-    private volatile boolean includeRelocations;
     private volatile boolean enabled;
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
@@ -90,13 +86,11 @@ public class DiskThresholdSettings {
         setHighWatermark(highWatermark);
         setLowWatermark(lowWatermark);
         setFloodStage(floodStage);
-        this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
     }
@@ -227,10 +221,6 @@ public class DiskThresholdSettings {
         }
     }
 
-    private void setIncludeRelocations(boolean includeRelocations) {
-        this.includeRelocations = includeRelocations;
-    }
-
     private void setRerouteInterval(TimeValue rerouteInterval) {
         this.rerouteInterval = rerouteInterval;
     }
@@ -298,10 +288,6 @@ public class DiskThresholdSettings {
 
     public ByteSizeValue getFreeBytesThresholdFloodStage() {
         return freeBytesThresholdFloodStage;
-    }
-
-    public boolean includeRelocations() {
-        return includeRelocations;
     }
 
     public boolean isEnabled() {

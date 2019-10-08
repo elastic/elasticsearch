@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 
 public class ClassificationInferenceResults extends SingleValueInferenceResults {
 
-    public static final String RESULT_TYPE = "classification";
+    public static final String NAME = "classification";
     public static final ParseField CLASSIFICATION_LABEL = new ParseField("classification_label");
     public static final ParseField TOP_CLASSES = new ParseField("top_classes");
     
@@ -102,12 +102,12 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     @Override
     public String getWriteableName() {
-        return RESULT_TYPE;
+        return NAME;
     }
 
     @Override
     public String getName() {
-        return RESULT_TYPE;
+        return NAME;
     }
 
     public static class TopClassEntry implements ToXContentObject, Writeable {

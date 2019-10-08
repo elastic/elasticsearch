@@ -25,7 +25,7 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
 
     @Override
     protected Response createTestInstance() {
-        String resultType = randomFrom(ClassificationInferenceResults.RESULT_TYPE, RegressionInferenceResults.RESULT_TYPE);
+        String resultType = randomFrom(ClassificationInferenceResults.NAME, RegressionInferenceResults.NAME);
         return new Response(
             Stream.generate(() -> randomInferenceResult(resultType))
             .limit(randomIntBetween(0, 10))
@@ -33,9 +33,9 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
     }
 
     private static InferenceResults randomInferenceResult(String resultType) {
-        if (resultType.equals(ClassificationInferenceResults.RESULT_TYPE)) {
+        if (resultType.equals(ClassificationInferenceResults.NAME)) {
             return ClassificationInferenceResultsTests.createRandomResults();
-        } else if (resultType.equals(RegressionInferenceResults.RESULT_TYPE)) {
+        } else if (resultType.equals(RegressionInferenceResults.NAME)) {
             return RegressionInferenceResultsTests.createRandomResults();
         } else {
             fail("unexpected result type [" + resultType + "]");

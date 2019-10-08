@@ -466,10 +466,10 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(OutputAggregator.class, WeightedMode.NAME.getPreferredName(), WeightedMode::new),
                 // ML - Inference Results
                 new NamedWriteableRegistry.Entry(InferenceResults.class,
-                    ClassificationInferenceResults.RESULT_TYPE,
+                    ClassificationInferenceResults.NAME,
                     ClassificationInferenceResults::new),
                 new NamedWriteableRegistry.Entry(InferenceResults.class,
-                    RegressionInferenceResults.RESULT_TYPE,
+                    RegressionInferenceResults.NAME,
                     RegressionInferenceResults::new),
 
                 // monitoring

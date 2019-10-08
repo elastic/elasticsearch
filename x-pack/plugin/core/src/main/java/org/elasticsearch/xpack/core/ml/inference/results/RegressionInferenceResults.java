@@ -16,7 +16,7 @@ import java.util.Objects;
 
 public class RegressionInferenceResults extends SingleValueInferenceResults {
 
-    public static final String RESULT_TYPE = "regression";
+    public static final String NAME = "regression";
 
     public RegressionInferenceResults(double value) {
         super(value);
@@ -58,11 +58,11 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
 
     @Override
     public String getWriteableName() {
-        return RESULT_TYPE;
+        return NAME;
     }
 
     @Override
     public String getName() {
-        return RESULT_TYPE;
+        return NAME;
     }
 }

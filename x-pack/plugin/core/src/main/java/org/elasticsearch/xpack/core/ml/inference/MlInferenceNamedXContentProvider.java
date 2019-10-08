@@ -105,10 +105,10 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
 
         // Inference Results
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
-            ClassificationInferenceResults.RESULT_TYPE,
+            ClassificationInferenceResults.NAME,
             ClassificationInferenceResults::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
-            RegressionInferenceResults.RESULT_TYPE,
+            RegressionInferenceResults.NAME,
             RegressionInferenceResults::new));
 
         return namedWriteables;

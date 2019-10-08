@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -38,7 +39,9 @@ public class ModelLoadingService implements ClusterStateListener {
     private final TrainedModelProvider provider;
     private final ThreadPool threadPool;
 
-    public ModelLoadingService(TrainedModelProvider trainedModelProvider, ThreadPool threadPool, ClusterService clusterService) {
+    public ModelLoadingService(TrainedModelProvider trainedModelProvider,
+                               ThreadPool threadPool,
+                               ClusterService clusterService) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
         clusterService.addListener(this);
@@ -152,13 +155,13 @@ public class ModelLoadingService implements ClusterStateListener {
             IngestMetadata currentIngestMetadata = state.metaData().custom(IngestMetadata.TYPE);
             Set<String> allReferencedModelKeys = getReferencedModelKeys(currentIngestMetadata);
             // The listeners still waiting for a model and we are canceling the load?
-            Queue<ActionListener<Model>> drainWithFailure = new ArrayDeque<>();
+            List<Tuple<String, List<ActionListener<Model>>>> drainWithFailure = new ArrayList<>();
             synchronized (loadingListeners) {
                 // If we had models still loading here but are no longer referenced
                 // we should remove them from loadingListeners and alert the listeners
-                for(String modelKey : loadingListeners.keySet()) {
+                for (String modelKey : loadingListeners.keySet()) {
                     if (allReferencedModelKeys.contains(modelKey) == false) {
-                        drainWithFailure.addAll(loadingListeners.remove(modelKey));
+                        drainWithFailure.add(Tuple.tuple(splitModelKey(modelKey).v1(), new ArrayList<>(loadingListeners.remove(modelKey))));
                     }
                 }
 
@@ -170,18 +173,22 @@ public class ModelLoadingService implements ClusterStateListener {
 
                 // Remove all that are fully loaded, will attempt empty model loading again
                 loadedModels.forEach((id, optionalModel) -> {
-                    if(optionalModel.isSuccess()) {
+                    if (optionalModel.isSuccess()) {
                         allReferencedModelKeys.remove(id);
                     }
                 });
                 // Populate loadingListeners key so we know that we are currently loading the model
-                for(String modelId : allReferencedModelKeys) {
+                for (String modelId : allReferencedModelKeys) {
                     loadingListeners.put(modelId, new ArrayDeque<>());
                 }
             }
-            for(ActionListener<Model> listener = drainWithFailure.poll(); listener != null; listener = drainWithFailure.poll()) {
-                listener.onFailure(
-                    new ElasticsearchException("Cancelling model load and inference as it is no longer referenced by a pipeline"));
+            for (Tuple<String, List<ActionListener<Model>>> modelAndListeners : drainWithFailure) {
+                final String msg = new ParameterizedMessage(
+                    "Cancelling load of model [{}] as it is no longer referenced by a pipeline",
+                    modelAndListeners.v1()).getFormat();
+                for (ActionListener<Model> listener : modelAndListeners.v2()) {
+                    listener.onFailure(new ElasticsearchException(msg));
+                }
             }
             loadModels(allReferencedModelKeys);
         }
@@ -193,7 +200,7 @@ public class ModelLoadingService implements ClusterStateListener {
         }
         // Execute this on a utility thread as when the callbacks occur we don't want them tying up the cluster listener thread pool
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            for(String modelKey : modelKeys) {
+            for (String modelKey : modelKeys) {
                 Tuple<String, Long> modelIdAndVersion = splitModelKey(modelKey);
                 this.loadModel(modelKey, modelIdAndVersion.v1(), modelIdAndVersion.v2());
             }

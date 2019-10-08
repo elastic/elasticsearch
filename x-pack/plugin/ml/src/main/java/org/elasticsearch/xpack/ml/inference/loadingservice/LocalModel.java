@@ -29,9 +29,9 @@ public class LocalModel implements Model {
     public String getResultsType() {
         switch (trainedModelDefinition.getTrainedModel().targetType()) {
             case CLASSIFICATION:
-                return ClassificationInferenceResults.RESULT_TYPE;
+                return ClassificationInferenceResults.NAME;
             case REGRESSION:
-                return RegressionInferenceResults.RESULT_TYPE;
+                return RegressionInferenceResults.NAME;
             default:
                 throw ExceptionsHelper.badRequestException("Model [{}] has unsupported target type [{}]",
                     modelId,

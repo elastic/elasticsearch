@@ -32,20 +32,21 @@ public final class InferenceHelpers {
             .mapToInt(i -> i)
             .toArray();
 
+        if (classificationLabels != null && probabilities.size() != classificationLabels.size()) {
+            throw ExceptionsHelper
+                .serverError(
+                    "model returned classification probabilities of size [{}] which is not equal to classification labels size [{}]",
+                    null,
+                    probabilities.size(),
+                    classificationLabels);
+        }
+
         List<String> labels = classificationLabels == null ?
             // If we don't have the labels we should return the top classification values anyways, they will just be numeric
             IntStream.range(0, probabilities.size()).boxed().map(String::valueOf).collect(Collectors.toList()) :
             classificationLabels;
 
-        if (probabilities.size() != labels.size()) {
-            throw ExceptionsHelper
-                .badRequestException(
-                    "model returned classification probabilities of size [{}] which is not equal to classification labels size [{}]",
-                    probabilities.size(),
-                    classificationLabels);
-        }
-
-        int count = numToInclude < 0 ? probabilities.size() : numToInclude;
+        int count = numToInclude < 0 ? probabilities.size() : Math.min(numToInclude, probabilities.size());
         List<ClassificationInferenceResults.TopClassEntry> topClassEntries = new ArrayList<>(count);
         for(int i = 0; i < count; i++) {
             int idx = sortedIndices[i];
@@ -63,8 +64,9 @@ public final class InferenceHelpers {
         }
         int label = Double.valueOf(inferenceValue).intValue();
         if (label < 0 || label >= classificationLabels.size()) {
-            throw ExceptionsHelper.badRequestException(
+            throw ExceptionsHelper.serverError(
                 "model returned classification value of [{}] which is not a valid index in classification labels [{}]",
+                null,
                 label,
                 classificationLabels);
         }

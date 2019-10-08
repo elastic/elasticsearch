@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
@@ -267,7 +268,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                             settings.get("index.analysis.analyzer.default.tokenizer"),
                             equalTo("keyword"));
                     assertThat(settings.get("index.routing.allocation.initial_recovery._id"), equalTo("node1"));
-                    assertThat(settings.get("index.allocation.max_retries"), equalTo("1"));
+                    assertThat(settings.get("index.allocation.max_retries"), nullValue());
                     assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
                     assertThat(settings.getAsVersion("index.version.upgraded", null), equalTo(upgraded));
                     assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"));

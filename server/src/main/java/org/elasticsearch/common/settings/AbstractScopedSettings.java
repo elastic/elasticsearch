@@ -504,7 +504,7 @@ public abstract class AbstractScopedSettings {
      */
     void validate(
             final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
-        Setting setting = getRaw(key);
+        Setting<?> setting = getRaw(key);
         if (setting == null) {
             LevenshteinDistance ld = new LevenshteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();

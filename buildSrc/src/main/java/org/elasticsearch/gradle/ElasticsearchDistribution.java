@@ -46,11 +46,24 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         INTEG_TEST_ZIP,
         ARCHIVE,
         RPM,
-        DEB;
+        DEB,
+        DOCKER;
 
         @Override
         public String toString() {
             return super.toString().toLowerCase(Locale.ROOT);
+        }
+
+        public boolean shouldExtract() {
+            switch (this) {
+                case DEB:
+                case DOCKER:
+                case RPM:
+                    return false;
+
+                default:
+                    return true;
+            }
         }
     }
 
@@ -161,7 +174,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return bundledJdk.getOrElse(true);
     }
 
-    public void setBundledJdk(boolean bundledJdk) {
+    public void setBundledJdk(Boolean bundledJdk) {
         this.bundledJdk.set(bundledJdk);
     }
 
@@ -171,11 +184,16 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     }
 
     public Extracted getExtracted() {
-        if (getType() == Type.RPM || getType() == Type.DEB) {
-            throw new UnsupportedOperationException("distribution type [" + getType() + "] for " +
-                "elasticsearch distribution [" + name + "] cannot be extracted");
+        switch (getType()) {
+            case DEB:
+            case DOCKER:
+            case RPM:
+                throw new UnsupportedOperationException("distribution type [" + getType() + "] for " +
+                    "elasticsearch distribution [" + name + "] cannot be extracted");
+
+            default:
+                return extracted;
         }
-        return extracted;
     }
 
     @Override
@@ -197,15 +215,15 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     void finalizeValues() {
 
         if (getType() == Type.INTEG_TEST_ZIP) {
-            if (platform.isPresent()) {
+            if (platform.getOrNull() != null) {
                 throw new IllegalArgumentException(
                     "platform not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
             }
-            if (flavor.isPresent()) {
+            if (flavor.getOrNull() != null) {
                 throw new IllegalArgumentException(
-                    "flavor not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
+                    "flavor [" + flavor.get() + "] not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
             }
-            if (bundledJdk.isPresent()) {
+            if (bundledJdk.getOrNull() != null) {
                 throw new IllegalArgumentException(
                     "bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
             }
@@ -217,7 +235,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             if (platform.isPresent() == false) {
                 platform.set(CURRENT_PLATFORM);
             }
-        } else { // rpm or deb
+        } else { // rpm, deb or docker
             if (platform.isPresent()) {
                 throw new IllegalArgumentException("platform not allowed for elasticsearch distribution ["
                     + name + "] of type [" + getType() + "]");

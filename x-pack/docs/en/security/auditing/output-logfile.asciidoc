@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="gold+"]
 [[audit-log-output]]
 === Logfile audit output
 

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="gold+"]
 [[encrypting-internode-communications]]
 == Tutorial: Encrypting communications
 

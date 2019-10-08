@@ -260,9 +260,8 @@ public class IndexActionTests extends ESTestCase {
     }
 
     public void testConfigureIndexInMapAndAction() {
-        String fieldName = randomFrom("_index", "_type");
-        final IndexAction action = new IndexAction(fieldName.equals("_index") ? "my_index" : null,
-                fieldName.equals("_type") ? "my_type" : null,
+        String fieldName = "_index";
+        final IndexAction action = new IndexAction("my_index",
                 null,null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
@@ -311,7 +310,6 @@ public class IndexActionTests extends ESTestCase {
         XContentSource response = successResult.response();
         assertThat(response.getValue("created"), equalTo((Object)Boolean.TRUE));
         assertThat(response.getValue("version"), equalTo((Object) 1));
-        assertThat(response.getValue("type").toString(), equalTo("test-type"));
         assertThat(response.getValue("index").toString(), equalTo("test-index"));
 
         assertThat(captor.getAllValues(), hasSize(1));

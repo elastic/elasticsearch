@@ -30,7 +30,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline_1"
         body: {}
@@ -109,7 +108,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline_1"
         body: {
@@ -133,7 +131,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline_2"
         body: {
@@ -151,7 +148,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline_3"
         body: {
@@ -200,7 +196,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_handled_pipeline"
         body: {
@@ -241,7 +236,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "_id"
         body: {

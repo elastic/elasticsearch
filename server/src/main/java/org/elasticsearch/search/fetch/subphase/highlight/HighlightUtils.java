@@ -46,14 +46,13 @@ public final class HighlightUtils {
     /**
      * Load field values for highlighting.
      */
-    public static List<Object> loadFieldValues(SearchContextHighlight.Field field,
-                                               MappedFieldType fieldType,
+    public static List<Object> loadFieldValues(MappedFieldType fieldType,
                                                QueryShardContext context,
                                                FetchSubPhase.HitContext hitContext,
                                                boolean forceSource) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
         List<Object> textsToHighlight;
-        if (!forceSource && fieldType.stored()) {
+        if (forceSource == false && fieldType.stored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             textsToHighlight = fieldVisitor.fields().get(fieldType.name());

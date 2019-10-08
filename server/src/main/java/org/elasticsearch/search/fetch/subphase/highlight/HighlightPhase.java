@@ -66,7 +66,7 @@ public class HighlightPhase implements FetchSubPhase {
 
             if (highlight.forceSource(field)) {
                 SourceFieldMapper sourceFieldMapper = context.getMapperService().documentMapper().sourceMapper();
-                if (!sourceFieldMapper.enabled()) {
+                if (sourceFieldMapper.enabled() == false) {
                     throw new IllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight
                         + " but _source is disabled");
                 }

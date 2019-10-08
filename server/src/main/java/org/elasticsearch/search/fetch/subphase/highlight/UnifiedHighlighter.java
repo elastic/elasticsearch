@@ -154,9 +154,12 @@ public class UnifiedHighlighter implements Highlighter {
         return docMapper.mappers().indexAnalyzer();
     }
 
-    protected List<Object> loadFieldValues(MappedFieldType fieldType, SearchContextHighlight.Field field, QueryShardContext context,
-            FetchSubPhase.HitContext hitContext, boolean forceSource) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldType, context, hitContext, forceSource);
+    protected List<Object> loadFieldValues(MappedFieldType fieldType,
+                                           SearchContextHighlight.Field field,
+                                           QueryShardContext context,
+                                           FetchSubPhase.HitContext hitContext,
+                                           boolean forceSource) throws IOException {
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, context, hitContext, forceSource);
         fieldValues = fieldValues.stream()
             .map((s) -> convertFieldValue(fieldType, s))
             .collect(Collectors.toList());

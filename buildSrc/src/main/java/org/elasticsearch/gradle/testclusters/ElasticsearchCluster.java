@@ -104,7 +104,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
-    private ElasticsearchNode getFirstNode() {
+    ElasticsearchNode getFirstNode() {
         return nodes.getAt(clusterName + "-0");
     }
 

@@ -21,10 +21,10 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,7 +67,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
@@ -90,13 +89,13 @@ public final class Settings implements ToXContentFragment {
     private final SecureSettings secureSettings;
 
     /** The first level of setting names. This is constructed lazily in {@link #names()}. */
-    private final AtomicReference<Set<String>> firstLevelNames = new AtomicReference<>();
+    private final SetOnce<Set<String>> firstLevelNames = new SetOnce<>();
 
     /**
      * Setting names found in this Settings for both string and secure settings.
      * This is constructed lazily in {@link #keySet()}.
      */
-    private final AtomicReference<Set<String>> keys = new AtomicReference<>();
+    private final SetOnce<Set<String>> keys = new SetOnce<>();
 
     private Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
@@ -484,7 +483,7 @@ public final class Settings implements ToXContentFragment {
     public Set<String> names() {
         if (firstLevelNames.get() == null) {
             Set<String> names = keySet().stream().map(k -> k.split("\\.", 2)[0]).collect(Collectors.toSet());
-            firstLevelNames.compareAndSet(null, Collections.unmodifiableSet(names));
+            firstLevelNames.trySet(Collections.unmodifiableSet(names));
         }
         return firstLevelNames.get();
     }
@@ -681,7 +680,7 @@ public final class Settings implements ToXContentFragment {
             if (secureSettings != null && keys.get() == null) {
                 keySet.addAll(secureSettings.getSettingNames());
             }
-            keys.compareAndSet(null, Collections.unmodifiableSet(keySet));
+            keys.trySet(Collections.unmodifiableSet(keySet));
         }
         return keys.get();
     }

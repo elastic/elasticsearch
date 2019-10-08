@@ -20,8 +20,6 @@ include::setup/installing-xes.asciidoc[]
 
 include::setup/setup-xes.asciidoc[]
 
-include::monitoring/configuring-monitoring.asciidoc[]
-
 include::setup/setup-xclient.asciidoc[]
 
 include::settings/configuring-xes.asciidoc[]

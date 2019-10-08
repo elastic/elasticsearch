@@ -118,7 +118,7 @@ PUT /_slm/policy/nightly-snapshots
 <6> Optional retention configuration
 <7> Keep snapshots for 30 days
 <8> Always keep at least 5 successful snapshots
-<9> Keep no more than 50 successful snapshots
+<9> Keep no more than 50 successful snapshots, even if they're less than 30 days old
 
 This policy will take a snapshot of every index each day at 1:30AM UTC.
 Snapshots are incremental, allowing frequent snapshots to be stored efficiently,

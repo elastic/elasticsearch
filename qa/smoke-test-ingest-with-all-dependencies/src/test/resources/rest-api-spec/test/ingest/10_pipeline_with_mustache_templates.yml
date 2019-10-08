@@ -14,13 +14,13 @@
               {
                 "set" : {
                   "field" : "index_type_id",
-                  "value": "{{_index}}/{{_type}}/{{_id}}"
+                  "value": "{{_index}}/{{_id}}"
                 }
               },
               {
                 "append" : {
                   "field" : "metadata",
-                  "value": ["{{_index}}", "{{_type}}", "{{_id}}"]
+                  "value": ["{{_index}}", "{{_id}}"]
                 }
               }
             ]
@@ -39,8 +39,8 @@
         index: test
         id: 1
   - length: { _source: 2 }
-  - match: { _source.index_type_id: "test/test/1" }
-  - match: { _source.metadata: ["test", "test", "1"] }
+  - match: { _source.index_type_id: "test/1" }
+  - match: { _source.metadata: ["test", "1"] }
 
 ---
 "Test templating":

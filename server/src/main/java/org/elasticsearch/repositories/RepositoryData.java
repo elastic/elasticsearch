@@ -88,7 +88,7 @@ public final class RepositoryData {
     private final ShardGenerations shardGenerations;
 
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-        Map<IndexId, Set<SnapshotId>> indexSnapshots, ShardGenerations shardGenerations) {
+                          Map<IndexId, Set<SnapshotId>> indexSnapshots, ShardGenerations shardGenerations) {
         this.genId = genId;
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
         this.snapshotStates = Collections.unmodifiableMap(snapshotStates);

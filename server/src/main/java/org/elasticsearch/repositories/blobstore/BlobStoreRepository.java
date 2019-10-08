@@ -445,7 +445,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Note: If we fail updating any of the individual shard paths, none of them are changed since the newly created
             //       index-${gen_uuid} will not be referenced by the existing RepositoryData and new RepositoryData is only
             //       written if all shard paths have been successfully updated.
-            deleteIndices(repositoryData, snapshotId, version, ActionListener.wrap(res -> {
+            deleteFromShardMeta(repositoryData, snapshotId, version, ActionListener.wrap(res -> {
                 final ShardGenerations.Builder builder = ShardGenerations.builder();
                 for (ShardSnapshotMetaDeleteResult newGen : res) {
                     builder.add(newGen.indexId, newGen.shardId, newGen.newGeneration);
@@ -455,7 +455,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }, listener::onFailure));
         } else {
             onShardGenerations.accept(ShardGenerations.EMPTY);
-            deleteIndices(repositoryData, snapshotId, version, afterUpdateAllMetadata);
+            deleteFromShardMeta(repositoryData, snapshotId, version, afterUpdateAllMetadata);
         }
     }
 
@@ -609,12 +609,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
+     * Removes the snapshot from shard level metadata for all shards that it contains.
+     *
      * @param repositoryData RepositoryData before removing snapshot
      * @param snapshotId     SnapshotId to remove from all the given indices
      * @param listener       Listener to invoke when finished
      */
-    private void deleteIndices(RepositoryData repositoryData, SnapshotId snapshotId, Version version,
-                               ActionListener<Collection<ShardSnapshotMetaDeleteResult>> listener) {
+    private void deleteFromShardMeta(RepositoryData repositoryData, SnapshotId snapshotId, Version version,
+                                     ActionListener<Collection<ShardSnapshotMetaDeleteResult>> listener) {
         final List<IndexId> indices = repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotId);
         if (indices.isEmpty()) {
             listener.onResponse(Collections.emptyList());

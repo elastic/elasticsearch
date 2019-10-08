@@ -357,6 +357,9 @@ public final class RepositoryData {
 
         if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
             shardGenerations.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        } else {
+            assert shardGenerations.indices().isEmpty() :
+                "Should not build shard generations in BwC mode but saw generations [" + shardGenerations + "]";
         }
 
         builder.endObject();

@@ -256,9 +256,6 @@ Search::
 
 Security::
 * Set security index refresh interval to 1s {pull}45434[#45434] (issue: {issue}44934[#44934])
-*  Handle pwd protected keystores in all CLI tools  {pull}45289[#45289]
-* Reload secure settings with password {pull}43197[#43197]
-* Add passphrase support to elasticsearch-keystore {pull}38498[#38498] (issues: {issue}32691[#32691], {issue}37472[#37472])
 
 Snapshot/Restore::
 * add disable_chunked_encoding configuration {pull}44052[#44052]

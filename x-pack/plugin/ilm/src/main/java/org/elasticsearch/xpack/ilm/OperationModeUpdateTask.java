@@ -69,6 +69,9 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             newMode = currentMetadata.getOperationMode();
         }
 
+        if (newMode.equals(ilmMode) == false) {
+            logger.info("updating ILM operation mode to {}", newMode);
+        }
         return ClusterState.builder(currentState)
             .metaData(MetaData.builder(currentState.metaData())
                     .putCustom(IndexLifecycleMetadata.TYPE,
@@ -94,6 +97,9 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             newMode = currentMetadata.getOperationMode();
         }
 
+        if (newMode.equals(slmMode) == false) {
+            logger.info("updating SLM operation mode to {}", newMode);
+        }
         return ClusterState.builder(currentState)
             .metaData(MetaData.builder(currentState.metaData())
                 .putCustom(SnapshotLifecycleMetadata.TYPE,

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 
 import java.io.Closeable;
 import java.time.Clock;
@@ -69,6 +70,9 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
                 if (scheduler.scheduledJobIds().size() > 0) {
                     cancelSnapshotJobs();
                 }
+                if (slmStopping(state)) {
+                    submitOperationModeUpdate(OperationMode.STOPPED);
+                }
                 return;
             }
 
@@ -109,6 +113,20 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
             .map(SnapshotLifecycleMetadata::getOperationMode)
             .map(mode -> OperationMode.STOPPING == mode || OperationMode.STOPPED == mode)
             .orElse(false);
+    }
+
+    /**
+     * Returns true if SLM is in the stopping state
+     */
+    static boolean slmStopping(ClusterState state) {
+        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metaData().custom(SnapshotLifecycleMetadata.TYPE))
+            .map(SnapshotLifecycleMetadata::getOperationMode)
+            .map(mode -> OperationMode.STOPPING == mode || OperationMode.STOPPED == mode)
+            .orElse(false);
+    }
+
+    public void submitOperationModeUpdate(OperationMode mode) {
+        clusterService.submitStateUpdateTask("slm_operation_mode_update", OperationModeUpdateTask.slmMode(mode));
     }
 
     /**

@@ -39,7 +39,7 @@ public enum OperationMode {
     RUNNING {
         @Override
         public boolean isValidChange(OperationMode nextMode) {
-            return nextMode == STOPPING || nextMode == STOPPED;
+            return nextMode == STOPPING;
         }
     };
 

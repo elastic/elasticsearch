@@ -53,7 +53,7 @@ public class TransportStopSLMAction extends TransportMasterNodeAction<StopSLMAct
             new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return (OperationModeUpdateTask.slmMode(OperationMode.STOPPED)).execute(currentState);
+                    return (OperationModeUpdateTask.slmMode(OperationMode.STOPPING)).execute(currentState);
                 }
 
                 @Override

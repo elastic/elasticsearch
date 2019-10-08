@@ -41,11 +41,8 @@ https://www.docker.elastic.co[www.docker.elastic.co].
 
 endif::[]
 
-[[docker-cli-run]]
-==== Running {es} from the command line
-
 [[docker-cli-run-dev-mode]]
-===== Development mode
+==== Starting a single node cluster with Docker
 
 ifeval::["{release-state}"=="unreleased"]
 
@@ -55,20 +52,133 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-{es} can be quickly started for development or testing use with the following command:
+To start a single-node cluster {es} for development or testing, specify 
+<<single-node-discovery,single-node discovery>> to bypass the <<bootstrap-checks,bootstrap checks>>:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
 docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
 --------------------------------------------
 
-Note the use of <<single-node-discovery,single-node discovery>> that allows bypassing
-the <<bootstrap-checks,bootstrap checks>> in a single-node development cluster.
+endif::[]
+
+[[docker-compose-file]]
+==== Starting a multi-node cluster with Docker compose
+
+The following Docker compose file brings up a three-node {es} cluster. 
+Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
+
+The https://docs.docker.com/engine/tutorials/dockervolumes[Docker named volumes] 
+`esdata01`, `esdata02`, and `esdata03` store the node data directories so the data persists across restarts. 
+If they don't already exist, `docker-compose` creates them when you bring up the cluster.
+
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so a
+`docker-compose.yml` is not available for this version.
 
 endif::[]
 
+ifeval::["{release-state}"!="unreleased"]
+
+To bring up the cluster with  <<docker-prod-cluster-composefile,`docker-compose.yml`>>, run:
+
+["source","sh"]
+--------------------------------------------
+docker-compose up
+--------------------------------------------
+
+endif::[]
+
+[NOTE]
+`docker-compose` is not pre-installed with Docker on Linux.
+For installation instructions, see
+https://docs.docker.com/compose/install[Install Compose on Linux] on docs.docker.com.
+
+[[docker-prod-cluster-composefile]]
+ifeval::["{release-state}"!="unreleased"]
+`docker-compose.yml`:
+["source","yaml",subs="attributes"]
+--------------------------------------------
+version: '2.2'
+services:
+  es01:
+    image: {docker-image}
+    container_name: es01
+    environment:
+      - node.name=es01
+      - discovery.seed_hosts=es02,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - esdata01:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - esnet
+  es02:
+    image: {docker-image}
+    container_name: es02
+    environment:
+      - node.name=es02
+      - discovery.seed_hosts=es01,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - esdata02:/usr/share/elasticsearch/data
+    networks:
+      - esnet
+  es03:
+    image: {docker-image}
+    container_name: es03
+    environment:
+      - node.name=es03
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02,es03
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - esdata03:/usr/share/elasticsearch/data    
+    networks:
+      - esnet
+
+volumes:
+  esdata01:
+    driver: local
+  esdata02:
+    driver: local
+  esdata03:
+    driver: local    
+
+networks:
+  esnet:
+--------------------------------------------
+endif::[]
+
+To stop the cluster, run `docker-compose down`. 
+The data in the Docker volumes is preserved and loaded when when you restart the cluster with `docker-compose up`.
+To **delete the data volumes** when you bring down the cluster, specify the `-v` option: 
+`docker-compose down -v`.
+
 [[docker-cli-run-prod-mode]]
-===== Production mode
+==== Using the Docker images in production
 
 [[docker-prod-prerequisites]]
 [IMPORTANT]
@@ -83,7 +193,7 @@ production use. Depending on your platform:
 The `vm.max_map_count` setting should be set permanently in `/etc/sysctl.conf`:
 [source,sh]
 --------------------------------------------
-$ grep vm.max_map_count /etc/sysctl.conf
+grep vm.max_map_count /etc/sysctl.conf
 vm.max_map_count=262144
 --------------------------------------------
 
@@ -95,12 +205,14 @@ To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
 --
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 
+. From the command line, run:
++
 ["source","sh"]
 --------------------------------------------
-$ screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
+screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
 
-Just press enter and configure the `sysctl` setting as you would for Linux:
+. Press enter and use`sysctl` to configure `vm.max_map_count`:
 
 ["source","sh"]
 --------------------------------------------
@@ -120,108 +232,6 @@ sudo sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
 =========================
-
-The following example brings up a cluster comprising two {es} nodes.
-To bring up the cluster, use the
-<<docker-prod-cluster-composefile,`docker-compose.yml`>> and just type:
-
-ifeval::["{release-state}"=="unreleased"]
-
-WARNING: Version {version} of {es} has not yet been released, so a
-`docker-compose.yml` is not available for this version.
-
-endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
-
-["source","sh"]
---------------------------------------------
-docker-compose up
---------------------------------------------
-
-endif::[]
-
-[NOTE]
-`docker-compose` is not pre-installed with Docker on Linux.
-Instructions for installing it can be found on the
-https://docs.docker.com/compose/install/#install-using-pip[Docker Compose webpage].
-
-The node `es01` listens on `localhost:9200` while `es02`
-talks to `es01` over a Docker network.
-
-This example also uses
-https://docs.docker.com/engine/tutorials/dockervolumes[Docker named volumes],
-called `esdata01` and `esdata02` which will be created if not already present.
-
-[[docker-prod-cluster-composefile]]
-`docker-compose.yml`:
-ifeval::["{release-state}"=="unreleased"]
-
-WARNING: Version {version} of {es} has not yet been released, so a
-`docker-compose.yml` is not available for this version.
-
-endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
-["source","yaml",subs="attributes"]
---------------------------------------------
-version: '2.2'
-services:
-  es01:
-    image: {docker-image}
-    container_name: es01
-    environment:
-      - node.name=es01
-      - discovery.seed_hosts=es02
-      - cluster.initial_master_nodes=es01,es02
-      - cluster.name=docker-cluster
-      - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    volumes:
-      - esdata01:/usr/share/elasticsearch/data
-    ports:
-      - 9200:9200
-    networks:
-      - esnet
-  es02:
-    image: {docker-image}
-    container_name: es02
-    environment:
-      - node.name=es02
-      - discovery.seed_hosts=es01
-      - cluster.initial_master_nodes=es01,es02
-      - cluster.name=docker-cluster
-      - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    volumes:
-      - esdata02:/usr/share/elasticsearch/data
-    networks:
-      - esnet
-
-volumes:
-  esdata01:
-    driver: local
-  esdata02:
-    driver: local
-
-networks:
-  esnet:
---------------------------------------------
-endif::[]
-
-To stop the cluster, type `docker-compose down`. Data volumes will persist,
-so it's possible to start the cluster again with the same data using
-`docker-compose up`.
-To destroy the cluster **and the data volumes**, just type
-`docker-compose down -v`.
 
 ===== Inspect status of cluster:
 

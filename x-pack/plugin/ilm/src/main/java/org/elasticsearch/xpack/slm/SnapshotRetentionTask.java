@@ -131,7 +131,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 // Finally, asynchronously retrieve all the snapshots, deleting them serially,
                 // before updating the cluster state with the new metrics and setting 'running'
                 // back to false
-                getAllSuccessfulSnapshots(repositioriesToFetch, new ActionListener<>() {
+                getAllRetainableSnapshots(repositioriesToFetch, new ActionListener<>() {
                     @Override
                     public void onResponse(Map<String, List<SnapshotInfo>> allSnapshots) {
                         try {
@@ -222,7 +222,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         return eligible;
     }
 
-    void getAllSuccessfulSnapshots(Collection<String> repositories, ActionListener<Map<String, List<SnapshotInfo>>> listener,
+    void getAllRetainableSnapshots(Collection<String> repositories, ActionListener<Map<String, List<SnapshotInfo>>> listener,
                                    Consumer<Exception> errorHandler) {
         if (repositories.isEmpty()) {
             // Skip retrieving anything if there are no repositories to fetch
@@ -236,11 +236,12 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 @Override
                 public void onResponse(final GetSnapshotsResponse resp) {
                     Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
+                    final Set<SnapshotState> retainableStates = Set.of(SnapshotState.SUCCESS, SnapshotState.FAILED);
                     repositories.forEach(repo -> {
                         snapshots.put(repo,
                             // Only return snapshots in the SUCCESS state
                             resp.getSnapshots(repo).stream()
-                                .filter(info -> info.state() == SnapshotState.SUCCESS)
+                                .filter(info -> retainableStates.contains(info.state()))
                                 .collect(Collectors.toList()));
                     });
                     listener.onResponse(snapshots);

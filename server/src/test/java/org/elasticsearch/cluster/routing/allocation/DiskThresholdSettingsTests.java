@@ -72,6 +72,9 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(30L, diskThresholdSettings.getRerouteInterval().seconds());
         assertFalse(diskThresholdSettings.isEnabled());
         assertFalse(diskThresholdSettings.includeRelocations());
+
+        assertWarnings("[cluster.routing.allocation.disk.include_relocations] setting was deprecated in Elasticsearch and " +
+            "will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testInvalidConstruction() {

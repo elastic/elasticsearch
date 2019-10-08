@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="gold+"]
 [[auditing-search-queries]]
 === Auditing search queries
 

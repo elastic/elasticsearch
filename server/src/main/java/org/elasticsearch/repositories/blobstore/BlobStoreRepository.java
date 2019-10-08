@@ -374,7 +374,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-
     /**
      * After updating the {@link RepositoryData} each of the shards directories is individually first moved to the next shard generation
      * and then has all now unreferenced blobs in it deleted.
@@ -699,7 +698,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                  final Version version,
                                  final ActionListener<SnapshotInfo> listener) {
 
-        final List<IndexId> indices = shardGenerations.indices();
+        final Collection<IndexId> indices = shardGenerations.indices();
         // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard
         // directory if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
         // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened

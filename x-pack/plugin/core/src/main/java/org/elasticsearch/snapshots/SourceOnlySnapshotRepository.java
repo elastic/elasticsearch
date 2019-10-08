@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -95,7 +96,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         }
     }
 
-    private static MetaData metadataToSnapshot(List<IndexId> indices, MetaData metaData) throws IOException {
+    private static MetaData metadataToSnapshot(Collection<IndexId> indices, MetaData metaData) throws IOException {
         MetaData.Builder builder = MetaData.builder(metaData);
         for (IndexId indexId : indices) {
             IndexMetaData index = metaData.index(indexId.getName());

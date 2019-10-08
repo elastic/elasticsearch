@@ -201,11 +201,9 @@ public final class RepositoryData {
      * @param snapshotId              Snapshot Id
      * @param updatedShardGenerations Shard generations that changed as a result of removing the snapshot.
      *                                The {@code String[]} passed for each {@link IndexId} contains the new shard generation id for each
-     *                                changed shard indexed by its shardId.
-     *                                Pass {@code null} when this instance should not track shard generations while the cluster still
-     *                                contains nodes from before {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
+     *                                changed shard indexed by its shardId
      */
-    public RepositoryData removeSnapshot(final SnapshotId snapshotId, @Nullable final ShardGenerations updatedShardGenerations) {
+    public RepositoryData removeSnapshot(final SnapshotId snapshotId, final ShardGenerations updatedShardGenerations) {
         Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream()
             .filter(id -> !snapshotId.equals(id))
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
@@ -233,10 +231,9 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, set);
         }
 
-        final ShardGenerations updatedGenerations = updatedShardGenerations == null ? null :
-            ShardGenerations.builder().add(shardGenerations).add(updatedShardGenerations).filterByIndices(indexSnapshots.keySet()).build();
-
-        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, updatedGenerations);
+        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots,
+            ShardGenerations.builder().add(shardGenerations).add(updatedShardGenerations).filterByIndices(indexSnapshots.keySet()).build()
+        );
     }
 
     /**

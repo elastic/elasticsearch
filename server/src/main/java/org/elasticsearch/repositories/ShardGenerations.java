@@ -19,12 +19,15 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,8 +50,8 @@ public final class ShardGenerations implements ToXContent {
      *
      * @return indices for which shard generations are tracked
      */
-    public List<IndexId> indices() {
-        return List.copyOf(shardGenerations.keySet());
+    public Collection<IndexId> indices() {
+        return Collections.unmodifiableSet(shardGenerations.keySet());
     }
 
     /**
@@ -86,6 +89,7 @@ public final class ShardGenerations implements ToXContent {
      * @param shardId Shard Id
      * @return generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
      */
+    @Nullable
     public String getShardGen(IndexId indexId, int shardId) {
         final List<String> generations = shardGenerations.get(indexId);
         if (generations == null || generations.size() < shardId + 1) {

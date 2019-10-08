@@ -18,6 +18,12 @@
  */
 package org.elasticsearch.client.ml.inference;
 
+import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
+import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
@@ -42,6 +48,19 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             TargetMeanEncoding::fromXContent));
         namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(FrequencyEncoding.NAME),
             FrequencyEncoding::fromXContent));
+
+        // Model
+        namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class, new ParseField(Tree.NAME), Tree::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class, new ParseField(Ensemble.NAME), Ensemble::fromXContent));
+
+        // Aggregating output
+        namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
+            new ParseField(WeightedMode.NAME),
+            WeightedMode::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
+            new ParseField(WeightedSum.NAME),
+            WeightedSum::fromXContent));
+
         return namedXContent;
     }
 

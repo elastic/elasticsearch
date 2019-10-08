@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -96,7 +97,7 @@ public class DatafeedManager {
 
                         @Override
                         public void onFailure(Exception e) {
-                            if (e instanceof ResourceNotFoundException) {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 // The task was stopped in the meantime, no need to do anything
                                 logger.info("[{}] Aborting as datafeed has been stopped", datafeedId);
                             } else {

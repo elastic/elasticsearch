@@ -416,7 +416,8 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(defaultGlobalSettings)
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "uid")
+                .put(getFullSettingKey(REALM_IDENTIFIER.getName(),
+                        LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply(LdapRealmSettings.LDAP_TYPE)), "uid")
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 

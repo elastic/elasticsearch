@@ -19,11 +19,10 @@ To adjust how monitoring data is displayed in the monitoring UI, configure
 {kibana-ref}/monitoring-settings-kb.html[`xpack.monitoring` settings] in
 `kibana.yml`. To control how monitoring data is collected from
 Logstash, configure
-{logstash-ref}/configuring-logstash.html#monitoring-settings[`xpack.monitoring` settings]
+{logstash-ref}/monitoring-internal-collection.html#monitoring-settings[`xpack.monitoring` settings]
 in `logstash.yml`.
 
-For more information, see
-{xpack-ref}/xpack-monitoring.html[Monitoring the Elastic Stack].
+For more information, see <<monitor-elasticsearch-cluster>>.
 
 [float]
 [[general-monitoring-settings]]
@@ -117,9 +116,9 @@ the `http` exporter will not be deleted automatically.
 Configures where the agent stores monitoring data. By default, the agent uses a
 local exporter that indexes monitoring data on the cluster where it is installed.
 Use an HTTP exporter to send data to a separate monitoring cluster. For more
-information, see <<local-exporter-settings,Local Exporter Settings>>,
-<<http-exporter-settings,HTTP Exporter Settings>>, and
-{xpack-ref}/how-monitoring-works.html[How Monitoring Works].
+information, see <<local-exporter-settings,Local exporter settings>>,
+<<http-exporter-settings,HTTP exporter settings>>, and
+<<how-monitoring-works>>.
 
 [float]
 [[local-exporter-settings]]

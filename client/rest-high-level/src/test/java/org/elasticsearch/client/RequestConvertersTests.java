@@ -71,7 +71,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -158,7 +157,6 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSourceExistsWithType() throws IOException {
-        String type = frequently() ? randomAlphaOfLengthBetween(3, 10) : MapperService.SINGLE_MAPPING_NAME;
         doTestSourceExists((index, id) -> new GetRequest(index, id));
     }
 
@@ -358,17 +356,6 @@ public class RequestConvertersTests extends ESTestCase {
         Request request = requestConverter.apply(getRequest);
         assertEquals("/" + index + "/_doc/" + id, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        assertNull(request.getEntity());
-        assertEquals(method, request.getMethod());
-    }
-
-    private static void getAndExistsWithTypeTest(Function<GetRequest, Request> requestConverter, String method) {
-        String index = randomAlphaOfLengthBetween(3, 10);
-        String id = randomAlphaOfLengthBetween(3, 10);
-        GetRequest getRequest = new GetRequest(index, id);
-
-        Request request = requestConverter.apply(getRequest);
-        assertEquals("/" + index + "/" + id, request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(method, request.getMethod());
     }

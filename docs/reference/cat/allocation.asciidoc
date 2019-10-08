@@ -41,7 +41,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-allocation-api-example]]
 ==== {api-examples-title}
 
-[source,console]
+[source,console,id=cat-allocation-example]
 --------------------------------------------------
 GET /_cat/allocation?v
 --------------------------------------------------

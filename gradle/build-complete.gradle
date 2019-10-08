@@ -4,6 +4,8 @@ if (buildNumber) {
     String uploadFile = "build/${buildNumber}.tar.bz2"
     project.gradle.buildFinished { result ->
         println "build complete, generating: $uploadFile"
+        // ant is unhappy if this doesn't exist
+        project.file("build/upload-files").mkdir()
         project.sync {
             from fileTree(projectDir)
             include "**/*.hprof"

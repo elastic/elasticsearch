@@ -62,9 +62,11 @@ public class ReindexRequestBuilder extends
 
     /**
      * Set the destination index and type.
+     * @deprecated use {@link #destination(String)}
      */
+    @Deprecated
     public ReindexRequestBuilder destination(String index, String type) {
-        destination.setIndex(index).setType(type);
+        destination.setIndex(index);
         return this;
     }
 

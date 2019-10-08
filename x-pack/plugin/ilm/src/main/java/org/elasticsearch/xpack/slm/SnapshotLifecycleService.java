@@ -121,7 +121,7 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
     static boolean slmStopping(ClusterState state) {
         return Optional.ofNullable((SnapshotLifecycleMetadata) state.metaData().custom(SnapshotLifecycleMetadata.TYPE))
             .map(SnapshotLifecycleMetadata::getOperationMode)
-            .map(mode -> OperationMode.STOPPING == mode || OperationMode.STOPPED == mode)
+            .map(mode -> OperationMode.STOPPING == mode)
             .orElse(false);
     }
 

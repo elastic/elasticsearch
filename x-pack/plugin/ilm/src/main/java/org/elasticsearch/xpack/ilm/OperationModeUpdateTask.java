@@ -22,7 +22,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     @Nullable
     private final OperationMode slmMode;
 
-    public OperationModeUpdateTask(OperationMode ilmMode, OperationMode slmMode) {
+    private OperationModeUpdateTask(OperationMode ilmMode, OperationMode slmMode) {
         this.ilmMode = ilmMode;
         this.slmMode = slmMode;
     }

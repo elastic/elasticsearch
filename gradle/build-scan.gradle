@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.OS
 
 buildScan {
-    String jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+    URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
     String buildNumber = System.getenv('BUILD_NUMBER')
     String jobName =  System.getenv('JOB_NAME')
 

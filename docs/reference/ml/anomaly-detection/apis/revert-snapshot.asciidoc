@@ -19,7 +19,7 @@ Reverts to a specific snapshot.
 * Before you revert to a saved snapshot, you must close the job.
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-revert-snapshot-desc]]
 ==== {api-description-title}

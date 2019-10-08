@@ -23,7 +23,7 @@ User credentials are cached in memory on each node to avoid connecting to a
 remote authentication service or hitting the disk for every incoming request.
 There are realm settings that you can use to configure the user cache. For more
 information, see
-{stack-ov}/controlling-user-cache.html[Controlling the user cache].
+<<controlling-user-cache>>.
 
 To evict roles from the role cache, see the 
 <<security-api-clear-role-cache,Clear roles cache API>>.

@@ -56,7 +56,6 @@
   - do:
       index:
         index: logs-000002
-        type:  test
         id:    "2"
         body:  { "foo": "hello world" }
 

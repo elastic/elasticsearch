@@ -1,6 +1,5 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.test.NodeInfo
 
 import java.nio.charset.StandardCharsets
 

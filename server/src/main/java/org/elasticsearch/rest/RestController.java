@@ -256,17 +256,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
-        for (RestHeaderDefinition restHeader : headersToCopy) {
+        for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getAllHeaderValues(name);
             if (headerValues != null) {
-                if (restHeader.isMultiValueAllowed() == false && new HashSet<>(headerValues).size() > 1) {
+                final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
+                if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
                     channel.sendResponse(
                         BytesRestResponse.
                             createSimpleErrorResponse(channel, BAD_REQUEST, "multiple values for single-valued header [" + name + "]."));
                     return;
                 } else {
-                    threadContext.putHeader(name, headerValues.stream().distinct().collect(Collectors.joining(",")));
+                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }
             }
         }

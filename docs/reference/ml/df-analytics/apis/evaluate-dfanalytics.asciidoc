@@ -21,21 +21,16 @@ experimental[]
 ==== {api-prereq-title}
 
 * You must have `monitor_ml` privilege to use this API. For more 
-information, see {stack-ov}/security-privileges.html[Security privileges] and 
-{stack-ov}/built-in-roles.html[Built-in roles].
+information, see <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-evaluate-dfanalytics-desc]]
 ==== {api-description-title}
 
-This API evaluates the executed analysis on an index that is already annotated
-with a field that contains the results of the analytics (the `ground truth`)
-for each {dataframe} row.
+The API packages together commonly used evaluation metrics for various types of 
+machine learning features. This has been designed for use on indexes created by 
+{dfanalytics}. Evaluation requires both a ground truth field and an analytics 
+result field to be present.
 
-Evaluation is typically done by calculating a set of metrics that capture various aspects of the quality of the results over the data for which you have the
-`ground truth`.
-
-For different types of analyses different metrics are suitable. This API
-packages together commonly used metrics for various analyses.
 
 [[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
@@ -43,11 +38,23 @@ packages together commonly used metrics for various analyses.
 `index`::
   (Required, object) Defines the `index` in which the evaluation will be
   performed.
-  
+
+`query`::
+  (Optional, object) A query clause that retrieves a subset of data from the 
+  source index. See <<query-dsl>>.
+
 `evaluation`::
-  (Required, object) Defines the type of evaluation you want to perform. For example: 
-  `binary_soft_classification`. See <<ml-evaluate-dfanalytics-resources>>.
-  
+  (Required, object) Defines the type of evaluation you want to perform. See 
+  <<ml-evaluate-dfanalytics-resources>>.
++
+--
+Available evaluation types:
+
+* `binary_soft_classification`
+* `regression`
+--
+
+
 ////
 [[ml-evaluate-dfanalytics-results]]
 ==== {api-response-body-title}
@@ -68,7 +75,9 @@ packages together commonly used metrics for various analyses.
 [[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}
 
-[source,js]
+===== Binary soft classification
+
+[source,console]
 --------------------------------------------------
 POST _ml/data_frame/_evaluate
 {
@@ -81,12 +90,11 @@ POST _ml/data_frame/_evaluate
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "binary_soft_classification": {
@@ -126,4 +134,116 @@ The API returns the following results:
   }
 }
 ----
-// TESTRESPONSE
+
+
+===== {regression-cap}
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "house_price_predictions", <1>
+  "query": {
+      "bool": {
+        "filter": [
+          { "term":  { "ml.is_training": false } } <2>
+        ]
+      }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "price", <3>
+      "predicted_field": "ml.price_prediction", <4>
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The output destination index from a {dfanalytics} {reganalysis}.
+<2> In this example, a test/train split (`training_percent`) was defined for the 
+{reganalysis}. This query limits evaluation to be performed on the test split 
+only. 
+<3> The ground truth value for the actual house price. This is required in order 
+to evaluate results.
+<4> The predicted value for house price calculated by the {reganalysis}.
+
+
+The following example calculates the training error:
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "student_performance_mathematics_reg",
+  "query": {
+    "term": {
+      "ml.is_training": {
+        "value": true <1>
+      }
+    }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "G3", <2>
+      "predicted_field": "ml.G3_prediction", <3>
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> In this example, a test/train split (`training_percent`) was defined for the 
+{reganalysis}. This query limits evaluation to be performed on the train split 
+only. It means that a training error will be calculated.
+<2> The field that contains the ground truth value for the actual student 
+performance. This is required in order to evaluate results.
+<3> The field that contains the predicted value for student performance 
+calculated by the {reganalysis}.
+
+
+The next example calculates the testing error. The only difference compared with 
+the previous example is that `ml.is_training` is set to `false` this time, so 
+the query excludes the train split from the evaluation.
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "student_performance_mathematics_reg",
+  "query": {
+    "term": {
+      "ml.is_training": {
+        "value": false <1>
+      }
+    }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "G3", <2>
+      "predicted_field": "ml.G3_prediction", <3>
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> In this example, a test/train split (`training_percent`) was defined for the 
+{reganalysis}. This query limits evaluation to be performed on the test split 
+only. It means that a testing error will be calculated.
+<2> The field that contains the ground truth value for the actual student 
+performance. This is required in order to evaluate results.
+<3> The field that contains the predicted value for student performance 
+calculated by the {reganalysis}.

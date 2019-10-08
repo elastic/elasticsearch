@@ -21,7 +21,7 @@ Instantiates a {dfeed}.
 * You must create an {anomaly-job} before you create a {dfeed}.  
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
 cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-put-datafeed-desc]]
 ==== {api-description-title}
@@ -64,14 +64,19 @@ those same roles.
   the size of the window. See <<ml-datafeed-delayed-data-check-config>>.
 
 `frequency`::
-  (Optional, time units) The interval at which scheduled queries are made while
-  the {dfeed} runs in real time. The default value is either the bucket span for
-  short bucket spans, or, for longer bucket spans, a sensible fraction of the
-  bucket span. For example: `150s`.
+  (Optional, <<time-units, time units>>) The interval at which scheduled queries 
+  are made while the {dfeed} runs in real time. The default value is either the 
+  bucket span for short bucket spans, or, for longer bucket spans, a sensible 
+  fraction of the bucket span. For example: `150s`.
 
 `indices`::
   (Required, array) An array of index names. Wildcards are supported. For
   example: `["it_ops_metrics", "server*"]`.
++
+--
+NOTE: If any indices are in remote clusters then `cluster.remote.connect` must
+not be set to `false` on any ML node.
+--
 
 `job_id`::
  (Required, string) A numerical character string that uniquely identifies the
@@ -85,9 +90,10 @@ those same roles.
   `{"match_all": {"boost": 1}}`.
 
 `query_delay`::
-  (Optional, time units) The number of seconds behind real time that data is
-  queried. For example, if data from 10:04 a.m. might not be searchable in {es}
-  until 10:06 a.m., set this property to 120 seconds. The default value is `60s`.
+  (Optional, <<time-units, time units>>) The number of seconds behind real time 
+  that data is queried. For example, if data from 10:04 a.m. might not be 
+  searchable in {es} until 10:06 a.m., set this property to 120 seconds. The 
+  default value is `60s`.
 
 `script_fields`::
   (Optional, object) Specifies scripts that evaluate custom expressions and
@@ -108,7 +114,7 @@ see <<ml-datafeed-resource>>.
 
 The following example creates the `datafeed-total-requests` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/datafeeds/datafeed-total-requests
 {
@@ -116,11 +122,11 @@ PUT _ml/datafeeds/datafeed-total-requests
   "indices": ["server-metrics"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_job]
 
 When the {dfeed} is created, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "datafeed_id": "datafeed-total-requests",

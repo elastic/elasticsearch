@@ -20,18 +20,15 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
-import org.gradle.api.DefaultTask
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
-import org.gradle.api.artifacts.DependencyResolutionListener
 import org.gradle.api.artifacts.DependencySet
+import org.gradle.api.internal.ConventionTask
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
-
-import java.util.regex.Matcher
-import java.util.regex.Pattern
 
 /**
  * A task to gather information about the dependencies and export them into a csv file.
@@ -45,32 +42,31 @@ import java.util.regex.Pattern
  * </ul>
  *
  */
-public class DependenciesInfoTask extends DefaultTask {
+class DependenciesInfoTask extends ConventionTask {
 
     /** Dependencies to gather information from. */
-    @Input
-    public Configuration runtimeConfiguration
+    @InputFiles
+    Configuration runtimeConfiguration
 
     /** We subtract compile-only dependencies. */
-    @Input
-    public Configuration compileOnlyConfiguration
-
-    @Input
-    public LinkedHashMap<String, String> mappings
+    @InputFiles
+    Configuration compileOnlyConfiguration
 
     /** Directory to read license files */
     @InputDirectory
-    public File licensesDir = new File(project.projectDir, 'licenses')
+    File licensesDir = new File(project.projectDir, 'licenses')
 
     @OutputFile
     File outputFile = new File(project.buildDir, "reports/dependencies/dependencies.csv")
 
-    public DependenciesInfoTask() {
+    private LinkedHashMap<String, String> mappings
+
+    DependenciesInfoTask() {
         description = 'Create a CSV file with dependencies information.'
     }
 
     @TaskAction
-    public void generateDependenciesInfo() {
+    void generateDependenciesInfo() {
 
         final DependencySet runtimeDependencies = runtimeConfiguration.getAllDependencies()
         // we have to resolve the transitive dependencies and create a group:artifactId:version map
@@ -93,7 +89,7 @@ public class DependenciesInfoTask extends DefaultTask {
             }
 
             final String url = createURL(dependency.group, dependency.name, dependency.version)
-            final String dependencyName = DependencyLicensesTask.getDependencyName(mappings, dependency.name)
+            final String dependencyName = DependencyLicensesTask.getDependencyName(getMappings(), dependency.name)
             logger.info("mapped dependency ${dependency.group}:${dependency.name} to ${dependencyName} for license info")
 
             final String licenseType = getLicenseType(dependency.group, dependencyName)
@@ -103,7 +99,15 @@ public class DependenciesInfoTask extends DefaultTask {
         outputFile.setText(output.toString(), 'UTF-8')
     }
 
-    /**
+    @Input
+    LinkedHashMap<String, String> getMappings() {
+        return mappings
+    }
+
+    void setMappings(LinkedHashMap<String, String> mappings) {
+        this.mappings = mappings
+    }
+/**
      * Create an URL on <a href="https://repo1.maven.org/maven2/">Maven Central</a>
      * based on dependency coordinates.
      */

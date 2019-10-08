@@ -15,15 +15,18 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -84,9 +87,9 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
         }
 
         @Override
-        public Query visit(org.elasticsearch.geo.geometry.Line line) {
+        public Query visit(Line line) {
             return XYShape.newLineQuery(fieldName, relation.getLuceneRelation(),
-                new XYLine(doubleArrayToFloatArray(line.getLons()), doubleArrayToFloatArray(line.getLats())));
+                new XYLine(doubleArrayToFloatArray(line.getX()), doubleArrayToFloatArray(line.getY())));
         }
 
         @Override
@@ -98,8 +101,8 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
         public Query visit(MultiLine multiLine) {
             XYLine[] lines = new XYLine[multiLine.size()];
             for (int i=0; i<multiLine.size(); i++) {
-                lines[i] = new XYLine(doubleArrayToFloatArray(multiLine.get(i).getLons()),
-                    doubleArrayToFloatArray(multiLine.get(i).getLats()));
+                lines[i] = new XYLine(doubleArrayToFloatArray(multiLine.get(i).getX()),
+                    doubleArrayToFloatArray(multiLine.get(i).getY()));
             }
             return XYShape.newLineQuery(fieldName, relation.getLuceneRelation(), lines);
         }
@@ -126,18 +129,18 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
         @Override
         public Query visit(Point point) {
             return XYShape.newBoxQuery(fieldName, relation.getLuceneRelation(),
-                (float)point.getLon(), (float)point.getLon(), (float)point.getLat(), (float)point.getLat());
+                (float)point.getX(), (float)point.getX(), (float)point.getY(), (float)point.getY());
         }
 
         @Override
-        public Query visit(org.elasticsearch.geo.geometry.Polygon polygon) {
+        public Query visit(Polygon polygon) {
             return XYShape.newPolygonQuery(fieldName, relation.getLuceneRelation(), toLucenePolygon(polygon));
         }
 
         @Override
-        public Query visit(org.elasticsearch.geo.geometry.Rectangle r) {
+        public Query visit(Rectangle r) {
             return XYShape.newBoxQuery(fieldName, relation.getLuceneRelation(),
-                (float)r.getMinLon(), (float)r.getMaxLon(), (float)r.getMinLat(), (float)r.getMaxLat());
+                (float)r.getMinX(), (float)r.getMaxX(), (float)r.getMinY(), (float)r.getMaxY());
         }
     }
 

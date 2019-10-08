@@ -22,20 +22,16 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public final class RestRemoteClusterInfoAction extends BaseRestHandler {
 
-    public RestRemoteClusterInfoAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestRemoteClusterInfoAction(RestController controller) {
         controller.registerHandler(GET, "_remote/info", this);
     }
 
@@ -45,9 +41,10 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         return channel -> client.execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest(), new RestToXContentListener<>(channel));
     }
+
     @Override
     public boolean canTripCircuitBreaker() {
         return false;

@@ -19,14 +19,14 @@ certificates that are used to encrypt communications in your {es} cluster.
 
 * If the {security-features} are enabled, you must have `monitor` cluster
 privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[security-api-ssl-desc]]
 ==== {api-description-title}
 
 For more information about how certificates are configured in conjunction with
 Transport Layer Security (TLS), see
-{stack-ov}/ssl-tls.html[Setting up SSL/TLS on a cluster].
+<<ssl-tls>>.
 
 The API returns a list that includes certificates from all TLS contexts
 including:
@@ -80,12 +80,10 @@ certificate, this field has a value of `true`.
 The following example provides information about the certificates on a single
 node of {es}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_ssl/certificates
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The API returns the following results:
 

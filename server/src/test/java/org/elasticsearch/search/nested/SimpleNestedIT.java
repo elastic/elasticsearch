@@ -84,7 +84,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()).get();
 
         waitForRelocation(ClusterHealthStatus.GREEN);
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
+        GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
         refresh();
@@ -185,7 +185,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endArray()
                 .endObject()).get();
 
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
+        GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         waitForRelocation(ClusterHealthStatus.GREEN);
         refresh();

@@ -11,6 +11,9 @@ with arbitrary `x, y` cartesian shapes such as rectangles and polygons. It can b
 used to index and query geometries whose coordinates fall in a 2-dimensional planar
 coordinate system.
 
+You can query documents using this type using
+<<query-dsl-shape-query,shape Query>>.
+
 [[shape-mapping-options]]
 [float]
 ==== Mapping Options
@@ -77,7 +80,7 @@ The following features are not yet supported:
 [float]
 ===== Example
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /example
 {
@@ -90,7 +93,6 @@ PUT /example
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 This mapping definition maps the geometry field to the shape type. The indexer uses single
@@ -142,7 +144,7 @@ A point is a single coordinate in cartesian `x, y` space. It may represent the
 location of an item of interest in a virtual world or projected space. The
 following is an example of a point in GeoJSON.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -152,18 +154,16 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a point in WKT:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
     "location" : "POINT (-377.03653 389.897676)"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[linestring]]
@@ -174,7 +174,7 @@ specifying only two points, the `linestring` will represent a straight
 line.  Specifying more than two points creates an arbitrary path. The
 following is an example of a LineString in GeoJSON.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -184,18 +184,16 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a LineString in WKT:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
     "location" : "LINESTRING (-377.03653 389.897676, -377.009051 389.889939)"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[polygon]]
@@ -205,7 +203,7 @@ A polygon is defined by a list of a list of points. The first and last
 points in each (outer) list must be the same (the polygon must be
 closed). The following is an example of a Polygon in GeoJSON.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -217,24 +215,22 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a Polygon in WKT:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
     "location" : "POLYGON ((1000.0 -1001.0, 1001.0 -1001.0, 1001.0 -1000.0, 1000.0 -1000.0, 1000.0 -1001.0))"
 }
 --------------------------------------------------
-// CONSOLE
 
 The first array represents the outer boundary of the polygon, the other
 arrays represent the interior shapes ("holes"). The following is a GeoJSON example
 of a polygon with a hole:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -247,18 +243,16 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a Polygon with a hole in WKT:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
     "location" : "POLYGON ((1000.0 1000.0, 1001.0 1000.0, 1001.0 1001.0, 1000.0 1001.0, 1000.0 1000.0), (1000.2 1000.2, 1000.8 1000.2, 1000.8 1000.8, 1000.2 1000.8, 1000.2 1000.2))"
 }
 --------------------------------------------------
-// CONSOLE
 
 *IMPORTANT NOTE:* WKT does not enforce a specific order for vertices.
 https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON] mandates that the
@@ -274,7 +268,7 @@ with the document.
 
 The following is an example of overriding the `orientation` parameters on a document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -287,7 +281,6 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[multipoint]]
@@ -295,7 +288,7 @@ POST /example/_doc
 
 The following is an example of a list of geojson points:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -307,18 +300,16 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a list of WKT points:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
     "location" : "MULTIPOINT (1002.0 2000.0, 1003.0 2000.0)"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[multilinestring]]
@@ -326,7 +317,7 @@ POST /example/_doc
 
 The following is an example of a list of geojson linestrings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -340,18 +331,16 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a list of WKT linestrings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
     "location" : "MULTILINESTRING ((1002.0 200.0, 1003.0 200.0, 1003.0 300.0, 1002.0 300.0), (1000.0 100.0, 1001.0 100.0, 1001.0 100.0, 1000.0 100.0), (1000.2 0.2, 1000.8 100.2, 1000.8 100.8, 1000.2 100.8))"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[multipolygon]]
@@ -359,7 +348,7 @@ POST /example/_doc
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -373,18 +362,16 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a list of WKT polygons (second polygon contains a hole):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
     "location" : "MULTIPOLYGON (((1002.0 200.0, 1003.0 200.0, 1003.0 300.0, 1002.0 300.0, 102.0 200.0)), ((1000.0 100.0, 1001.0 100.0, 1001.0 100.0, 1000.0 100.0, 1000.0 100.0), (1000.2 100.2, 1000.8 100.2, 1000.8 100.8, 1000.2 100.8, 1000.2 100.2)))"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[geometry_collection]]
@@ -392,7 +379,7 @@ POST /example/_doc
 
 The following is an example of a collection of geojson geometry objects:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -411,18 +398,16 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a collection of WKT geometry objects:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
     "location" : "GEOMETRYCOLLECTION (POINT (1000.0 100.0), LINESTRING (1001.0 100.0, 1002.0 100.0))"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Envelope
@@ -431,7 +416,7 @@ Elasticsearch supports an `envelope` type, which consists of coordinates
 for upper left and lower right points of the shape to represent a
 bounding rectangle in the format `[[minX, maxY], [maxX, minY]]`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
@@ -441,20 +426,18 @@ POST /example/_doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of an envelope using the WKT BBOX format:
 
 *NOTE:* WKT specification expects the following order: minLon, maxLon, maxLat, minLat.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /example/_doc
 {
     "location" : "BBOX (1000.0, 1002.0, 2000.0, 1000.0)"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Sorting and Retrieving index Shapes

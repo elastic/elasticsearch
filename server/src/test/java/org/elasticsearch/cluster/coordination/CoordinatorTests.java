@@ -585,6 +585,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
             final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
 
+            follower0.allowClusterStateApplicationFailure();
             follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.FAIL);
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
@@ -604,6 +605,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
             final long startingTerm = leader.coordinator.getCurrentTerm();
 
+            leader.allowClusterStateApplicationFailure();
             leader.setClusterStateApplyResponse(ClusterStateApplyResponse.FAIL);
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing value");
@@ -1215,8 +1217,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 clusterNode.disconnect();
             }
 
-            cluster.runFor(defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING),
+            cluster.runFor(defaultMillis(LEADER_CHECK_TIMEOUT_SETTING) // to wait for any in-flight check to time out
+                    + defaultMillis(LEADER_CHECK_INTERVAL_SETTING) // to wait for the next check to be sent
+                    + 2 * DEFAULT_DELAY_VARIABILITY, // to send the failing check and receive the disconnection response
                 "waiting for leader failure");
+
+            for (final ClusterNode clusterNode : cluster.clusterNodes) {
+                assertThat(clusterNode.getId() + " is CANDIDATE", clusterNode.coordinator.getMode(), is(CANDIDATE));
+            }
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
                 final MockLogAppender mockLogAppender = new MockLogAppender();

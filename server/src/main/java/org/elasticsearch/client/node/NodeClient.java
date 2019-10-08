@@ -19,10 +19,10 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 
@@ -42,6 +43,9 @@ import java.util.function.Supplier;
 public class NodeClient extends AbstractClient {
 
     private Map<ActionType, TransportAction> actions;
+
+    private TaskManager taskManager;
+
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
      * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
@@ -53,9 +57,10 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
-    public void initialize(Map<ActionType, TransportAction> actions, Supplier<String> localNodeId,
+    public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
                            RemoteClusterService remoteClusterService) {
         this.actions = actions;
+        this.taskManager = taskManager;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;
     }
@@ -80,7 +85,8 @@ public class NodeClient extends AbstractClient {
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
             > Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-        return transportAction(action).execute(request, listener);
+        return taskManager.registerAndExecute("transport", transportAction(action), request,
+            (t, r) -> listener.onResponse(r), (t, e) -> listener.onFailure(e));
     }
 
     /**
@@ -90,7 +96,8 @@ public class NodeClient extends AbstractClient {
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
             > Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
-        return transportAction(action).execute(request, listener);
+        return taskManager.registerAndExecute("transport", transportAction(action), request,
+            listener::onResponse, listener::onFailure);
     }
 
     /**

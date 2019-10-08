@@ -1,11 +1,12 @@
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin 
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
+
+testFixtures.useFixture()
 
 configurations {
   dockerPlugins
@@ -58,7 +59,7 @@ project.ext {
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
-        MavenFilteringHack.filter(it, expansions(oss, local))
+        expand(expansions(oss, local))
       }
     }
   }
@@ -66,7 +67,9 @@ project.ext {
 
 void addCopyDockerContextTask(final boolean oss) {
   task(taskName("copy", oss, "DockerContext"), type: Sync) {
-    inputs.properties(expansions(oss, true))
+    expansions(oss, true).each { k, v ->
+      inputs.property(k, { v.toString() })
+    }
     into files(oss)
 
     with dockerBuildContext(oss, true)
@@ -182,4 +185,38 @@ assemble.dependsOn "buildDockerImage"
 // Everything will still be pulled since we will build the local images on a pull
 if (tasks.findByName("composePull")) {
     tasks.composePull.enabled = false 
+}
+
+/*
+ * The export subprojects write out the generated Docker images to disk, so
+ * that they can be easily reloaded, for example into a VM.
+ */
+subprojects { Project subProject ->
+  if (subProject.name.contains('docker-export')) {
+    apply plugin: 'distribution'
+
+    final boolean oss = subProject.name.startsWith('oss')
+
+    def exportTaskName = taskName("export", oss, "DockerImage")
+    def buildTaskName = taskName("build", oss, "DockerImage")
+    def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
+
+    final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
+      executable 'docker'
+      args "save",
+        "-o",
+        tarFile,
+        "elasticsearch${oss ? '-oss' : ''}:test"
+    }
+
+    exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
+
+    artifacts.add('default', file(tarFile)) {
+        type 'tar'
+        name "elasticsearch${oss ? '-oss' : ''}"
+        builtBy exportTaskName
+    }
+
+    assemble.dependsOn exportTaskName
+  }
 }

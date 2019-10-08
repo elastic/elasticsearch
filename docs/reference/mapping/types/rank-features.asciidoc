@@ -12,7 +12,7 @@ It is analogous to the <<rank-feature,`rank_feature`>> datatype but is better su
 when the list of features is sparse so that it wouldn't be reasonable to add
 one field to the mappings for each of them.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -50,7 +50,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Rank features fields must use the `rank_features` field type
 <2> Rank features fields must be a hash with string keys and strictly positive numeric values
 

@@ -1,0 +1,69 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              x:
+                type: float
+              y:
+                type: float
+
+---
+"Test memory usage estimation for empty data frame":
+  - do:
+      ml.estimate_memory_usage:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { expected_memory_without_disk: "0" }
+  - match: { expected_memory_with_disk: "0" }
+
+---
+"Test memory usage estimation for non-empty data frame":
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { x: 1, y: 10 }
+  - match: { result: "created" }
+
+  - do:
+      ml.estimate_memory_usage:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { expected_memory_without_disk: "3kb" }
+  - match: { expected_memory_with_disk: "3kb" }
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { x: 2, y: 20 }
+  - match: { result: "created" }
+
+  - do:
+      ml.estimate_memory_usage:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { expected_memory_without_disk: "4kb" }
+  - match: { expected_memory_with_disk: "4kb" }
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { x: 3, y: 30 }
+  - match: { result: "created" }
+
+  - do:
+      ml.estimate_memory_usage:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { expected_memory_without_disk: "6kb" }
+  - match: { expected_memory_with_disk: "5kb" }

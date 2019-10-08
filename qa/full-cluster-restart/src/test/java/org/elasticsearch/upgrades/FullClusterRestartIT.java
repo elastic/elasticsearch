@@ -235,8 +235,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
 
         // Check some global properties:
-        String clusterName = (String) clusterState.get("cluster_name");
-        assertEquals("full-cluster-restart", clusterName);
         String numberOfShards = (String) XContentMapValues.extractValue(
             "metadata.templates.template_1.settings.index.number_of_shards", clusterState);
         assertEquals("1", numberOfShards);
@@ -674,23 +672,21 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // make sure all recoveries are done
             ensureGreen(index);
-            // Recovering a synced-flush index from 5.x to 6.x might be subtle as a 5.x index commit does not have all 6.x commit tags.
+
+            // Force flush so we're sure that all translog are committed
+            Request flushRequest = new Request("POST", "/" + index + "/_flush");
+            flushRequest.addParameter("force", "true");
+            flushRequest.addParameter("wait_if_ongoing", "true");
+            assertOK(client().performRequest(flushRequest));
+
             if (randomBoolean()) {
-                // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-                // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-                assertBusy(() -> {
-                    try {
-                        Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
-                        Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                        assertThat(result.get("successful"), equalTo(result.get("total")));
-                        assertThat(result.get("failed"), equalTo(0));
-                    } catch (ResponseException ex) {
-                        throw new AssertionError(ex); // cause assert busy to retry
-                    }
-                });
-            } else {
-                // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
-                assertOK(client().performRequest(new Request("POST", "/_flush")));
+                // We had a bug before where we failed to perform peer recovery with sync_id from 5.x to 6.x.
+                // We added this synced flush so we can exercise different paths of recovery code.
+                try {
+                    client().performRequest(new Request("POST", index + "/_flush/synced"));
+                } catch (ResponseException ignored) {
+                    // synced flush is optional here
+                }
             }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog

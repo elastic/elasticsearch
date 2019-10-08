@@ -37,7 +37,7 @@ public class RestPutMappingActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestPutMappingAction(Settings.EMPTY, controller());
+        new RestPutMappingAction(controller());
     }
 
     public void testIncludeTypeName() {

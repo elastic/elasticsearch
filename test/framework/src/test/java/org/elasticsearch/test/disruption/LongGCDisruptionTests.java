@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,7 +36,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43387")
 public class LongGCDisruptionTests extends ESTestCase {
 
     static class LockedExecutor {

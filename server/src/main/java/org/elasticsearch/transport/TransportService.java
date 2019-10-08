@@ -541,25 +541,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         connectionManager.removeListener(listener);
     }
 
-    public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
-                                                                          TransportResponseHandler<T> handler) throws TransportException {
-        return submitRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
-    }
-
-    public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
-                                                                          TransportRequestOptions options,
-                                                                          TransportResponseHandler<T> handler) throws TransportException {
-        PlainTransportFuture<T> futureHandler = new PlainTransportFuture<>(handler);
-        try {
-            Transport.Connection connection = getConnection(node);
-            sendRequest(connection, action, request, options, futureHandler);
-        } catch (NodeNotConnectedException ex) {
-            // the caller might not handle this so we invoke the handler
-            futureHandler.handleException(ex);
-        }
-        return futureHandler;
-    }
-
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportResponseHandler<T> handler) {

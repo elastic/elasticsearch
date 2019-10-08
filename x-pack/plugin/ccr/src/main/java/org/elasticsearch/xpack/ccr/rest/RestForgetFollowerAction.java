@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -21,8 +20,7 @@ import java.util.Objects;
 
 public class RestForgetFollowerAction extends BaseRestHandler {
 
-    public RestForgetFollowerAction(final Settings settings, final RestController restController) {
-        super(Objects.requireNonNull(settings));
+    public RestForgetFollowerAction(final RestController restController) {
         Objects.requireNonNull(restController);
         restController.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/forget_follower", this);
     }

@@ -1,5 +1,8 @@
 [[cat-indices]]
-=== cat indices
+=== cat indices API
+++++
+<titleabbrev>cat indices</titleabbrev>
+++++
 
 Returns high-level information about indices in a cluster.
 
@@ -7,7 +10,7 @@ Returns high-level information about indices in a cluster.
 [[cat-indices-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/indices/{index}`
+`GET /_cat/indices/<index>`
 
 
 [[cat-indices-api-desc]]
@@ -81,11 +84,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ==== {api-examples-title}
 
 [[examples]]
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/indices/twi*?v&s=index
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:huge_twitter]
 // TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
 

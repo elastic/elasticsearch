@@ -238,6 +238,12 @@ locations for a Debian-based system:
   | /var/lib/elasticsearch
   | path.data
 
+| jdk
+  | The bundled Java Development Kit used to run Elasticsearch. Can
+    be overriden by setting the `JAVA_HOME` environment variable.
+  | /usr/share/elasticsearch/jdk
+ d|
+
 | logs
   | Log files location.
   | /var/log/elasticsearch

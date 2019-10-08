@@ -9,6 +9,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -224,9 +225,9 @@ public class SSLErrorMessageTests extends ESTestCase {
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception, throwableWithMessage(
-            "failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file [" + fileName +
-                "] is blocked; SSL resources should be placed in the [" + env.configFile() + "] directory"));
+        assertThat(exception.getMessage(),
+            containsString("failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file"));
+        assertThat(exception.getMessage(),containsString("file.error"));
         assertThat(exception, instanceOf(ElasticsearchException.class));
 
         exception = exception.getCause();
@@ -248,7 +249,7 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     private String blockedFile() throws IOException {
-        return "/this/path/is/outside/the/config/directory/file.error";
+        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toString();
     }
 
     /**

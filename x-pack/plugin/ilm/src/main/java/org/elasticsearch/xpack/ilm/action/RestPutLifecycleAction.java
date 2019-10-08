@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -19,8 +18,7 @@ import java.io.IOException;
 
 public class RestPutLifecycleAction extends BaseRestHandler {
 
-    public RestPutLifecycleAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutLifecycleAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_ilm/policy/{name}", this);
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -55,7 +56,8 @@ public class MetricAggExtractor implements BucketExtractor {
         property = in.readString();
         innerKey = in.readOptionalString();
         isDateTimeBased = in.readBoolean();
-        zoneId = ZoneId.of(in.readString());
+
+        zoneId = SqlStreamInput.asSqlStream(in).zoneId();
     }
 
     @Override
@@ -64,7 +66,6 @@ public class MetricAggExtractor implements BucketExtractor {
         out.writeString(property);
         out.writeOptionalString(innerKey);
         out.writeBoolean(isDateTimeBased);
-        out.writeString(zoneId.getId());
     }
 
     String name() {

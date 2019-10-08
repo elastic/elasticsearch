@@ -75,7 +75,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -202,17 +201,23 @@ public class MetaDataCreateIndexService {
      */
     public void createIndex(final CreateIndexClusterStateUpdateRequest request,
                             final ActionListener<CreateIndexClusterStateUpdateResponse> listener) {
+        logger.trace("createIndex[{}]", request);
         onlyCreateIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
+                logger.trace("[{}] index creation acknowledged, waiting for active shards [{}]",
+                    request.index(), request.waitForActiveShards());
                 activeShardsObserver.waitForActiveShards(new String[]{request.index()}, request.waitForActiveShards(), request.ackTimeout(),
                     shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug("[{}] index created, but the operation timed out while waiting for " +
                                              "enough shards to be started.", request.index());
+                        } else {
+                            logger.trace("[{}] index created and shards acknowledged", request.index());
                         }
                         listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
                     }, listener::onFailure);
             } else {
+                logger.trace("index creation not acknowledged for [{}]", request);
                 listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));
             }
         }, listener::onFailure));
@@ -278,6 +283,7 @@ public class MetaDataCreateIndexService {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
+            logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
             Index createdIndex = null;
             String removalExtraInfo = null;
             IndexRemovalReason removalReason = IndexRemovalReason.FAILURE;
@@ -301,7 +307,10 @@ public class MetaDataCreateIndexService {
                 List<String> templateNames = new ArrayList<>();
 
                 for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-                    mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
+                    Map<String, Object> mapping = MapperService.parseMapping(xContentRegistry, entry.getValue());
+                    assert mapping.size() == 1 : mapping;
+                    assert entry.getKey().equals(mapping.keySet().iterator().next()) : entry.getKey() + " != " + mapping;
+                    mappings.put(entry.getKey(), mapping);
                 }
 
                 final Index recoverFromIndex = request.recoverFrom();
@@ -509,12 +518,10 @@ public class MetaDataCreateIndexService {
 
                 // now, update the mappings with the actual source
                 Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
-                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
-                    if (mapper != null) {
-                        MappingMetaData mappingMd = new MappingMetaData(mapper);
-                        mappingsMetaData.put(mapper.type(), mappingMd);
-                    }
+                DocumentMapper mapper = mapperService.documentMapper();
+                if (mapper != null) {
+                    MappingMetaData mappingMd = new MappingMetaData(mapper);
+                    mappingsMetaData.put(mapper.type(), mappingMd);
                 }
 
                 final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index())
@@ -727,8 +734,7 @@ public class MetaDataCreateIndexService {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
         }
 
-        if ((targetIndexMappingsTypes.size() > 1 ||
-            (targetIndexMappingsTypes.isEmpty() || targetIndexMappingsTypes.contains(MapperService.DEFAULT_MAPPING)) == false)) {
+        if (targetIndexMappingsTypes.size() > 0) {
             throw new IllegalArgumentException("mappings are not allowed when resizing indices" +
                 ", all mappings are copied from the source index");
         }

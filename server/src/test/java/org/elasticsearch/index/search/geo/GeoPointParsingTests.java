@@ -32,7 +32,7 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.io.IOException;
 import java.util.function.DoubleSupplier;
 
-import static org.elasticsearch.geo.utils.Geohash.stringEncode;
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.is;
 

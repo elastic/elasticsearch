@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  * Base class for HLRC response parsing tests.
  *
- * This case class facilitates generating server side reponse test instances and
+ * This case class facilitates generating server side response test instances and
  * verifies that they are correctly parsed into HLRC response instances.
  *
  * @param <S> The class representing the response on the server side.
@@ -42,9 +42,8 @@ import java.io.IOException;
 public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends ESTestCase {
 
     public final void testFromXContent() throws IOException {
-        final S serverTestInstance = createServerTestInstance();
-
         final XContentType xContentType = randomFrom(XContentType.values());
+        final S serverTestInstance = createServerTestInstance(xContentType);
         final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, getParams(), randomBoolean());
 
         final XContent xContent = XContentFactory.xContent(xContentType);
@@ -56,12 +55,32 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
         assertInstances(serverTestInstance, clientInstance);
     }
 
-    protected abstract S createServerTestInstance();
+    /**
+     * @param xContentType The xcontent type that will be used to serialize the test instance.
+     *                     This is parameter is needed if the test instance contains serialized xcontent as bytes or string.
+     *
+     * @return The server side test instance to will be serialized as xcontent to be used to parse client side response class.
+     */
+    protected abstract S createServerTestInstance(XContentType xContentType);
 
+    /**
+     * @param parser The xcontent parser
+     * @return The client side instance that is parsed from the xcontent generated from the server side test instance.
+     */
     protected abstract C doParseToClientInstance(XContentParser parser) throws IOException;
 
+    /**
+     * Assert that the server instance and client instance contain the same content.
+     * Typically by asserting whether each property of both instances are equal to each other.
+     *
+     * @param serverTestInstance The server side instance that was created by {@link #createServerTestInstance(XContentType)}
+     * @param clientInstance     The client side instance that was created by {@link #doParseToClientInstance(XContentParser)}
+     */
     protected abstract void assertInstances(S serverTestInstance, C clientInstance);
 
+    /**
+     * @return The params used when generated the xcontent from server side test instance as bytes
+     */
     protected ToXContent.Params getParams() {
         return ToXContent.EMPTY_PARAMS;
     }

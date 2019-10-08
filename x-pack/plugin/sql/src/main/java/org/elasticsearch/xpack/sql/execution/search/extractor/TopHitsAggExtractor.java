@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -34,14 +35,13 @@ public class TopHitsAggExtractor implements BucketExtractor {
     TopHitsAggExtractor(StreamInput in) throws IOException {
         name = in.readString();
         fieldDataType = in.readEnum(DataType.class);
-        zoneId = ZoneId.of(in.readString());
+        zoneId = SqlStreamInput.asSqlStream(in).zoneId();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeEnum(fieldDataType);
-        out.writeString(zoneId.getId());
     }
 
     String name() {

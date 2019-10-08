@@ -93,8 +93,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             // for the distribution as a file, just depend on the artifact directly
             dependencies.add(distribution.configuration.getName(), dependencyNotation(project, distribution));
 
-            // no extraction allowed for rpm or deb
-            if (distribution.getType() != Type.RPM && distribution.getType() != Type.DEB) {
+            // no extraction allowed for rpm, deb or docker
+            if (distribution.getType().shouldExtract()) {
                 // for the distribution extracted, add a root level task that does the extraction, and depend on that
                 // extracted configuration as an artifact consisting of the extracted distribution directory
                 dependencies.add(distribution.getExtracted().configuration.getName(),
@@ -202,17 +202,25 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
 
         String extension = distribution.getType().toString();
-        String classifier = "x86_64";
+        String classifier = ":x86_64";
         if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
-            classifier = distribution.getPlatform() + "-" + classifier;
+            if (distribution.getVersion().onOrAfter("7.0.0")) {
+                classifier = ":" + distribution.getPlatform() + "-x86_64";
+            } else {
+                classifier = "";
+            }
+        } else if (distribution.getType() == Type.DEB) {
+            classifier = ":amd64";
         }
-        return FAKE_IVY_GROUP + ":elasticsearch" + (distribution.getFlavor() == Flavor.OSS ? "-oss:" : ":")
-            + distribution.getVersion() + ":" + classifier + "@" + extension;
+        String flavor = "";
+        if (distribution.getFlavor() == Flavor.OSS && distribution.getVersion().onOrAfter("6.3.0")) {
+            flavor = "-oss";
+        }
+        return FAKE_IVY_GROUP + ":elasticsearch" + flavor + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 
     private static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
-
         if (project.findProject(projectPath) == null) {
             throw new GradleException("no project [" + projectPath + "], project names: " + project.getRootProject().getAllprojects());
         }
@@ -224,11 +232,20 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {
         String projectPath = ":distribution";
-        if (distribution.getType() == Type.INTEG_TEST_ZIP) {
-            projectPath += ":archives:integ-test-zip";
-        } else {
-            projectPath += distribution.getType() == Type.ARCHIVE ? ":archives:" : ":packages:";
-            projectPath += distributionProjectName(distribution);
+        switch (distribution.getType()) {
+            case INTEG_TEST_ZIP:
+                projectPath += ":archives:integ-test-zip";
+                break;
+
+            case DOCKER:
+                projectPath += ":docker:";
+                projectPath += distributionProjectName(distribution);
+                break;
+
+            default:
+                projectPath += distribution.getType() == Type.ARCHIVE ? ":archives:" : ":packages:";
+                projectPath += distributionProjectName(distribution);
+                break;
         }
         return projectPath;
     }
@@ -241,9 +258,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
+
         if (distribution.getType() == Type.ARCHIVE) {
             Platform platform = distribution.getPlatform();
             projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
+        } else if (distribution.getType() == Type.DOCKER) {
+            projectName += "docker-export";
         } else {
             projectName += distribution.getType();
         }

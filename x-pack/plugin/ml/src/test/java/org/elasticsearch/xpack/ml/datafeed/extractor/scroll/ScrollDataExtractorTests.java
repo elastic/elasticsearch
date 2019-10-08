@@ -135,9 +135,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
         capturedSearchRequests = new ArrayList<>();
         capturedContinueScrollIds = new ArrayList<>();
         jobId = "test-job";
-        ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField timeField = ExtractedField.newField("time", Collections.singleton("date"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
         extractedFields = new TimeBasedExtractedFields(timeField,
-                Arrays.asList(timeField, ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE)));
+                Arrays.asList(timeField, ExtractedField.newField("field_1", Collections.singleton("keyword"),
+                    ExtractedField.ExtractionMethod.DOC_VALUE)));
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
         scriptFields = Collections.emptyList();

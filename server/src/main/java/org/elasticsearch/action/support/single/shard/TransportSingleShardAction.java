@@ -275,7 +275,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         @Override
         public void messageReceived(Request request, final TransportChannel channel, Task task) throws Exception {
             // if we have a local operation, execute it on a thread since we don't spawn
-            execute(request, new ChannelActionListener<>(channel, actionName, request));
+            execute(task, request, new ChannelActionListener<>(channel, actionName, request));
         }
     }
 

@@ -35,6 +35,8 @@ include::query-dsl/full-text-queries.asciidoc[]
 
 include::query-dsl/geo-queries.asciidoc[]
 
+include::query-dsl/shape-queries.asciidoc[]
+
 include::query-dsl/joining-queries.asciidoc[]
 
 include::query-dsl/match-all-query.asciidoc[]

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.List;
@@ -32,12 +32,12 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
     private final Client client;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
 
     @Inject
     public TransportDeleteModelSnapshotAction(TransportService transportService, ActionFilters actionFilters,
                                               JobResultsProvider jobResultsProvider, Client client, JobManager jobManager,
-                                              Auditor auditor) {
+                                              AnomalyDetectionAuditor auditor) {
         super(DeleteModelSnapshotAction.NAME, transportService, actionFilters, DeleteModelSnapshotAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;

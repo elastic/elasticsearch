@@ -43,7 +43,7 @@ params.max + params.base_cost > 10
 Note that the values are extracted from the `params` map. The script is in the form of an expression
 that returns `true` or `false`.  In context, the aggregation looks like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /seats/_search
 {
@@ -78,8 +78,8 @@ GET /seats/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]
+
 <1> The `buckets_path` points to the max aggregations (`max_cost`) and adds `max` variables
 to the `params` map
 <2> The user-specified `base_cost` is also added to the `params` map

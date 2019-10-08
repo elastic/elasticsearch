@@ -54,10 +54,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
             .unmodifiableSet(Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
                     .collect(Collectors.toSet()));
 
-    public RestGetIndicesAction(
-            final Settings settings,
-            final RestController controller) {
-        super(settings);
+    public RestGetIndicesAction(final RestController controller) {
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(HEAD, "/{index}", this);
     }

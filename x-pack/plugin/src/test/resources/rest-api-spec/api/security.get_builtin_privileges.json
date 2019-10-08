@@ -1,15 +1,19 @@
 {
-  "security.get_builtin_privileges": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-builtin-privileges.html",
-    "stability": "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": [
-        "/_security/privilege/_builtin"
-      ],
-      "parts": {},
-      "params": {}
+  "security.get_builtin_privileges":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-builtin-privileges.html"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/privilege/_builtin",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
   }
 }

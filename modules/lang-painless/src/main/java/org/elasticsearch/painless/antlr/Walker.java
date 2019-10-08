@@ -141,6 +141,7 @@ import org.elasticsearch.painless.node.PField;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
 import org.elasticsearch.painless.node.SCatch;
+import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.node.SContinue;
 import org.elasticsearch.painless.node.SDeclBlock;
 import org.elasticsearch.painless.node.SDeclaration;
@@ -149,21 +150,15 @@ import org.elasticsearch.painless.node.SEach;
 import org.elasticsearch.painless.node.SExpression;
 import org.elasticsearch.painless.node.SFor;
 import org.elasticsearch.painless.node.SFunction;
-import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.elasticsearch.painless.node.SIf;
 import org.elasticsearch.painless.node.SIfElse;
 import org.elasticsearch.painless.node.SReturn;
-import org.elasticsearch.painless.node.SSource;
-import org.elasticsearch.painless.node.SSource.MainMethodReserved;
-import org.elasticsearch.painless.node.SSource.Reserved;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
 import org.objectweb.asm.util.Printer;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 
 /**
@@ -171,32 +166,29 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(ScriptClassInfo mainMethod, MainMethodReserved reserved, String sourceName,
+    public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
                                             String sourceText, CompilerSettings settings, PainlessLookup painlessLookup,
                                             Printer debugStream) {
-        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, painlessLookup, debugStream).source;
+        return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup, debugStream).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
-    private final SSource source;
+    private final SClass source;
     private final CompilerSettings settings;
     private final Printer debugStream;
     private final String sourceName;
     private final String sourceText;
     private final PainlessLookup painlessLookup;
 
-    private final Deque<Reserved> reserved = new ArrayDeque<>();
-
-    private Walker(ScriptClassInfo scriptClassInfo, MainMethodReserved reserved, String sourceName, String sourceText,
+    private Walker(ScriptClassInfo scriptClassInfo, String sourceName, String sourceText,
                    CompilerSettings settings, PainlessLookup painlessLookup, Printer debugStream) {
         this.scriptClassInfo = scriptClassInfo;
-        this.reserved.push(reserved);
         this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName);
         this.sourceText = sourceText;
         this.painlessLookup = painlessLookup;
-        this.source = (SSource)visit(buildAntlrTree(sourceText));
+        this.source = (SClass)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
@@ -253,14 +245,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(scriptClassInfo, settings, sourceName, sourceText, debugStream,
-                           (MainMethodReserved)reserved.pop(), location(ctx), functions, statements);
+        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions, statements);
     }
 
     @Override
     public ANode visitFunction(FunctionContext ctx) {
-        reserved.push(new FunctionReserved());
-
         String rtnType = ctx.decltype().getText();
         String name = ctx.ID().getText();
         List<String> paramTypes = new ArrayList<>();
@@ -283,8 +272,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(ctx.block().dstatement()));
         }
 
-        return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name,
-                             paramTypes, paramNames, statements, false);
+        return new SFunction(location(ctx), rtnType, name, paramTypes, paramNames, new SBlock(location(ctx), statements), false);
     }
 
     @Override
@@ -319,8 +307,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitWhile(WhileContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         AExpression expression = (AExpression)visit(ctx.expression());
 
         if (ctx.trailer() != null) {
@@ -336,8 +322,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitDo(DoContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         AExpression expression = (AExpression)visit(ctx.expression());
         SBlock block = (SBlock)visit(ctx.block());
 
@@ -346,8 +330,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitFor(ForContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         ANode initializer = ctx.initializer() == null ? null : visit(ctx.initializer());
         AExpression expression = ctx.expression() == null ? null : (AExpression)visit(ctx.expression());
         AExpression afterthought = ctx.afterthought() == null ? null : (AExpression)visit(ctx.afterthought());
@@ -365,8 +347,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitEach(EachContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         String type = ctx.decltype().getText();
         String name = ctx.ID().getText();
         AExpression expression = (AExpression)visit(ctx.expression());
@@ -377,8 +357,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitIneach(IneachContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         String name = ctx.ID().getText();
         AExpression expression = (AExpression)visit(ctx.expression());
         SBlock block = (SBlock)visit(ctx.trailer());
@@ -839,11 +817,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitRegex(RegexContext ctx) {
-        if (false == settings.areRegexesEnabled()) {
-            throw location(ctx).createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
-                    + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
-                    + "recursion and long loops."));
-        }
         String text = ctx.REGEX().getText();
         int lastSlash = text.lastIndexOf('/');
         String pattern = text.substring(1, lastSlash);
@@ -865,7 +838,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitVariable(VariableContext ctx) {
         String name = ctx.ID().getText();
-        reserved.peek().markUsedVariable(name);
 
         return new EVariable(location(ctx), name);
     }
@@ -1058,8 +1030,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitLambda(LambdaContext ctx) {
-        reserved.push(new FunctionReserved());
-
         List<String> paramTypes = new ArrayList<>();
         List<String> paramNames = new ArrayList<>();
         List<AStatement> statements = new ArrayList<>();
@@ -1088,10 +1058,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             }
         }
 
-        FunctionReserved lambdaReserved = (FunctionReserved)reserved.pop();
-        reserved.peek().addUsedVariables(lambdaReserved);
-
-        return new ELambda(lambdaReserved, location(ctx), paramTypes, paramNames, statements);
+        return new ELambda(location(ctx), paramTypes, paramNames, statements);
     }
 
     @Override

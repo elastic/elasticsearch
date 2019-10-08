@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -37,7 +36,7 @@ import java.util.Objects;
 /**
  * A request to retrieve overall buckets of set of jobs
  */
-public class GetOverallBucketsRequest extends ActionRequest implements ToXContentObject {
+public class GetOverallBucketsRequest implements Validatable, ToXContentObject {
 
     public static final ParseField TOP_N = new ParseField("top_n");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
@@ -201,11 +200,6 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
      */
     public Boolean getAllowNoJobs() {
         return allowNoJobs;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

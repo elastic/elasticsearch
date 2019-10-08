@@ -593,3 +593,13 @@ See <<getting-started-search>>.
 [role="exclude", id="getting-started-conclusion"]
 === Conclusion
 See <<getting-started-next-steps>>.
+
+[role="exclude",id="configuring-monitoring"]
+=== Configuring monitoring in {es}
+
+See <<monitoring-overview>>.
+
+[role="exclude",id="es-monitoring"]
+=== Monitoring {es}
+
+See <<monitor-elasticsearch-cluster>>.

@@ -1,6 +1,6 @@
 [role="xpack"]
 [[monitoring-settings]]
-===  Monitoring settings in Elasticsearch
+=== Monitoring settings in Elasticsearch
 ++++
 <titleabbrev>Monitoring settings</titleabbrev>
 ++++

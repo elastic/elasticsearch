@@ -650,3 +650,13 @@ See <<getting-started-next-steps>>.
 [role="exclude",id="ccs-reduction"]
 === {ccs-cap} reduction
 See <<ccs-works>>.
+
+[role="exclude",id="es-monitoring"]
+=== Monitoring {es}
+
+See <<monitoring-overview>>.
+
+[role="exclude",id="configuring-monitoring"]
+=== Configuring monitoring in {es}
+
+See <<monitor-elasticsearch-cluster>>.

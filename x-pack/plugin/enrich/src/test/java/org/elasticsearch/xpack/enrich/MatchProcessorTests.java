@@ -209,7 +209,7 @@ public class MatchProcessorTests extends ESTestCase {
         int maxMatches = randomIntBetween(1, 8);
         MockSearchFunction mockSearch = mockedSearchFunction(Map.of(2, Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
         MatchProcessor processor =
-            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", "domain", false, true, maxMatches);
+            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", maxMatches);
         IngestDocument ingestDocument =
             new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of("domain", 2));
 
@@ -240,7 +240,7 @@ public class MatchProcessorTests extends ESTestCase {
         MockSearchFunction mockSearch =
             mockedSearchFunction(Map.of(List.of("1", "2"), Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
         MatchProcessor processor =
-            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", "domain", false, true, maxMatches);
+            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", maxMatches);
         IngestDocument ingestDocument =
             new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of("domain", List.of("1", "2")));
 

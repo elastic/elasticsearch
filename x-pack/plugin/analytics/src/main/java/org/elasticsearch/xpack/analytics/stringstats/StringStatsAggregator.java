@@ -86,9 +86,9 @@ public class StringStatsAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                final long overSize = BigArrays.overSize(bucket + 1);
                 if (bucket >= count.size()) {
                     final long from = count.size();
-                    final long overSize = BigArrays.overSize(bucket + 1);
                     count = bigArrays.resize(count, overSize);
                     totalLength = bigArrays.resize(totalLength, overSize);
                     minLength = bigArrays.resize(minLength, overSize);
@@ -117,7 +117,6 @@ public class StringStatsAggregator extends MetricsAggregator {
                             // Parse string chars and count occurrences
                             for (Character c : valueStr.toCharArray()) {
                                 LongArray occ = charOccurrences.get(c);
-                                final long overSize = BigArrays.overSize(bucket + 1);
                                 if (occ == null) {
                                     occ = bigArrays.newLongArray(overSize, true);
                                 } else {

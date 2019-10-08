@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -169,7 +170,7 @@ public class InternalStringStats extends InternalAggregation {
             case avg_length: return this.getAvgLength();
             case entropy: return this.getEntropy();
             default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+                throw new IllegalArgumentException("Unknown value [" + name + "] in string stats aggregation");
         }
     }
 
@@ -208,37 +209,37 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     static class Fields {
-        public static final String COUNT = "count";
-        public static final String MIN_LENGTH = "min_length";
-        public static final String MIN_LENGTH_AS_STRING = "min_length_as_string";
-        public static final String MAX_LENGTH = "max_length";
-        public static final String MAX_LENGTH_AS_STRING = "max_as_string";
-        public static final String AVG_LENGTH = "avg_length";
-        public static final String AVG_LENGTH_AS_STRING = "avg_length_as_string";
-        public static final String ENTROPY = "entropy";
-        public static final String ENTROPY_AS_STRING = "entropy_string";
-        public static final String DISTRIBUTION = "distribution";
-        public static final String DISTRIBUTION_AS_STRING = "distribution_string";
+        public static final ParseField COUNT = new ParseField("count");
+        public static final ParseField MIN_LENGTH = new ParseField("min_length");
+        public static final ParseField MIN_LENGTH_AS_STRING = new ParseField("min_length_as_string");
+        public static final ParseField MAX_LENGTH = new ParseField("max_length");
+        public static final ParseField MAX_LENGTH_AS_STRING = new ParseField("max_as_string");
+        public static final ParseField AVG_LENGTH = new ParseField("avg_length");
+        public static final ParseField AVG_LENGTH_AS_STRING = new ParseField("avg_length_as_string");
+        public static final ParseField ENTROPY = new ParseField("entropy");
+        public static final ParseField ENTROPY_AS_STRING = new ParseField("entropy_string");
+        public static final ParseField DISTRIBUTION = new ParseField("distribution");
+        public static final ParseField DISTRIBUTION_AS_STRING = new ParseField("distribution_string");
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.COUNT, count);
+        builder.field(Fields.COUNT.getPreferredName(), count);
         if (count > 0) {
-            builder.field(Fields.MIN_LENGTH, minLength);
-            builder.field(Fields.MAX_LENGTH, maxLength);
-            builder.field(Fields.AVG_LENGTH, getAvgLength());
-            builder.field(Fields.ENTROPY, getEntropy());
+            builder.field(Fields.MIN_LENGTH.getPreferredName(), minLength);
+            builder.field(Fields.MAX_LENGTH.getPreferredName(), maxLength);
+            builder.field(Fields.AVG_LENGTH.getPreferredName(), getAvgLength());
+            builder.field(Fields.ENTROPY.getPreferredName(), getEntropy());
             if (showDistribution == true) {
-                builder.field(Fields.DISTRIBUTION, getDistribution());
+                builder.field(Fields.DISTRIBUTION.getPreferredName(), getDistribution());
             }
             if (format != DocValueFormat.RAW) {
-                builder.field(Fields.MIN_LENGTH_AS_STRING, format.format(getMinLength()));
-                builder.field(Fields.MAX_LENGTH_AS_STRING, format.format(getMaxLength()));
-                builder.field(Fields.AVG_LENGTH_AS_STRING, format.format(getAvgLength()));
-                builder.field(Fields.ENTROPY_AS_STRING, format.format(getEntropy()));
+                builder.field(Fields.MIN_LENGTH_AS_STRING.getPreferredName(), format.format(getMinLength()));
+                builder.field(Fields.MAX_LENGTH_AS_STRING.getPreferredName(), format.format(getMaxLength()));
+                builder.field(Fields.AVG_LENGTH_AS_STRING.getPreferredName(), format.format(getAvgLength()));
+                builder.field(Fields.ENTROPY_AS_STRING.getPreferredName(), format.format(getEntropy()));
                 if (showDistribution == true) {
-                    builder.startObject(Fields.DISTRIBUTION_AS_STRING);
+                    builder.startObject(Fields.DISTRIBUTION_AS_STRING.getPreferredName());
                     for (Map.Entry<String, Double> e: getDistribution().entrySet()) {
                         builder.field(e.getKey(), format.format(e.getValue()).toString());
                     }
@@ -246,13 +247,13 @@ public class InternalStringStats extends InternalAggregation {
                 }
             }
         } else {
-            builder.nullField(Fields.MIN_LENGTH);
-            builder.nullField(Fields.MAX_LENGTH);
-            builder.nullField(Fields.AVG_LENGTH);
-            builder.field(Fields.ENTROPY, 0.0d);
+            builder.nullField(Fields.MIN_LENGTH.getPreferredName());
+            builder.nullField(Fields.MAX_LENGTH.getPreferredName());
+            builder.nullField(Fields.AVG_LENGTH.getPreferredName());
+            builder.field(Fields.ENTROPY.getPreferredName(), 0.0);
 
             if (showDistribution == true) {
-                builder.nullField(Fields.DISTRIBUTION);
+                builder.nullField(Fields.DISTRIBUTION.getPreferredName());
             }
         }
         return builder;

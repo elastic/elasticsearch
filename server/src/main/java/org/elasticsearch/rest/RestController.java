@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -255,19 +256,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
-        try {
-            for (RestHeaderDefinition restHeader : headersToCopy) {
-                final String name = restHeader.getName();
-                String httpHeader = restHeader.isMultiValueAllowed() ? request.getAllHeaderValuesAsString(name) :
-                    request.getSingleValuedHeader(name);
-                if (httpHeader != null) {
-                    threadContext.putHeader(name, httpHeader);
+        for (RestHeaderDefinition restHeader : headersToCopy) {
+            final String name = restHeader.getName();
+            final List<String> headerValues = request.getAllHeaderValues(name);
+            if (headerValues != null) {
+                if (restHeader.isMultiValueAllowed() == false && new HashSet<>(headerValues).size() > 1) {
+                    channel.sendResponse(
+                        BytesRestResponse.
+                            createSimpleErrorResponse(channel, BAD_REQUEST, "multiple values for single-valued header [" + name + "]."));
+                    return;
+                } else {
+                    threadContext.putHeader(name, headerValues.stream().distinct().collect(Collectors.joining(",")));
                 }
             }
-        } catch (IllegalStateException e) {
-            channel.sendResponse(
-                BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
-            return;
         }
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed

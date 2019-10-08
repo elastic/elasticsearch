@@ -247,21 +247,6 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
-    public void testHeaderHandling() {
-        RestRequest request = contentRestRequest("", emptyMap(),
-            Map.of(
-                "header1", List.of("value1"),
-                "header2", List.of("value1", "value2", "value3"),
-                "header3", List.of("value3", "value3", "value3")));
-
-        assertThat(request.header("header1"), equalTo("value1"));
-        assertThat(request.getSingleValuedHeader("header3"), equalTo("value3"));
-        assertThat(request.getAllHeaderValues("header2"), contains("value1", "value2", "value3"));
-        Exception e = expectThrows(IllegalStateException.class, () -> request.getSingleValuedHeader("header2"));
-        assertThat(e.getMessage(), containsString("multiple values for single-valued header [header2]"));
-        assertThat(request.getAllHeaderValuesAsString("header2"), equalTo("value1,value2,value3"));
-    }
-
     private static RestRequest contentRestRequest(String content, Map<String, String> params) {
         Map<String, List<String>> headers = new HashMap<>();
         headers.put("Content-Type", Collections.singletonList("application/json"));

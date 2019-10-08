@@ -234,32 +234,6 @@ public class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * Get all distinct values for the header as a comma separated String or {@code null} if the header was not found
-     */
-    public final String getAllHeaderValuesAsString(String name) {
-        List<String> values = headers.get(name);
-        if (values != null) {
-            return values.stream().distinct().collect(Collectors.joining(","));
-        }
-        return null;
-    }
-
-    /**
-     * Get the value from a header that is expected to be single valued. Return null if the header is not found or throw an exception if it
-     * has multiple values.
-     */
-    public final String getSingleValuedHeader(String name) {
-        List<String> values = headers.get(name);
-        if (values != null && values.isEmpty() == false) {
-            if (values.size() > 1 && new HashSet<>(values).size() > 1) {
-                throw new IllegalStateException("multiple values for single-valued header [" + name + "].");
-            }
-            return values.get(0);
-        }
-        return null;
-    }
-
-    /**
      * Get all of the headers and values associated with the headers. Modifications of this map are not supported.
      */
     public final Map<String, List<String>> getHeaders() {

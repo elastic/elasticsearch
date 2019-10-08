@@ -313,6 +313,17 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 assertThat(totalDeleted, equalTo(1));
                 assertThat(totalFailed, equalTo(0));
             });
+
+            assertBusy(() -> {
+                try {
+                    Map<String, List<Map<?, ?>>> snaps = wipeSnapshots();
+                    logger.info("--> checking for wiped snapshots: {}", snaps);
+                    assertThat(snaps.size(), equalTo(0));
+                } catch (ResponseException e) {
+                    logger.error("got exception wiping snapshots", e);
+                    fail("got exception: " + EntityUtils.toString(e.getResponse().getEntity()));
+                }
+            });
         } finally {
             client().performRequest(new Request("POST", "/_slm/start"));
 

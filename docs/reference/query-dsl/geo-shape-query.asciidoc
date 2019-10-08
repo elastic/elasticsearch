@@ -25,7 +25,7 @@ Create an index with a <<geo-shape,geoshape>> field mapping.
 
 [source,console]
 ----
-PUT /example
+PUT /locations
 {
     "mappings": {
         "properties": {
@@ -61,7 +61,7 @@ filter uses the {es}'s `envelope` http://www.geojson.org[GeoJSON] extension.
 
 [source,console]
 ----
-GET /example/_search
+GET /locations/_search
 {
     "query":{
         "bool": {
@@ -83,6 +83,7 @@ GET /example/_search
     }
 }
 ----
+// TEST[continued]
 
 [[geo-shape-top-level-params]]
 ==== Top-level parameters for `geo_shape`
@@ -180,8 +181,7 @@ PUT /shapes/_doc/deu?refresh
 Use the `bool` query with a nested `geo_shape` filter to find the indexed
 point. Instead of coordinates, provide the `index`, `id`, and `path` of your
 pre-defined geoshape.
-+
---
+
 [source,console]
 ----
 GET /locations/_search
@@ -203,6 +203,7 @@ GET /locations/_search
     }
 }
 ----
+// TEST[continued]
 
 [[geo-shape-query-spatial-relations]]
 ===== Spatial relations mapping parameter

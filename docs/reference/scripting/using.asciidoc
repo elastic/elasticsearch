@@ -155,6 +155,7 @@ POST _scripts/calculate-score
 }
 -----------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 This same script can be retrieved with:
 
@@ -169,10 +170,15 @@ Stored scripts can be used by specifying the `id` parameters as follows:
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET twitter/_search
 {
   "query": {
-    "script": {
+    "script_score": {
+      "query": {
+        "match": {
+            "message": "some message"
+        }
+      },
       "script": {
         "id": "calculate-score",
         "params": {

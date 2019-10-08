@@ -158,7 +158,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             Map<String, Object> jsonFields = prepareMap(context, tookInNanos);
             // message for json logs is overridden from json Fields
             String plaintextMessage = message(context, tookInNanos);
-            return ESLogMessage.of(plaintextMessage)
+            return new ESLogMessage(plaintextMessage)
                                .withFields(jsonFields);
         }
 

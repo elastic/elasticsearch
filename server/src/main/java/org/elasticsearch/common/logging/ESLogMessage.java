@@ -48,10 +48,6 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         Collections.addAll(this.arguments, arguments);
     }
 
-    public static ESLogMessage of(String messagePattern, Object... arguments){
-       return new ESLogMessage(messagePattern, arguments);
-    }
-
     public ESLogMessage argAndField(String key, Object value) {
         this.arguments.add(value);
         super.with(key,value);
@@ -88,7 +84,6 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
             sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
             start = sb.length();
             sb.append(getIndexedReadOnlyStringMap().getValueAt(i).toString());
-//            ParameterFormatter.recursiveDeepToString(getIndexedReadOnlyStringMap().getValueAt(i), sb, null);
             StringBuilders.escapeJson(sb, start);
             sb.append(Chars.DQUOTE);
         }

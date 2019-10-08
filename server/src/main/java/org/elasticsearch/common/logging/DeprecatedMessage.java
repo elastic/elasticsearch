@@ -20,6 +20,7 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressLoggerChecks;
 
 /**
  * A logger message used by {@link DeprecationLogger}.
@@ -28,12 +29,13 @@ import org.elasticsearch.common.Strings;
 public class DeprecatedMessage  {
     private static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
 
+    @SuppressLoggerChecks(reason = "safely delegates to logger")
     public static ESLogMessage of(String xOpaqueId, String messagePattern, Object... args){
         if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return ESLogMessage.of(messagePattern,args);
+            return new ESLogMessage(messagePattern, args);
         }
 
-        return ESLogMessage.of(messagePattern,args)
+        return new ESLogMessage(messagePattern, args)
                            .with(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
     }
 }

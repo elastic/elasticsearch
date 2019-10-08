@@ -107,7 +107,7 @@ public class JsonLoggerTests extends ESTestCase {
         //Expected is that it will be emptied
         final Logger testLogger = LogManager.getLogger("custom.test");
 
-        testLogger.info(ESLogMessage.of("some message"));
+        testLogger.info(new ESLogMessage("some message"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_custom.json");
@@ -130,9 +130,9 @@ public class JsonLoggerTests extends ESTestCase {
 
         final Logger testLogger = LogManager.getLogger("test");
 
-        testLogger.info(ESLogMessage.of("some message {} {}", "value0")
+        testLogger.info(new ESLogMessage("some message {} {}", "value0")
                                     .argAndField("key1","value1")
-                                    .argAndField("key2","value2"));
+                                    .field("key2","value2"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + ".json");
@@ -158,7 +158,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testMessageOverride() throws IOException {
 
         final Logger testLogger = LogManager.getLogger("custom.test");
-        testLogger.info(ESLogMessage.of("some message")
+        testLogger.info(new ESLogMessage("some message")
                                     .with("message","overriden"));
 
 
@@ -191,7 +191,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testCustomMessageWithMultipleFields() throws IOException {
         // if a field is defined to be overriden, it has to always be overriden in that appender.
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(ESLogMessage.of("some message")
+        testLogger.info(new ESLogMessage("some message")
                                     .with("field1","value1")
                                     .with("field2","value2"));
 

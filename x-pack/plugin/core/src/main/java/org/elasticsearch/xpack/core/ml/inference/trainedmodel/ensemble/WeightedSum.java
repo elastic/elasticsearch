@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -137,7 +138,7 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
     }
 
     @Override
-    public boolean providesProbabilities() {
-        return false;
+    public boolean compatibleWith(TargetType targetType) {
+        return TargetType.REGRESSION.equals(targetType);
     }
 }

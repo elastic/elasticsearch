@@ -8,26 +8,26 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class InferenceParams implements ToXContentObject, Writeable {
+public class ClassificationConfig implements InferenceConfig {
 
-    public static ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
+    public static final String NAME = "classification";
 
-    public static InferenceParams EMPTY_PARAMS = new InferenceParams(0);
+    public static final ParseField  NUM_TOP_CLASSES = new ParseField("num_top_classes");
+
+    public static ClassificationConfig EMPTY_PARAMS = new ClassificationConfig(0);
 
     private final int numTopClasses;
 
-    public InferenceParams(Integer numTopClasses) {
+    public ClassificationConfig(Integer numTopClasses) {
         this.numTopClasses = numTopClasses == null ? 0 : numTopClasses;
     }
 
-    public InferenceParams(StreamInput in) throws IOException {
+    public ClassificationConfig(StreamInput in) throws IOException {
         this.numTopClasses = in.readInt();
     }
 
@@ -44,7 +44,7 @@ public class InferenceParams implements ToXContentObject, Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        InferenceParams that = (InferenceParams) o;
+        ClassificationConfig that = (ClassificationConfig) o;
         return Objects.equals(numTopClasses, that.numTopClasses);
     }
 
@@ -62,4 +62,20 @@ public class InferenceParams implements ToXContentObject, Writeable {
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
+    public boolean isTargetTypeSupported(TargetType targetType) {
+        return TargetType.CLASSIFICATION.equals(targetType);
+    }
+
 }

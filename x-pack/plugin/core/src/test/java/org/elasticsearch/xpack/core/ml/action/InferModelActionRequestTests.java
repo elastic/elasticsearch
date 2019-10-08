@@ -5,16 +5,22 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParamsTests.randomInferenceParams;
 
 public class InferModelActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -25,12 +31,16 @@ public class InferModelActionRequestTests extends AbstractWireSerializingTestCas
                 randomAlphaOfLength(10),
                 randomLongBetween(1, 100),
                 Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
-                randomBoolean() ? null : randomInferenceParams()) :
+                randomInferenceConfig()) :
             new Request(
                 randomAlphaOfLength(10),
                 randomLongBetween(1, 100),
                 randomMap(),
-                randomBoolean() ? null : randomInferenceParams());
+                randomInferenceConfig());
+    }
+
+    private static InferenceConfig randomInferenceConfig() {
+        return randomFrom(RegressionConfigTests.randomRegressionConfig(), ClassificationConfigTests.randomClassificationConfig());
     }
 
     private static Map<String, Object> randomMap() {
@@ -44,4 +54,10 @@ public class InferModelActionRequestTests extends AbstractWireSerializingTestCas
         return Request::new;
     }
 
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(entries);
+    }
 }

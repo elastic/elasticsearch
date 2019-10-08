@@ -16,8 +16,9 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -114,21 +115,18 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     @Override
-    public InferenceResults infer(Map<String, Object> fields, InferenceParams params) {
-        if (params.getNumTopClasses() != 0 &&
-            (targetType != TargetType.CLASSIFICATION || outputAggregator.providesProbabilities() == false)) {
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+        if (config.isTargetTypeSupported(targetType) == false) {
             throw ExceptionsHelper.badRequestException(
-                "Cannot return top classes for target_type [{}] and aggregate_output [{}]",
-                targetType,
-                outputAggregator.getName());
+                "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
         }
         List<Double> inferenceResults = this.models.stream().map(model -> {
-            InferenceResults results = model.infer(fields, InferenceParams.EMPTY_PARAMS);
+            InferenceResults results = model.infer(fields, NullInferenceConfig.INSTANCE);
             assert results instanceof SingleValueInferenceResults;
             return ((SingleValueInferenceResults)results).value();
         }).collect(Collectors.toList());
         List<Double> processed = outputAggregator.processValues(inferenceResults);
-        return buildResults(processed, params);
+        return buildResults(processed, config);
     }
 
     @Override
@@ -136,13 +134,16 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return targetType;
     }
 
-    private InferenceResults buildResults(List<Double> processedInferences, InferenceParams params) {
+    private InferenceResults buildResults(List<Double> processedInferences, InferenceConfig config) {
         switch(targetType) {
             case REGRESSION:
                 return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences));
             case CLASSIFICATION:
-                List<ClassificationInferenceResults.TopClassEntry> topClasses =
-                    InferenceHelpers.topClasses(processedInferences, classificationLabels, params.getNumTopClasses());
+                ClassificationConfig classificationConfig = (ClassificationConfig) config;
+                List<ClassificationInferenceResults.TopClassEntry> topClasses = InferenceHelpers.topClasses(
+                    processedInferences,
+                    classificationLabels,
+                    classificationConfig.getNumTopClasses());
                 double value = outputAggregator.aggregate(processedInferences);
                 return new ClassificationInferenceResults(outputAggregator.aggregate(processedInferences),
                     classificationLabel(value, classificationLabels),
@@ -216,6 +217,13 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public void validate() {
+        if (outputAggregator.compatibleWith(targetType) == false) {
+            throw ExceptionsHelper.badRequestException(
+                "aggregate_output [{}] is not compatible with target_type [{}]",
+                this.targetType,
+                outputAggregator.getName()
+            );
+        }
         if (outputAggregator.expectedValueSize() != null &&
             outputAggregator.expectedValueSize() != models.size()) {
             throw ExceptionsHelper.badRequestException(

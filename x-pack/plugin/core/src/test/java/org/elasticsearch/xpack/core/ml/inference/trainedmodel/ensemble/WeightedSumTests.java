@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 
 public class WeightedSumTests extends WeightedAggregatorTests<WeightedSum> {
@@ -54,5 +56,11 @@ public class WeightedSumTests extends WeightedAggregatorTests<WeightedSum> {
 
         weightedSum = new WeightedSum();
         assertThat(weightedSum.aggregate(weightedSum.processValues(values)), equalTo(13.0));
+    }
+
+    public void testCompatibleWith() {
+        WeightedSum weightedSum = createTestInstance();
+        assertThat(weightedSum.compatibleWith(TargetType.CLASSIFICATION), is(false));
+        assertThat(weightedSum.compatibleWith(TargetType.REGRESSION), is(true));
     }
 }

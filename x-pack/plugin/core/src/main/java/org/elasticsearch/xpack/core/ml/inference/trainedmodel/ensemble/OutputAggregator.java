@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.util.List;
@@ -45,5 +46,5 @@ public interface OutputAggregator extends NamedXContentObject, NamedWriteable {
      */
     String getName();
 
-    boolean providesProbabilities();
+    boolean compatibleWith(TargetType targetType);
 }

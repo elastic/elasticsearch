@@ -107,7 +107,6 @@ public class ForEachProcessorTests extends ESTestCase {
 
         TestProcessor innerProcessor = new TestProcessor(id -> {
             id.setFieldValue("_ingest._value.index", id.getSourceAndMetadata().get("_index"));
-            id.setFieldValue("_ingest._value.type", id.getSourceAndMetadata().get("_type"));
             id.setFieldValue("_ingest._value.id", id.getSourceAndMetadata().get("_id"));
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", "values", innerProcessor, false);
@@ -115,10 +114,8 @@ public class ForEachProcessorTests extends ESTestCase {
 
         assertThat(innerProcessor.getInvokedCounter(), equalTo(2));
         assertThat(ingestDocument.getFieldValue("values.0.index", String.class), equalTo("_index"));
-        assertThat(ingestDocument.getFieldValue("values.0.type", String.class), equalTo("_type"));
         assertThat(ingestDocument.getFieldValue("values.0.id", String.class), equalTo("_id"));
         assertThat(ingestDocument.getFieldValue("values.1.index", String.class), equalTo("_index"));
-        assertThat(ingestDocument.getFieldValue("values.1.type", String.class), equalTo("_type"));
         assertThat(ingestDocument.getFieldValue("values.1.id", String.class), equalTo("_id"));
     }
 

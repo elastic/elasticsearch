@@ -466,7 +466,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () ->
                     execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=document_missing_exception, reason=[_doc][does_not_exist]: document missing]",
+            assertEquals("Elasticsearch exception [type=document_missing_exception, reason=[does_not_exist]: document missing]",
                     exception.getMessage());
         }
         {

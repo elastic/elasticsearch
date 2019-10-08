@@ -15,7 +15,7 @@ beta[]
 [[start-transform-request]]
 ==== {api-request-title}
 
-`POST _data_frame/transforms/<transform_id>/_start`
+`POST _transform/<transform_id>/_start`
 
 [[start-transform-prereqs]]
 ==== {api-prereq-title}
@@ -62,7 +62,7 @@ required privileges on the source and destination indices, the
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/ecommerce_transform/_start
+POST _transform/ecommerce_transform/_start
 --------------------------------------------------
 // TEST[skip:set up kibana samples]
 

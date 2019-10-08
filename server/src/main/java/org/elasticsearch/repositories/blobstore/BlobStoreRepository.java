@@ -425,8 +425,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     () -> new ParameterizedMessage("[{}] Failed to delete some blobs during snapshot delete", snapshotId), e)),
             () -> afterCleanupsListener.onResponse(null));
 
-        // Consumer to invoke once an updated ShardGeneration instance is ready to be written or with null for BwC if no ShardGenerations
-        // are written
+        // Consumer to invoke once an updated ShardGeneration instance is ready to be written
         final CheckedConsumer<ShardGenerations, IOException> onShardGenerations = shardGens -> {
             final RepositoryData updatedRepoData = repositoryData.removeSnapshot(snapshotId, shardGens);
             // Write out new RepositoryData
@@ -456,7 +455,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 afterUpdateAllMetadata.onResponse(res);
             }, listener::onFailure));
         } else {
-            onShardGenerations.accept(null);
+            onShardGenerations.accept(ShardGenerations.EMPTY);
             deleteIndices(repositoryData, snapshotId, version, afterUpdateAllMetadata);
         }
     }

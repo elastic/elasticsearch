@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -45,9 +47,9 @@ import java.util.function.Supplier;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
-    private final String clusterAlias;
+    private static final Logger logger = LogManager.getLogger(SniffConnectionStrategy.class);
+
     private final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes;
-    private final TransportService transportService;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
@@ -56,9 +58,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                             String proxyAddress, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
                             List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes) {
-        super(transportService.getThreadPool(), connectionManager);
-        this.clusterAlias = clusterAlias;
-        this.transportService = transportService;
+        super(clusterAlias, transportService, connectionManager);
         this.proxyAddress = proxyAddress;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
@@ -109,15 +109,15 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 onFailure.accept(e);
             }
 
-            final StepListener<TransportService.HandshakeResponse> handShakeStep = new StepListener<>();
+            final StepListener<TransportService.HandshakeResponse> handshakeStep = new StepListener<>();
             openConnectionStep.whenComplete(connection -> {
                 ConnectionProfile connectionProfile = connectionManager.getConnectionManager().getConnectionProfile();
                 transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
-                    getRemoteClusterNamePredicate(), handShakeStep);
+                    getRemoteClusterNamePredicate(), handshakeStep);
             }, onFailure);
 
             final StepListener<Void> fullConnectionStep = new StepListener<>();
-            handShakeStep.whenComplete(handshakeResponse -> {
+            handshakeStep.whenComplete(handshakeResponse -> {
                 final DiscoveryNode handshakeNode = maybeAddProxyAddress(proxyAddress, handshakeResponse.getDiscoveryNode());
 
                 if (nodePredicate.test(handshakeNode) && shouldOpenMoreConnections()) {
@@ -135,7 +135,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
             fullConnectionStep.whenComplete(aVoid -> {
                 if (remoteClusterName.get() == null) {
-                    TransportService.HandshakeResponse handshakeResponse = handShakeStep.result();
+                    TransportService.HandshakeResponse handshakeResponse = handshakeStep.result();
                     assert handshakeResponse.getClusterName().value() != null;
                     remoteClusterName.set(handshakeResponse.getClusterName());
                 }

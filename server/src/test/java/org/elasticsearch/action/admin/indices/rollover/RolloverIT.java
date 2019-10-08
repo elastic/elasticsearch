@@ -423,6 +423,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareClose(closedIndex).get());
         assertAcked(client().admin().indices().prepareClose(writeIndexPrefix + "000001").get());
+        ensureGreen(aliasName);
 
         RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
             .addMaxIndexDocsCondition(1)

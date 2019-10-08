@@ -856,7 +856,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private void assertBulkRequest(String requestBody, int numberOfActions) throws Exception {
         BulkRequest bulkRequest = Requests.bulkRequest()
-                .add(new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)), null, null, XContentType.JSON);
+                .add(new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(numberOfActions));
         for (DocWriteRequest actionRequest : bulkRequest.requests()) {
             assertThat(actionRequest, instanceOf(IndexRequest.class));

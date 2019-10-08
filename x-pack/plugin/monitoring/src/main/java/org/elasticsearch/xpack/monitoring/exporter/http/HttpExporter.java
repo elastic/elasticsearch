@@ -207,6 +207,17 @@ public class HttpExporter extends Exporter {
                                     }
                                 }
                             }
+
+                            @Override
+                            public Iterator<Setting<?>> settings() {
+                                final String namespace =
+                                    HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
+                                        HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
+                                final List<Setting<?>> settings = List.of(
+                                    HttpExporter.AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
+                                return settings.iterator();
+                            }
+
                         },
                         Property.Dynamic,
                         Property.NodeScope,

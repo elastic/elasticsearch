@@ -225,17 +225,23 @@ public class HttpExporterTests extends ESTestCase {
     public void testExporterWithPasswordButNoUsername() {
         final String expected =
                 "[xpack.monitoring.exporters._http.auth.password] without [xpack.monitoring.exporters._http.auth.username]";
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
-                .put("xpack.monitoring.exporters._http.host", "localhost:9200")
-                .put("xpack.monitoring.exporters._http.auth.password", "_pass");
+        final String prefix = "xpack.monitoring.exporters._http";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", HttpExporter.TYPE)
+            .put(prefix + ".host", "localhost:9200")
+            .put(prefix + ".auth.password", "_pass")
+            .build();
 
-        final Config config = createConfig(builder.build());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(prefix + ".auth.password").get(settings));
+        assertThat(
+            e,
+            hasToString(
+                containsString("Failed to parse value [_pass] for setting [xpack.monitoring.exporters._http.auth.password]")));
 
-        final SettingsException exception = expectThrows(SettingsException.class,
-                () -> new HttpExporter(config, sslService, threadContext));
-
-        assertThat(exception.getMessage(), equalTo(expected));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString(expected)));
     }
 
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
@@ -591,22 +597,5 @@ public class HttpExporterTests extends ESTestCase {
     private static String exporterName() {
         return "xpack.monitoring.exporters._http";
     }
-
-    public void testAuthPasswordRequiresAuthUsername() {
-        final String prefix = "xpack.monitoring.exporters.example";
-        final Settings settings = Settings.builder().put(prefix + ".auth.password", "foo").build();
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(prefix + ".auth.password").get(settings));
-        assertThat(
-            e,
-            hasToString(
-                containsString("Failed to parse value [foo] for setting [xpack.monitoring.exporters.example.auth.password]")));
-
-        assertThat(e.getCause(), instanceOf(SettingsException.class));
-        assertThat(e.getCause(), hasToString(containsString("[xpack.monitoring.exporters.example.auth.password] without " +
-            "[xpack.monitoring.exporters.example.auth.username]")));
-    }
-
 
 }

@@ -88,11 +88,6 @@ public final class RepositoryData {
     private final ShardGenerations shardGenerations;
 
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-                          Map<IndexId, Set<SnapshotId>> indexSnapshots) {
-        this(genId, snapshotIds, snapshotStates, indexSnapshots, ShardGenerations.EMPTY);
-    }
-
-    public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
         Map<IndexId, Set<SnapshotId>> indexSnapshots, ShardGenerations shardGenerations) {
         this.genId = genId;
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
@@ -101,6 +96,8 @@ public final class RepositoryData {
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
         this.shardGenerations = shardGenerations;
+        assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
+            + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
     }
 
     protected RepositoryData copy() {

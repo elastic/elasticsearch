@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +34,7 @@ import java.util.stream.Collectors;
 
 public final class ShardGenerations implements ToXContent {
 
-    public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
+    public static final ShardGenerations EMPTY = ShardGenerations.builder().build();
 
     private final Map<IndexId, List<String>> shardGenerations;
 
@@ -59,21 +58,19 @@ public final class ShardGenerations implements ToXContent {
      * @param previous Previous {@code ShardGenerations}
      * @return Map of obsolete shard index generations in indices that are still tracked by this instance
      */
-     public Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(ShardGenerations previous) {
+    public Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(ShardGenerations previous) {
         final Map<IndexId, Map<Integer, String>> result = new HashMap<>();
         previous.shardGenerations.forEach(((indexId, oldGens) -> {
             final List<String> updatedGenerations = shardGenerations.get(indexId);
             final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
             assert updatedGenerations != null
                 : "Index [" + indexId + "] present in previous shard generations, but missing from updated generations";
-            if (oldGens.isEmpty() == false && oldGens.equals(updatedGenerations) == false) {
-                assert oldGens.size() <= updatedGenerations.size();
-                for (int i = 0; i < oldGens.size(); i++) {
-                    final String oldGeneration = oldGens.get(i);
-                    if (updatedGenerations.get(i) != null && oldGeneration != null
-                        && oldGeneration.equals(updatedGenerations.get(i)) == false) {
-                        obsoleteShardIndices.put(i, oldGeneration);
-                    }
+            for (int i = 0; i < oldGens.size(); i++) {
+                final String oldGeneration = oldGens.get(i);
+                final String updatedGeneration = updatedGenerations.get(i);
+                assert updatedGeneration != null : "Can't update from a non-null generation to a null generation";
+                if (oldGeneration != null && oldGeneration.equals(updatedGeneration) == false) {
+                    obsoleteShardIndices.put(i, oldGeneration);
                 }
             }
             result.put(indexId, obsoleteShardIndices);

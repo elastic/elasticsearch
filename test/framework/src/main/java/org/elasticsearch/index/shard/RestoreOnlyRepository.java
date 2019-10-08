@@ -93,7 +93,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         final IndexId indexId = new IndexId(indexName, "blah");
         map.put(indexId, emptySet());
         return new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(),
-            Collections.singletonMap(indexId, emptySet()), null);
+            Collections.singletonMap(indexId, emptySet()), ShardGenerations.EMPTY);
     }
 
     @Override

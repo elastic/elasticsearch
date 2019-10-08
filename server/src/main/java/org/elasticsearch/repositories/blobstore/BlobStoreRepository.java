@@ -167,7 +167,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final int BUFFER_SIZE = 4096;
 
-    private static final String SNAPSHOT_PREFIX = "snap-";
+    public static final String SNAPSHOT_PREFIX = "snap-";
 
     private static final String SNAPSHOT_CODEC = "snapshot";
 

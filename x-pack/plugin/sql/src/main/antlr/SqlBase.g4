@@ -201,7 +201,7 @@ pattern
     
 patternEscape
     : ESCAPE escape=string
-    | ESCAPE_ESC escape=string '}'
+    | ESCAPE_ESC escape=string ESC_END
     ;
 
 valueExpression
@@ -255,7 +255,7 @@ extractTemplate
 
 functionExpression
     : functionTemplate
-    | FUNCTION_ESC functionTemplate '}'
+    | FUNCTION_ESC functionTemplate ESC_END
     ;
     
 functionTemplate
@@ -446,15 +446,16 @@ YEAR: 'YEAR';
 YEARS: 'YEARS';
 
 // Escaped Sequence
-ESCAPE_ESC: '{ESCAPE';
-FUNCTION_ESC: '{FN';
-LIMIT_ESC:'{LIMIT';
-DATE_ESC: '{D';
-TIME_ESC: '{T';
-TIMESTAMP_ESC: '{TS';
+ESCAPE_ESC: ESC_START 'ESCAPE';
+FUNCTION_ESC: ESC_START 'FN';
+LIMIT_ESC: ESC_START 'LIMIT';
+DATE_ESC: ESC_START 'D';
+TIME_ESC: ESC_START 'T';
+TIMESTAMP_ESC: ESC_START 'TS';
 // mapped to string literal
-GUID_ESC: '{GUID';
+GUID_ESC: ESC_START 'GUID';
 
+ESC_START: '{' (WS)*;
 ESC_END: '}';
 
 EQ  : '=';

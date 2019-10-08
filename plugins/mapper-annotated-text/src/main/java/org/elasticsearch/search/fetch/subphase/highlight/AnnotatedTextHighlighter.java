@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +45,11 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
 
     // Convert the marked-up values held on-disk to plain-text versions for highlighting
     @Override
-    protected List<Object> loadFieldValues(MappedFieldType fieldType, Field field, QueryShardContext context, HitContext hitContext, boolean forceSource) throws IOException {
+    protected List<Object> loadFieldValues(MappedFieldType fieldType,
+                                           Field field,
+                                           QueryShardContext context,
+                                           HitContext hitContext,
+                                           boolean forceSource) throws IOException {
         List<Object> fieldValues = super.loadFieldValues(fieldType, field, context, hitContext, forceSource);
         String[] fieldValuesAsString = fieldValues.toArray(new String[fieldValues.size()]);
 

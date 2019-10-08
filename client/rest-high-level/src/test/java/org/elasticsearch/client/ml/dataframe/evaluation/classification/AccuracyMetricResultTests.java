@@ -25,26 +25,21 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class MulticlassConfusionMatrixMetricTests extends AbstractXContentTestCase<MulticlassConfusionMatrixMetric> {
+public class AccuracyMetricResultTests extends AbstractXContentTestCase<AccuracyMetric.Result> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    static MulticlassConfusionMatrixMetric createRandom() {
-        Integer size = randomBoolean() ? randomIntBetween(1, 1000) : null;
-        return new MulticlassConfusionMatrixMetric(size);
+    @Override
+    protected AccuracyMetric.Result createTestInstance() {
+        return new AccuracyMetric.Result(randomDoubleBetween(0.0, 1.0, true));
     }
 
     @Override
-    protected MulticlassConfusionMatrixMetric createTestInstance() {
-        return createRandom();
-    }
-
-    @Override
-    protected MulticlassConfusionMatrixMetric doParseInstance(XContentParser parser) throws IOException {
-        return MulticlassConfusionMatrixMetric.fromXContent(parser);
+    protected AccuracyMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return AccuracyMetric.Result.fromXContent(parser);
     }
 
     @Override

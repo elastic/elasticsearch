@@ -603,6 +603,23 @@ setup:
             }
           }
 ---
+"Test classification accuracy":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "metrics": { "accuracy": {} }
+              }
+            }
+          }
+
+  - match: { classification.accuracy.accuracy: 0.625 }
+---
 "Test classification multiclass_confusion_matrix":
   - do:
       ml.evaluate_data_frame:

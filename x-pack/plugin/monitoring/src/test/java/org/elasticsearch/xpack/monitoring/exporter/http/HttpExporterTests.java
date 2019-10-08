@@ -592,4 +592,21 @@ public class HttpExporterTests extends ESTestCase {
         return "xpack.monitoring.exporters._http";
     }
 
+    public void testAuthPasswordRequiresAuthUsername() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings settings = Settings.builder().put(prefix + ".auth.password", "foo").build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(prefix + ".auth.password").get(settings));
+        assertThat(
+            e,
+            hasToString(
+                containsString("Failed to parse value [foo] for setting [xpack.monitoring.exporters.example.auth.password]")));
+
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("[xpack.monitoring.exporters.example.auth.password] without " +
+            "[xpack.monitoring.exporters.example.auth.username]")));
+    }
+
+
 }

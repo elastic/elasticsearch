@@ -249,7 +249,7 @@ public class TransportStopDataFrameAnalyticsAction
                 });
             },
             e -> {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     // the task has disappeared so must have stopped
                     listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
                 } else {

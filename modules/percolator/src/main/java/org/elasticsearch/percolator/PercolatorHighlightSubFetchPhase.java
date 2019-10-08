@@ -109,7 +109,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             percolatorLeafReaderContext, slot, percolatorIndexSearcher
                         );
                         hitContext.cache().clear();
-                        highlightPhase.hitExecute(context.shardTarget(), context.getQueryShardContext(), query, highlight, hitContext);
+                        highlightPhase.hitExecute(context.shardTarget(), shardContext, query, highlight, hitContext);
                         for (Map.Entry<String, HighlightField> entry : hitContext.hit().getHighlightFields().entrySet()) {
                             if (percolateQuery.getDocuments().size() == 1) {
                                 String hlFieldName;

@@ -97,8 +97,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
         return shardsIts;
     }
 
-    private static final class BitSetSearchPhaseResults extends InitialSearchPhase.
-        SearchPhaseResults<SearchService.CanMatchResponse> {
+    private static final class BitSetSearchPhaseResults extends SearchPhaseResults<SearchService.CanMatchResponse> {
 
         private final FixedBitSet possibleMatches;
         private int numPossibleMatches;

@@ -38,6 +38,7 @@ public class EnrichPolicyExecutor {
     private final int fetchSize;
     private final EnrichPolicyLocks policyLocks;
     private final int maximumConcurrentPolicyExecutions;
+    private final int maxForceMergeAttempts;
     private final Semaphore policyExecutionPermits;
 
     public EnrichPolicyExecutor(Settings settings,
@@ -57,6 +58,7 @@ public class EnrichPolicyExecutor {
         this.policyLocks = policyLocks;
         this.fetchSize = EnrichPlugin.ENRICH_FETCH_SIZE_SETTING.get(settings);
         this.maximumConcurrentPolicyExecutions = EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.get(settings);
+        this.maxForceMergeAttempts = EnrichPlugin.ENRICH_MAX_FORCE_MERGE_ATTEMPTS.get(settings);
         this.policyExecutionPermits = new Semaphore(maximumConcurrentPolicyExecutions);
     }
 
@@ -119,7 +121,7 @@ public class EnrichPolicyExecutor {
     protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, EnrichPolicyExecutionTask task,
                                           ActionListener<EnrichPolicyExecutionTask.Status> listener) {
         return new EnrichPolicyRunner(policyName, policy, task, listener, clusterService, client, indexNameExpressionResolver, nowSupplier,
-            fetchSize);
+            fetchSize, maxForceMergeAttempts);
     }
 
     private EnrichPolicy getPolicy(ExecuteEnrichPolicyAction.Request request) {

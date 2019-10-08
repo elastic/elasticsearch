@@ -185,14 +185,23 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     public void updateReindexTaskProgress(ActionListener<Void> listener) {
+        getReindexTaskProgress(ActionListener.wrap(
+            // We set reindexing progress at least to 1 for a running process to be able to
+            // distinguish a job that is running for the first time against a job that is restarting.
+            reindexTaskProgress -> {
+                progressTracker.reindexingPercent.set(Math.max(1, reindexTaskProgress));
+                listener.onResponse(null);
+            },
+            listener::onFailure
+        ));
+    }
+
+    private void getReindexTaskProgress(ActionListener<Integer> listener) {
         TaskId reindexTaskId = getReindexTaskId();
         if (reindexTaskId == null) {
             // The task is not present which means either it has not started yet or it finished.
             // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
-            if (isReindexingFinished) {
-                progressTracker.reindexingPercent.set(100);
-            }
-            listener.onResponse(null);
+            listener.onResponse(isReindexingFinished ? 100 : 0);
             return;
         }
 
@@ -202,18 +211,14 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             taskResponse -> {
                 TaskResult taskResult = taskResponse.getTask();
                 BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
-                int progress = taskStatus.getTotal() == 0 ? 0 : (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
-                progressTracker.reindexingPercent.set(progress);
-                listener.onResponse(null);
+                int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
+                listener.onResponse(progress);
             },
             error -> {
                 if (error instanceof ResourceNotFoundException) {
                     // The task is not present which means either it has not started yet or it finished.
                     // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
-                    if (isReindexingFinished) {
-                        progressTracker.reindexingPercent.set(100);
-                    }
-                    listener.onResponse(null);
+                    listener.onResponse(isReindexingFinished ? 100 : 0);
                 } else {
                     listener.onFailure(error);
                 }
@@ -262,6 +267,46 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 runnable.run();
             }
         ));
+    }
+
+    /**
+     * This captures the possible states a job can be when it starts.
+     * {@code FIRST_TIME} means the job has never been started before.
+     * {@code RESUMING_REINDEXING} means the job was stopped while it was reindexing.
+     * {@code RESUMING_ANALYZING} means the job was stopped while it was analyzing.
+     * {@code FINISHED} means the job had finished.
+     */
+    public enum StartingState {
+        FIRST_TIME, RESUMING_REINDEXING, RESUMING_ANALYZING, FINISHED
+    }
+
+    public static StartingState determineStartingState(String jobId, List<PhaseProgress> progressOnStart) {
+        PhaseProgress lastIncompletePhase = null;
+        for (PhaseProgress phaseProgress : progressOnStart) {
+            if (phaseProgress.getProgressPercent() < 100) {
+                lastIncompletePhase = phaseProgress;
+                break;
+            }
+        }
+
+        if (lastIncompletePhase == null) {
+            return StartingState.FINISHED;
+        }
+
+        LOGGER.debug("[{}] Last incomplete progress [{}, {}]", jobId, lastIncompletePhase.getPhase(),
+            lastIncompletePhase.getProgressPercent());
+
+        switch (lastIncompletePhase.getPhase()) {
+            case ProgressTracker.REINDEXING:
+                return lastIncompletePhase.getProgressPercent() == 0 ? StartingState.FIRST_TIME : StartingState.RESUMING_REINDEXING;
+            case ProgressTracker.LOADING_DATA:
+            case ProgressTracker.ANALYZING:
+            case ProgressTracker.WRITING_RESULTS:
+                return StartingState.RESUMING_ANALYZING;
+            default:
+                LOGGER.warn("[{}] Unexpected progress phase [{}]", jobId, lastIncompletePhase.getPhase());
+                return StartingState.FIRST_TIME;
+        }
     }
 
     public static String progressDocId(String id) {

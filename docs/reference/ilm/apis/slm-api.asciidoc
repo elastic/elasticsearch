@@ -80,7 +80,7 @@ PUT /_slm/policy/daily-snapshots
 <5> Which indices the snapshot should contain
 <6> Optional retention configuration
 <7> Keep snapshots for 30 days
-<8> Always keep at least 5 successful snapshots
+<8> Always keep at least 5 successful snapshots, even if they're more than 30 days old
 <9> Keep no more than 50 successful snapshots, even if they're less than 30 days old
 
 The top-level keys that the policy supports are described below:

@@ -21,8 +21,11 @@ package org.elasticsearch.gradle.test;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
 
 import java.util.ArrayList;
@@ -31,36 +34,66 @@ import java.util.stream.Collectors;
 
 public class BatsTestTask extends DefaultTask {
 
-    private Directory testsDir;
-    private Directory utilsDir;
-    private Directory archivesDir;
+    private final DirectoryProperty testsDir;
+    private final DirectoryProperty utilsDir;
+    private final DirectoryProperty distributionsDir;
+    private final DirectoryProperty pluginsDir;
+    private final DirectoryProperty upgradeDir;
     private String packageName;
 
+    public BatsTestTask() {
+        this.testsDir = getProject().getObjects().directoryProperty();
+        this.utilsDir = getProject().getObjects().directoryProperty();
+        this.distributionsDir = getProject().getObjects().directoryProperty();
+        this.pluginsDir = getProject().getObjects().directoryProperty();
+        this.upgradeDir = getProject().getObjects().directoryProperty();
+    }
+
     @InputDirectory
-    public Directory getTestsDir() {
+    public Provider<Directory> getTestsDir() {
         return testsDir;
     }
 
     public void setTestsDir(Directory testsDir) {
-        this.testsDir = testsDir;
+        this.testsDir.set(testsDir);
     }
 
     @InputDirectory
-    public Directory getUtilsDir() {
+    public Provider<Directory> getUtilsDir() {
         return utilsDir;
     }
 
     public void setUtilsDir(Directory utilsDir) {
-        this.utilsDir = utilsDir;
+        this.utilsDir.set(utilsDir);
     }
 
     @InputDirectory
-    public Directory getArchivesDir() {
-        return archivesDir;
+    public Provider<Directory> getDistributionsDir() {
+        return distributionsDir;
     }
 
-    public void setArchivesDir(Directory archivesDir) {
-        this.archivesDir = archivesDir;
+    public void setDistributionsDir(Provider<Directory> distributionsDir) {
+        this.distributionsDir.set(distributionsDir);
+    }
+
+    @InputDirectory
+    @Optional
+    public Provider<Directory> getPluginsDir() {
+        return pluginsDir;
+    }
+
+    public void setPluginsDir(Provider<Directory> pluginsDir) {
+        this.pluginsDir.set(pluginsDir);
+    }
+
+    @InputDirectory
+    @Optional
+    public Provider<Directory> getUpgradeDir() {
+        return upgradeDir;
+    }
+
+    public void setUpgradeDir(Provider<Directory> upgradeDir) {
+        this.upgradeDir.set(upgradeDir);
     }
 
     @Input
@@ -81,10 +114,16 @@ public class BatsTestTask extends DefaultTask {
             .filter(f -> f.getName().endsWith(".bats"))
             .sorted().collect(Collectors.toList()));
         getProject().exec(spec -> {
-            spec.setWorkingDir(archivesDir.getAsFile());
+            spec.setWorkingDir(distributionsDir.getAsFile());
             spec.environment(System.getenv());
-            spec.environment("BATS_TESTS", testsDir.getAsFile().toString());
-            spec.environment("BATS_UTILS", utilsDir.getAsFile().toString());
+            spec.environment("BATS_TESTS", testsDir.getAsFile().get().toString());
+            spec.environment("BATS_UTILS", utilsDir.getAsFile().get().toString());
+            if (pluginsDir.isPresent()) {
+                spec.environment("BATS_PLUGINS", pluginsDir.getAsFile().get().toString());
+            }
+            if (upgradeDir.isPresent()) {
+                spec.environment("BATS_UPGRADE", upgradeDir.getAsFile().get().toString());
+            }
             spec.environment("PACKAGE_NAME", packageName);
             spec.setCommandLine(command);
         });

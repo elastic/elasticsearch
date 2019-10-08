@@ -58,6 +58,7 @@ import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -87,8 +88,10 @@ public class IndicesClusterStateServiceTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
 
         final Logger mockLogger = mock(Logger.class);
+        final TaskManager taskManager = mock(TaskManager.class);
+        when(taskManager.registerAndExecute(any(), any(), any(), any(), any())).thenCallRealMethod();
         final TransportService transportService = mock(TransportService.class);
-        when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
+        when(transportService.getTaskManager()).thenReturn(taskManager);
 
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final AtomicBoolean invoked = new AtomicBoolean();
@@ -134,7 +137,7 @@ public class IndicesClusterStateServiceTests extends ESTestCase {
         };
         NodeClient client = new NodeClient(Settings.EMPTY, null);
         Map<ActionType, TransportAction> actions = Collections.singletonMap(RetentionLeaseBackgroundSyncAction.TYPE, action);
-        client.initialize(actions, null, null);
+        client.initialize(actions, taskManager, null, null);
         IndicesClusterStateService service = new IndicesClusterStateService(Settings.EMPTY, null, null, threadPool, null, null, null,
             null, null, null, null, null, null, client) {
             @Override
@@ -162,8 +165,10 @@ public class IndicesClusterStateServiceTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
 
         final Logger mockLogger = mock(Logger.class);
+        final TaskManager taskManager = mock(TaskManager.class);
+        when(taskManager.registerAndExecute(any(), any(), any(), any(), any())).thenCallRealMethod();
         final TransportService transportService = mock(TransportService.class);
-        when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
+        when(transportService.getTaskManager()).thenReturn(taskManager);
 
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final AtomicBoolean invoked = new AtomicBoolean();
@@ -204,7 +209,7 @@ public class IndicesClusterStateServiceTests extends ESTestCase {
         };
         NodeClient client = new NodeClient(Settings.EMPTY, null);
         Map<ActionType, TransportAction> actions = Collections.singletonMap(RetentionLeaseSyncAction.TYPE, action);
-        client.initialize(actions, null, null);
+        client.initialize(actions, taskManager, null, null);
         IndicesClusterStateService service = new IndicesClusterStateService(Settings.EMPTY, null, null, threadPool, null, null, null,
             null, null, null, null, null, null, client) {
             @Override

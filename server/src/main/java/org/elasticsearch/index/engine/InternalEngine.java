@@ -88,7 +88,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.FsDirectoryFactory;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -98,10 +97,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -173,6 +172,7 @@ public class InternalEngine extends Engine {
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
+    private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
 
     @Nullable
     private final String historyUUID;
@@ -187,7 +187,8 @@ public class InternalEngine extends Engine {
         super(engineConfig);
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
                 engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
-                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
+                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
+                engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
         );
         store.incRef();
         IndexWriter writer = null;
@@ -201,7 +202,7 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                trimUnsafeCommits(engineConfig);
+                store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(),
                     seqNo -> {
                         final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
@@ -797,7 +798,8 @@ public class InternalEngine extends Engine {
     }
 
     protected boolean assertPrimaryCanOptimizeAddDocument(final Index index) {
-        assert (index.version() == Versions.MATCH_ANY && index.versionType() == VersionType.INTERNAL)
+        assert (index.version() == Versions.MATCH_DELETED || index.version() == Versions.MATCH_ANY) &&
+            index.versionType() == VersionType.INTERNAL
             : "version: " + index.version() + " type: " + index.versionType();
         return true;
     }
@@ -998,13 +1000,9 @@ public class InternalEngine extends Engine {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
         final IndexingStrategy plan;
         // resolve an external operation into an internal one which is safe to replay
-        if (canOptimizeAddDocument(index)) {
-            if (mayHaveBeenIndexedBefore(index)) {
-                plan = IndexingStrategy.overrideExistingAsIfNotThere();
-                versionMap.enforceSafeAccess();
-            } else {
-                plan = IndexingStrategy.optimizedAppendOnly(1L);
-            }
+        final boolean canOptimizeAddDocument = canOptimizeAddDocument(index);
+        if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
+            plan = IndexingStrategy.optimizedAppendOnly(1L);
         } else {
             versionMap.enforceSafeAccess();
             // resolves incoming version
@@ -1037,7 +1035,7 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
             } else {
                 plan = IndexingStrategy.processNormally(currentNotFoundOrDeleted,
-                    index.versionType().updateVersion(currentVersion, index.version())
+                    canOptimizeAddDocument ? 1L : index.versionType().updateVersion(currentVersion, index.version())
                 );
             }
         }
@@ -1187,11 +1185,6 @@ public class InternalEngine extends Engine {
                                                 long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, currentNotFoundOrDeleted == false,
                 true, false, versionForIndexing, null);
-        }
-
-        static IndexingStrategy overrideExistingAsIfNotThere() {
-            return new IndexingStrategy(true, true, true,
-                false, 1L, null);
         }
 
         public static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long versionForIndexing) {
@@ -1406,9 +1399,19 @@ public class InternalEngine extends Engine {
             }
             return new DeleteResult(
                 plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
-        } catch (Exception ex) {
+        } catch (final Exception ex) {
+            /*
+             * Document level failures when deleting are unexpected, we likely hit something fatal such as the Lucene index being corrupt,
+             * or the Lucene document limit. We have already issued a sequence number here so this is fatal, fail the engine.
+             */
             if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
-                throw new AssertionError("delete operation should never fail at document level", ex);
+                final String reason = String.format(
+                    Locale.ROOT,
+                    "delete id[%s] origin [%s] seq#[%d] failed at the document level",
+                    delete.id(),
+                    delete.origin(),
+                    delete.seqNo());
+                failEngine(reason, ex);
             }
             throw ex;
         }
@@ -1510,9 +1513,14 @@ public class InternalEngine extends Engine {
                             : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
                         doc.add(softDeletesField);
                         indexWriter.addDocument(doc);
-                    } catch (Exception ex) {
+                    } catch (final Exception ex) {
+                        /*
+                         * Document level failures when adding a no-op are unexpected, we likely hit something fatal such as the Lucene
+                         * index being corrupt, or the Lucene document limit. We have already issued a sequence number here so this is
+                         * fatal, fail the engine.
+                         */
                         if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
-                            throw new AssertionError("noop operation should never fail at document level", ex);
+                            failEngine("no-op origin[" + noOp.origin() + "] seq#[" + noOp.seqNo() + "] failed at document level", ex);
                         }
                         throw ex;
                     }
@@ -1678,6 +1686,9 @@ public class InternalEngine extends Engine {
     @Override
     public boolean shouldPeriodicallyFlush() {
         ensureOpen();
+        if (shouldPeriodicallyFlushAfterBigMerge.get()) {
+            return true;
+        }
         final long translogGenerationOfLastCommit =
             Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
@@ -2007,6 +2018,11 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public SafeCommitInfo getSafeCommitInfo() {
+        return combinedDeletionPolicy.getSafeCommitInfo();
+    }
+
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
         final boolean engineFailed;
         // if we are already closed due to some tragic exception
@@ -2322,7 +2338,7 @@ public class InternalEngine extends Engine {
                     }
 
                     @Override
-                    protected void doRun() throws Exception {
+                    protected void doRun() {
                         // if we have no pending merges and we are supposed to flush once merges have finished
                         // we try to renew a sync commit which is the case when we are having a big merge after we
                         // are inactive. If that didn't work we go and do a real flush which is ok since it only doesn't work
@@ -2334,7 +2350,11 @@ public class InternalEngine extends Engine {
                         }
                     }
                 });
-
+            } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
+                // we hit a significant merge which would allow us to free up memory if we'd commit it hence on the next change
+                // we should execute a flush on the next operation if that's a flush after inactive or indexing a document.
+                // we could fork a thread and do it right away but we try to minimize forking and piggyback on outside events.
+                shouldPeriodicallyFlushAfterBigMerge.set(true);
             }
         }
 
@@ -2402,7 +2422,7 @@ public class InternalEngine extends Engine {
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
-
+            shouldPeriodicallyFlushAfterBigMerge.set(false);
             writer.commit();
         } catch (final Exception ex) {
             try {
@@ -2430,7 +2450,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void ensureCanFlush() {
+    final void ensureCanFlush() {
         // translog recover happens after the engine is fully constructed
         // if we are in this stage we have to prevent flushes from this
         // engine otherwise we might loose documents if the flush succeeds
@@ -2622,11 +2642,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    @Override
-    public boolean isRecovering() {
-        return pendingTranslogRecovery.get();
-    }
-
     /**
      * Gets the commit data from {@link IndexWriter} as a map.
      */
@@ -2777,15 +2792,6 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private static void trimUnsafeCommits(EngineConfig engineConfig) throws IOException {
-        final Store store = engineConfig.getStore();
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogPath, translogUUID);
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, engineConfig.getIndexSettings().getIndexVersionCreated());
-    }
-
     /**
      * Restores the live version map and local checkpoint of this engine using documents (including soft-deleted)
      * after the local checkpoint in the safe commit. This step ensures the live version map and checkpoint tracker
@@ -2839,4 +2845,5 @@ public class InternalEngine extends Engine {
         // remove live entries in the version map
         refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
     }
+
 }

@@ -52,7 +52,6 @@ import org.apache.http.util.EntityUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import javax.net.ssl.SSLHandshakeException;
@@ -68,7 +67,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -126,30 +124,24 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     static CloseableHttpAsyncClient mockHttpClient(final ExecutorService exec) {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-            any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
-            @Override
-            public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
+            any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer((Answer<Future<HttpResponse>>) invocationOnMock -> {
                 final HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                 final FutureCallback<HttpResponse> futureCallback =
                     (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                 // Call the callback asynchronous to better simulate how async http client works
-                return exec.submit(new Callable<HttpResponse>() {
-                    @Override
-                    public HttpResponse call() throws Exception {
-                        if (futureCallback != null) {
-                            try {
-                                HttpResponse httpResponse = responseOrException(requestProducer);
-                                futureCallback.completed(httpResponse);
-                            } catch(Exception e) {
-                                futureCallback.failed(e);
-                            }
-                            return null;
+                return exec.submit(() -> {
+                    if (futureCallback != null) {
+                        try {
+                            HttpResponse httpResponse = responseOrException(requestProducer);
+                            futureCallback.completed(httpResponse);
+                        } catch(Exception e) {
+                            futureCallback.failed(e);
                         }
-                        return responseOrException(requestProducer);
+                        return null;
                     }
+                    return responseOrException(requestProducer);
                 });
-            }
-        });
+            });
         return httpClient;
     }
 

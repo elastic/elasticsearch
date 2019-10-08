@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorF
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -70,7 +70,7 @@ public class DatafeedJobTests extends ESTestCase {
 
     private static final String jobId = "_job_id";
     
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
     private DataExtractorFactory dataExtractorFactory;
     private DataExtractor dataExtractor;
     private DatafeedTimingStatsReporter timingStatsReporter;
@@ -90,7 +90,7 @@ public class DatafeedJobTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setup() throws Exception {
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         dataExtractorFactory = mock(DataExtractorFactory.class);
         dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);

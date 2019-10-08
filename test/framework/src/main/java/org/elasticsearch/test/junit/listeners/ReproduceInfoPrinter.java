@@ -79,7 +79,7 @@ public class ReproduceInfoPrinter extends RunListener {
         String task = System.getProperty("tests.task");
 
         // append Gradle test runner test filter string
-        b.append(task);
+        b.append("'" + task + "'");
         b.append(" --tests \"");
         b.append(failure.getDescription().getClassName());
         final String methodName = failure.getDescription().getMethodName();

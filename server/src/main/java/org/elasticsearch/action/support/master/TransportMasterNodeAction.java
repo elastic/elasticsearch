@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.support.master;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -55,6 +57,8 @@ import java.util.function.Predicate;
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse>
     extends HandledTransportAction<Request, Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
 
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
@@ -117,6 +121,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
         public void start() {
             ClusterState state = clusterService.state();
+            logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
             this.observer
                 = new ClusterStateObserver(state, clusterService, request.masterNodeTimeout(), logger, threadPool.getThreadContext());
             doStart(state);
@@ -131,16 +136,17 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
                         if (!blockException.retryable()) {
+                            logger.trace("can't execute due to a non-retryable cluster block", blockException);
                             listener.onFailure(blockException);
                         } else {
-                            logger.trace("can't execute due to a cluster block, retrying", blockException);
+                            logger.debug("can't execute due to a cluster block, retrying", blockException);
                             retry(blockException, newState -> {
                                 try {
                                     ClusterBlockException newException = checkBlock(request, newState);
                                     return (newException == null || !newException.retryable());
                                 } catch (Exception e) {
                                     // accept state as block will be rechecked by doStart() and listener.onFailure() then called
-                                    logger.trace("exception occurred during cluster block checking, accepting state", e);
+                                    logger.debug("exception occurred during cluster block checking, accepting state", e);
                                     return true;
                                 }
                             });
@@ -152,6 +158,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                     "stepped down before publishing action [{}], scheduling a retry", actionName), t);
                                 retry(t, masterChangePredicate);
                             } else {
+                                logger.debug("unexpected exception during publication", t);
                                 delegatedListener.onFailure(t);
                             }
                         });
@@ -165,6 +172,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         final String actionName = getMasterActionName(masterNode);
+                        logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
                         transportService.sendRequest(masterNode, actionName, request,
                             new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {
                                 @Override
@@ -177,6 +185,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                             actionName, nodes.getMasterNode(), exp.getDetailedMessage());
                                         retry(cause, masterChangePredicate);
                                     } else {
+                                        logger.trace(new ParameterizedMessage("failure when forwarding request [{}] to master [{}]",
+                                            actionName, masterNode), exp);
                                         listener.onFailure(exp);
                                     }
                                 }
@@ -184,6 +194,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     }
                 }
             } catch (Exception e) {
+                logger.trace("top-level failure", e);
                 listener.onFailure(e);
             }
         }
@@ -193,6 +204,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
+                        logger.trace("retrying with cluster state version [{}]", state.version());
                         doStart(state);
                     }
 
@@ -207,8 +219,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             actionName, timeout), failure);
                         listener.onFailure(new MasterNotDiscoveredException(failure));
                     }
-                }, statePredicate
-            );
+                }, statePredicate);
         }
     }
 

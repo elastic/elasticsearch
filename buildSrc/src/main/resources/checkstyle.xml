@@ -7,7 +7,7 @@
   <property name="charset" value="UTF-8" />
 
   <module name="SuppressionFilter">
-    <property name="file" value="${suppressions}" />
+    <property name="file" value="${config_loc}/checkstyle_suppressions.xml" />
   </module>
 
   <!-- Checks Java files and forbids empty Javadoc comments -->

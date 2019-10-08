@@ -17,6 +17,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -128,8 +131,12 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         forceMergeRequest.maxNumSegments(1);
         client().admin().indices().forceMerge(forceMergeRequest).actionGet();
 
+        client().admin().indices().execute(RetentionLeaseActions.Add.INSTANCE, new RetentionLeaseActions.AddRequest(
+            new ShardId(resolveIndex("index"), 0), "test", RetentionLeaseActions.RETAIN_ALL, "ccr")).get();
+
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
+        Collection<RetentionLease> retentionLeases = shardStats.getRetentionLeaseStats().retentionLeases().leases();
         ShardChangesAction.Request request =  new ShardChangesAction.Request(shardStats.getShardRouting().shardId(), historyUUID);
         request.setFromSeqNo(0L);
         request.setMaxOperationCount(1);
@@ -137,8 +144,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         {
             ResourceNotFoundException e =
                 expectThrows(ResourceNotFoundException.class, () -> client().execute(ShardChangesAction.INSTANCE, request).actionGet());
-            assertThat(e.getMessage(), equalTo("Operations are no longer available for replicating. Maybe increase the retention setting " +
-                "[index.soft_deletes.retention.operations]?"));
+            assertThat(e.getMessage(), equalTo("Operations are no longer available for replicating. " +
+                "Existing retention leases [" + retentionLeases + "]; maybe increase the retention lease period setting " +
+                "[index.soft_deletes.retention_lease.period]?"));
 
             assertThat(e.getMetadataKeys().size(), equalTo(1));
             assertThat(e.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), notNullValue());
@@ -157,7 +165,8 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
 
             ResourceNotFoundException cause = (ResourceNotFoundException) e.getCause();
             assertThat(cause.getMessage(), equalTo("Operations are no longer available for replicating. " +
-                "Maybe increase the retention setting [index.soft_deletes.retention.operations]?"));
+                "Existing retention leases [" + retentionLeases + "]; maybe increase the retention lease period setting " +
+                "[index.soft_deletes.retention_lease.period]?"));
             assertThat(cause.getMetadataKeys().size(), equalTo(1));
             assertThat(cause.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), notNullValue());
             assertThat(cause.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), contains("0", "0"));

@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import java.io.IOException;
 import java.io.InputStream;

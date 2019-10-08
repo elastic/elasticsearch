@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -65,6 +67,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String index;
     private String policy;
+
+    private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
 
     @Before
     public void refreshIndex() {
@@ -383,7 +387,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // index document so snapshot actually does something
         indexDocument();
         // start snapshot
-        request = new Request("PUT", "/_snapshot/repo/snapshot");
+        String snapName = "snapshot-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        request = new Request("PUT", "/_snapshot/repo/" + snapName);
         request.addParameter("wait_for_completion", "false");
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
         assertOK(client().performRequest(request));
@@ -392,8 +397,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that index was deleted
         assertBusy(() -> assertFalse(indexExists(index)), 2, TimeUnit.MINUTES);
         // assert that snapshot is still in progress and clean up
-        assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
-        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+        assertThat(getSnapshotState(snapName), equalTo("SUCCESS"));
+        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/" + snapName)));
     }
 
     public void testReadOnly() throws Exception {
@@ -755,20 +760,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         client().performRequest(addPolicyRequest);
         assertBusy(() -> assertTrue((boolean) explainIndex(originalIndex).getOrDefault("managed", false)));
 
-        // Wait for rollover to error
-        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME))));
-
-        // Set indexing complete
-        Request setIndexingCompleteRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        setIndexingCompleteRequest.setJsonEntity("{\n" +
-            "  \"index.lifecycle.indexing_complete\": true\n" +
-            "}");
-        client().performRequest(setIndexingCompleteRequest);
-
-        // Retry policy
-        Request retryRequest = new Request("POST", "/" + originalIndex + "/_ilm/retry");
-        client().performRequest(retryRequest);
-
         // Wait for everything to be copacetic
         assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(TerminalPolicyStep.KEY)));
     }
@@ -870,6 +861,79 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+   public void testILMRolloverOnManuallyRolledIndex() throws Exception {
+       String originalIndex = index + "-000001";
+       String secondIndex = index + "-000002";
+       String thirdIndex = index + "-000003";
+
+       // Configure ILM to run every second
+       Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
+       updateLifecylePollSetting.setJsonEntity("{" +
+           "  \"transient\": {\n" +
+                "\"indices.lifecycle.poll_interval\" : \"1s\" \n" +
+           "  }\n" +
+           "}");
+       client().performRequest(updateLifecylePollSetting);
+
+       // Set up a policy with rollover
+       createNewSingletonPolicy("hot", new RolloverAction(null, null, 2L));
+       Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
+       createIndexTemplate.setJsonEntity("{" +
+           "\"index_patterns\": [\""+ index + "-*\"], \n" +
+           "  \"settings\": {\n" +
+           "    \"number_of_shards\": 1,\n" +
+           "    \"number_of_replicas\": 0,\n" +
+           "    \"index.lifecycle.name\": \"" + policy+ "\", \n" +
+           "    \"index.lifecycle.rollover_alias\": \"alias\"\n" +
+           "  }\n" +
+           "}");
+       client().performRequest(createIndexTemplate);
+
+       createIndexWithSettings(
+           originalIndex,
+           Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+               .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0),
+           true
+       );
+
+       // Index a document
+       index(client(), originalIndex, "1", "foo", "bar");
+       Request refreshOriginalIndex = new Request("POST", "/" + originalIndex + "/_refresh");
+       client().performRequest(refreshOriginalIndex);
+
+       // Manual rollover
+       Request rolloverRequest = new Request("POST", "/alias/_rollover");
+       rolloverRequest.setJsonEntity("{\n" +
+           "  \"conditions\": {\n" +
+           "    \"max_docs\": \"1\"\n" +
+           "  }\n" +
+           "}"
+       );
+       client().performRequest(rolloverRequest);
+       assertBusy(() -> assertTrue(indexExists(secondIndex)));
+
+       // Index another document into the original index so the ILM rollover policy condition is met
+       index(client(), originalIndex, "2", "foo", "bar");
+       client().performRequest(refreshOriginalIndex);
+
+       // Wait for the rollover policy to execute
+       assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(TerminalPolicyStep.KEY)));
+
+       // ILM should manage the second index after attempting (and skipping) rolling the original index
+       assertBusy(() -> assertTrue((boolean) explainIndex(secondIndex).getOrDefault("managed", true)));
+
+       // index some documents to trigger an ILM rollover
+       index(client(), "alias", "1", "foo", "bar");
+       index(client(), "alias", "2", "foo", "bar");
+       index(client(), "alias", "3", "foo", "bar");
+       Request refreshSecondIndex = new Request("POST", "/" + secondIndex + "/_refresh");
+       client().performRequest(refreshSecondIndex).getStatusLine();
+
+       // ILM should rollover the second index even though it skipped the first one
+       assertBusy(() -> assertThat(getStepKeyForIndex(secondIndex), equalTo(TerminalPolicyStep.KEY)));
+       assertBusy(() -> assertTrue(indexExists(thirdIndex)));
+   }
+
     private void createFullPolicy(TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
@@ -961,7 +1025,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return (Map<String, Object>) response.get("settings");
     }
 
-    private StepKey getStepKeyForIndex(String indexName) throws IOException {
+    public static StepKey getStepKeyForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
         if (indexResponse == null) {
             return new StepKey(null, null, null);
@@ -988,11 +1052,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return ((Map<String, String>) indexResponse.get("step_info")).get("reason");
     }
 
-    private Map<String, Object> explainIndex(String indexName) throws IOException {
+    private static Map<String, Object> explainIndex(String indexName) throws IOException {
         return explain(indexName, false, false).get(indexName);
     }
 
-    private Map<String, Map<String, Object>> explain(String indexPattern, boolean onlyErrors, boolean onlyManaged) throws IOException {
+    private static Map<String, Map<String, Object>> explain(String indexPattern, boolean onlyErrors,
+                                                            boolean onlyManaged) throws IOException {
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
         explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
         explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));

@@ -20,7 +20,7 @@ the same pattern:
 For example, the following script is used in a search request to return a
 <<request-body-search-script-fields, scripted field>>:
 
-[source,js]
+[source,console]
 -------------------------------------
 PUT my_index/_doc/1
 {
@@ -42,7 +42,6 @@ GET my_index/_search
   }
 }
 -------------------------------------
-// CONSOLE
 
 [float]
 === Script parameters
@@ -144,7 +143,7 @@ The following are examples of using a stored script that lives at
 
 First, create the script called `calculate-score` in the cluster state:
 
-[source,js]
+[source,console]
 -----------------------------------
 POST _scripts/calculate-score
 {
@@ -154,25 +153,29 @@ POST _scripts/calculate-score
   }
 }
 -----------------------------------
-// CONSOLE
+// TEST[setup:twitter]
 
 This same script can be retrieved with:
 
-[source,js]
+[source,console]
 -----------------------------------
 GET _scripts/calculate-score
 -----------------------------------
-// CONSOLE
 // TEST[continued]
 
 Stored scripts can be used by specifying the `id` parameters as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET _search
+GET twitter/_search
 {
   "query": {
-    "script": {
+    "script_score": {
+      "query": {
+        "match": {
+            "message": "some message"
+        }
+      },
       "script": {
         "id": "calculate-score",
         "params": {
@@ -183,17 +186,30 @@ GET _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And deleted with:
 
-[source,js]
+[source,console]
 -----------------------------------
 DELETE _scripts/calculate-score
 -----------------------------------
-// CONSOLE
 // TEST[continued]
+
+[float]
+[[modules-scripting-search-templates]]
+=== Search templates
+You can also use the `_scripts` API to store **search templates**. Search
+templates save specific <<search-search,search requests>> with placeholder
+values, called template parameters.
+
+You can use stored search templates to run searches without writing out the
+entire query. Just provide the stored template's ID and the template parameters.
+This is useful when you want to run a commonly used query quickly and without
+mistakes.
+
+Search templates use the http://mustache.github.io/mustache.5.html[mustache
+templating language]. See <<search-template>> for more information and examples.
 
 [float]
 [[modules-scripting-using-caching]]

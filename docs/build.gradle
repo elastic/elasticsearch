@@ -59,6 +59,9 @@ testClusters.integTest {
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+  // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+  systemProperty 'es.transport.cname_in_publish_address', 'true'
 }
 
 // build the cluster with all plugins
@@ -89,6 +92,8 @@ buildRestTests.docs = fileTree(projectDir) {
 }
 
 listSnippets.docs = buildRestTests.docs
+
+listConsoleCandidates.docs = buildRestTests.docs
 
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
@@ -214,6 +219,42 @@ buildRestTests.setups['sales'] = '''
             {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
             {"index":{}}
             {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}'''
+
+// Used by cumulative cardinality aggregation docs
+buildRestTests.setups['user_hits'] = '''
+  - do:
+        indices.create:
+          index: user_hits
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                user_id:
+                  type: keyword
+                timestamp:
+                  type: date
+  - do:
+        bulk:
+          index: user_hits
+          refresh: true
+          body: |
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "3"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
+
 
 // Dummy bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
@@ -535,7 +576,6 @@ buildRestTests.setups['library'] = '''
   - do:
         bulk:
           index: library
-          type: book
           refresh: true
           body: |
             {"index":{"_id": "Leviathan Wakes"}}
@@ -884,7 +924,6 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
   - do:
         bulk:
           index: farequote
-          type: metric
           refresh: true
           body: |
             {"index": {"_id":"1"}}
@@ -944,7 +983,6 @@ buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_met
   - do:
         bulk:
           index: server-metrics
-          type: metric
           refresh: true
           body: |
             {"index": {"_id":"1177"}}
@@ -1150,7 +1188,7 @@ buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups[
   - do:
       raw:
         method: PUT
-        path: _data_frame/transforms/simple-kibana-ecomm-pivot
+        path: _transform/simple-kibana-ecomm-pivot
         body:  >
           {
             "source": {

@@ -19,12 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -56,7 +58,9 @@ public final class SCatch extends AStatement {
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        block.storeSettings(settings);
+        if (block != null) {
+            block.storeSettings(settings);
+        }
     }
 
     @Override
@@ -69,8 +73,8 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
@@ -86,8 +90,7 @@ public final class SCatch extends AStatement {
             block.lastSource = lastSource;
             block.inLoop = inLoop;
             block.lastLoop = lastLoop;
-
-            block.analyze(locals);
+            block.analyze(scriptRoot, locals);
 
             methodEscape = block.methodEscape;
             loopEscape = block.loopEscape;
@@ -99,24 +102,24 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         Label jump = new Label();
 
-        writer.mark(jump);
-        writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+        methodWriter.mark(jump);
+        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (block != null) {
             block.continu = continu;
             block.brake = brake;
-            block.write(writer, globals);
+            block.write(classWriter, methodWriter, globals);
         }
 
-        writer.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(variable.clazz).getInternalName());
+        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(variable.clazz).getInternalName());
 
-        if (exception != null && !block.allEscape) {
-            writer.goTo(exception);
+        if (exception != null && (block == null || !block.allEscape)) {
+            methodWriter.goTo(exception);
         }
     }
 

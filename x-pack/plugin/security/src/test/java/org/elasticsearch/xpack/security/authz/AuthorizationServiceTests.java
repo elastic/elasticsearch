@@ -78,10 +78,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
@@ -108,12 +110,14 @@ import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -132,7 +136,6 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -313,15 +316,20 @@ public class AuthorizationServiceTests extends ESTestCase {
         final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 
-        final ConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(ConditionalClusterPrivilege.class);
-        final Predicate<TransportRequest> requestPredicate = r -> r == request;
-        Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
-        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[] {
-            conditionalClusterPrivilege
+        final ConfigurableClusterPrivilege configurableClusterPrivilege = new MockConfigurableClusterPrivilege() {
+            @Override
+            public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+                final Predicate<TransportRequest> requestPredicate = r -> r == request;
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    requestPredicate);
+                return builder;
+            }
+        };
+        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
+            configurableClusterPrivilege
         };
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, conditionalClusterPrivileges, null, null ,null);
+        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, configurableClusterPrivileges, null, null ,null);
         roleMap.put("role1", role);
 
         authorize(authentication, DeletePrivilegesAction.NAME, request);
@@ -334,15 +342,20 @@ public class AuthorizationServiceTests extends ESTestCase {
         final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 
-        final ConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(ConditionalClusterPrivilege.class);
-        final Predicate<TransportRequest> requestPredicate = r -> false;
-        Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
-        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[] {
-            conditionalClusterPrivilege
+        final ConfigurableClusterPrivilege configurableClusterPrivilege = new MockConfigurableClusterPrivilege() {
+            @Override
+            public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+                final Predicate<TransportRequest> requestPredicate = r -> false;
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    requestPredicate);
+                return builder;
+            }
+        };
+        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
+            configurableClusterPrivilege
         };
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, conditionalClusterPrivileges, null, null ,null);
+        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, configurableClusterPrivileges, null, null ,null);
         roleMap.put("role1", role);
 
         assertThrowsAuthorizationException(
@@ -1005,7 +1018,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(new Tuple<>(TermVectorsAction.NAME,
                 new TermVectorsRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")));
         requests.add(
-                new Tuple<>(GetAction.NAME, new GetRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "type", "id")));
+                new Tuple<>(GetAction.NAME, new GetRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
                 new TermVectorsRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")));
         requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
@@ -1176,16 +1189,16 @@ public class AuthorizationServiceTests extends ESTestCase {
                 eq(DeleteAction.NAME), eq("alias-2"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
-                eq(IndexAction.NAME), eq("concrete-index"), eq(BulkItemRequest.class.getSimpleName()),
+                eq(IndexAction.NAME + ":op_type/index"), eq("concrete-index"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
-                eq(IndexAction.NAME), eq("alias-1"), eq(BulkItemRequest.class.getSimpleName()),
+                eq(IndexAction.NAME + ":op_type/index"), eq("alias-1"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
                 eq(DeleteAction.NAME), eq("alias-1"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
-                eq(IndexAction.NAME), eq("alias-2"), eq(BulkItemRequest.class.getSimpleName()),
+                eq(IndexAction.NAME + ":op_type/index"), eq("alias-2"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
             authzInfoRoles(new String[] { role.getName() })); // bulk request is allowed
@@ -1219,7 +1232,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 eq(DeleteAction.NAME), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         verify(auditTrail, times(2)).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
-                eq(IndexAction.NAME), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
+                eq(IndexAction.NAME + ":op_type/index"), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         // bulk request is allowed
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
@@ -1236,7 +1249,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
         switch (randomIntBetween(0, 7)) {
             case 0:
-                return Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "type", "id"));
+                return Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
             case 1:
                 return Tuple.tuple(MultiSearchAction.NAME, new MultiSearchRequest().add(new SearchRequest()));
             case 2:
@@ -1518,6 +1531,27 @@ public class AuthorizationServiceTests extends ESTestCase {
                 return Arrays.equals(wanted, found);
             }
             return false;
+        }
+    }
+
+    private abstract static class MockConfigurableClusterPrivilege implements ConfigurableClusterPrivilege {
+        @Override
+        public Category getCategory() {
+            return Category.APPLICATION;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "mock";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
         }
     }
 }

@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -109,7 +110,7 @@ public class IndicesModule extends AbstractModule {
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
             mappers.put(type.typeName(), new NumberFieldMapper.TypeParser(type));
         }
-        for (RangeFieldMapper.RangeType type : RangeFieldMapper.RangeType.values()) {
+        for (RangeType type : RangeType.values()) {
             mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
         }
         mappers.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());

@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -70,7 +72,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
@@ -90,11 +92,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJobAction.Request, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportDeleteJobAction.class);
+
     private static final int MAX_SNAPSHOTS_TO_DELETE = 10000;
 
     private final Client client;
     private final PersistentTasksService persistentTasksService;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final JobResultsProvider jobResultsProvider;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
@@ -113,7 +117,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     public TransportDeleteJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
-                                    Client client, Auditor auditor, JobResultsProvider jobResultsProvider,
+                                    Client client, AnomalyDetectionAuditor auditor, JobResultsProvider jobResultsProvider,
                                     JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
                                     MlMemoryTracker memoryTracker) {
         super(DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,

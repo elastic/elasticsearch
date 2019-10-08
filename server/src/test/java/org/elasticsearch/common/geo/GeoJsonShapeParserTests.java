@@ -30,10 +30,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
@@ -78,7 +79,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                 .endObject();
         Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
         assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson, true);
-        assertGeometryEquals(new org.elasticsearch.geo.geometry.Point(0d, 100d), pointGeoJson, false);
+        assertGeometryEquals(new org.elasticsearch.geometry.Point(100d, 0d), pointGeoJson, false);
     }
 
     @Override
@@ -137,8 +138,8 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         });
         assertGeometryEquals(jtsGeom(expected), multilinesGeoJson, true);
         assertGeometryEquals(new MultiLine(Arrays.asList(
-                new org.elasticsearch.geo.geometry.Line(new double[] {0d, 1d}, new double[] {100d, 101d}),
-                new org.elasticsearch.geo.geometry.Line(new double[] {2d, 3d}, new double[] {102d, 103d}))),
+                new Line(new double[] {100d, 101d}, new double[] {0d, 1d}),
+                new Line(new double[] {102d, 103d}, new double[] {2d, 3d}))),
             multilinesGeoJson, false);
     }
 
@@ -194,7 +195,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                 .endObject();
         Rectangle expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
         assertGeometryEquals(expected, multilinesGeoJson, true);
-        assertGeometryEquals(new org.elasticsearch.geo.geometry.Rectangle(-30, 30, -50, 50),
+        assertGeometryEquals(new org.elasticsearch.geometry.Rectangle(-50, 50, 30, -30),
             multilinesGeoJson, false);
 
         // test #2: envelope that spans dateline
@@ -207,7 +208,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         expected = SPATIAL_CONTEXT.makeRectangle(50, -50, -30, 30);
         assertGeometryEquals(expected, multilinesGeoJson, true);
-        assertGeometryEquals(new org.elasticsearch.geo.geometry.Rectangle(-30, 30, 50, -50),
+        assertGeometryEquals(new org.elasticsearch.geometry.Rectangle(50, -50, 30, -30),
             multilinesGeoJson, false);
 
         // test #3: "envelope" (actually a triangle) with invalid number of coordinates (TopRight, BottomLeft, BottomRight)
@@ -263,10 +264,10 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson, true);
 
-        org.elasticsearch.geo.geometry.Polygon p = new org.elasticsearch.geo.geometry.Polygon(
-            new org.elasticsearch.geo.geometry.LinearRing(
-                new double[] {0d, 0d, 1d, 1d, 0d},
-                new double[] {100d, 101d, 101d, 100d, 100d}));
+        org.elasticsearch.geometry.Polygon p = new org.elasticsearch.geometry.Polygon(
+            new org.elasticsearch.geometry.LinearRing(
+                new double[] {100d, 101d, 101d, 100d, 100d}, new double[] {0d, 0d, 1d, 1d, 0d}
+            ));
         assertGeometryEquals(p, polygonGeoJson, false);
     }
 
@@ -310,9 +311,8 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());
         }
 
-        org.elasticsearch.geo.geometry.Polygon p = new org.elasticsearch.geo.geometry.Polygon(new org.elasticsearch.geo.geometry.LinearRing(
-            Arrays.stream(coordinates).mapToDouble(i->i.y).toArray(),
-            Arrays.stream(coordinates).mapToDouble(i->i.x).toArray()
+        org.elasticsearch.geometry.Polygon p = new org.elasticsearch.geometry.Polygon(new org.elasticsearch.geometry.LinearRing(
+            Arrays.stream(coordinates).mapToDouble(i->i.x).toArray(), Arrays.stream(coordinates).mapToDouble(i->i.y).toArray()
         ));
         assertGeometryEquals(p, polygonGeoJson, false);
     }
@@ -863,12 +863,12 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson, true);
 
-        org.elasticsearch.geo.geometry.LinearRing hole =
-            new org.elasticsearch.geo.geometry.LinearRing(
-                new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d});
-        org.elasticsearch.geo.geometry.Polygon p =
-            new org.elasticsearch.geo.geometry.Polygon(new org.elasticsearch.geo.geometry.LinearRing(
-                new double[] {0d, 0d, 1d, 1d, 0d}, new double[] {100d, 101d, 101d, 100d, 100d}), Collections.singletonList(hole));
+        org.elasticsearch.geometry.LinearRing hole =
+            new org.elasticsearch.geometry.LinearRing(
+                new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d}, new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d});
+        org.elasticsearch.geometry.Polygon p =
+            new org.elasticsearch.geometry.Polygon(new org.elasticsearch.geometry.LinearRing(
+                new double[] {100d, 101d, 101d, 100d, 100d}, new double[] {0d, 0d, 1d, 1d, 0d}), Collections.singletonList(hole));
         assertGeometryEquals(p, polygonGeoJson, false);
     }
 
@@ -911,8 +911,8 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(expected, multiPointGeoJson, true);
 
         assertGeometryEquals(new MultiPoint(Arrays.asList(
-            new org.elasticsearch.geo.geometry.Point(0, 100),
-            new org.elasticsearch.geo.geometry.Point(1, 101))), multiPointGeoJson, false);
+            new org.elasticsearch.geometry.Point(100, 0),
+            new org.elasticsearch.geometry.Point(101, 1))), multiPointGeoJson, false);
     }
 
     @Override
@@ -983,14 +983,14 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         assertGeometryEquals(expected, multiPolygonGeoJson, true);
 
-        org.elasticsearch.geo.geometry.LinearRing hole = new org.elasticsearch.geo.geometry.LinearRing(
-                new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d});
+        org.elasticsearch.geometry.LinearRing hole = new org.elasticsearch.geometry.LinearRing(
+            new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d}, new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d});
 
-        org.elasticsearch.geo.geometry.MultiPolygon polygons = new org.elasticsearch.geo.geometry.MultiPolygon(Arrays.asList(
-            new org.elasticsearch.geo.geometry.Polygon(new org.elasticsearch.geo.geometry.LinearRing(
-                new double[] {2d, 3d, 3d, 2d, 2d}, new double[] {103d, 103d, 102d, 102d, 103d})),
-            new org.elasticsearch.geo.geometry.Polygon(new org.elasticsearch.geo.geometry.LinearRing(
-                new double[] {0d, 1d, 1d, 0d, 0d}, new double[] {101d, 101d, 100d, 100d, 101d}), Collections.singletonList(hole))));
+        org.elasticsearch.geometry.MultiPolygon polygons = new org.elasticsearch.geometry.MultiPolygon(Arrays.asList(
+            new org.elasticsearch.geometry.Polygon(new org.elasticsearch.geometry.LinearRing(
+                new double[] {103d, 103d, 102d, 102d, 103d}, new double[] {2d, 3d, 3d, 2d, 2d})),
+            new org.elasticsearch.geometry.Polygon(new org.elasticsearch.geometry.LinearRing(
+                new double[] {101d, 101d, 100d, 100d, 101d}, new double[] {0d, 1d, 1d, 0d, 0d}), Collections.singletonList(hole))));
 
         assertGeometryEquals(polygons, multiPolygonGeoJson, false);
 
@@ -1041,13 +1041,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         assertGeometryEquals(jtsGeom(withHoles), multiPolygonGeoJson, true);
 
-        org.elasticsearch.geo.geometry.LinearRing luceneHole =
-            new org.elasticsearch.geo.geometry.LinearRing(
-                new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d});
+        org.elasticsearch.geometry.LinearRing luceneHole =
+            new org.elasticsearch.geometry.LinearRing(
+                new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d}, new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d});
 
-        org.elasticsearch.geo.geometry.Polygon lucenePolygons = (new org.elasticsearch.geo.geometry.Polygon(
-            new org.elasticsearch.geo.geometry.LinearRing(
-                new double[] {0d, 0d, 1d, 1d, 0d}, new double[] {100d, 101d, 101d, 100d, 100d}), Collections.singletonList(luceneHole)));
+        org.elasticsearch.geometry.Polygon lucenePolygons = (new org.elasticsearch.geometry.Polygon(
+            new org.elasticsearch.geometry.LinearRing(
+                new double[] {100d, 101d, 101d, 100d, 100d}, new double[] {0d, 0d, 1d, 1d, 0d}), Collections.singletonList(luceneHole)));
         assertGeometryEquals(lucenePolygons, multiPolygonGeoJson, false);
     }
 
@@ -1124,16 +1124,16 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(shapeCollection(expected), geometryCollectionGeoJson, true);
 
         GeometryCollection<Geometry> geometryExpected = new GeometryCollection<> (Arrays.asList(
-            new org.elasticsearch.geo.geometry.Line(new double[] {0d, 1d}, new double[] {100d, 101d}),
-            new org.elasticsearch.geo.geometry.Point(2d, 102d),
-            new org.elasticsearch.geo.geometry.MultiPolygon(Arrays.asList(
-                new org.elasticsearch.geo.geometry.Polygon(new org.elasticsearch.geo.geometry.LinearRing(
-                    new double[] {-12.142857142857142d, 12.142857142857142d, 15d, 0d, -15d, -12.142857142857142d},
-                    new double[] {180d, 180d, 176d, 172d, 176d, 180d}
+            new Line(new double[] {100d, 101d}, new double[] {0d, 1d}),
+            new org.elasticsearch.geometry.Point(102d, 2d),
+            new org.elasticsearch.geometry.MultiPolygon(Arrays.asList(
+                new org.elasticsearch.geometry.Polygon(new org.elasticsearch.geometry.LinearRing(
+                    new double[] {180d, 180d, 176d, 172d, 176d, 180d},
+                    new double[] {-12.142857142857142d, 12.142857142857142d, 15d, 0d, -15d, -12.142857142857142d}
                 )),
-                new org.elasticsearch.geo.geometry.Polygon(new org.elasticsearch.geo.geometry.LinearRing(
-                    new double[] {12.142857142857142d, -12.142857142857142d, -10d, 10d, 12.142857142857142d},
-                    new double[] {-180d, -180d, -177d, -177d, -180d}
+                new org.elasticsearch.geometry.Polygon(new org.elasticsearch.geometry.LinearRing(
+                    new double[] {-180d, -180d, -177d, -177d, -180d},
+                    new double[] {12.142857142857142d, -12.142857142857142d, -10d, 10d, 12.142857142857142d}
                 ))
             ))
         ));
@@ -1159,7 +1159,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
             assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson, true);
 
-            org.elasticsearch.geo.geometry.Point expectedPt = new org.elasticsearch.geo.geometry.Point(0, 100);
+            org.elasticsearch.geometry.Point expectedPt = new org.elasticsearch.geometry.Point(100, 0);
             assertGeometryEquals(expectedPt, pointGeoJson, false);
     }
 
@@ -1423,7 +1423,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             assertNull(parser.nextToken()); // no more elements afterwards
         }
     }
-    
+
     public Geometry parse(XContentParser parser) throws IOException, ParseException {
         GeometryParser geometryParser = new GeometryParser(true, true, true);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "name");

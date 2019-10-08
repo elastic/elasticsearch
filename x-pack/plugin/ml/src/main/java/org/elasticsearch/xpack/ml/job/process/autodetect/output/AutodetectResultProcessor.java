@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.time.Duration;
 import java.util.Iterator;
@@ -74,7 +74,7 @@ public class AutodetectResultProcessor {
     private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
 
     private final Client client;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
@@ -96,7 +96,7 @@ public class AutodetectResultProcessor {
     private volatile ModelSizeStats latestModelSizeStats;
 
     public AutodetectResultProcessor(Client client,
-                                     Auditor auditor,
+                                     AnomalyDetectionAuditor auditor,
                                      String jobId,
                                      Renormalizer renormalizer,
                                      JobResultsPersister persister,
@@ -107,7 +107,7 @@ public class AutodetectResultProcessor {
     }
 
     // Visible for testing
-    AutodetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+    AutodetectResultProcessor(Client client, AnomalyDetectionAuditor auditor, String jobId, Renormalizer renormalizer,
                               JobResultsPersister persister, AutodetectProcess autodetectProcess, ModelSizeStats latestModelSizeStats,
                               TimingStats timingStats,
                               FlushListener flushListener) {
@@ -288,9 +288,21 @@ public class AutodetectResultProcessor {
             // Commit previous writes here, effectively continuing
             // the flush from the C++ autodetect process right
             // through to the data store
-            bulkResultsPersister.executeRequest();
-            persister.commitResultWrites(jobId);
-            flushListener.acknowledgeFlush(flushAcknowledgement);
+            Exception exception = null;
+            try {
+                bulkResultsPersister.executeRequest();
+                persister.commitResultWrites(jobId);
+                LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
+            } catch (Exception e) {
+                LOGGER.error(
+                    "[" + jobId + "] failed to bulk persist results and commit writes during flush acknowledgement for ID " +
+                        flushAcknowledgement.getId(),
+                    e);
+                exception = e;
+                throw e;
+            } finally {
+                flushListener.acknowledgeFlush(flushAcknowledgement, exception);
+            }
             // Interim results may have been produced by the flush,
             // which need to be
             // deleted when the next finalized results come through
@@ -391,7 +403,7 @@ public class AutodetectResultProcessor {
      * @return The {@link FlushAcknowledgement} if the flush has completed or the parsing finished; {@code null} if the timeout expired
      */
     @Nullable
-    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws InterruptedException {
+    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws Exception {
         return failed ? null : flushListener.waitForFlush(flushId, timeout);
     }
 

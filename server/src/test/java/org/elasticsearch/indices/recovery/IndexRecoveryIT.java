@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -45,6 +46,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -54,6 +56,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -130,9 +133,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.oneOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryIT extends ESIntegTestCase {
@@ -319,6 +323,86 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareOpen(INDEX_NAME));
         }
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
+    }
+
+    public void testCancelNewShardRecoveryAndUsesExistingShardCopy() throws Exception {
+        logger.info("--> start node A");
+        final String nodeA = internalCluster().startNode();
+
+        logger.info("--> create index on node: {}", nodeA);
+        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT)
+            .getShards()[0].getStats().getStore().size();
+
+        logger.info("--> start node B");
+        // force a shard recovery from nodeA to nodeB
+        final String nodeB = internalCluster().startNode();
+
+        logger.info("--> add replica for {} on node: {}", INDEX_NAME, nodeB);
+        assertAcked(client().admin().indices().prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)));
+        ensureGreen(INDEX_NAME);
+
+        logger.info("--> start node C");
+        final String nodeC = internalCluster().startNode();
+
+        // do sync flush to gen sync id
+        assertThat(client().admin().indices().prepareSyncedFlush(INDEX_NAME).get().failedShards(), equalTo(0));
+
+        // hold peer recovery on phase 2 after nodeB down
+        CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
+        CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeA);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action)) {
+                phase1ReadyBlocked.countDown();
+                try {
+                    allowToCompletePhase1Latch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        logger.info("--> restart node B");
+        internalCluster().restartNode(nodeB,
+            new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) throws Exception {
+                    phase1ReadyBlocked.await();
+                    // nodeB stopped, peer recovery from nodeA to nodeC, it will be cancelled after nodeB get started.
+                    RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+
+                    List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+                    List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
+                    assertThat(nodeCRecoveryStates.size(), equalTo(1));
+
+                    assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE,
+                        false, nodeA, nodeC);
+                    validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+
+                    return super.onNodeStopped(nodeName);
+                }
+            });
+
+        // wait for peer recovery from nodeA to nodeB which is a no-op recovery so it skips the CLEAN_FILES stage and hence is not blocked
+        ensureGreen();
+        allowToCompletePhase1Latch.countDown();
+        transportService.clearAllRules();
+
+        // make sure nodeA has primary and nodeB has replica
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
+        assertThat(startedShards.size(), equalTo(2));
+        for (ShardRouting shardRouting : startedShards) {
+            if (shardRouting.primary()) {
+                assertThat(state.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(nodeA));
+            } else {
+                assertThat(state.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(nodeB));
+            }
+        }
     }
 
     public void testRerouteRecovery() throws Exception {
@@ -787,9 +871,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
                     try {
-                        awaitBusy(() -> client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
-                            .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards().isEmpty() == false);
-                    } catch (InterruptedException e) {
+                        assertBusy(() -> assertThat(
+                            "Expected there to be some initializing shards",
+                            client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
+                                .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards(), not(empty())));
+                    } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                     connection.sendRequest(requestId, action, request, options);
@@ -861,7 +947,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String indexName = "test";
         client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)).get();
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)).get();
         ensureGreen(indexName);
 
         // Perform some replicated operations so the replica isn't simply empty, because ops-based recovery isn't better in that case
@@ -906,8 +993,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         recoveryStates.removeIf(r -> r.getTimer().getStartNanoTime() <= desyncNanoTime);
 
         assertThat(recoveryStates, hasSize(1));
-        assertThat(recoveryStates.get(0).getIndex().totalFileCount(), is(0));
-        assertThat(recoveryStates.get(0).getTranslog().recoveredOperations(), greaterThan(0));
+        final RecoveryState recoveryState = recoveryStates.get(0);
+        assertThat(Strings.toString(recoveryState), recoveryState.getIndex().totalFileCount(), is(0));
+        assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
     public void testDoNotInfinitelyWaitForMapping() {
@@ -1212,6 +1300,109 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
     }
 
+    public void testUsesFileBasedRecoveryIfOperationsBasedRecoveryWouldBeUnreasonable() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        String indexName = "test-index";
+        final Settings.Builder settings = Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms");
+
+        final double reasonableOperationsBasedRecoveryProportion;
+        if (randomBoolean()) {
+            reasonableOperationsBasedRecoveryProportion = randomDoubleBetween(0.05, 0.99, true);
+            settings.put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(),
+                reasonableOperationsBasedRecoveryProportion);
+        } else {
+            reasonableOperationsBasedRecoveryProportion
+                = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(Settings.EMPTY);
+        }
+        logger.info("--> performing ops-based recoveries up to [{}%] of docs", reasonableOperationsBasedRecoveryProportion * 100.0);
+
+        createIndex(indexName, settings.build());
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(0, 100))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+
+        flush(indexName);
+        // wait for all history to be discarded
+        assertBusy(() -> {
+            for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {
+                final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+                assertTrue(shardStats.getRetentionLeaseStats().retentionLeases() + " should discard history up to " + maxSeqNo,
+                    shardStats.getRetentionLeaseStats().retentionLeases().leases().stream().allMatch(
+                        l -> l.retainingSequenceNumber() == maxSeqNo + 1));
+            }
+        });
+        flush(indexName); // ensure that all operations are in the safe commit
+
+        final ShardStats shardStats = client().admin().indices().prepareStats(indexName).get().getShards()[0];
+        final long docCount = shardStats.getStats().docs.getCount();
+        assertThat(shardStats.getStats().docs.getDeleted(), equalTo(0L));
+        assertThat(shardStats.getSeqNoStats().getMaxSeqNo() + 1, equalTo(docCount));
+
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        final DiscoveryNodes discoveryNodes = clusterService().state().nodes();
+        final IndexShardRoutingTable indexShardRoutingTable = clusterService().state().routingTable().shardRoutingTable(shardId);
+
+        final ShardRouting replicaShardRouting = indexShardRoutingTable.replicaShards().get(0);
+        assertTrue("should have lease for " + replicaShardRouting,
+            client().admin().indices().prepareStats(indexName).get().getShards()[0].getRetentionLeaseStats()
+                .retentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replicaShardRouting)));
+        internalCluster().restartNode(discoveryNodes.get(replicaShardRouting.currentNodeId()).getName(),
+            new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) throws Exception {
+                    assertFalse(client().admin().cluster().prepareHealth()
+                        .setWaitForNodes(Integer.toString(discoveryNodes.getSize() - 1))
+                        .setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+
+                    final int newDocCount = Math.toIntExact(Math.round(Math.ceil(
+                        (1 + Math.ceil(docCount * reasonableOperationsBasedRecoveryProportion))
+                            / (1 - reasonableOperationsBasedRecoveryProportion))));
+
+                    /*
+                     *     newDocCount >= (ceil(docCount * p) + 1) / (1-p)
+                     *
+                     * ==> 0 <= newDocCount * (1-p) - ceil(docCount * p) - 1
+                     *       =  newDocCount - (newDocCount * p + ceil(docCount * p) + 1)
+                     *       <  newDocCount - (ceil(newDocCount * p) + ceil(docCount * p))
+                     *       <= newDocCount -  ceil(newDocCount * p + docCount * p)
+                     *
+                     * ==> docCount <  newDocCount + docCount - ceil((newDocCount + docCount) * p)
+                     *              == localCheckpoint + 1    - ceil((newDocCount + docCount) * p)
+                     *              == firstReasonableSeqNo
+                     *
+                     * The replica has docCount docs, i.e. has operations with seqnos [0..docCount-1], so a seqno-based recovery will start
+                     * from docCount < firstReasonableSeqNo
+                     *
+                     * ==> it is unreasonable to recover the replica using a seqno-based recovery
+                     */
+
+                    indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, newDocCount)
+                        .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+
+                    flush(indexName);
+
+                    assertBusy(() -> assertFalse("should no longer have lease for " + replicaShardRouting,
+                        client().admin().indices().prepareStats(indexName).get().getShards()[0].getRetentionLeaseStats()
+                            .retentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replicaShardRouting))));
+
+                    return super.onNodeStopped(nodeName);
+                }
+            });
+
+        ensureGreen(indexName);
+
+        //noinspection OptionalGetWithoutIsPresent because it fails the test if absent
+        final RecoveryState recoveryState = client().admin().indices().prepareRecoveries(indexName).get()
+            .shardRecoveryStates().get(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
+        assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
+    }
+
     public void testDoesNotCopyOperationsInSafeCommit() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
@@ -1366,7 +1557,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     try {
                         IndexResponse response = client().prepareIndex(indexName, "_doc")
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON).get();
-                        assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
+                        assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                     } catch (ElasticsearchException ignored) {
                     }
                 }
@@ -1382,5 +1573,21 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             indexer.join();
         }
         ensureGreen(indexName);
+    }
+
+    public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+            .setWaitForActiveShards(ActiveShardCount.NONE));
+        internalCluster().startNode();
+        internalCluster().startNode();
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        assertAcked(client().admin().indices().prepareDelete("test")); // cancel recoveries
+        assertBusy(() -> {
+            for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {
+                assertThat(recoveryService.numberOfOngoingRecoveries(), equalTo(0));
+            }
+        });
     }
 }

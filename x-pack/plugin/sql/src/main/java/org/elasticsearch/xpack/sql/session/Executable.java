@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import java.util.List;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
+
+import java.util.List;
 
 public interface Executable {
 
     List<Attribute> output();
 
-    void execute(SqlSession session, ActionListener<SchemaRowSet> listener);
+    void execute(SqlSession session, ActionListener<Page> listener);
 }

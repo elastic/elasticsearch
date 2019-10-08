@@ -22,6 +22,7 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
@@ -30,7 +31,7 @@ import java.util.Arrays;
 public class AnalyzeResponseTests extends AbstractResponseTestCase<AnalyzeAction.Response, AnalyzeResponse> {
 
     @Override
-    protected AnalyzeAction.Response createServerTestInstance() {
+    protected AnalyzeAction.Response createServerTestInstance(XContentType xContentType) {
         int tokenCount = randomIntBetween(1, 30);
         AnalyzeAction.AnalyzeToken[] tokens = new AnalyzeAction.AnalyzeToken[tokenCount];
         for (int i = 0; i < tokenCount; i++) {

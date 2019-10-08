@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -36,8 +35,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexPutAliasAction extends BaseRestHandler {
-    public RestIndexPutAliasAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestIndexPutAliasAction(RestController controller) {
         controller.registerHandler(PUT, "/{index}/_alias/{name}", this);
         controller.registerHandler(PUT, "/_alias/{name}", this);
         controller.registerHandler(PUT, "/{index}/_aliases/{name}", this);

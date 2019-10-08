@@ -18,7 +18,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 
 import java.net.InetAddress;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 
 public class MlAssignmentNotifierTests extends ESTestCase {
 
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private MlConfigMigrator configMigrator;
@@ -46,7 +46,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     private void setupMocks() {
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         clusterService = mock(ClusterService.class);
         threadPool = mock(ThreadPool.class);
         configMigrator = mock(MlConfigMigrator.class);

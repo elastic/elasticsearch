@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Context used for inner hits retrieval
@@ -51,10 +50,6 @@ public final class InnerHitsContext {
 
     public InnerHitsContext() {
         this.innerHits = new HashMap<>();
-    }
-
-    InnerHitsContext(Map<String, InnerHitSubContext> innerHits) {
-        this.innerHits = Objects.requireNonNull(innerHits);
     }
 
     public Map<String, InnerHitSubContext> getInnerHits() {
@@ -77,8 +72,6 @@ public final class InnerHitsContext {
     public abstract static class InnerHitSubContext extends SubSearchContext {
 
         private final String name;
-        protected final SearchContext context;
-        private InnerHitsContext childInnerHits;
 
         // TODO: when types are complete removed just use String instead for the id:
         private Uid uid;
@@ -86,7 +79,6 @@ public final class InnerHitsContext {
         protected InnerHitSubContext(String name, SearchContext context) {
             super(context);
             this.name = name;
-            this.context = context;
         }
 
         public abstract TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException;
@@ -95,23 +87,10 @@ public final class InnerHitsContext {
             return name;
         }
 
-        @Override
-        public InnerHitsContext innerHits() {
-            return childInnerHits;
-        }
-
-        public void setChildInnerHits(Map<String, InnerHitSubContext> childInnerHits) {
-            this.childInnerHits = new InnerHitsContext(childInnerHits);
-        }
-
         protected Weight createInnerHitQueryWeight() throws IOException {
             final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
-            return context.searcher().createWeight(context.searcher().rewrite(query()),
+            return searcher().createWeight(searcher().rewrite(query()),
                     needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
-        }
-
-        public SearchContext parentSearchContext() {
-            return context;
         }
 
         public Uid getUid() {

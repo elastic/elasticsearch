@@ -31,7 +31,7 @@ import java.nio.file.Path
 /**
  * Generates REST tests for each snippet marked // TEST.
  */
-public class RestTestsFromSnippetsTask extends SnippetsTask {
+class RestTestsFromSnippetsTask extends SnippetsTask {
     /**
      * These languages aren't supported by the syntax highlighter so we
      * shouldn't use them.
@@ -58,7 +58,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
     @OutputDirectory
     File testRoot = project.file('build/rest')
 
-    public RestTestsFromSnippetsTask() {
+    Set<String> names = new HashSet<>()
+
+    RestTestsFromSnippetsTask() {
         project.afterEvaluate {
             // Wait to set this so testRoot can be customized
             project.sourceSets.test.output.dir(testRoot, builtBy: this)
@@ -202,11 +204,15 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 previousTest = snippet
                 return
             }
-            if (snippet.testResponse) {
+            if (snippet.testResponse || snippet.language == 'console-result') {
                 response(snippet)
                 return
             }
-            if (snippet.test || snippet.console) {
+            if ((snippet.language == 'js') && (snippet.console)) {
+                throw new InvalidUserDataException(
+                        "$snippet: Use `[source,console]` instead of `// CONSOLE`.")
+            }
+            if (snippet.test || snippet.language == 'console') {
                 test(snippet)
                 previousTest = snippet
                 return
@@ -234,7 +240,14 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 }
             } else {
                 current.println('---')
-                current.println("\"line_$test.start\":")
+                if (test.name != null && test.name.isBlank() == false) {
+                    if(names.add(test.name) == false) {
+                        throw new InvalidUserDataException("Duplicated snippet name '$test.name': $test")
+                    }
+                    current.println("\"$test.name\":")
+                } else {
+                    current.println("\"line_$test.start\":")
+                }
                 /* The Elasticsearch test runner doesn't support quite a few
                  * constructs unless we output this skip. We don't know if
                  * we're going to use these constructs, but we might so we
@@ -402,6 +415,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (lastDocsPath == test.path) {
                 return
             }
+            names.clear()
             finishLastTest()
             lastDocsPath = test.path
 

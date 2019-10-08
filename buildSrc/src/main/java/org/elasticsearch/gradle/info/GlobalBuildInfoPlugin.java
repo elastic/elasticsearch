@@ -7,7 +7,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.internal.jvm.Jvm;
-import org.gradle.process.ExecResult;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -16,6 +15,10 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -24,8 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final String GLOBAL_INFO_EXTENSION_NAME = "globalInfo";
@@ -92,8 +93,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
-            ext.set("gitRevision", gitRevision(project));
+            ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
+            ext.set("isCi", System.getenv("JENKINS_URL") != null);
         });
     }
 
@@ -203,21 +205,65 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-    private String gitRevision(final Project project) {
-        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-        final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-        final ExecResult result = project.exec(spec -> {
-            spec.setExecutable("git");
-            spec.setArgs(Arrays.asList("rev-parse", "HEAD"));
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stderr);
-            spec.setIgnoreExitValue(true);
-        });
-
-        if (result.getExitValue() != 0) {
-            return "unknown";
+    public static String gitRevision(File rootDir) {
+        try {
+            /*
+             * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The
+             * documentation for this follows from https://git-scm.com/docs/gitrepository-layout and https://git-scm.com/docs/git-worktree.
+             *
+             * There are two cases to consider:
+             *  - a plain repository with .git directory at the root of the working tree
+             *  - a worktree with a plain text .git file at the root of the working tree
+             *
+             * In each case, our goal is to parse the HEAD file to get either a ref or a bare revision (in the case of being in detached
+             * HEAD state).
+             *
+             * In the case of a plain repository, we can read the HEAD file directly, resolved directly from the .git directory.
+             *
+             * In the case of a worktree, we read the gitdir from the plain text .git file. This resolves to a directory from which we read
+             * the HEAD file and resolve commondir to the plain git repository.
+             */
+            final Path dotGit = rootDir.toPath().resolve(".git");
+            final String revision;
+            if (Files.exists(dotGit) == false) {
+                return "unknown";
+            }
+            final Path head;
+            final Path gitDir;
+            if (Files.isDirectory(dotGit)) {
+                // this is a git repository, we can read HEAD directly
+                head = dotGit.resolve("HEAD");
+                gitDir = dotGit;
+            } else {
+                // this is a git worktree, follow the pointer to the repository
+                final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                head = workTree.resolve("HEAD");
+                final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
+                if (commonDir.isAbsolute()) {
+                    gitDir = commonDir;
+                } else {
+                    // this is the common case
+                    gitDir = workTree.resolve(commonDir);
+                }
+            }
+            final String ref = readFirstLine(head);
+            if (ref.startsWith("ref:")) {
+                revision = readFirstLine(gitDir.resolve(ref.substring("ref:".length()).trim()));
+            } else {
+                // we are in detached HEAD state
+                revision = ref;
+            }
+            return revision;
+        } catch (final IOException e) {
+            // for now, do not be lenient until we have better understanding of real-world scenarios where this happens
+            throw new GradleException("unable to read the git revision", e);
         }
-        return stdout.toString(UTF_8).trim();
+    }
+
+    private static String readFirstLine(final Path path) throws IOException {
+        return Files.lines(path, StandardCharsets.UTF_8)
+            .findFirst()
+            .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
     }
 
 }

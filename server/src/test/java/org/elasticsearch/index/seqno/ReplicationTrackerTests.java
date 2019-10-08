@@ -184,7 +184,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(updatedGlobalCheckpoint.get(), equalTo(update));
     }
 
-    public void testMarkAllocationIdAsInSync() throws BrokenBarrierException, InterruptedException {
+    public void testMarkAllocationIdAsInSync() throws Exception {
         final long initialClusterStateVersion = randomNonNegativeLong();
         Map<AllocationId, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(1, 1);
         Set<AllocationId> active = new HashSet<>(activeWithCheckpoints.keySet());
@@ -212,7 +212,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         });
         thread.start();
         barrier.await();
-        awaitBusy(tracker::pendingInSync);
+        assertBusy(() -> assertTrue(tracker.pendingInSync()));
         final long updatedLocalCheckpoint = randomLongBetween(1 + localCheckpoint, Long.MAX_VALUE);
         // there is a shard copy pending in sync, the global checkpoint can not advance
         updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);
@@ -694,10 +694,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final long globalCheckpoint = UNASSIGNED_SEQ_NO;
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease =
                 (leases, listener) -> {};
-        ReplicationTracker oldPrimary = new ReplicationTracker(
-                shardId, aId.getId(), indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
-        ReplicationTracker newPrimary = new ReplicationTracker(
-                shardId, aId.getRelocationId(), indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
+        ReplicationTracker oldPrimary = new ReplicationTracker(shardId, aId.getId(), indexSettings, primaryTerm, globalCheckpoint,
+            onUpdate, () -> 0L, onNewRetentionLease, OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
+        ReplicationTracker newPrimary = new ReplicationTracker(shardId, aId.getRelocationId(), indexSettings, primaryTerm, globalCheckpoint,
+            onUpdate, () -> 0L, onNewRetentionLease, OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 

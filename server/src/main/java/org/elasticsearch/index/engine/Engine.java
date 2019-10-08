@@ -1123,6 +1123,11 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * @return a summary of the contents of the current safe commit
+     */
+    public abstract SafeCommitInfo getSafeCommitInfo();
+
+    /**
      * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
      * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
      * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error,
@@ -1556,16 +1561,15 @@ public abstract class Engine implements Closeable {
     public static class Get {
         private final boolean realtime;
         private final Term uid;
-        private final String type, id;
+        private final String id;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-        public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String id, Term uid) {
             this.realtime = realtime;
-            this.type = type;
             this.id = id;
             this.uid = uid;
             this.readFromTranslog = readFromTranslog;
@@ -1573,10 +1577,6 @@ public abstract class Engine implements Closeable {
 
         public boolean realtime() {
             return this.realtime;
-        }
-
-        public String type() {
-            return type;
         }
 
         public String id() {
@@ -1623,7 +1623,7 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = primaryTerm;
             return this;
         }
-        
+
         public long getIfPrimaryTerm() {
             return ifPrimaryTerm;
         }
@@ -1868,13 +1868,6 @@ public abstract class Engine implements Closeable {
      * Do not replay translog operations, but make the engine be ready.
      */
     public abstract void skipTranslogRecovery();
-
-    /**
-     * Returns <code>true</code> iff this engine is currently recovering from translog.
-     */
-    public boolean isRecovering() {
-        return false;
-    }
 
     /**
      * Tries to prune buffered deletes from the version map.

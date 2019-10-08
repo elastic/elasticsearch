@@ -113,6 +113,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             logger.info("Restarting all nodes");
             internalCluster().fullRestart();
             logger.info("Restarted all nodes");
+            ensureStableClusterOnAllNodes(3);
         });
     }
 

@@ -25,9 +25,9 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
@@ -46,7 +46,6 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.adjacencyMatrix;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,16 +57,11 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class AdjacencyMatrixIT extends ESIntegTestCase {
 
     static int numDocs, numSingleTag1Docs, numSingleTag2Docs, numTag1Docs, numTag2Docs, numMultiTagDocs;
-    static final int MAX_NUM_FILTERS = 3;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         createIndex("idx2");
-        assertAcked(client().admin().indices().prepareUpdateSettings("idx")
-                .setSettings(
-                        Settings.builder().put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), MAX_NUM_FILTERS))
-                .get());
 
         numDocs = randomIntBetween(5, 20);
         numTag1Docs = randomIntBetween(1, numDocs - 1);
@@ -300,9 +294,10 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
 
     public void testTooLargeMatrix() throws Exception{
 
-        // Create more filters than is permitted by index settings.
+        // Create more filters than is permitted by Lucene Bool clause settings.
         MapBuilder filtersMap = new MapBuilder();
-        for (int i = 0; i <= MAX_NUM_FILTERS; i++) {
+        int maxFilters = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(Settings.EMPTY);
+        for (int i = 0; i <= maxFilters; i++) {
             filtersMap.add("tag" + i, termQuery("tag", "tag" + i));
         }
 

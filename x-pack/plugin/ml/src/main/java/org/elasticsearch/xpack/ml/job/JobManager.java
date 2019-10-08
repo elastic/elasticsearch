@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ public class JobManager {
     private final JobResultsProvider jobResultsProvider;
     private final JobResultsPersister jobResultsPersister;
     private final ClusterService clusterService;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final Client client;
     private final ThreadPool threadPool;
     private final UpdateJobProcessNotifier updateJobProcessNotifier;
@@ -104,8 +104,9 @@ public class JobManager {
      * Create a JobManager
      */
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
-                      JobResultsPersister jobResultsPersister, ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
-                      Client client, UpdateJobProcessNotifier updateJobProcessNotifier, NamedXContentRegistry xContentRegistry) {
+                      JobResultsPersister jobResultsPersister, ClusterService clusterService, AnomalyDetectionAuditor auditor,
+                      ThreadPool threadPool, Client client, UpdateJobProcessNotifier updateJobProcessNotifier,
+                      NamedXContentRegistry xContentRegistry) {
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);

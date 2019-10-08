@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 
 import java.util.List;
 import java.util.function.Function;
@@ -159,7 +160,7 @@ public class SqlSession {
         optimizedPlan(optimized, wrap(o -> listener.onResponse(planner.plan(o, verify)), listener::onFailure));
     }
 
-    public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
+    public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {
         sqlExecutable(sql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
     }
 

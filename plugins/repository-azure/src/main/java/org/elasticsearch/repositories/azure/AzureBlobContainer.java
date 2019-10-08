@@ -31,6 +31,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -126,9 +127,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete() throws IOException {
+    public DeleteResult delete() throws IOException {
         try {
-            blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
+            return blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
         } catch (URISyntaxException | StorageException e) {
             throw new IOException(e);
         }

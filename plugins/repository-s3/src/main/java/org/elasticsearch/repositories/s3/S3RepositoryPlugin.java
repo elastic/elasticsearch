@@ -76,17 +76,17 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     // proxy method for testing
-    protected S3Repository createRepository(final RepositoryMetaData metadata,
-                                            final Settings settings,
-                                            final NamedXContentRegistry registry, final ThreadPool threadPool) {
-        return new S3Repository(metadata, settings, registry, service, threadPool);
+    protected S3Repository createRepository(
+        final RepositoryMetaData metadata,
+        final NamedXContentRegistry registry,
+        final ThreadPool threadPool) {
+        return new S3Repository(metadata, registry, service, threadPool);
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
                                                            final ThreadPool threadPool) {
-        return Collections.singletonMap(S3Repository.TYPE,
-            metadata -> createRepository(metadata, env.settings(), registry, threadPool));
+        return Collections.singletonMap(S3Repository.TYPE, metadata -> createRepository(metadata, registry, threadPool));
     }
 
     @Override
@@ -105,9 +105,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.READ_TIMEOUT_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
             S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
-            S3ClientSettings.USE_PATH_STYLE_ACCESS,
-            S3Repository.ACCESS_KEY_SETTING,
-            S3Repository.SECRET_KEY_SETTING);
+            S3ClientSettings.USE_PATH_STYLE_ACCESS);
     }
 
     @Override

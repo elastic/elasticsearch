@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchContextException;
+import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -67,7 +67,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchException.class));
                 assertThat(failure.getCause().getMessage(), Matchers.equalTo("`search_after` cannot be used in a scroll context."));
             }
         }
@@ -83,7 +83,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchException.class));
                 assertThat(failure.getCause().getMessage(),
                         Matchers.equalTo("`from` parameter must be set to 0 when `search_after` is used."));
             }

@@ -14,7 +14,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.util.TreeSet;
@@ -31,7 +31,7 @@ public class TransportGetBuiltinPrivilegesAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, GetBuiltinPrivilegesRequest request, ActionListener<GetBuiltinPrivilegesResponse> listener) {
-        final TreeSet<String> cluster = new TreeSet<>(ClusterPrivilege.names());
+        final TreeSet<String> cluster = new TreeSet<>(ClusterPrivilegeResolver.names());
         final TreeSet<String> index = new TreeSet<>(IndexPrivilege.names());
         listener.onResponse(new GetBuiltinPrivilegesResponse(cluster, index));
     }

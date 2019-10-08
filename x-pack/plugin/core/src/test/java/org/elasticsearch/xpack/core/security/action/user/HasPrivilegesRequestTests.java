@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -87,9 +87,11 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.username(randomAlphaOfLength(8));
 
-        final List<String> clusterPrivileges = randomSubsetOf(Arrays.asList(ClusterPrivilege.MONITOR, ClusterPrivilege.MANAGE,
-            ClusterPrivilege.MANAGE_ML, ClusterPrivilege.MANAGE_SECURITY, ClusterPrivilege.MANAGE_PIPELINE, ClusterPrivilege.ALL))
-            .stream().flatMap(p -> p.name().stream()).collect(Collectors.toList());
+        final List<String> clusterPrivileges = randomSubsetOf(Arrays.asList(ClusterPrivilegeResolver.MONITOR,
+            ClusterPrivilegeResolver.MANAGE,
+            ClusterPrivilegeResolver.MANAGE_ML, ClusterPrivilegeResolver.MANAGE_SECURITY, ClusterPrivilegeResolver.MANAGE_PIPELINE,
+            ClusterPrivilegeResolver.ALL))
+            .stream().map(p -> p.name()).collect(Collectors.toList());
         request.clusterPrivileges(clusterPrivileges.toArray(Strings.EMPTY_ARRAY));
 
         IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[randomInt(5)];

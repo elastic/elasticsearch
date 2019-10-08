@@ -141,7 +141,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public String type() {
         if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;                    
+            return MapperService.SINGLE_MAPPING_NAME;
         }
         return type;
     }
@@ -157,22 +157,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         this.type = type;
         return this;
     }
-    
-    /**
-     * Set the default type supplied to a bulk
-     * request if this individual request's type is null
-     * or empty
-     * 
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public DeleteRequest defaultTypeIfNull(String defaultType) {
-        if (Strings.isNullOrEmpty(type)) {
-            type = defaultType;
-        }
-        return this;
-    }    
 
     /**
      * The id of the document to delete.
@@ -292,8 +276,8 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
+        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
+        // So we use the type accessor method here to make the type non-null (will default it to "_doc").
         out.writeString(type());
         out.writeString(id);
         out.writeOptionalString(routing());

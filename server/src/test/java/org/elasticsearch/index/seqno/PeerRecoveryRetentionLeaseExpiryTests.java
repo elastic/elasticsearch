@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -48,6 +50,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
     private ReplicationTracker replicationTracker;
     private AtomicLong currentTimeMillis;
     private Settings settings;
+    private SafeCommitInfo safeCommitInfo;
 
     @Before
     public void setUpReplicationTracker() throws InterruptedException {
@@ -63,6 +66,8 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             settings = Settings.EMPTY;
         }
 
+        safeCommitInfo = null; // must be set in each test
+
         final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         replicationTracker = new ReplicationTracker(
             new ShardId("test", "_na", 0),
@@ -72,7 +77,8 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             UNASSIGNED_SEQ_NO,
             value -> { },
             currentTimeMillis::get,
-            (leases, listener) -> { });
+            (leases, listener) -> { },
+            () -> safeCommitInfo);
         replicationTracker.updateFromMaster(1L, Collections.singleton(primaryAllocationId.getId()),
             routingTable(Collections.emptySet(), primaryAllocationId));
         replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
@@ -109,6 +115,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         }
 
         currentTimeMillis.set(currentTimeMillis.get() + randomLongBetween(0, Long.MAX_VALUE - currentTimeMillis.get()));
+        safeCommitInfo = randomSafeCommitInfo();
 
         final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
         assertFalse(retentionLeases.v1());
@@ -121,10 +128,13 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesDoNotExpireImmediatelyIfShardsNotAllStarted() {
         final String unknownNodeId = randomAlphaOfLength(10);
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, randomCheckpoint(), EMPTY_LISTENER);
+        final long globalCheckpoint = randomNonNegativeLong(); // not NO_OPS_PERFORMED since this always results in file-based recovery
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
 
         currentTimeMillis.set(currentTimeMillis.get()
             + randomLongBetween(0, IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis()));
+
+        safeCommitInfo = randomSafeCommitInfoSuitableForOpsBasedRecovery(globalCheckpoint);
 
         final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
         assertFalse("should not have expired anything", retentionLeases.v1());
@@ -142,11 +152,14 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         }
 
         final String unknownNodeId = randomAlphaOfLength(10);
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, randomCheckpoint(), EMPTY_LISTENER);
+        final long globalCheckpoint = randomCheckpoint();
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
 
         currentTimeMillis.set(randomLongBetween(
             currentTimeMillis.get() + IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis() + 1,
             Long.MAX_VALUE));
+
+        safeCommitInfo = randomSafeCommitInfoSuitableForOpsBasedRecovery(globalCheckpoint);
 
         final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
         assertTrue("should have expired something", retentionLeases.v1());
@@ -167,6 +180,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             (usually()
                 ? randomLongBetween(0, IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis())
                 : randomLongBetween(0, Long.MAX_VALUE - currentTimeMillis.get())));
+        safeCommitInfo = randomSafeCommitInfo();
 
         final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
         assertTrue(retentionLeases.v1());
@@ -175,5 +189,42 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         assertThat(leaseIds, hasSize(2));
         assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
             .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
+    }
+
+    public void testPeerRecoveryRetentionLeasesForUnassignedCopiesExpireIfRetainingTooMuchHistory() {
+        if (randomBoolean()) {
+            startReplica();
+        }
+
+        final String unknownNodeId = randomAlphaOfLength(10);
+        final long globalCheckpoint = randomValueOtherThan(SequenceNumbers.NO_OPS_PERFORMED, this::randomCheckpoint);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
+
+        safeCommitInfo = randomSafeCommitInfoSuitableForFileBasedRecovery(globalCheckpoint);
+
+        final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
+        assertTrue("should have expired something", retentionLeases.v1());
+
+        final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
+        assertThat(leaseIds, hasSize(2));
+        assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
+            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
+    }
+
+    private SafeCommitInfo randomSafeCommitInfo() {
+        return randomBoolean() ? SafeCommitInfo.EMPTY : new SafeCommitInfo(
+            randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, Integer.MAX_VALUE)),
+            randomIntBetween(0, Integer.MAX_VALUE));
+    }
+
+    private SafeCommitInfo randomSafeCommitInfoSuitableForOpsBasedRecovery(long globalCheckpoint) {
+        // simulate a safe commit that is behind the given global checkpoint, so that no files need to be transferrred
+        final long localCheckpoint = randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint);
+        return new SafeCommitInfo(localCheckpoint, between(0, Math.toIntExact(Math.min(localCheckpoint + 1, Integer.MAX_VALUE))));
+    }
+
+    private SafeCommitInfo randomSafeCommitInfoSuitableForFileBasedRecovery(long globalCheckpoint) {
+        // simulate a later safe commit containing no documents, which is always better to transfer than any ops
+        return new SafeCommitInfo(randomLongBetween(globalCheckpoint + 1, Long.MAX_VALUE), 0);
     }
 }

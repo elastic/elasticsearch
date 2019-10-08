@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -32,6 +33,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.util.Set;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -49,8 +51,11 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase  {
                 UNASSIGNED_SEQ_NO,
                 updatedGlobalCheckpoint,
                 currentTimeMillisSupplier,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
     }
+
+    static final Supplier<SafeCommitInfo> OPS_BASED_RECOVERY_ALWAYS_REASONABLE = () -> SafeCommitInfo.EMPTY;
 
     static String nodeIdFromAllocationId(final AllocationId allocationId) {
         return "n-" + allocationId.getId().substring(0, 8);

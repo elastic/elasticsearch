@@ -40,8 +40,10 @@ import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -131,7 +133,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 // Finally, asynchronously retrieve all the snapshots, deleting them serially,
                 // before updating the cluster state with the new metrics and setting 'running'
                 // back to false
-                getAllSuccessfulSnapshots(repositioriesToFetch, new ActionListener<Map<String, List<SnapshotInfo>>>() {
+                getAllRetainableSnapshots(repositioriesToFetch, new ActionListener<Map<String, List<SnapshotInfo>>>() {
                     @Override
                     public void onResponse(Map<String, List<SnapshotInfo>> allSnapshots) {
                         try {
@@ -222,7 +224,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         return eligible;
     }
 
-    void getAllSuccessfulSnapshots(Collection<String> repositories, ActionListener<Map<String, List<SnapshotInfo>>> listener,
+    void getAllRetainableSnapshots(Collection<String> repositories, ActionListener<Map<String, List<SnapshotInfo>>> listener,
                                    Consumer<Exception> errorHandler) {
         if (repositories.isEmpty()) {
             // Skip retrieving anything if there are no repositories to fetch
@@ -243,13 +245,15 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     .execute(new ActionListener<GetSnapshotsResponse>() {
                         @Override
                         public void onResponse(GetSnapshotsResponse resp) {
+                            final Set<SnapshotState> retainableStates =
+                                new HashSet<>(Arrays.asList(SnapshotState.SUCCESS, SnapshotState.FAILED));
                             try {
                                 snapshots.compute(repository, (k, previousSnaps) -> {
                                     if (previousSnaps != null) {
                                         throw new IllegalStateException("duplicate snapshot retrieval for repository" + repository);
                                     }
                                     return resp.getSnapshots().stream()
-                                        .filter(info -> info.state() == SnapshotState.SUCCESS)
+                                        .filter(info -> retainableStates.contains(info.state()))
                                         .collect(Collectors.toList());
                                 });
                                 onComplete.run();

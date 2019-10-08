@@ -41,6 +41,12 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         }
     }
 
+    @Override
+    protected boolean preserveIndicesUponCompletion() {
+        // In order to avoid monitoring from failing exporting docs to monitor index.
+        return true;
+    }
+
     private void setupGenericLifecycleTest(boolean deletePipeilne) throws Exception {
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");

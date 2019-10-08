@@ -12,7 +12,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -53,8 +52,7 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
             WatchField.THROTTLE_PERIOD.getPreferredName(), WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(),
             WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName());
 
-    public RestExecuteWatchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestExecuteWatchAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
             POST, "/_watcher/watch/{id}/_execute", this,

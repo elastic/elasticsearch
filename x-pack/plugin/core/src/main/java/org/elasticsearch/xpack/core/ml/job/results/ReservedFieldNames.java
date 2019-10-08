@@ -13,7 +13,10 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -29,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -185,14 +189,19 @@ public final class ReservedFieldNames {
             TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
 
             DatafeedTimingStats.SEARCH_COUNT.getPreferredName(),
             DatafeedTimingStats.BUCKET_COUNT.getPreferredName(),
             DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
+            DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
+
+            ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
+            ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),
+            ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
 
             GetResult._ID,
-            GetResult._INDEX,
-            GetResult._TYPE
+            GetResult._INDEX
    };
 
     /**
@@ -278,6 +287,7 @@ public final class ReservedFieldNames {
             ChunkingConfig.TIME_SPAN_FIELD.getPreferredName(),
 
             DataFrameAnalyticsConfig.ID.getPreferredName(),
+            DataFrameAnalyticsConfig.DESCRIPTION.getPreferredName(),
             DataFrameAnalyticsConfig.SOURCE.getPreferredName(),
             DataFrameAnalyticsConfig.DEST.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYSIS.getPreferredName(),
@@ -292,12 +302,25 @@ public final class ReservedFieldNames {
             OutlierDetection.N_NEIGHBORS.getPreferredName(),
             OutlierDetection.METHOD.getPreferredName(),
             OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName(),
+            Regression.NAME.getPreferredName(),
+            Regression.DEPENDENT_VARIABLE.getPreferredName(),
+            Regression.PREDICTION_FIELD_NAME.getPreferredName(),
+            Regression.TRAINING_PERCENT.getPreferredName(),
+            Classification.NAME.getPreferredName(),
+            Classification.DEPENDENT_VARIABLE.getPreferredName(),
+            Classification.PREDICTION_FIELD_NAME.getPreferredName(),
+            Classification.NUM_TOP_CLASSES.getPreferredName(),
+            Classification.TRAINING_PERCENT.getPreferredName(),
+            BoostedTreeParams.LAMBDA.getPreferredName(),
+            BoostedTreeParams.GAMMA.getPreferredName(),
+            BoostedTreeParams.ETA.getPreferredName(),
+            BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName(),
+            BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 
             GetResult._ID,
             GetResult._INDEX,
-            GetResult._TYPE
     };
 
     /**

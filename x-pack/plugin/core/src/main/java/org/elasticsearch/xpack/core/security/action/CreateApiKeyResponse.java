@@ -133,11 +133,6 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         out.writeOptionalInstant(expiration);
     }
 
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     public static CreateApiKeyResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }

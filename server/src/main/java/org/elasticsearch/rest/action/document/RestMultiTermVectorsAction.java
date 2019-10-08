@@ -23,7 +23,6 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -36,8 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiTermVectorsAction extends BaseRestHandler {
 
-    public RestMultiTermVectorsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestMultiTermVectorsAction(RestController controller) {
         controller.registerHandler(GET, "/_mtermvectors", this);
         controller.registerHandler(POST, "/_mtermvectors", this);
         controller.registerHandler(GET, "/{index}/_mtermvectors", this);

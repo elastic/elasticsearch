@@ -94,7 +94,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         super(in);
         timestamp = in.readVLong();
         if (in.readBoolean()) {
-            indices = NodeIndicesStats.readIndicesStats(in);
+            indices = new NodeIndicesStats(in);
         }
         os = in.readOptionalWriteable(OsStats::new);
         process = in.readOptionalWriteable(ProcessStats::new);

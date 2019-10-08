@@ -33,7 +33,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
 
-    private static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
+    protected static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
 
     protected static <T extends ShardsAcknowledgedResponse> void declareAcknowledgedAndShardsAcknowledgedFields(
             ConstructingObjectParser<T, Void> objectParser) {

@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -121,13 +122,13 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected final Result result;
 
     public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        this.shardId = shardId;
-        this.type = type;
-        this.id = id;
+        this.shardId = Objects.requireNonNull(shardId);
+        this.type = Objects.requireNonNull(type);
+        this.id = Objects.requireNonNull(id);
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
         this.version = version;
-        this.result = result;
+        this.result = Objects.requireNonNull(result);
     }
 
     // needed for deserialization
@@ -368,8 +369,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         protected Result result = null;
         protected boolean forcedRefresh;
         protected ShardInfo shardInfo = null;
-        protected Long seqNo = UNASSIGNED_SEQ_NO;
-        protected Long primaryTerm = UNASSIGNED_PRIMARY_TERM;
+        protected long seqNo = UNASSIGNED_SEQ_NO;
+        protected long primaryTerm = UNASSIGNED_PRIMARY_TERM;
 
         public ShardId getShardId() {
             return shardId;
@@ -411,11 +412,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             this.shardInfo = shardInfo;
         }
 
-        public void setSeqNo(Long seqNo) {
+        public void setSeqNo(long seqNo) {
             this.seqNo = seqNo;
         }
 
-        public void setPrimaryTerm(Long primaryTerm) {
+        public void setPrimaryTerm(long primaryTerm) {
             this.primaryTerm = primaryTerm;
         }
 

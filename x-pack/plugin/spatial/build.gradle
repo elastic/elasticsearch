@@ -12,9 +12,11 @@ esplugin {
 dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-        testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
+}
+
+licenseHeaders {
+    // This class was sourced from apache lucene's sandbox module tests
+    excludes << 'org/apache/lucene/geo/XShapeTestUtil.java'
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

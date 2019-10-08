@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -36,29 +37,34 @@ import java.util.Map;
 
 class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory<Numeric> {
 
-    WeightedAvgAggregatorFactory(String name,  Map<String, ValuesSourceConfig<Numeric>> configs,
-                                 DocValueFormat format, SearchContext context, AggregatorFactory parent,
+    WeightedAvgAggregatorFactory(String name, Map<String, ValuesSourceConfig<Numeric>> configs,
+                                 DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder,
                                  Map<String, Object> metaData) throws IOException {
-        super(name, configs, format, context, parent, subFactoriesBuilder, metaData);
+        super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new WeightedAvgAggregator(name, null, format, context, parent, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new WeightedAvgAggregator(name, null, format, searchContext, parent, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Map<String, ValuesSourceConfig<Numeric>> configs, DocValueFormat format,
-                                          Aggregator parent, boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                            Map<String, ValuesSourceConfig<Numeric>> configs,
+                                            DocValueFormat format,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         MultiValuesSource.NumericMultiValuesSource numericMultiVS
-            = new MultiValuesSource.NumericMultiValuesSource(configs, context.getQueryShardContext());
+            = new MultiValuesSource.NumericMultiValuesSource(configs, queryShardContext);
         if (numericMultiVS.areValuesSourcesEmpty()) {
-            return createUnmapped(parent, pipelineAggregators, metaData);
+            return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
         }
-        return new WeightedAvgAggregator(name, numericMultiVS, format, context, parent, pipelineAggregators, metaData);
+        return new WeightedAvgAggregator(name, numericMultiVS, format, searchContext, parent, pipelineAggregators, metaData);
     }
 }

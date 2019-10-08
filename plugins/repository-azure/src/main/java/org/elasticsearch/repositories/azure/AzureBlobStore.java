@@ -21,12 +21,12 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -68,6 +68,10 @@ public class AzureBlobStore implements BlobStore {
         return container;
     }
 
+    public AzureStorageService getService() {
+        return service;
+    }
+
     /**
      * Gets the configured {@link LocationMode} for the Azure storage requests.
      */
@@ -92,8 +96,9 @@ public class AzureBlobStore implements BlobStore {
         service.deleteBlob(clientName, container, blob);
     }
 
-    public void deleteBlobDirectory(String path, Executor executor) throws URISyntaxException, StorageException, IOException {
-        service.deleteBlobDirectory(clientName, container, path, executor);
+    public DeleteResult deleteBlobDirectory(String path, Executor executor)
+            throws URISyntaxException, StorageException, IOException {
+        return service.deleteBlobDirectory(clientName, container, path, executor);
     }
 
     public InputStream getInputStream(String blob) throws URISyntaxException, StorageException, IOException {

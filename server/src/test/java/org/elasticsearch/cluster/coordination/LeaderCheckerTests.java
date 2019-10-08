@@ -220,7 +220,7 @@ public class LeaderCheckerTests extends ESTestCase {
                     return;
                 }
                 assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
-                assertTrue(node.equals(leader));
+                assertEquals(node, leader);
                 final Response response = responseHolder[0];
 
                 deterministicTaskQueue.scheduleNow(new Runnable() {
@@ -340,7 +340,7 @@ public class LeaderCheckerTests extends ESTestCase {
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));
             CoordinationStateRejectedException cause = (CoordinationStateRejectedException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(), equalTo("leader check from unknown node"));
+            assertThat(cause.getMessage(), equalTo("rejecting leader check since [" + otherNode + "] has been removed from the cluster"));
         }
 
         {
@@ -364,7 +364,8 @@ public class LeaderCheckerTests extends ESTestCase {
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));
             CoordinationStateRejectedException cause = (CoordinationStateRejectedException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(), equalTo("non-leader rejecting leader check"));
+            assertThat(cause.getMessage(),
+                equalTo("rejecting leader check from [" + otherNode + "] sent to a node that is no longer the master"));
         }
     }
 
@@ -397,7 +398,7 @@ public class LeaderCheckerTests extends ESTestCase {
     public void testLeaderCheckRequestEqualsHashcodeSerialization() {
         LeaderCheckRequest request = new LeaderCheckRequest(
             new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT));
-        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
+        //noinspection RedundantCast since it is needed for some IDEs (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
                 (CopyFunction<LeaderCheckRequest>) rq -> copyWriteable(rq, writableRegistry(), LeaderCheckRequest::new),
             rq -> new LeaderCheckRequest(new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT)));

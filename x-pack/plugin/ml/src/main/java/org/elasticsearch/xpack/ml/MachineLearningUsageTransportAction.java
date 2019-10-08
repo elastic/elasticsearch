@@ -25,10 +25,13 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -69,22 +72,35 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         if (enabled == false) {
             MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(), enabled,
-                Collections.emptyMap(), Collections.emptyMap(), 0);
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), 0);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
         }
 
         Map<String, Object> jobsUsage = new LinkedHashMap<>();
         Map<String, Object> datafeedsUsage = new LinkedHashMap<>();
+        Map<String, Object> analyticsUsage = new LinkedHashMap<>();
         int nodeCount = mlNodeCount(state);
+
+        // Step 3. Extract usage from data frame analytics stats and return usage response
+        ActionListener<GetDataFrameAnalyticsStatsAction.Response> dataframeAnalyticsListener = ActionListener.wrap(
+            response -> {
+                addDataFrameAnalyticsUsage(response, analyticsUsage);
+                MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(),
+                    enabled, jobsUsage, datafeedsUsage, analyticsUsage, nodeCount);
+                listener.onResponse(new XPackUsageFeatureResponse(usage));
+            },
+            listener::onFailure
+        );
 
         // Step 2. Extract usage from datafeeds stats and return usage response
         ActionListener<GetDatafeedsStatsAction.Response> datafeedStatsListener =
             ActionListener.wrap(response -> {
                 addDatafeedsUsage(response, datafeedsUsage);
-                MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(),
-                    enabled, jobsUsage, datafeedsUsage, nodeCount);
-                listener.onResponse(new XPackUsageFeatureResponse(usage));
+                GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest =
+                    new GetDataFrameAnalyticsStatsAction.Request(GetDatafeedsStatsAction.ALL);
+                dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
+                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsListener);
             },
             listener::onFailure);
 
@@ -184,17 +200,31 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 ds -> Counter.newCounter()).addAndGet(1);
         }
 
-        datafeedsUsage.put(MachineLearningFeatureSetUsage.ALL, createDatafeedUsageEntry(response.getResponse().count()));
+        datafeedsUsage.put(MachineLearningFeatureSetUsage.ALL, createCountUsageEntry(response.getResponse().count()));
         for (DatafeedState datafeedState : datafeedCountByState.keySet()) {
             datafeedsUsage.put(datafeedState.name().toLowerCase(Locale.ROOT),
-                createDatafeedUsageEntry(datafeedCountByState.get(datafeedState).get()));
+                createCountUsageEntry(datafeedCountByState.get(datafeedState).get()));
         }
     }
 
-    private Map<String, Object> createDatafeedUsageEntry(long count) {
+    private Map<String, Object> createCountUsageEntry(long count) {
         Map<String, Object> usage = new HashMap<>();
         usage.put(MachineLearningFeatureSetUsage.COUNT, count);
         return usage;
+    }
+
+    private void addDataFrameAnalyticsUsage(GetDataFrameAnalyticsStatsAction.Response response,
+                                            Map<String, Object> dataframeAnalyticsUsage) {
+        Map<DataFrameAnalyticsState, Counter> dataFrameAnalyticsStateCounterMap = new HashMap<>();
+
+        for(GetDataFrameAnalyticsStatsAction.Response.Stats stats : response.getResponse().results()) {
+            dataFrameAnalyticsStateCounterMap.computeIfAbsent(stats.getState(), ds -> Counter.newCounter()).addAndGet(1);
+        }
+        dataframeAnalyticsUsage.put(MachineLearningFeatureSetUsage.ALL, createCountUsageEntry(response.getResponse().count()));
+        for (DataFrameAnalyticsState state : dataFrameAnalyticsStateCounterMap.keySet()) {
+            dataframeAnalyticsUsage.put(state.name().toLowerCase(Locale.ROOT),
+                createCountUsageEntry(dataFrameAnalyticsStateCounterMap.get(state).get()));
+        }
     }
 
     private static int mlNodeCount(final ClusterState clusterState) {

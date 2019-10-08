@@ -20,12 +20,12 @@ query shape.
 To see how you can set up an index for the `geo_shape` query, try the following
 example.
 
-. Create an index with a <<geo-shape,geoshape>> field mapping.
-+
---
-[source,js]
+
+Create an index with a <<geo-shape,geoshape>> field mapping.
+
+[source,console]
 ----
-PUT /locations
+PUT /example
 {
     "mappings": {
         "properties": {
@@ -36,14 +36,11 @@ PUT /locations
     }
 }
 ----
-// CONSOLE
 // TESTSETUP
---
 
-. Index a document with a value in the geoshape field.
-+
---
-[source,js]
+Index a document with a value in the geoshape field.
+
+[source,console]
 ----
 POST /locations/_doc?refresh
 {
@@ -54,8 +51,6 @@ POST /locations/_doc?refresh
     }
 }
 ----
-// CONSOLE
---
 
 [[geo-shape-query-ex-query]]
 ===== Example query
@@ -64,9 +59,9 @@ The following search uses a `bool` query with a nested `geo_shape`
 <<query-dsl-bool-query,filter>> to find the indexed point. The `geo_shape`
 filter uses the {es}'s `envelope` http://www.geojson.org[GeoJSON] extension.
 
-[source,js]
+[source,console]
 ----
-GET /locations/_search
+GET /example/_search
 {
     "query":{
         "bool": {
@@ -88,7 +83,6 @@ GET /locations/_search
     }
 }
 ----
-// CONSOLE
 
 [[geo-shape-top-level-params]]
 ==== Top-level parameters for `geo_shape`
@@ -126,6 +120,7 @@ another index.
 This is useful if you want to reference pre-defined geoshapes using a name, such
 as `New Zealand`, or document ID rather than coordinates. 
 
+
 [[shape-lookup-parms]]
 ====== Shape lookup parameters
 `index`::
@@ -149,13 +144,12 @@ when the document was indexed, this parameter is required.
 
 To see how shape lookup works, try the following example.  
 
-. Create up an index as shown in the <<geo-shape-query-index-setup,index setup
+Create up an index as shown in the <<geo-shape-query-index-setup,index setup
 example>>.
 
-. Create another index to contain your pre-defined geoshapes.
-+
---
-[source,js]
+Create another index to contain your pre-defined geoshapes.
+
+[source,console]
 ----
 PUT /shapes
 {
@@ -168,13 +162,10 @@ PUT /shapes
     }
 }
 ----
-// CONSOLE
---
 
-. Index a document containing a pre-defined geoshape.
-+
---
-[source,js]
+Index a document containing a pre-defined geoshape.
+
+[source,console]
 ----
 PUT /shapes/_doc/deu?refresh
 {
@@ -184,16 +175,14 @@ PUT /shapes/_doc/deu?refresh
     }
 }
 ----
-// CONSOLE
 // TEST[continued]
---
 
-. Use the `bool` query with a nested `geo_shape` filter to find the indexed
+Use the `bool` query with a nested `geo_shape` filter to find the indexed
 point. Instead of coordinates, provide the `index`, `id`, and `path` of your
 pre-defined geoshape.
 +
 --
-[source,js]
+[source,console]
 ----
 GET /locations/_search
 {
@@ -214,9 +203,6 @@ GET /locations/_search
     }
 }
 ----
-// CONSOLE
-// TEST[continued]
---
 
 [[geo-shape-query-spatial-relations]]
 ===== Spatial relations mapping parameter

@@ -152,7 +152,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(RestRequest request, RestChannel channel, ThreadContext threadContext, Throwable cause) {
+            public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
                 throw new AssertionError();
             }
         };
@@ -212,10 +212,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 causeReference.set(cause);
                 try {
                     final ElasticsearchException e = new ElasticsearchException("you sent a bad request and you should feel bad");
@@ -272,8 +269,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
+            public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
                 throw new AssertionError();
@@ -331,8 +327,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
+            public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
                 throw new AssertionError("Should not have received a dispatched request");

@@ -56,9 +56,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_SNAPSHOT;
@@ -269,11 +267,6 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         final BytesStreamOutput out = new BytesStreamOutput();
 
         out.setVersion(streamVersion);
-        Set<String> features = new HashSet<>();
-        if (randomBoolean()) {
-            features.add("test");
-        }
-        out.setFeatures(features);
         tasks.build().writeTo(out);
 
         final StreamInput input = out.bytes().streamInput();

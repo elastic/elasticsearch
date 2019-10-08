@@ -21,19 +21,22 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class GetPipelineTransportAction extends StreamableTransportMasterNodeReadAction<GetPipelineRequest, GetPipelineResponse> {
+import java.io.IOException;
+
+public class GetPipelineTransportAction extends TransportMasterNodeReadAction<GetPipelineRequest, GetPipelineResponse> {
 
     @Inject
     public GetPipelineTransportAction(ThreadPool threadPool, ClusterService clusterService,
@@ -49,8 +52,8 @@ public class GetPipelineTransportAction extends StreamableTransportMasterNodeRea
     }
 
     @Override
-    protected GetPipelineResponse newResponse() {
-        return new GetPipelineResponse();
+    protected GetPipelineResponse read(StreamInput in) throws IOException {
+        return new GetPipelineResponse(in);
     }
 
     @Override

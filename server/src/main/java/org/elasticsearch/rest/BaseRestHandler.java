@@ -27,7 +27,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -69,10 +68,6 @@ public abstract class BaseRestHandler implements RestHandler {
      */
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
     public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
-
-    protected BaseRestHandler(Settings settings) {
-        // TODO drop settings from ctor
-    }
 
     public final long getUsageCount() {
         return usageCount.sum();

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -82,13 +83,15 @@ public class QueryContainer {
     private final int limit;
     private final boolean trackHits;
     private final boolean includeFrozen;
+    // used when pivoting for retrieving at least one pivot row
+    private final int minPageSize;
 
     // computed
     private Boolean aggsOnly;
     private Boolean customSort;
 
     public QueryContainer() {
-        this(null, null, null, null, null, null, null, -1, false, false);
+        this(null, null, null, null, null, null, null, -1, false, false, -1);
     }
 
     public QueryContainer(Query query,
@@ -101,7 +104,8 @@ public class QueryContainer {
             Set<Sort> sort,
             int limit,
             boolean trackHits,
-            boolean includeFrozen) {
+            boolean includeFrozen,
+            int minPageSize) {
         this.query = query;
         this.aggs = aggs == null ? Aggs.EMPTY : aggs;
         this.fields = fields == null || fields.isEmpty() ? emptyList() : fields;
@@ -112,6 +116,7 @@ public class QueryContainer {
         this.limit = limit;
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
+        this.minPageSize = minPageSize;
     }
 
     /**
@@ -177,16 +182,20 @@ public class QueryContainer {
             Attribute alias = aliases.get(column);
             // find the column index
             int index = -1;
+
             ExpressionId id = column instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) column).innerId() : column.id();
             ExpressionId aliasId = alias != null ? (alias instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) alias)
                     .innerId() : alias.id()) : null;
             for (int i = 0; i < fields.size(); i++) {
                 Tuple<FieldExtraction, ExpressionId> tuple = fields.get(i);
-                if (tuple.v2().equals(id) || (aliasId != null && tuple.v2().equals(aliasId))) {
+                // if the index is already set there is a collision,
+                // so continue searching for the other tuple with the same id
+                if (mask.get(i)==false && (tuple.v2().equals(id) || (aliasId != null && tuple.v2().equals(aliasId)))) {
                     index = i;
                     break;
                 }
             }
+
             if (index > -1) {
                 mask.set(index);
             } else {
@@ -226,7 +235,7 @@ public class QueryContainer {
 
     public boolean isAggsOnly() {
         if (aggsOnly == null) {
-            aggsOnly = Boolean.valueOf(this.fields.stream().allMatch(t -> t.v1().supportedByAggsOnlyQuery()));
+            aggsOnly = Boolean.valueOf(this.fields.stream().anyMatch(t -> t.v1().supportedByAggsOnlyQuery()));
         }
 
         return aggsOnly.booleanValue();
@@ -244,49 +253,62 @@ public class QueryContainer {
         return includeFrozen;
     }
 
+    public int minPageSize() {
+        return minPageSize;
+    }
+
     //
     // copy methods
     //
 
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
+    }
+
+    public QueryContainer withFields(List<Tuple<FieldExtraction, ExpressionId>> f) {
+        return new QueryContainer(query, aggs, f, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
     }
 
     public QueryContainer withAliases(AttributeMap<Attribute> a) {
-        return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
     }
 
     public QueryContainer withPseudoFunctions(Map<String, GroupByKey> p) {
-        return new QueryContainer(query, aggs, fields, aliases, p, scalarFunctions, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(query, aggs, fields, aliases, p, scalarFunctions, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
     public QueryContainer with(Aggs a) {
-        return new QueryContainer(query, a, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(query, a, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
     }
 
     public QueryContainer withLimit(int l) {
         return l == limit ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, l, trackHits,
-                includeFrozen);
+                includeFrozen, minPageSize);
     }
 
     public QueryContainer withTrackHits() {
         return trackHits ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, true,
-                includeFrozen);
+                includeFrozen, minPageSize);
     }
 
     public QueryContainer withFrozen() {
         return includeFrozen ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit,
-                trackHits, true);
+                trackHits, true, minPageSize);
     }
 
     public QueryContainer withScalarProcessors(AttributeMap<Pipe> procs) {
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
     public QueryContainer addSort(Sort sortable) {
         Set<Sort> sort = new LinkedHashSet<>(this.sort);
         sort.add(sortable);
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
     }
 
     private String aliasName(Attribute attr) {
@@ -297,19 +319,52 @@ public class QueryContainer {
     // reference methods
     //
     private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
-        return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.field().getDataType(), fieldAttr.field().isAggregatable());
+        FieldAttribute actualField = fieldAttr;
+        FieldAttribute rootField = fieldAttr;
+        StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
+        
+        // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
+        // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
+        // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
+        // the root field to which those sub-fields belong to, are. Instead of "text_field.keyword_subfield" for _source extraction,
+        // we use "text_field", because there is no source for "keyword_subfield".
+        /*
+         *    "text_field": {
+         *       "type": "text",
+         *       "fields": {
+         *         "keyword_subfield": {
+         *           "type": "keyword"
+         *         }
+         *       }
+         *     }
+         */
+        if (fieldAttr.field().isAlias() == false) {
+            while (actualField.parent() != null
+                    && actualField.parent().field().getDataType() != DataType.OBJECT
+                    && actualField.parent().field().getDataType() != DataType.NESTED
+                    && actualField.field().getDataType().isFromDocValuesOnly() == false) {
+                actualField = actualField.parent();
+            }
+        }
+        while (rootField.parent() != null) {
+            fullFieldName.insert(0, ".").insert(0, rootField.parent().field().getName());
+            rootField = rootField.parent();
+        }
+        return new SearchHitFieldRef(aliasName(actualField), fullFieldName.toString(), fieldAttr.field().getDataType(),
+                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
-                attr.nestedParent().name(), name, attr.field().getDataType().format(), attr.field().isAggregatable());
+                attr.nestedParent().name(), name, attr.field().getDataType().format(), attr.field().getDataType().isFromDocValuesOnly());
 
-        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
-                attr.field().isAggregatable(), attr.parent().name());
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
+                false, attr.parent().name());
 
         return new Tuple<>(
-                new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen),
+                new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                        minPageSize),
                 nestedFieldRef);
     }
 
@@ -412,7 +467,7 @@ public class QueryContainer {
         ExpressionId id = attr instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) attr).innerId() : attr.id();
         return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, id)), aliases, pseudoFunctions,
                 scalarFunctions,
-                sort, limit, trackHits, includeFrozen);
+                sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
     public AttributeMap<Pipe> scalarFunctions() {

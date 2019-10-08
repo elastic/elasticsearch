@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.JDBCType;
@@ -18,7 +19,7 @@ import java.util.Map.Entry;
 /**
  * Elasticsearch SQL data types.
  * This class also implements JDBC {@link SQLType} for properly receiving and setting values.
- * Where possible, please use the build-in, JDBC {@link Types} and {@link JDBCType} to avoid coupling
+ * Where possible, please use the built-in, JDBC {@link Types} and {@link JDBCType} to avoid coupling
  * to the API.
  */
 public enum DataType {
@@ -58,6 +59,8 @@ public enum DataType {
     GEO_POINT(                       ExtTypes.GEOMETRY,  Double.BYTES*2,    Integer.MAX_VALUE, 25 * 2 + 8, false, false, false),
     // IP can be v4 or v6. The latter has 2^128 addresses or 340,282,366,920,938,463,463,374,607,431,768,211,456
     // aka 39 chars
+    SHAPE(                           ExtTypes.GEOMETRY,  Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, false, false, false),
+    //                                                                                 display size = 2 doubles + len("POINT( )")
     IP(            "ip",             JDBCType.VARCHAR,   39,               39,                 0,  false, false, true),
     //
     // INTERVALS
@@ -143,7 +146,6 @@ public enum DataType {
             SQL_TO_ES.put(entry.getKey().substring(4), entry.getValue());
         }
 
-
         // special ones
         SQL_TO_ES.put("BOOL", DataType.BOOLEAN);
         SQL_TO_ES.put("INT", DataType.INTEGER);
@@ -180,7 +182,6 @@ public enum DataType {
      * String representation (assuming the maximum allowed defaultPrecision of the fractional milliseconds component).
      */
     public final int defaultPrecision;
-
 
     /**
      * Display Size
@@ -255,7 +256,7 @@ public enum DataType {
     }
 
     public boolean isGeo() {
-        return this == GEO_POINT || this == GEO_SHAPE;
+        return this == GEO_POINT || this == GEO_SHAPE || this == SHAPE;
     }
 
     public boolean isDateBased() {
@@ -269,11 +270,22 @@ public enum DataType {
     public boolean isDateOrTimeBased() {
         return isDateBased() || isTimeBased();
     }
-    
+
+    // data type extract-able from _source or from docvalue_fields
+    public boolean isFromDocValuesOnly() {
+        return this == KEYWORD  // because of ignore_above. Extracting this from _source wouldn't make sense if it wasn't indexed at all.
+                || this == DATE         // because of date formats
+                || this == DATETIME
+                || this == SCALED_FLOAT // because of scaling_factor
+                || this == GEO_POINT
+                || this == GEO_SHAPE
+                || this == SHAPE;
+    }
+
     public static DataType fromOdbcType(String odbcType) {
         return ODBC_TO_ES.get(odbcType);
     }
-    
+
     public static DataType fromSqlOrEsType(String typeName) {
         return SQL_TO_ES.get(typeName.toUpperCase(Locale.ROOT));
     }
@@ -295,5 +307,12 @@ public enum DataType {
 
     public String format() {
         return isDateOrTimeBased() ? DateUtils.DATE_PARSE_FORMAT : null;
+    }
+
+    /**
+     * Returns the appropriate NumberType enum corresponding to this es type
+     */
+    public NumberType numberType() {
+        return NumberType.valueOf(esType.toUpperCase(Locale.ROOT));
     }
 }

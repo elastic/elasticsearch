@@ -10,12 +10,16 @@ import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.DelimitedFileStructureFinder.levenshteinFieldwiseCompareRows;
 import static org.elasticsearch.xpack.ml.filestructurefinder.DelimitedFileStructureFinder.levenshteinDistance;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
@@ -449,15 +453,51 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals(0, levenshteinDistance("", ""));
     }
 
+    public void testMakeShortFieldMask() {
+
+        List<List<String>> rows = new ArrayList<>();
+        rows.add(Arrays.asList(randomAlphaOfLength(5), randomAlphaOfLength(20), randomAlphaOfLength(5)));
+        rows.add(Arrays.asList(randomAlphaOfLength(50), randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        rows.add(Arrays.asList(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        rows.add(Arrays.asList(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(80)));
+
+        BitSet shortFieldMask = DelimitedFileStructureFinder.makeShortFieldMask(rows, 110);
+        assertThat(shortFieldMask, equalTo(TimestampFormatFinder.stringToNumberPosBitSet("111")));
+        shortFieldMask = DelimitedFileStructureFinder.makeShortFieldMask(rows, 80);
+        assertThat(shortFieldMask, equalTo(TimestampFormatFinder.stringToNumberPosBitSet("11 ")));
+        shortFieldMask = DelimitedFileStructureFinder.makeShortFieldMask(rows, 50);
+        assertThat(shortFieldMask, equalTo(TimestampFormatFinder.stringToNumberPosBitSet(" 1 ")));
+        shortFieldMask = DelimitedFileStructureFinder.makeShortFieldMask(rows, 20);
+        assertThat(shortFieldMask, equalTo(TimestampFormatFinder.stringToNumberPosBitSet("   ")));
+    }
+
     public void testLevenshteinCompareRows() {
 
         assertEquals(0, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("cat", "dog")));
-        assertEquals(0, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("cat", "cat")));
-        assertEquals(3, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("dog", "cat")));
-        assertEquals(3, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("mouse", "cat")));
-        assertEquals(5, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "dog", "cat")));
-        assertEquals(4, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "mouse", "mouse")));
-        assertEquals(7, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "cat", "dog")));
+        assertEquals(3, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("cat", "cat")));
+        assertEquals(6, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("dog", "cat")));
+        assertEquals(8, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("mouse", "cat")));
+        assertEquals(10, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "dog", "cat")));
+        assertEquals(9, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "mouse", "mouse")));
+        assertEquals(12, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "cat", "dog")));
+    }
+
+    public void testLevenshteinCompareRowsWithMask() {
+
+        assertEquals(0, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("cat", "dog"),
+            TimestampFormatFinder.stringToNumberPosBitSet(randomFrom("  ", "1 ", " 1", "11"))));
+        assertEquals(0, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("cat", "cat"),
+            TimestampFormatFinder.stringToNumberPosBitSet(randomFrom("  ", "1 "))));
+        assertEquals(3, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("dog", "cat"),
+            TimestampFormatFinder.stringToNumberPosBitSet(randomFrom(" 1", "1 "))));
+        assertEquals(3, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("mouse", "cat"),
+            TimestampFormatFinder.stringToNumberPosBitSet(" 1")));
+        assertEquals(5, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "dog", "cat"),
+            TimestampFormatFinder.stringToNumberPosBitSet(" 11")));
+        assertEquals(4, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "mouse", "mouse"),
+            TimestampFormatFinder.stringToNumberPosBitSet(" 11")));
+        assertEquals(7, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "cat", "dog"),
+            TimestampFormatFinder.stringToNumberPosBitSet(" 11")));
     }
 
     public void testLineHasUnescapedQuote() {

@@ -313,11 +313,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             detail = in.readOptionalWriteable(DetailAnalyzeResponse::new);
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
         public List<AnalyzeToken> getTokens() {
             return this.tokens;
         }

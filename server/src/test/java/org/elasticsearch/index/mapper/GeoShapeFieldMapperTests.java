@@ -280,7 +280,8 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             String serialized = toXContentString((GeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
-            assertTrue(serialized, serialized.contains("\"orientation\":\"" + BaseGeoShapeFieldMapper.Defaults.ORIENTATION.value() + "\""));
+            assertTrue(serialized, serialized.contains("\"orientation\":\"" +
+                AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
         }
     }
 

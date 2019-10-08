@@ -90,7 +90,7 @@ configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
 For more information, see
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications].
+<<tls-http>>.
 
 [[saml-enable-token]]
 ==== Enable the token service
@@ -382,7 +382,7 @@ successfully authenticated, the Authentication Statement of the SAML Response
 contains an indication of the restrictions that were satisfied.
 
 You can define the Authentication Context Class Reference values by using the `req_authn_context_class_ref` option in the SAML realm configuration. See 
-{ref}/security-settings.html#ref-saml-settings[SAML realm settings]. 
+<<ref-saml-settings>>. 
 
 {es} supports only the `exact` comparison method for the Authentication Context. 
 When it receives the Authentication Response from the IdP, {es} examines the 
@@ -402,6 +402,7 @@ services it offers.
 By default the Elastic Stack will support SAML SLO if the following are true:
 
 - Your IdP metadata specifies that the IdP offers a SLO service
+- Your IdP releases a NameID in the subject of the SAML assertion that it issues for your users
 - You configure `sp.logout`
 - The setting `idp.use_single_logout` is not `false`
 
@@ -500,7 +501,7 @@ You should consult the documentation for your IdP to determine what formats they
 support. Since PEM format is the most commonly supported format, the examples
 below will generate certificates in that format.
 
-Using the {ref}/certutil.html[`elasticsearch-certutil`] tool, you can generate a
+Using the <<certutil,`elasticsearch-certutil` tool>>, you can generate a
 signing certificate with the following command:
 
 [source, sh]
@@ -540,7 +541,7 @@ The path to the PEM formatted key file. e.g. `saml/saml-sign.key`
 
 `signing.secure_key_passphrase`::
 The passphrase for the key, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 If you wish to use *PKCS#12 formatted* files or a *Java Keystore* for
@@ -554,7 +555,7 @@ The alias of the key within the keystore. e.g. `signing-key`
 
 `signing.keystore.secure_password`::
 The passphrase for the keystore, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 If you wish to sign some, but not all outgoing *SAML messages*, then you
@@ -591,7 +592,7 @@ The path to the PEM formatted key file. e.g. `saml/saml-crypt.key`
 
 `encryption.secure_key_passphrase`::
 The passphrase for the key, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 If you wish to use *PKCS#12 formatted* files or a *Java Keystore* for SAML
@@ -605,7 +606,7 @@ The alias of the key within the keystore. e.g. `encryption-key`
 
 `encryption.keystore.secure_password`::
 The passphrase for the keystore, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 [[saml-sp-metadata]]
@@ -618,7 +619,7 @@ between the IdP and the SP.
 The Elastic Stack supports generating such a metadata file using the
 `bin/elasticsearch-saml-metadata` command in your {es} directory.
 
-The {ref}/saml-metadata.html[documentation for the elasticsearch-saml-metadata utility]
+The <<saml-metadata,documentation for the elasticsearch-saml-metadata utility>>
 describes how to run it, and the available command line options.
 
 [[saml-role-mapping]]
@@ -630,16 +631,16 @@ access any data.
 
 Your SAML users cannot do anything until they are assigned roles. This can be done
 through either the
-{ref}/security-api-put-role-mapping.html[add role mapping API], or with
-<<authorization_realms, authorization realms>>.
+<<security-api-put-role-mapping,add role mapping API>> or with
+<<authorization_realms,authorization realms>>.
 
-NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files]
+NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via SAML.
 
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `saml1` realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/saml-kibana
 {
@@ -650,8 +651,6 @@ PUT /_security/role_mapping/saml-kibana
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 
 The attributes that are mapped via the realm configuration are used to process
@@ -666,7 +665,7 @@ mapping are derived from the SAML attributes as follows:
 - `metadata`: See <<saml-user-metadata>>
 
 For more information, see <<mapping-roles>> and
-{ref}/security-api.html#security-role-mapping-apis[role mapping APIs]. 
+<<security-role-mapping-apis>>. 
 
 If your IdP has the ability to provide groups or roles to Service Providers,
 then you should map this SAML attribute to the `attributes.groups` setting in
@@ -676,7 +675,7 @@ below.
 This mapping grants the {es} `finance_data` role, to any users who authenticate
 via the `saml1` realm with the `finance-team` group.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/saml-finance
 {
@@ -688,8 +687,6 @@ PUT /_security/role_mapping/saml-finance
   ] }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 If your users also exist in a repository that can be directly accessed by {es}
 (such as an LDAP directory) then you can use
@@ -741,19 +738,24 @@ SAML authentication in {kib} is also subject to the
 `xpack.security.sessionTimeout` setting that is described in the {kib} security
 documentation, and you may wish to adjust this timeout to meet your local needs.
 
-The two additional settings that are required for SAML support are shown below:
+The three additional settings that are required for SAML support are shown below:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authProviders: [saml]
+xpack.security.authc.providers: [saml]
+xpack.security.authc.saml.realm: saml1
 server.xsrf.whitelist: [/api/security/v1/saml]
 ------------------------------------------------------------
 
 The configuration values used in the example above are:
 
-`xpack.security.authProviders`::
+`xpack.security.authc.providers`::
 Set this to `[ saml ]` to instruct {kib} to use SAML SSO as the authentication
 method.
+
+`xpack.security.authc.saml.realm`::
+Set this to the name of the SAML realm that you have used in your <<saml-create-realm,
+Elasticsearch realm configuration>>, for instance: `saml1`
 
 `server.xsrf.whitelist`::
 {kib} has in-built protection against _Cross Site Request Forgery_ attacks which
@@ -763,47 +765,18 @@ In order to support SAML authentication messages that originate from your
 Identity Provider, we need to explicitly _whitelist_ the SAML authentication URL
 within {kib}, so that the {kib} server will not reject these external messages.
 
-If your {kib} instance is behind a proxy, you may also need to add configuration
-to tell {kib} how to form its public URL. This is needed because all SAML
-messages are exchanged via the user's web browser, so {kib} needs to know what
-URLs are used within the browser. In this case, the following settings should be
-added to your `kibana.yml` configuration file:
-
-[source, yaml]
-------------------------------------------------------------
-xpack.security.public:
-  protocol: https
-  hostname: kibana.proxy.com
-  port: 443
-------------------------------------------------------------
-
-`xpack.security.public.protocol`::
-This is the protocol that the user's web browser uses to connect to the proxy.
-Must be one of `http` or `https`. It is strongly recommended that you use the
-`https` protocol for all access to {kib}.
-
-`xpack.security.public.hostname`::
-The fully qualified hostname that your users use to connect to the proxy server.
-
-`xpack.security.public.port`::
-The port number that your users use to connect to the proxy server (e.g. `80`
-for `http` or `443` for `https`).
-
-These values must be aligned with the URLs used in the {es} configuration for
-`sp.acs` and `sp.logout`.
-
 [[saml-kibana-basic]]
 ==== Supporting SAML and basic authentication in {kib}
 
 The SAML support in {kib} is designed on the expectation that it will be the
 primary (or sole) authentication method for users of that {kib} instance.
 However, it is possible to support both SAML and Basic authentication within a
-single {kib} instance by setting `xpack.security.authProviders` as per the
+single {kib} instance by setting `xpack.security.authc.providers` as per the
 example below:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authProviders: [saml, basic]
+xpack.security.authc.providers: [saml, basic]
 ------------------------------------------------------------
 
 The order is important - this will _initiate_ SAML authentication for
@@ -870,6 +843,7 @@ It is possible to have one or more {kib} instances that use SAML, while other
 instances use basic authentication against another realm type (e.g.
 <<native-realm, Native>> or <<ldap-realm, LDAP>>).
 
+[[saml-troubleshooting]]
 === Troubleshooting SAML Realm Configuration
 
 The SAML 2.0 specification offers a lot of options and flexibility for the implementers
@@ -879,5 +853,5 @@ Additionally, different security domains have different security requirements th
 specific configuration to be satisfied.
 A conscious effort has been made to mask this complexity with sane defaults and the detailed
 documentation above but in case you encounter issues while configuring a SAML realm, you can
-look through our {stack-ov}/trb-security-saml.html[SAML troubleshooting documentation] that has
+look through our <<trb-security-saml,SAML troubleshooting documentation>> that has
 suggestions and resolutions for common issues.

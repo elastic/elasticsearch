@@ -39,6 +39,7 @@ public class DatafeedTimingStats implements ToXContentObject {
     public static final ParseField BUCKET_COUNT = new ParseField("bucket_count");
     public static final ParseField TOTAL_SEARCH_TIME_MS = new ParseField("total_search_time_ms");
     public static final ParseField AVG_SEARCH_TIME_PER_BUCKET_MS = new ParseField("average_search_time_per_bucket_ms");
+    public static final ParseField EXPONENTIAL_AVG_SEARCH_TIME_PER_HOUR_MS = new ParseField("exponential_average_search_time_per_hour_ms");
 
     public static final ParseField TYPE = new ParseField("datafeed_timing_stats");
 
@@ -55,18 +56,21 @@ public class DatafeedTimingStats implements ToXContentObject {
                     Long bucketCount = (Long) args[2];
                     Double totalSearchTimeMs = (Double) args[3];
                     Double avgSearchTimePerBucketMs = (Double) args[4];
+                    Double exponentialAvgSearchTimePerHourMs = (Double) args[5];
                     return new DatafeedTimingStats(
                         jobId,
                         getOrDefault(searchCount, 0L),
                         getOrDefault(bucketCount, 0L),
                         getOrDefault(totalSearchTimeMs, 0.0),
-                        avgSearchTimePerBucketMs);
+                        avgSearchTimePerBucketMs,
+                        exponentialAvgSearchTimePerHourMs);
                 });
         parser.declareString(constructorArg(), JOB_ID);
         parser.declareLong(optionalConstructorArg(), SEARCH_COUNT);
         parser.declareLong(optionalConstructorArg(), BUCKET_COUNT);
         parser.declareDouble(optionalConstructorArg(), TOTAL_SEARCH_TIME_MS);
         parser.declareDouble(optionalConstructorArg(), AVG_SEARCH_TIME_PER_BUCKET_MS);
+        parser.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_SEARCH_TIME_PER_HOUR_MS);
         return parser;
     }
 
@@ -75,14 +79,21 @@ public class DatafeedTimingStats implements ToXContentObject {
     private long bucketCount;
     private double totalSearchTimeMs;
     private Double avgSearchTimePerBucketMs;
+    private Double exponentialAvgSearchTimePerHourMs;
 
     public DatafeedTimingStats(
-            String jobId, long searchCount, long bucketCount, double totalSearchTimeMs, @Nullable Double avgSearchTimePerBucketMs) {
+            String jobId,
+            long searchCount,
+            long bucketCount,
+            double totalSearchTimeMs,
+            @Nullable Double avgSearchTimePerBucketMs,
+            @Nullable Double exponentialAvgSearchTimePerHourMs) {
         this.jobId = Objects.requireNonNull(jobId);
         this.searchCount = searchCount;
         this.bucketCount = bucketCount;
         this.totalSearchTimeMs = totalSearchTimeMs;
         this.avgSearchTimePerBucketMs = avgSearchTimePerBucketMs;
+        this.exponentialAvgSearchTimePerHourMs = exponentialAvgSearchTimePerHourMs;
     }
 
     public String getJobId() {
@@ -105,6 +116,10 @@ public class DatafeedTimingStats implements ToXContentObject {
         return avgSearchTimePerBucketMs;
     }
 
+    public Double getExponentialAvgSearchTimePerHourMs() {
+        return exponentialAvgSearchTimePerHourMs;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -114,6 +129,9 @@ public class DatafeedTimingStats implements ToXContentObject {
         builder.field(TOTAL_SEARCH_TIME_MS.getPreferredName(), totalSearchTimeMs);
         if (avgSearchTimePerBucketMs != null) {
             builder.field(AVG_SEARCH_TIME_PER_BUCKET_MS.getPreferredName(), avgSearchTimePerBucketMs);
+        }
+        if (exponentialAvgSearchTimePerHourMs != null) {
+            builder.field(EXPONENTIAL_AVG_SEARCH_TIME_PER_HOUR_MS.getPreferredName(), exponentialAvgSearchTimePerHourMs);
         }
         builder.endObject();
         return builder;
@@ -133,12 +151,19 @@ public class DatafeedTimingStats implements ToXContentObject {
             && this.searchCount == other.searchCount
             && this.bucketCount == other.bucketCount
             && this.totalSearchTimeMs == other.totalSearchTimeMs
-            && Objects.equals(this.avgSearchTimePerBucketMs, other.avgSearchTimePerBucketMs);
+            && Objects.equals(this.avgSearchTimePerBucketMs, other.avgSearchTimePerBucketMs)
+            && Objects.equals(this.exponentialAvgSearchTimePerHourMs, other.exponentialAvgSearchTimePerHourMs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, searchCount, bucketCount, totalSearchTimeMs, avgSearchTimePerBucketMs);
+        return Objects.hash(
+            jobId,
+            searchCount,
+            bucketCount,
+            totalSearchTimeMs,
+            avgSearchTimePerBucketMs,
+            exponentialAvgSearchTimePerHourMs);
     }
 
     @Override

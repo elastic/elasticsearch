@@ -128,7 +128,8 @@ public class SecurityTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class));
+        return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
+            xContentRegistry());
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {

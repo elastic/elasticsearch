@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ccr.action.ImmutableFollowParameters;
 
 import java.io.IOException;
@@ -34,7 +33,7 @@ import java.util.stream.Collectors;
 /**
  * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
  */
-public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom {
+public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
 
     public static final String TYPE = "ccr_auto_follow";
 

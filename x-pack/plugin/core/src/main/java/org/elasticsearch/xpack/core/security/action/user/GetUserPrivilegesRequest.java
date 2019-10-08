@@ -54,16 +54,6 @@ public final class GetUserPrivilegesRequest extends ActionRequest implements Use
         return new String[] { username };
     }
 
-    /**
-     * Always throws {@link UnsupportedOperationException} as this object should be deserialized using
-     * the {@link #GetUserPrivilegesRequest(StreamInput)} constructor instead.
-     */
-    @Override
-    @Deprecated
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("Use " + getClass() + " as Writeable not Streamable");
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

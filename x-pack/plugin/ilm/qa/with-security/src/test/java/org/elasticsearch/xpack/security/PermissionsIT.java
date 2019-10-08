@@ -19,12 +19,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.snapshotlifecycle.DeleteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyResponse;
-import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.PutSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.SnapshotLifecyclePolicy;
+import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -39,12 +40,12 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.Phase;
-import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -190,7 +191,7 @@ public class PermissionsIT extends ESRestTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("indices", Collections.singletonList("index"));
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
-            "policy_id", "name", "1 2 3 * * ?", "my_repository", config);
+            "policy_id", "name", "1 2 3 * * ?", "my_repository", config, SnapshotRetentionConfiguration.EMPTY);
         PutSnapshotLifecyclePolicyRequest request = new PutSnapshotLifecyclePolicyRequest(policy);
 
         expectThrows(ElasticsearchStatusException.class,
@@ -243,9 +244,9 @@ public class PermissionsIT extends ESRestTestCase {
      * Tests when the user is limited by alias of an index is able to write to index
      * which was rolled over by an ILM policy.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41440")
     @TestIssueLogging(value = "org.elasticsearch:DEBUG", issueUrl = "https://github.com/elastic/elasticsearch/issues/41440")
-    public void testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy()
-            throws IOException, InterruptedException {
+    public void testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy() throws Exception {
         /*
          * Setup:
          * - ILM policy to rollover index when max docs condition is met
@@ -264,33 +265,24 @@ public class PermissionsIT extends ESRestTestCase {
         refresh("foo_alias");
 
         // wait so the ILM policy triggers rollover action, verify that the new index exists
-        assertThat(awaitBusy(() -> {
+        assertBusy(() -> {
             Request request = new Request("HEAD", "/" + "foo-logs-000002");
-            int status;
-            try {
-                status = adminClient().performRequest(request).getStatusLine().getStatusCode();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            return status == 200;
-        }), is(true));
+            int status = adminClient().performRequest(request).getStatusLine().getStatusCode();
+            assertThat(status, equalTo(200));
+        });
 
         // test_user: index docs using alias, now should be able write to new index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 1);
         refresh("foo_alias");
 
         // verify that the doc has been indexed into new write index
-        awaitBusy(() -> {
+        assertBusy(() -> {
             Request request = new Request("GET", "/foo-logs-000002/_search");
-            Response response;
-            try {
-                response = adminClient().performRequest(request);
-                try (InputStream content = response.getEntity().getContent()) {
-                    Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-                    return ((Integer) XContentMapValues.extractValue("hits.total.value", map)) == 1;
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            Response response = adminClient().performRequest(request);
+            try (InputStream content = response.getEntity().getContent()) {
+                Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+                Integer totalHits = (Integer) XContentMapValues.extractValue("hits.total.value", map);
+                assertThat(totalHits, equalTo(1));
             }
         });
     }

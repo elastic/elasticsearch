@@ -18,14 +18,14 @@ Updates certain properties of a snapshot.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 
 [[ml-update-snapshot-path-parms]]
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job.
+  (Required, string) Identifier for the {anomaly-job}.
 
 `<snapshot_id>`::
   (Required, string) Identifier for the model snapshot.
@@ -42,15 +42,15 @@ The following properties can be updated after the model snapshot is created:
 `retain`::
   (Optional, boolean) If true, this snapshot will not be deleted during
   automatic cleanup of snapshots older than `model_snapshot_retention_days`.
-  Note that this snapshot will still be deleted when the job is deleted.
-  The default value is false.
+  Note that this snapshot will still be deleted when the {anomaly-job} is
+  deleted. The default value is false.
 
 [[ml-update-snapshot-example]]
 ==== {api-examples-title}
 
 The following example updates the snapshot identified as `1491852978`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST
 _ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
@@ -59,7 +59,6 @@ _ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
   "retain": true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 When the snapshot is updated, you receive the following results:

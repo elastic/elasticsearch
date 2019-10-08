@@ -52,6 +52,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.reindex.RejectAwareActionListener;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -67,10 +69,14 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
@@ -90,6 +96,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     private ThreadPool threadPool;
     private SearchRequest searchRequest;
     private int retriesAllowed;
+
+    private final Queue<ScrollableHitSource.AsyncResponse> responseQueue = new LinkedBlockingQueue<>();
 
     @Before
     @Override
@@ -122,6 +130,11 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    @After
+    public void validateAllConsumed() {
+        assertTrue(responseQueue.isEmpty());
+    }
+
     public void testLookupRemoteVersion() throws Exception {
         assertLookupRemoteVersion(Version.fromString("0.20.5"), "main/0_20_5.json");
         assertLookupRemoteVersion(Version.fromString("0.90.13"), "main/0_90_13.json");
@@ -135,46 +148,45 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
     private void assertLookupRemoteVersion(Version expected, String s) throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, s).lookupRemoteVersion(v -> {
-            assertEquals(expected, v);
-            called.set(true);
-        });
+        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, s)
+            .lookupRemoteVersion(wrapAsListener(v -> {
+                assertEquals(expected, v);
+                called.set(true);
+        }));
         assertTrue(called.get());
     }
 
     public void testParseStartOk() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("start_ok.json").doStart(r -> {
+        sourceWithMockedRemoteCall("start_ok.json").doStart(wrapAsListener(r -> {
             assertFalse(r.isTimedOut());
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(4, r.getTotalHits());
             assertThat(r.getFailures(), empty());
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("test", r.getHits().get(0).getType());
             assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test2\"}", r.getHits().get(0).getSource().utf8ToString());
             assertNull(r.getHits().get(0).getRouting());
             called.set(true);
-        });
+        }));
         assertTrue(called.get());
     }
 
     public void testParseScrollOk() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_ok.json").doStartNextScroll("", timeValueMillis(0), r -> {
+        sourceWithMockedRemoteCall("scroll_ok.json").doStartNextScroll("", timeValueMillis(0), wrapAsListener(r -> {
             assertFalse(r.isTimedOut());
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(4, r.getTotalHits());
             assertThat(r.getFailures(), empty());
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("test", r.getHits().get(0).getType());
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
             assertNull(r.getHits().get(0).getRouting());
             called.set(true);
-        });
+        }));
         assertTrue(called.get());
     }
 
@@ -183,12 +195,12 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
      */
     public void testParseScrollFullyLoaded() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_fully_loaded.json").doStartNextScroll("", timeValueMillis(0), r -> {
+        sourceWithMockedRemoteCall("scroll_fully_loaded.json").doStartNextScroll("", timeValueMillis(0), wrapAsListener(r -> {
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
             assertEquals("testrouting", r.getHits().get(0).getRouting());
             called.set(true);
-        });
+        }));
         assertTrue(called.get());
     }
 
@@ -197,12 +209,12 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
      */
     public void testParseScrollFullyLoadedFrom1_7() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doStartNextScroll("", timeValueMillis(0), r -> {
+        sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doStartNextScroll("", timeValueMillis(0), wrapAsListener(r -> {
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
             assertEquals("testrouting", r.getHits().get(0).getRouting());
             called.set(true);
-        });
+        }));
         assertTrue(called.get());
     }
 
@@ -212,19 +224,18 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
      */
     public void testScanJumpStart() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("start_scan.json", "scroll_ok.json").doStart(r -> {
+        sourceWithMockedRemoteCall("start_scan.json", "scroll_ok.json").doStart(wrapAsListener(r -> {
             assertFalse(r.isTimedOut());
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(4, r.getTotalHits());
             assertThat(r.getFailures(), empty());
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("test", r.getHits().get(0).getType());
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
             assertNull(r.getHits().get(0).getRouting());
             called.set(true);
-        });
+        }));
         assertTrue(called.get());
     }
 
@@ -247,15 +258,14 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                     + "completed tasks = 4182]]", r.getFailures().get(0).getReason().getMessage());
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("test", r.getHits().get(0).getType());
             assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test1\"}", r.getHits().get(0).getSource().utf8ToString());
             called.set(true);
         };
-        sourceWithMockedRemoteCall("rejection.json").doStart(checkResponse);
+        sourceWithMockedRemoteCall("rejection.json").doStart(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("rejection.json").doStartNextScroll("scroll", timeValueMillis(0), checkResponse);
+        sourceWithMockedRemoteCall("rejection.json").doStartNextScroll("scroll", timeValueMillis(0), wrapAsListener(checkResponse));
         assertTrue(called.get());
     }
 
@@ -276,15 +286,15 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                     r.getFailures().get(0).getReason().getMessage());
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("test", r.getHits().get(0).getType());
             assertEquals("10000", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test10000\"}", r.getHits().get(0).getSource().utf8ToString());
             called.set(true);
         };
-        sourceWithMockedRemoteCall("failure_with_status.json").doStart(checkResponse);
+        sourceWithMockedRemoteCall("failure_with_status.json").doStart(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("failure_with_status.json").doStartNextScroll("scroll", timeValueMillis(0), checkResponse);
+        sourceWithMockedRemoteCall("failure_with_status.json").doStartNextScroll("scroll", timeValueMillis(0),
+            wrapAsListener(checkResponse));
         assertTrue(called.get());
     }
 
@@ -302,48 +312,51 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals(14, failure.getColumnNumber());
             called.set(true);
         };
-        sourceWithMockedRemoteCall("request_failure.json").doStart(checkResponse);
+        sourceWithMockedRemoteCall("request_failure.json").doStart(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("request_failure.json").doStartNextScroll("scroll", timeValueMillis(0), checkResponse);
+        sourceWithMockedRemoteCall("request_failure.json").doStartNextScroll("scroll", timeValueMillis(0), wrapAsListener(checkResponse));
         assertTrue(called.get());
     }
 
     public void testRetryAndSucceed() throws Exception {
-        AtomicBoolean called = new AtomicBoolean();
-        Consumer<Response> checkResponse = r -> {
-            assertThat(r.getFailures(), hasSize(0));
-            called.set(true);
-        };
         retriesAllowed = between(1, Integer.MAX_VALUE);
-        sourceWithMockedRemoteCall("fail:rejection.json", "start_ok.json").doStart(checkResponse);
-        assertTrue(called.get());
+        sourceWithMockedRemoteCall("fail:rejection.json", "start_ok.json", "fail:rejection.json", "scroll_ok.json").start();
+        ScrollableHitSource.AsyncResponse response = responseQueue.poll();
+        assertNotNull(response);
+        assertThat(response.response().getFailures(), empty());
+        assertTrue(responseQueue.isEmpty());
         assertEquals(1, retries);
         retries = 0;
-        called.set(false);
-        sourceWithMockedRemoteCall("fail:rejection.json", "scroll_ok.json").doStartNextScroll("scroll", timeValueMillis(0),
-                checkResponse);
-        assertTrue(called.get());
+        response.done(timeValueMillis(0));
+        response = responseQueue.poll();
+        assertNotNull(response);
+        assertThat(response.response().getFailures(), empty());
+        assertTrue(responseQueue.isEmpty());
         assertEquals(1, retries);
     }
 
     public void testRetryUntilYouRunOutOfTries() throws Exception {
-        AtomicBoolean called = new AtomicBoolean();
-        Consumer<Response> checkResponse = r -> called.set(true);
         retriesAllowed = between(0, 10);
         String[] paths = new String[retriesAllowed + 2];
         for (int i = 0; i < retriesAllowed + 2; i++) {
             paths[i] = "fail:rejection.json";
         }
-        RuntimeException e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall(paths).doStart(checkResponse));
+        RuntimeException e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall(paths).start());
         assertEquals("failed", e.getMessage());
-        assertFalse(called.get());
+        assertTrue(responseQueue.isEmpty());
         assertEquals(retriesAllowed, retries);
         retries = 0;
-        e = expectThrows(RuntimeException.class,
-                () -> sourceWithMockedRemoteCall(paths).doStartNextScroll("scroll", timeValueMillis(0), checkResponse));
+        String[] searchOKPaths = Stream.concat(Stream.of("start_ok.json"), Stream.of(paths)).toArray(String[]::new);
+        sourceWithMockedRemoteCall(searchOKPaths).start();
+        ScrollableHitSource.AsyncResponse response = responseQueue.poll();
+        assertNotNull(response);
+        assertThat(response.response().getFailures(), empty());
+        assertTrue(responseQueue.isEmpty());
+
+        e = expectThrows(RuntimeException.class, () -> response.done(timeValueMillis(0)));
         assertEquals("failed", e.getMessage());
-        assertFalse(called.get());
+        assertTrue(responseQueue.isEmpty());
         assertEquals(retriesAllowed, retries);
     }
 
@@ -351,10 +364,10 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         String header = randomAlphaOfLength(5);
         threadPool.getThreadContext().putHeader("test", header);
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("start_ok.json").doStart(r -> {
+        sourceWithMockedRemoteCall("start_ok.json").doStart(wrapAsListener(r -> {
             assertEquals(header, threadPool.getThreadContext().getHeader("test"));
             called.set(true);
-        });
+        }));
         assertTrue(called.get());
     }
 
@@ -424,10 +437,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         });
         RemoteScrollableHitSource source = sourceWithMockedClient(true, httpClient);
 
-        AtomicBoolean called = new AtomicBoolean();
-        Consumer<Response> checkResponse = r -> called.set(true);
-        Throwable e = expectThrows(RuntimeException.class,
-                () -> source.doStartNextScroll(FAKE_SCROLL_ID, timeValueMillis(0), checkResponse));
+        Throwable e = expectThrows(RuntimeException.class, source::start);
         // Unwrap the some artifacts from the test
         while (e.getMessage().equals("failed")) {
             e = e.getCause();
@@ -436,24 +446,24 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertEquals("Remote responded with a chunk that was too large. Use a smaller batch size.", e.getMessage());
         // And that exception is reported as being caused by the underlying exception returned by the client
         assertSame(tooLong, e.getCause());
-        assertFalse(called.get());
+        assertTrue(responseQueue.isEmpty());
     }
 
-    public void testNoContentTypeIsError() throws Exception {
-        Exception e = expectThrows(RuntimeException.class, () ->
-                sourceWithMockedRemoteCall(false, null, "main/0_20_5.json").lookupRemoteVersion(null));
-        assertThat(e.getCause().getCause().getCause().getMessage(), containsString("Response didn't include Content-Type: body={"));
+    public void testNoContentTypeIsError() {
+        RuntimeException e = expectListenerFailure(RuntimeException.class, (RejectAwareActionListener<Version> listener) ->
+                sourceWithMockedRemoteCall(false, null, "main/0_20_5.json").lookupRemoteVersion(listener));
+        assertThat(e.getMessage(), containsString("Response didn't include Content-Type: body={"));
     }
 
-    public void testInvalidJsonThinksRemoveIsNotES() throws IOException {
-        Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").doStart(null));
+    public void testInvalidJsonThinksRemoteIsNotES() throws IOException {
+        Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").start());
         assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
                 e.getCause().getCause().getCause().getMessage());
     }
 
-    public void testUnexpectedJsonThinksRemoveIsNotES() throws IOException {
+    public void testUnexpectedJsonThinksRemoteIsNotES() throws IOException {
         // Use the response from a main action instead of a proper start response to generate a parse error
-        Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").doStart(null));
+        Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").start());
         assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
                 e.getCause().getCause().getCause().getMessage());
     }
@@ -486,8 +496,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
      * synchronously rather than asynchronously.
      */
     @SuppressWarnings("unchecked")
-    private RemoteScrollableHitSource sourceWithMockedRemoteCall(boolean mockRemoteVersion, ContentType contentType, String... paths)
-            throws Exception {
+    private RemoteScrollableHitSource sourceWithMockedRemoteCall(boolean mockRemoteVersion, ContentType contentType, String... paths) {
         URL[] resources = new URL[paths.length];
         for (int i = 0; i < paths.length; i++) {
             resources[i] = Thread.currentThread().getContextClassLoader().getResource("responses/" + paths[i].replace("fail:", ""));
@@ -533,8 +542,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         return sourceWithMockedClient(mockRemoteVersion, httpClient);
     }
 
-    private RemoteScrollableHitSource sourceWithMockedClient(boolean mockRemoteVersion, CloseableHttpAsyncClient httpClient)
-            throws Exception {
+    private RemoteScrollableHitSource sourceWithMockedClient(boolean mockRemoteVersion, CloseableHttpAsyncClient httpClient) {
         HttpAsyncClientBuilder clientBuilder = mock(HttpAsyncClientBuilder.class);
         when(clientBuilder.build()).thenReturn(httpClient);
 
@@ -543,11 +551,11 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
         TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(restClient) {
             @Override
-            void lookupRemoteVersion(Consumer<Version> onVersion) {
+            void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
                 if (mockRemoteVersion) {
-                    onVersion.accept(Version.CURRENT);
+                    listener.onResponse(Version.CURRENT);
                 } else {
-                    super.lookupRemoteVersion(onVersion);
+                    super.lookupRemoteVersion(listener);
                 }
             }
         };
@@ -572,8 +580,30 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     private class TestRemoteScrollableHitSource extends RemoteScrollableHitSource {
         TestRemoteScrollableHitSource(RestClient client) {
             super(RemoteScrollableHitSourceTests.this.logger, backoff(), RemoteScrollableHitSourceTests.this.threadPool,
-                    RemoteScrollableHitSourceTests.this::countRetry, r -> fail(), RemoteScrollableHitSourceTests.this::failRequest, client,
-                    new BytesArray("{}"), RemoteScrollableHitSourceTests.this.searchRequest);
+                RemoteScrollableHitSourceTests.this::countRetry,
+                responseQueue::add, RemoteScrollableHitSourceTests.this::failRequest,
+                client, new BytesArray("{}"), RemoteScrollableHitSourceTests.this.searchRequest);
         }
+    }
+
+    private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
+        Consumer<Exception> throwing = e -> {
+            throw new AssertionError(e);
+        };
+        return RejectAwareActionListener.wrap(consumer::accept, throwing, throwing);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends Exception, V> T expectListenerFailure(Class<T> expectedException, Consumer<RejectAwareActionListener<V>> subject) {
+        AtomicReference<T> exception = new AtomicReference<>();
+        subject.accept(RejectAwareActionListener.wrap(
+            r -> fail(),
+            e -> {
+                assertThat(e, instanceOf(expectedException));
+                assertTrue(exception.compareAndSet(null, (T) e));
+            },
+            e -> fail()));
+        assertNotNull(exception.get());
+        return exception.get();
     }
 }

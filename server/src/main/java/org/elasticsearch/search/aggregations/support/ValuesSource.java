@@ -42,6 +42,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -65,6 +66,28 @@ public abstract class ValuesSource {
         return false;
     }
 
+    public static class Range extends ValuesSource {
+        private final RangeType rangeType;
+        protected final IndexFieldData<?> indexFieldData;
+
+        public Range(IndexFieldData<?> indexFieldData, RangeType rangeType) {
+            this.indexFieldData = indexFieldData;
+            this.rangeType = rangeType;
+        }
+
+        @Override
+        public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            return indexFieldData.load(context).getBytesValues();
+        }
+
+        @Override
+        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
+            final SortedBinaryDocValues bytes = bytesValues(context);
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
+        }
+
+        public RangeType rangeType() { return rangeType; }
+    }
     public abstract static class Bytes extends ValuesSource {
 
         @Override
@@ -193,6 +216,7 @@ public abstract class ValuesSource {
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
+
         }
 
         public static class Script extends Bytes {

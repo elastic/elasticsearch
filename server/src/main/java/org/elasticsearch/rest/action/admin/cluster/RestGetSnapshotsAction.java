@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -37,8 +36,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Returns information about snapshot
  */
 public class RestGetSnapshotsAction extends BaseRestHandler {
-    public RestGetSnapshotsAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestGetSnapshotsAction(RestController controller) {
         controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}", this);
     }
 

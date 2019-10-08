@@ -2,11 +2,13 @@ package org.elasticsearch.gradle.precommit;
 
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Before;
 import org.junit.Rule;
@@ -125,12 +127,15 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
         return task;
     }
 
-    private DependencyLicensesTask createDependencyLicensesTask(Project project) {
-        DependencyLicensesTask task =  project.getTasks()
-            .register("dependencyLicenses", DependencyLicensesTask.class)
-            .get();
+    private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
+        TaskProvider<DependencyLicensesTask> task =  project.getTasks()
+            .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
+                @Override
+                public void execute(DependencyLicensesTask dependencyLicensesTask) {
+                    dependencyLicensesTask.setDependencies(getDependencies(project));
+                }
+            });
 
-        task.setDependencies(getDependencies(project));
         return task;
     }
 

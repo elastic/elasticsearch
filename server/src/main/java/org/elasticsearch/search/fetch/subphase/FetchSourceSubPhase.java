@@ -42,17 +42,23 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
         SourceLookup source = context.lookup().source();
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
-        if (nestedHit == false) {
-            if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {
-                hitContext.hit().sourceRef(source.internalSourceRef());
-                return;
-            }
-            if (source.internalSourceRef() == null) {
+
+        // If source is disabled in the mapping, then attempt to return early.
+        if (source.source() == null && source.internalSourceRef() == null) {
+            if (containsFilters(fetchSourceContext)) {
                 throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
-                        "for index [" + context.indexShard().shardId().getIndexName() + "]");
+                    "for index [" + context.indexShard().shardId().getIndexName() + "]");
             }
+            return;
         }
 
+        // If this is a parent document and there are no source filters, then add the source as-is.
+        if (nestedHit == false && containsFilters(fetchSourceContext) == false) {
+            hitContext.hit().sourceRef(source.internalSourceRef());
+            return;
+        }
+
+        // Otherwise, filter the source and add it to the hit.
         Object value = source.filter(fetchSourceContext);
         if (nestedHit) {
             value = getNestedSource((Map<String, Object>) value, hitContext);
@@ -77,6 +83,10 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
         } catch (IOException e) {
             throw new ElasticsearchException("Error filtering source", e);
         }
+    }
+
+    private static boolean containsFilters(FetchSourceContext context) {
+        return context.includes().length != 0 || context.excludes().length != 0;
     }
 
     private Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {

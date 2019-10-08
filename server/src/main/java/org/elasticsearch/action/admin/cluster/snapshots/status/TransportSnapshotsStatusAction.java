@@ -21,9 +21,12 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -33,6 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -58,7 +62,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class TransportSnapshotsStatusAction extends StreamableTransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
+public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportSnapshotsStatusAction.class);
 
     private final SnapshotsService snapshotsService;
 
@@ -85,8 +91,8 @@ public class TransportSnapshotsStatusAction extends StreamableTransportMasterNod
     }
 
     @Override
-    protected SnapshotsStatusResponse newResponse() {
-        return new SnapshotsStatusResponse();
+    protected SnapshotsStatusResponse read(StreamInput in) throws IOException {
+        return new SnapshotsStatusResponse(in);
     }
 
     @Override
@@ -115,15 +121,13 @@ public class TransportSnapshotsStatusAction extends StreamableTransportMasterNod
             for (int i = 0; i < currentSnapshots.size(); i++) {
                 snapshots[i] = currentSnapshots.get(i).snapshot();
             }
-
-            TransportNodesSnapshotsStatus.Request nodesRequest =
-                new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
-                    .snapshots(snapshots).timeout(request.masterNodeTimeout());
-            client.executeLocally(TransportNodesSnapshotsStatus.TYPE, nodesRequest,
-                ActionListener.map(
-                    listener, nodeSnapshotStatuses ->
-                        buildResponse(request, snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots())),
-                            nodeSnapshotStatuses)));
+            client.executeLocally(TransportNodesSnapshotsStatus.TYPE,
+                new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY))
+                    .snapshots(snapshots).timeout(request.masterNodeTimeout()),
+                ActionListener.wrap(
+                    nodeSnapshotStatuses -> threadPool.executor(ThreadPool.Names.GENERIC).execute(
+                        ActionRunnable.wrap(listener, l -> l.onResponse(buildResponse(request, snapshotsService.currentSnapshots(
+                            request.repository(), Arrays.asList(request.snapshots())), nodeSnapshotStatuses)))), listener::onFailure));
         } else {
             // We don't have any in-progress shards, just return current stats
             listener.onResponse(buildResponse(request, currentSnapshots, null));
@@ -239,9 +243,14 @@ public class TransportSnapshotsStatusAction extends StreamableTransportMasterNod
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
                     }
                     final long startTime = snapshotInfo.startTime();
+                    final long endTime = snapshotInfo.endTime();
+                    assert endTime >= startTime || (endTime == 0L && snapshotInfo.state().completed() == false)
+                        : "Inconsistent timestamps found in SnapshotInfo [" + snapshotInfo + "]";
                     builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state,
                         Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState(),
-                        startTime, snapshotInfo.endTime() - startTime));
+                        startTime,
+                        // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
+                        (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime));
                 }
             }
         }

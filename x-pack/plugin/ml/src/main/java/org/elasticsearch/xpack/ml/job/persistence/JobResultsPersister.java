@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -130,7 +131,11 @@ public class JobResultsPersister {
          * @return this
          */
         public Builder persistTimingStats(TimingStats timingStats) {
-            indexResult(TimingStats.documentId(timingStats.getJobId()), timingStats, TimingStats.TYPE.getPreferredName());
+            indexResult(
+                TimingStats.documentId(timingStats.getJobId()),
+                timingStats,
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+                TimingStats.TYPE.getPreferredName());
             return this;
         }
 
@@ -185,7 +190,11 @@ public class JobResultsPersister {
         }
 
         private void indexResult(String id, ToXContent resultDoc, String resultType) {
-            try (XContentBuilder content = toXContentBuilder(resultDoc)) {
+            indexResult(id, resultDoc, ToXContent.EMPTY_PARAMS, resultType);
+        }
+
+        private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) {
+            try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
                 bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
@@ -335,14 +344,18 @@ public class JobResultsPersister {
     public IndexResponse persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy) {
         String jobId = timingStats.getJobId();
         logger.trace("[{}] Persisting datafeed timing stats", jobId);
-        Persistable persistable = new Persistable(jobId, timingStats, DatafeedTimingStats.documentId(timingStats.getJobId()));
+        Persistable persistable = new Persistable(
+            jobId,
+            timingStats,
+            new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+            DatafeedTimingStats.documentId(timingStats.getJobId()));
         persistable.setRefreshPolicy(refreshPolicy);
         return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
     }
 
-    private XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
+    private static XContentBuilder toXContentBuilder(ToXContent obj, ToXContent.Params params) throws IOException {
         XContentBuilder builder = jsonBuilder();
-        obj.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        obj.toXContent(builder, params);
         return builder;
     }
 
@@ -350,12 +363,18 @@ public class JobResultsPersister {
 
         private final String jobId;
         private final ToXContent object;
+        private final ToXContent.Params params;
         private final String id;
         private WriteRequest.RefreshPolicy refreshPolicy;
 
         Persistable(String jobId, ToXContent object, String id) {
+            this(jobId, object, ToXContent.EMPTY_PARAMS, id);
+        }
+
+        Persistable(String jobId, ToXContent object, ToXContent.Params params, String id) {
             this.jobId = jobId;
             this.object = object;
+            this.params = params;
             this.id = id;
             this.refreshPolicy = WriteRequest.RefreshPolicy.NONE;
         }
@@ -373,7 +392,7 @@ public class JobResultsPersister {
         void persist(String indexName, ActionListener<IndexResponse> listener) {
             logCall(indexName);
 
-            try (XContentBuilder content = toXContentBuilder(object)) {
+            try (XContentBuilder content = toXContentBuilder(object, params)) {
                 IndexRequest indexRequest = new IndexRequest(indexName).id(id).source(content).setRefreshPolicy(refreshPolicy);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
             } catch (IOException e) {

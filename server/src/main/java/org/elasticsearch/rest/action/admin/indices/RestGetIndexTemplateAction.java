@@ -54,8 +54,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
         "index template requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestGetIndexTemplateAction(final RestController controller) {
         controller.registerHandler(GET, "/_template", this);
         controller.registerHandler(GET, "/_template/{name}", this);
         controller.registerHandler(HEAD, "/_template/{name}", this);

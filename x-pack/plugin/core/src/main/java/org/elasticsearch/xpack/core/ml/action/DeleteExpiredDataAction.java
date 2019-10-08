@@ -65,9 +65,8 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             deleted = in.readBoolean();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        public boolean isDeleted() {
+            return deleted;
         }
 
         @Override

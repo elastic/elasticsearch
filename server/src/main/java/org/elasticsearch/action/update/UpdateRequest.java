@@ -125,8 +125,31 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Nullable
     private IndexRequest doc;
 
-    public UpdateRequest() {
+    public UpdateRequest() {}
 
+    public UpdateRequest(StreamInput in) throws IOException {
+        super(in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        type = in.readString();
+        id = in.readString();
+        routing = in.readOptionalString();
+        if (in.readBoolean()) {
+            script = new Script(in);
+        }
+        retryOnConflict = in.readVInt();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+        if (in.readBoolean()) {
+            doc = new IndexRequest(in);
+        }
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        if (in.readBoolean()) {
+            upsertRequest = new IndexRequest(in);
+        }
+        docAsUpsert = in.readBoolean();
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
+        detectNoop = in.readBoolean();
+        scriptedUpsert = in.readBoolean();
     }
 
     public UpdateRequest(String index, String id) {
@@ -194,7 +217,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public String type() {
         if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;                    
+            return MapperService.SINGLE_MAPPING_NAME;
         }
         return type;
     }
@@ -210,21 +233,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
-    /**
-     * Set the default type supplied to a bulk
-     * request if this individual request's type is null
-     * or empty
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public UpdateRequest defaultTypeIfNull(String defaultType) {
-        if (Strings.isNullOrEmpty(type)) {
-            type = defaultType;
-        }
-        return this;
-    }  
-    
     /**
      * The id of the indexed document.
      */
@@ -829,37 +837,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        waitForActiveShards = ActiveShardCount.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        if (in.readBoolean()) {
-            script = new Script(in);
-        }
-        retryOnConflict = in.readVInt();
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        if (in.readBoolean()) {
-            doc = new IndexRequest(in);
-        }
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        if (in.readBoolean()) {
-            upsertRequest = new IndexRequest(in);
-        }
-        docAsUpsert = in.readBoolean();
-        ifSeqNo = in.readZLong();
-        ifPrimaryTerm = in.readVLong();
-        detectNoop = in.readBoolean();
-        scriptedUpsert = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
+        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
+        // So we use the type accessor method here to make the type non-null (will default it to "_doc").
         out.writeString(type());
         out.writeString(id);
         out.writeOptionalString(routing);

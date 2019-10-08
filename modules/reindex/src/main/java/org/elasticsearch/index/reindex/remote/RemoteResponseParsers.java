@@ -62,14 +62,12 @@ final class RemoteResponseParsers {
             new ConstructingObjectParser<>("hit", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
-                String type = (String) a[i++];
                 String id = (String) a[i++];
                 Long version = (Long) a[i++];
-                return new BasicHit(index, type, id, version == null ? -1 : version);
+                return new BasicHit(index, id, version == null ? -1 : version);
             });
     static {
         HIT_PARSER.declareString(constructorArg(), new ParseField("_index"));
-        HIT_PARSER.declareString(constructorArg(), new ParseField("_type"));
         HIT_PARSER.declareString(constructorArg(), new ParseField("_id"));
         HIT_PARSER.declareLong(optionalConstructorArg(), new ParseField("_version"));
         HIT_PARSER.declareObject(((basicHit, tuple) -> basicHit.setSource(tuple.v1(), tuple.v2())), (p, s) -> {

@@ -39,11 +39,6 @@ public class ClearVotingConfigExclusionsResponse extends ActionResponse implemen
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {}
 
     @Override

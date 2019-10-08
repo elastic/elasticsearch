@@ -7,10 +7,8 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,8 +23,6 @@ import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.Protocol;
-import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -38,8 +34,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
 
-    public RestSqlQueryAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestSqlQueryAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 GET, Protocol.SQL_QUERY_REST_ENDPOINT, this,
@@ -57,7 +52,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
-            
+
         /*
          * Since we support {@link TextFormat} <strong>and</strong>
          * {@link XContent} outputs we can't use {@link RestToXContentListener}
@@ -91,43 +86,38 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * which we turn into a 400 error.
          */
         XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromMediaTypeOrFormat(accept);
-        if (xContentType != null) {
-            return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), xContentType, true);
-                    response.toXContent(builder, request);
-                    return new BytesRestResponse(RestStatus.OK, builder);
-                }
-            });
-        }
+        TextFormat textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 
-        TextFormat textFormat = TextFormat.fromMediaTypeOrFormat(accept);
-
-        // if we reached this point, the format to be used can be one of TXT, CSV or TSV
-        // which won't work in a columnar fashion
-        if (sqlRequest.columnar()) {
+        if (xContentType == null && sqlRequest.columnar()) {
             throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
                     + "txt, csv or tsv formats");
         }
-        
+
         long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
             public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                Cursor cursor = Cursors.decodeFromString(sqlRequest.cursor());
-                final String data = textFormat.format(cursor, request, response);
+                RestResponse restResponse;
 
-                RestResponse restResponse = new BytesRestResponse(RestStatus.OK, textFormat.contentType(request),
+                // XContent branch
+                if (xContentType != null) {
+                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), xContentType, true);
+                    response.toXContent(builder, request);
+                    restResponse = new BytesRestResponse(RestStatus.OK, builder);
+                }
+                // TextFormat
+                else {
+                    final String data = textFormat.format(request, response);
+
+                    restResponse = new BytesRestResponse(RestStatus.OK, textFormat.contentType(request),
                         data.getBytes(StandardCharsets.UTF_8));
 
-                Cursor responseCursor = textFormat.wrapCursor(cursor, response);
-
-                if (responseCursor != Cursor.EMPTY) {
-                    restResponse.addHeader("Cursor", Cursors.encodeToString(Version.CURRENT, responseCursor));
+                    if (response.hasCursor()) {
+                        restResponse.addHeader("Cursor", response.cursor());
+                    }
                 }
-                restResponse.addHeader("Took-nanos", Long.toString(System.nanoTime() - startNanos));
 
+                restResponse.addHeader("Took-nanos", Long.toString(System.nanoTime() - startNanos));
                 return restResponse;
             }
         });

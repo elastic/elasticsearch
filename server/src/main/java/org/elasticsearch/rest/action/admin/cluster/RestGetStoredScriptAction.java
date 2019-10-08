@@ -20,7 +20,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -32,9 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetStoredScriptAction extends BaseRestHandler {
 
-    public RestGetStoredScriptAction(Settings settings, RestController controller) {
-        super(settings);
-
+    public RestGetStoredScriptAction(RestController controller) {
         controller.registerHandler(GET, "/_scripts/{id}", this);
     }
 

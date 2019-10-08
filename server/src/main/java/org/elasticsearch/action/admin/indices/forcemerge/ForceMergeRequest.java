@@ -19,11 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to force merging the segments of one or more indices. In order to
@@ -115,11 +119,29 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     }
 
     @Override
+    public String getDescription() {
+        return "Force-merge indices " + Arrays.toString(indices()) +
+            ", maxSegments[" + maxNumSegments +
+            "], onlyExpungeDeletes[" + onlyExpungeDeletes +
+            "], flush[" + flush + "]";
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationError = super.validate();
+        if (onlyExpungeDeletes && maxNumSegments != Defaults.MAX_NUM_SEGMENTS) {
+            validationError = addValidationError("cannot set only_expunge_deletes and max_num_segments at the same time, those two " +
+                "parameters are mutually exclusive", validationError);
+        }
+        return validationError;
     }
 
     @Override

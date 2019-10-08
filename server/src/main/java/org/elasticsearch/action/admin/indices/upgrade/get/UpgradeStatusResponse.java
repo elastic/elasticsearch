@@ -43,7 +43,7 @@ public class UpgradeStatusResponse extends BroadcastResponse {
         super(in);
         shards = new ShardUpgradeStatus[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {
-            shards[i] = ShardUpgradeStatus.readShardUpgradeStatus(in);
+            shards[i] = new ShardUpgradeStatus(in);
         }
     }
 

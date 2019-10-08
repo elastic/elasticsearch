@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+
+import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -56,11 +56,6 @@ public class GetRoleMappingsRequest extends ActionRequest {
      */
     public String[] getNames() {
         return names;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

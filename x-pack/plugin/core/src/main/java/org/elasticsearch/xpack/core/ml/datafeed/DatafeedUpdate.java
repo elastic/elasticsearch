@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
  */
 public class DatafeedUpdate implements Writeable, ToXContentObject {
 
+    static final String ERROR_MESSAGE_ON_JOB_ID_UPDATE = "Datafeed's job_id cannot be changed.";
+
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", Builder::new);
 
     static {
@@ -290,6 +292,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
         if (jobId != null) {
+            if (datafeedConfig.getJobId() != null && datafeedConfig.getJobId().equals(jobId) == false) {
+                throw ExceptionsHelper.badRequestException(ERROR_MESSAGE_ON_JOB_ID_UPDATE);
+            }
             builder.setJobId(jobId);
         }
         if (queryDelay != null) {

@@ -7,19 +7,15 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
-import java.io.IOException;
-
 public class RestCcrStatsAction extends BaseRestHandler {
 
-    public RestCcrStatsAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestCcrStatsAction(final RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_ccr/stats", this);
     }
 
@@ -29,7 +25,7 @@ public class RestCcrStatsAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final CcrStatsAction.Request request = new CcrStatsAction.Request();
         return channel -> client.execute(CcrStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

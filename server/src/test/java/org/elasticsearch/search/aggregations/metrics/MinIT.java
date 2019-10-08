@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -422,5 +423,33 @@ public class MinIT extends AbstractNumericTestCase {
         ValueCount count = searchResponse.getAggregations().get("count");
         assertThat(count.getName(), equalTo("count"));
         assertThat(count.getValue(), equalTo(20L));
+    }
+
+    public void testNestedEarlyTermination() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+            .setTrackTotalHits(false)
+            .setQuery(matchAllQuery())
+            .addAggregation(min("min").field("values"))
+            .addAggregation(count("count").field("values"))
+            .addAggregation(terms("terms").field("value")
+                .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST)
+                .subAggregation(min("sub_min").field("invalid")))
+            .get();
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(2.0));
+
+        ValueCount count = searchResponse.getAggregations().get("count");
+        assertThat(count.getName(), equalTo("count"));
+        assertThat(count.getValue(), equalTo(20L));
+
+        Terms terms = searchResponse.getAggregations().get("terms");
+        assertThat(terms.getBuckets().size(), equalTo(10));
+        for (Terms.Bucket b : terms.getBuckets()) {
+            InternalMin subMin = b.getAggregations().get("sub_min");
+            assertThat(subMin.getValue(), equalTo(Double.POSITIVE_INFINITY));
+        }
     }
 }

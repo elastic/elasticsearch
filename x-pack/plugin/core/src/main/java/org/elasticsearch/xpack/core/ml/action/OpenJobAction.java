@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -119,7 +119,7 @@ public class OpenJobAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    public static class JobParams implements XPackPlugin.XPackPersistentTaskParams {
+    public static class JobParams implements PersistentTaskParams {
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField JOB = new ParseField("job");

@@ -75,7 +75,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.waitUntil;
 
 /**
  * A plugin that adds a cancellable blocking test task of integration testing of the task manager.
@@ -153,7 +153,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
 
         public int getFailureCount() {
@@ -305,7 +305,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             logger.info("Test task started on the node {}", clusterService.localNode());
             if (request.shouldBlock) {
                 try {
-                    awaitBusy(() -> {
+                    waitUntil(() -> {
                         if (((CancellableTask) task).isCancelled()) {
                             throw new RuntimeException("Cancelled!");
                         }

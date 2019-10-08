@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -87,7 +88,7 @@ task deploy(type: Copy) {
     into "${wildflyInstall}/standalone/deployments"
 }
 
-task writeElasticsearchProperties {
+task writeElasticsearchProperties(type: DefaultTestClustersTask) {
     onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
     useCluster testClusters.integTest
     dependsOn deploy

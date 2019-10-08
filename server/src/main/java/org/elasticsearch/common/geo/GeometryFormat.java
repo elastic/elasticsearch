@@ -22,7 +22,7 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
 import java.text.ParseException;

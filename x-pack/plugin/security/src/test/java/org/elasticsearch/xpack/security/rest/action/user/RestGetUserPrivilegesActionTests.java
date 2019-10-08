@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,8 +55,8 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
     public void testBuildResponse() throws Exception {
         final RestGetUserPrivilegesAction.RestListener listener = new RestGetUserPrivilegesAction.RestListener(null);
         final Set<String> cluster = new LinkedHashSet<>(Arrays.asList("monitor", "manage_ml", "manage_watcher"));
-        final Set<ConditionalClusterPrivilege> conditionalCluster = Collections.singleton(
-            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
+        final Set<ConfigurableClusterPrivilege> conditionalCluster = Collections.singleton(
+            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
         final Set<GetUserPrivilegesResponse.Indices> index = new LinkedHashSet<>(Arrays.asList(
             new GetUserPrivilegesResponse.Indices(Arrays.asList("index-1", "index-2", "index-3-*"), Arrays.asList("read", "write"),
                 new LinkedHashSet<>(Arrays.asList(

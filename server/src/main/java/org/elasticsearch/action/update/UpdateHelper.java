@@ -30,7 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,6 +38,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -70,7 +71,7 @@ public class UpdateHelper {
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
         final GetResult getResult = indexShard.getService().getForUpdate(
-            request.type(), request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
+            request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
@@ -139,8 +140,8 @@ public class UpdateHelper {
                         indexRequest.source(upsertResult.v2());
                         break;
                     case NONE:
-                        UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
-                                getResult.getVersion(), DocWriteResponse.Result.NOOP);
+                        UpdateResponse update = new UpdateResponse(shardId, MapperService.SINGLE_MAPPING_NAME, getResult.getId(),
+                                getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
                         update.setGetResult(getResult);
                         return new Result(update, DocWriteResponse.Result.NOOP, upsertResult.v2(), XContentType.JSON);
                     default:
@@ -193,8 +194,8 @@ public class UpdateHelper {
         // We can only actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle cases
         // where users repopulating multi-fields or adding synonyms, etc.
         if (detectNoop && noop) {
-            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
-                    getResult.getVersion(), DocWriteResponse.Result.NOOP);
+            UpdateResponse update = new UpdateResponse(shardId, MapperService.SINGLE_MAPPING_NAME, getResult.getId(),
+                getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
             update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),
                 getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
@@ -224,7 +225,7 @@ public class UpdateHelper {
         Map<String, Object> ctx = new HashMap<>(16);
         ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is "index"
         ctx.put(ContextFields.INDEX, getResult.getIndex());
-        ctx.put(ContextFields.TYPE, getResult.getType());
+        ctx.put(ContextFields.TYPE, MapperService.SINGLE_MAPPING_NAME);
         ctx.put(ContextFields.ID, getResult.getId());
         ctx.put(ContextFields.VERSION, getResult.getVersion());
         ctx.put(ContextFields.ROUTING, routing);
@@ -256,8 +257,8 @@ public class UpdateHelper {
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
             default:
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
-                UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
-                        getResult.getVersion(), DocWriteResponse.Result.NOOP);
+                UpdateResponse update = new UpdateResponse(shardId, MapperService.SINGLE_MAPPING_NAME, getResult.getId(),
+                        getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
                 update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),
                     getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
                 return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
@@ -305,18 +306,18 @@ public class UpdateHelper {
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
-        return new GetResult(concreteIndex, request.type(), request.id(), seqNo, primaryTerm, version, true, sourceFilteredAsBytes,
+        return new GetResult(concreteIndex, request.id(), seqNo, primaryTerm, version, true, sourceFilteredAsBytes,
             Collections.emptyMap(), Collections.emptyMap());
     }
 
     public static class Result {
 
-        private final Streamable action;
+        private final Writeable action;
         private final DocWriteResponse.Result result;
         private final Map<String, Object> updatedSourceAsMap;
         private final XContentType updateSourceContentType;
 
-        public Result(Streamable action, DocWriteResponse.Result result, Map<String, Object> updatedSourceAsMap,
+        public Result(Writeable action, DocWriteResponse.Result result, Map<String, Object> updatedSourceAsMap,
                       XContentType updateSourceContentType) {
             this.action = action;
             this.result = result;
@@ -325,7 +326,7 @@ public class UpdateHelper {
         }
 
         @SuppressWarnings("unchecked")
-        public <T extends Streamable> T action() {
+        public <T extends Writeable> T action() {
             return (T) action;
         }
 

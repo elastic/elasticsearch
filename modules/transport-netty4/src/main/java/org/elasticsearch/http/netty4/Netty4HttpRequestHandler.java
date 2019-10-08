@@ -41,9 +41,9 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) {
         Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         FullHttpRequest request = msg.getRequest();
-
+        final FullHttpRequest copiedRequest;
         try {
-            final FullHttpRequest copiedRequest =
+            copiedRequest =
                 new DefaultFullHttpRequest(
                     request.protocolVersion(),
                     request.method(),
@@ -51,23 +51,22 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
                     Unpooled.copiedBuffer(request.content()),
                     request.headers(),
                     request.trailingHeaders());
-
-            Netty4HttpRequest httpRequest = new Netty4HttpRequest(copiedRequest, msg.getSequence());
-
-            if (request.decoderResult().isFailure()) {
-                Throwable cause = request.decoderResult().cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
-                } else {
-                    serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
-                }
-            } else {
-                serverTransport.incomingRequest(httpRequest, channel);
-            }
         } finally {
             // As we have copied the buffer, we can release the request
             request.release();
+        }
+        Netty4HttpRequest httpRequest = new Netty4HttpRequest(copiedRequest, msg.getSequence());
+
+        if (request.decoderResult().isFailure()) {
+            Throwable cause = request.decoderResult().cause();
+            if (cause instanceof Error) {
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
+            } else {
+                serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
+            }
+        } else {
+            serverTransport.incomingRequest(httpRequest, channel);
         }
     }
 

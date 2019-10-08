@@ -86,6 +86,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         return cursor;
     }
 
+    public boolean hasCursor() {
+        return StringUtils.EMPTY.equals(cursor) == false;
+    }
+
     public long size() {
         return rows.size();
     }
@@ -115,11 +119,6 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public SqlQueryResponse rows(List<List<Object>> rows) {
         this.rows = rows;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

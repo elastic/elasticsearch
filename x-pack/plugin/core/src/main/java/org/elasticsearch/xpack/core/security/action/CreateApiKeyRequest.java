@@ -124,9 +124,4 @@ public final class CreateApiKeyRequest extends ActionRequest {
         out.writeList(roleDescriptors);
         refreshPolicy.writeTo(out);
     }
-
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

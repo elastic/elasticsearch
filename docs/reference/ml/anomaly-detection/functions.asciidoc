@@ -5,10 +5,10 @@
 The {ml-features} include analysis functions that provide a wide variety of
 flexible ways to analyze data for anomalies.
 
-When you create jobs, you specify one or more detectors, which define the type of
-analysis that needs to be done. If you are creating your job by using {ml} APIs,
-you specify the functions in
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+When you create {anomaly-jobs}, you specify one or more detectors, which define
+the type of analysis that needs to be done. If you are creating your job by
+using {ml} APIs, you specify the functions in
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 If you are creating your job in {kib}, you specify the functions differently
 depending on whether you are creating single metric, multi-metric, or advanced
 jobs.
@@ -24,8 +24,8 @@ You can specify a `summary_count_field_name` with any function except `metric`.
 When you use `summary_count_field_name`, the {ml} features expect the input
 data to be pre-aggregated. The value of the `summary_count_field_name` field
 must contain the count of raw events that were summarized. In {kib}, use the
-**summary_count_field_name** in advanced jobs. Analyzing aggregated input data
-provides a significant boost in performance. For more information, see
+**summary_count_field_name** in advanced {anomaly-jobs}. Analyzing aggregated
+input data provides a significant boost in performance. For more information, see
 <<ml-configuring-aggregation>>.
 
 If your data is sparse, there may be gaps in the data which means you might have

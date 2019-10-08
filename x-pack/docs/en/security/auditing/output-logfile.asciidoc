@@ -23,7 +23,7 @@ Alternatively, use the
 {ref}/cluster-update-settings.html[cluster update settings API] to dynamically
 configure the logger:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -32,7 +32,6 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: If you overwrite the `log4j2.properties` and do not specify appenders for
 any of the audit trails, audit events are forwarded to the root appender, which
@@ -132,7 +131,7 @@ Please take time to review these policies whenever your system architecture chan
 
 A policy is a named set of filter rules. Each filter rule applies to a single event attribute,
 one of the `users`, `realms`, `roles` or `indices` attributes. The filter rule defines
-a list of {ref}/query-dsl-regexp-query.html#regexp-syntax[Lucene regexp], *any* of which has to match the value of the audit
+a list of {ref}/regexp-syntax.html[Lucene regexp], *any* of which has to match the value of the audit
 event attribute for the rule to match.
 A policy matches an event if *all* the rules comprising it match the event.
 An audit event is ignored, therefore not printed, if it matches *any* policy. All other

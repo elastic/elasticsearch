@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
@@ -40,9 +41,12 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -50,6 +54,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -252,6 +257,44 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertNull(terms.getBucketByKey("common"));
                 assertNull(terms.getBucketByKey("odd"));
 
+            }
+        }
+    }
+
+    /**
+     * Uses the significant terms aggregation on a range field
+     */
+    public void testRangeField() throws IOException {
+        RangeType rangeType = RangeType.DOUBLE;
+        final RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
+        final RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(rangeType, 6.0D, 10.0D, true, true);
+        final String fieldName = "rangeField";
+        MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
+        fieldType.setName(fieldName);
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {
+                new RangeFieldMapper.Range(rangeType, 1L, 5L, true, true),
+                new RangeFieldMapper.Range(rangeType, -3L, 4L, true, true),
+                new RangeFieldMapper.Range(rangeType, 4L, 13L, true, true),
+                new RangeFieldMapper.Range(rangeType, 42L, 49L, true, true),
+            }) {
+                Document doc = new Document();
+                BytesRef encodedRange = rangeType.encodeRanges(Collections.singleton(range));
+                doc.add(new BinaryDocValuesField("field", encodedRange));
+                w.addDocument(doc);
+            }
+
+            // Attempt aggregation on range field
+            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text", null).field(fieldName);
+            sigAgg.executionHint(randomExecutionHint());
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher indexSearcher = newIndexSearcher(reader);
+                expectThrows(AggregationExecutionException.class, () -> createAggregator(sigAgg, indexSearcher, fieldType));
             }
         }
     }

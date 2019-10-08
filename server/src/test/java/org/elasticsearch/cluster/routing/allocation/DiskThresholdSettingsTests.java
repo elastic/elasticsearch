@@ -45,6 +45,8 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(60L, diskThresholdSettings.getRerouteInterval().seconds());
         assertTrue(diskThresholdSettings.isEnabled());
         assertTrue(diskThresholdSettings.includeRelocations());
+        assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdFloodStage());
+        assertEquals(5.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
     }
 
     public void testUpdate() {

@@ -48,7 +48,7 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class GetSnapshotsResponseTests extends ESTestCase {
-    // We can not subclass AbstractStreamableXContentTestCase because it
+    // We can not subclass AbstractSerializingTestCase because it
     // can only be used for instances with equals and hashCode
     // GetSnapshotResponse does not override equals and hashCode.
     // It does not override equals and hashCode, because it

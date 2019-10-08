@@ -203,7 +203,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         // start one node with 7 processors.
-        internalCluster().startNode(Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 7).build());
+        internalCluster().startNode(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 7).build());
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();

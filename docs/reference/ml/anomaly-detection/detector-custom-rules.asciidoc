@@ -16,21 +16,22 @@ Let us see how those can be configured by examples.
 
 ==== Specifying custom rule scope
 
-Let us assume we are configuring a job in order to detect DNS data exfiltration.
-Our data contain fields "subdomain" and "highest_registered_domain".
-We can use a detector that looks like `high_info_content(subdomain) over highest_registered_domain`.
-If we run such a job it is possible that we discover a lot of anomalies on 
-frequently used domains that we have reasons to trust. As security analysts, we 
-are not interested in such anomalies. Ideally, we could instruct the detector to 
-skip results for domains that we consider safe. Using a rule with a scope allows 
-us to achieve this.
+Let us assume we are configuring an {anomaly-job} in order to detect DNS data
+exfiltration. Our data contain fields "subdomain" and "highest_registered_domain".
+We can use a detector that looks like
+`high_info_content(subdomain) over highest_registered_domain`. If we run such a
+job, it is possible that we discover a lot of anomalies on frequently used
+domains that we have reasons to trust. As security analysts, we are not
+interested in such anomalies. Ideally, we could instruct the detector to skip
+results for domains that we consider safe. Using a rule with a scope allows us
+to achieve this.
 
 First, we need to create a list of our safe domains. Those lists are called 
-_filters_ in {ml}. Filters can be shared across jobs.
+_filters_ in {ml}. Filters can be shared across {anomaly-jobs}.
 
 We create our filter using the {ref}/ml-put-filter.html[put filter API]:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/filters/safe_domains
 {
@@ -38,13 +39,12 @@ PUT _ml/filters/safe_domains
   "items": ["safe.com", "trusted.com"]
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
-Now, we can create our job specifying a scope that uses the `safe_domains` 
-filter for the `highest_registered_domain` field:
+Now, we can create our {anomaly-job} specifying a scope that uses the
+`safe_domains`  filter for the `highest_registered_domain` field:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/dns_exfiltration_with_rule
 {
@@ -70,21 +70,19 @@ PUT _ml/anomaly_detectors/dns_exfiltration_with_rule
   }
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 As time advances and we see more data and more results, we might encounter new 
 domains that we want to add in the filter. We can do that by using the 
 {ref}/ml-update-filter.html[update filter API]:
 
-[source,js]
+[source,console]
 ----------------------------------
 POST _ml/filters/safe_domains/_update
 {
   "add_items": ["another-safe.com"]
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:setup:ml_filter_safe_domains]
 
 Note that we can use any of the `partition_field_name`, `over_field_name`, or 
@@ -92,7 +90,7 @@ Note that we can use any of the `partition_field_name`, `over_field_name`, or
 
 In the following example we scope multiple fields:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/scoping_multiple_fields
 {
@@ -124,7 +122,6 @@ PUT _ml/anomaly_detectors/scoping_multiple_fields
   }
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 Such a detector will skip results when the values of all 3 scoped fields
@@ -139,10 +136,10 @@ example, 0.02. Given our knowledge about how CPU utilization behaves we might
 determine that anomalies with such small actual values are not interesting for 
 investigation.
 
-Let us now configure a job with a rule that will skip results where CPU 
-utilization is less than 0.20.
+Let us now configure an {anomaly-job} with a rule that will skip results where
+CPU utilization is less than 0.20.
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/cpu_with_rule
 {
@@ -168,7 +165,6 @@ PUT _ml/anomaly_detectors/cpu_with_rule
   }
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 When there are multiple conditions they are combined with a logical `and`.
@@ -178,7 +174,7 @@ a rule with two conditions, one for each end of the desired range.
 Here is an example where a count detector will skip results when the count
 is greater than 30 and less than 50:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/rule_with_range
 {
@@ -208,24 +204,23 @@ PUT _ml/anomaly_detectors/rule_with_range
   }
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 ==== Custom rules in the life-cycle of a job
 
 Custom rules only affect results created after the rules were applied.
-Let us imagine that we have configured a job and it has been running
+Let us imagine that we have configured an {anomaly-job} and it has been running
 for some time. After observing its results we decide that we can employ
 rules in order to get rid of some uninteresting results. We can use
-the {ref}/ml-update-job.html[update job API] to do so. However, the rule we 
-added will only be in effect for any results created from the moment we added 
-the rule onwards. Past results will remain unaffected.
+the {ref}/ml-update-job.html[update {anomaly-job} API] to do so. However, the
+rule we added will only be in effect for any results created from the moment we
+added  the rule onwards. Past results will remain unaffected.
 
-==== Using custom rules VS filtering data
+==== Using custom rules vs. filtering data
 
 It might appear like using rules is just another way of filtering the data
-that feeds into a job. For example, a rule that skips results when the
-partition field value is in a filter sounds equivalent to having a query
+that feeds into an {anomaly-job}. For example, a rule that skips results when
+the partition field value is in a filter sounds equivalent to having a query
 that filters out such documents. But it is not. There is a fundamental
 difference. When the data is filtered before reaching a job it is as if they
 never existed for the job. With rules, the data still reaches the job and

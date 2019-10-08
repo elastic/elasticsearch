@@ -518,8 +518,8 @@ public abstract class Engine implements Closeable {
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version, long term) {
-            this(failure, version, term, UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version) {
+            this(failure, version, UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long term, long seqNo) {
@@ -747,7 +747,7 @@ public abstract class Engine implements Closeable {
                                                                 MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
-     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its translog
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
      */
     public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
@@ -1121,6 +1121,11 @@ public abstract class Engine implements Closeable {
      * Snapshots the most recent safe index commit from the engine.
      */
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
+
+    /**
+     * @return a summary of the contents of the current safe commit
+     */
+    public abstract SafeCommitInfo getSafeCommitInfo();
 
     /**
      * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
@@ -1556,16 +1561,15 @@ public abstract class Engine implements Closeable {
     public static class Get {
         private final boolean realtime;
         private final Term uid;
-        private final String type, id;
+        private final String id;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-        public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String id, Term uid) {
             this.realtime = realtime;
-            this.type = type;
             this.id = id;
             this.uid = uid;
             this.readFromTranslog = readFromTranslog;
@@ -1573,10 +1577,6 @@ public abstract class Engine implements Closeable {
 
         public boolean realtime() {
             return this.realtime;
-        }
-
-        public String type() {
-            return type;
         }
 
         public String id() {
@@ -1623,7 +1623,7 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = primaryTerm;
             return this;
         }
-        
+
         public long getIfPrimaryTerm() {
             return ifPrimaryTerm;
         }
@@ -1868,13 +1868,6 @@ public abstract class Engine implements Closeable {
      * Do not replay translog operations, but make the engine be ready.
      */
     public abstract void skipTranslogRecovery();
-
-    /**
-     * Returns <code>true</code> iff this engine is currently recovering from translog.
-     */
-    public boolean isRecovering() {
-        return false;
-    }
 
     /**
      * Tries to prune buffered deletes from the version map.

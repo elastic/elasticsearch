@@ -27,7 +27,6 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
@@ -41,6 +40,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
+import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
@@ -337,6 +337,13 @@ final class IndicesRequestConverters {
         return resize(resizeRequest);
     }
 
+    static Request clone(ResizeRequest resizeRequest) throws IOException {
+        if (resizeRequest.getResizeType() != ResizeType.CLONE) {
+            throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices clone request");
+        }
+        return resize(resizeRequest);
+    }
+
     private static Request resize(ResizeRequest resizeRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPart(resizeRequest.getSourceIndex())
                 .addPathPartAsIs("_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT))
@@ -537,8 +544,7 @@ final class IndicesRequestConverters {
 
     static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
         String[] indices = validateQueryRequest.indices() == null ? Strings.EMPTY_ARRAY : validateQueryRequest.indices();
-        String[] types = validateQueryRequest.types() == null || indices.length <= 0 ? Strings.EMPTY_ARRAY : validateQueryRequest.types();
-        String endpoint = RequestConverters.endpoint(indices, types, "_validate/query");
+        String endpoint = RequestConverters.endpoint(indices, "_validate/query");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
         params.withIndicesOptions(validateQueryRequest.indicesOptions());

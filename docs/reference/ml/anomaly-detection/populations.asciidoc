@@ -26,7 +26,7 @@ of hundreds of thousands or millions of entities.
 
 To specify the population, use the `over_field_name` property. For example:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/population
 {
@@ -50,16 +50,16 @@ PUT _ml/anomaly_detectors/population
   }
 }
 ----------------------------------
-//CONSOLE
 // TEST[skip:needs-licence]
+
 <1> This `over_field_name` property indicates that the metrics for each client (
   as identified by their IP address) are analyzed relative to other clients
   in each bucket.
 
 If your data is stored in {es}, you can use the population job wizard in {kib}
-to create a job with these same properties. For example, if you add the sample
-web logs in {kib}, you can use the following job settings in the population job
-wizard:
+to create an {anomaly-job} with these same properties. For example, if you add
+the sample web logs in {kib}, you can use the following job settings in the
+population job wizard:
 
 [role="screenshot"]
 image::images/ml-population-job.jpg["Job settings in the population job wizard]

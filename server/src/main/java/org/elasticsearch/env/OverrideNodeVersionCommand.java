@@ -73,7 +73,8 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
-        final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, nodePaths);
+        final NodeMetaData nodeMetaData
+            = new NodeMetaData.NodeMetaDataStateFormat(true).loadLatestState(logger, namedXContentRegistry, nodePaths);
         if (nodeMetaData == null) {
             throw new ElasticsearchException(NO_METADATA_MESSAGE);
         }

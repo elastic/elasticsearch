@@ -6,19 +6,25 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.sql.tree.NodeSubclassTests;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.SourceTests;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
 
 /**
@@ -75,6 +81,49 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
 
         List<Expression> newChildren = mutateChildren(c);
         assertEquals(new Case(c.source(), newChildren), c.replaceChildren(newChildren));
+    }
+
+    public void testDataTypes() {
+        // CASE WHEN 1 = 1 THEN NULL
+        // ELSE 'default'
+        // END
+        Case c = new Case(EMPTY, Arrays.asList(
+            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
+            Literal.of(EMPTY, "default")));
+        assertEquals(DataType.KEYWORD, c.dataType());
+
+        // CASE WHEN 1 = 1 THEN 'foo'
+        // ELSE NULL
+        // END
+        c = new Case(EMPTY, Arrays.asList(
+            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.of(EMPTY, "foo")),
+            Literal.NULL));
+        assertEquals(DataType.KEYWORD, c.dataType());
+
+        // CASE WHEN 1 = 1 THEN NULL
+        // ELSE NULL
+        // END
+        c = new Case(EMPTY, Arrays.asList(
+            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
+            Literal.NULL));
+        assertEquals(DataType.NULL, c.dataType());
+
+        // CASE WHEN 1 = 1 THEN NULL
+        //      WHEN 2 = 2 THEN 'foo'
+        // ELSE NULL
+        // END
+        c = new Case(EMPTY, Arrays.asList(
+            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
+            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 2), Literal.of(EMPTY, 2)), Literal.of(EMPTY, "foo")),
+            Literal.NULL));
+        assertEquals(DataType.KEYWORD, c.dataType());
+    }
+
+    public void testAllConditionsFolded() {
+        Case c = new Case(EMPTY, Collections.singletonList(Literal.of(EMPTY, "foo")));
+        assertEquals(DataType.KEYWORD, c.dataType());
+        assertEquals(TypeResolution.TYPE_RESOLVED, c.typeResolved());
+        assertNotNull(c.info());
     }
 
     private List<Expression> mutateChildren(Case c) {

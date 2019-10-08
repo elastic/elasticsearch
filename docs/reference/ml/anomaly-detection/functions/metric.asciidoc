@@ -35,7 +35,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 1: Analyzing minimum transactions with the min function
 [source,js]
@@ -48,9 +48,9 @@ For more information about those properties, see
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `min` function in a detector in your job, it detects where the
-smallest transaction is lower than previously observed. You can use this
-function to detect items for sale at unintentionally low prices due to data
+If you use this `min` function in a detector in your {anomaly-job}, it detects
+where the smallest transaction is lower than previously observed. You can use
+this function to detect items for sale at unintentionally low prices due to data
 entry mistakes. It models the minimum amount for each product over time.
 
 [float]
@@ -70,7 +70,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 2: Analyzing maximum response times with the max function
 [source,js]
@@ -83,9 +83,9 @@ For more information about those properties, see
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `max` function in a detector in your job, it detects where the
-longest `responsetime` is longer than previously observed. You can use this
-function to detect applications that have `responsetime` values that are
+If you use this `max` function in a detector in your {anomaly-job}, it detects
+where the longest `responsetime` is longer than previously observed. You can use
+this function to detect applications that have `responsetime` values that are
 unusually lengthy. It models the maximum `responsetime` for each application
 over time and detects when the longest `responsetime` is unusually long compared
 to previous applications.
@@ -132,7 +132,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 4: Analyzing response times with the median function
 [source,js]
@@ -145,9 +145,9 @@ For more information about those properties, see
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `median` function in a detector in your job, it models the
-median `responsetime` for each application over time. It detects when the median
-`responsetime` is unusual compared to previous `responsetime` values.
+If you use this `median` function in a detector in your {anomaly-job}, it models
+the median `responsetime` for each application over time. It detects when the
+median `responsetime` is unusual compared to previous `responsetime` values.
 
 [float]
 [[ml-metric-mean]]
@@ -170,7 +170,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 5: Analyzing response times with the mean function
 [source,js]
@@ -183,8 +183,8 @@ For more information about those properties, see
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `mean` function in a detector in your job, it models the mean
-`responsetime` for each application over time. It detects when the mean
+If you use this `mean` function in a detector in your {anomaly-job}, it models
+the mean `responsetime` for each application over time. It detects when the mean
 `responsetime` is unusual compared to previous `responsetime` values.
 
 .Example 6: Analyzing response times with the high_mean function
@@ -198,9 +198,10 @@ If you use this `mean` function in a detector in your job, it models the mean
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `high_mean` function in a detector in your job, it models the
-mean `responsetime` for each application over time. It detects when the mean
-`responsetime` is unusually high compared to previous `responsetime` values.
+If you use this `high_mean` function in a detector in your {anomaly-job}, it
+models the mean `responsetime` for each application over time. It detects when
+the mean `responsetime` is unusually high compared to previous `responsetime`
+values.
 
 .Example 7: Analyzing response times with the low_mean function
 [source,js]
@@ -213,9 +214,10 @@ mean `responsetime` for each application over time. It detects when the mean
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `low_mean` function in a detector in your job, it models the
-mean `responsetime` for each application over time. It detects when the mean
-`responsetime` is unusually low compared to previous `responsetime` values.
+If you use this `low_mean` function in a detector in your {anomaly-job}, it
+models the mean `responsetime` for each application over time. It detects when
+the mean `responsetime` is unusually low compared to previous `responsetime`
+values.
 
 [float]
 [[ml-metric-metric]]
@@ -236,7 +238,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 8: Analyzing response times with the metric function
 [source,js]
@@ -249,8 +251,8 @@ For more information about those properties, see
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `metric` function in a detector in your job, it models the
-mean, min, and max `responsetime` for each application over time. It detects
+If you use this `metric` function in a detector in your {anomaly-job}, it models
+the mean, min, and max `responsetime` for each application over time. It detects
 when the mean, min, or max `responsetime` is unusual compared to previous
 `responsetime` values.
 
@@ -273,7 +275,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 9: Analyzing response times with the varp function
 [source,js]
@@ -286,10 +288,10 @@ For more information about those properties, see
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `varp` function in a detector in your job, it models the
-variance in values of `responsetime` for each application over time. It detects
-when the variance in `responsetime` is unusual compared to past application
-behavior.
+If you use this `varp` function in a detector in your {anomaly-job}, it models
+the variance in values of `responsetime` for each application over time. It
+detects when the variance in `responsetime` is unusual compared to past
+application behavior.
 
 .Example 10: Analyzing response times with the high_varp function
 [source,js]
@@ -302,10 +304,10 @@ behavior.
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `high_varp` function in a detector in your job, it models the
-variance in values of `responsetime` for each application over time. It detects
-when the variance in `responsetime` is unusual compared to past application
-behavior.
+If you use this `high_varp` function in a detector in your {anomaly-job}, it
+models the variance in values of `responsetime` for each application over time.
+It detects when the variance in `responsetime` is unusual compared to past
+application behavior.
 
 .Example 11: Analyzing response times with the low_varp function
 [source,js]
@@ -318,7 +320,7 @@ behavior.
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `low_varp` function in a detector in your job, it models the
-variance in values of `responsetime` for each application over time. It detects
-when the variance in `responsetime` is unusual compared to past application
-behavior.
+If you use this `low_varp` function in a detector in your {anomaly-job}, it
+models the variance in values of `responsetime` for each application over time.
+It detects when the variance in `responsetime` is unusual compared to past
+application behavior.

@@ -637,7 +637,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
         assertThat(response.getItems()[0].getIndex(), equalTo("a2"));
-        assertThat(response.getItems()[0].getType(), equalTo("test"));
         assertThat(response.getItems()[0].getId(), equalTo("test"));
         assertThat(response.getItems()[0].getVersion(), equalTo(1L));
 

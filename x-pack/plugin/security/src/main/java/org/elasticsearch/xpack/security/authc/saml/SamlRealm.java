@@ -384,6 +384,14 @@ public final class SamlRealm extends Realm implements Releasable {
         return token instanceof SamlToken;
     }
 
+    private boolean isTokenForRealm(SamlToken samlToken) {
+        if (samlToken.getAuthenticatingRealm() == null) {
+            return true;
+        } else {
+            return samlToken.getAuthenticatingRealm().equals(this.name());
+        }
+    }
+
     /**
      * Always returns {@code null} as there is no support for reading a SAML token out of a request
      *
@@ -396,7 +404,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult> listener) {
-        if (authenticationToken instanceof SamlToken) {
+        if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
             try {
                 final SamlToken token = (SamlToken) authenticationToken;
                 final SamlAttributes attributes = authenticator.authenticate(token);

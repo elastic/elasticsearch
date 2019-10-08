@@ -42,8 +42,7 @@ public class GrokProcessorGetActionTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        GrokProcessorGetAction.Request otherRequest = new GrokProcessorGetAction.Request();
-        otherRequest.readFrom(streamInput);
+        GrokProcessorGetAction.Request otherRequest = new GrokProcessorGetAction.Request(streamInput);
         assertThat(otherRequest.validate(), nullValue());
     }
 

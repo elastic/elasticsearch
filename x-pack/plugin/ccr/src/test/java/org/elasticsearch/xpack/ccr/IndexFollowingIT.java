@@ -65,9 +65,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -107,6 +110,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
@@ -200,7 +204,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
@@ -227,7 +231,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
@@ -559,7 +563,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int value = i;
             assertBusy(() -> {
-                final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(value)).get();
+                final GetResponse getResponse = followerClient().prepareGet("index2", Integer.toString(value)).get();
                 assertTrue(getResponse.isExists());
                 assertTrue((getResponse.getSource().containsKey("field")));
                 assertThat(XContentMapValues.extractValue("objects.field", getResponse.getSource()),
@@ -741,6 +745,47 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         ensureNoCcrTasks();
     }
 
+    public void testFollowClosedIndex() {
+        final String leaderIndex = "test-index";
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .build()));
+        assertAcked(leaderClient().admin().indices().prepareClose(leaderIndex));
+
+        final String followerIndex = "follow-test-index";
+        expectThrows(IndexClosedException.class,
+            () -> followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).actionGet());
+        assertFalse(ESIntegTestCase.indexExists(followerIndex, followerClient()));
+    }
+
+    public void testResumeFollowOnClosedIndex() throws Exception {
+        final String leaderIndex = "test-index";
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+        ensureLeaderGreen(leaderIndex);
+
+        final int nbDocs = randomIntBetween(10, 100);
+        IntStream.of(nbDocs).forEach(i -> leaderClient().prepareIndex().setIndex(leaderIndex).setSource("field", i).get());
+
+        final String followerIndex = "follow-test-index";
+        PutFollowAction.Response response =
+            followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).actionGet();
+        assertTrue(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexShardsAcked());
+        assertTrue(response.isIndexFollowingStarted());
+
+        pauseFollow(followerIndex);
+        assertAcked(leaderClient().admin().indices().prepareClose(leaderIndex));
+
+        expectThrows(IndexClosedException.class, () ->
+            followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow(followerIndex)).actionGet());
+    }
+
     public void testDeleteFollowerIndex() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()
@@ -761,13 +806,14 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             StatsResponses response = followerClient().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
             assertThat(response.getNodeFailures(), empty());
             assertThat(response.getTaskFailures(), empty());
-            assertThat(response.getStatsResponses(), hasSize(1));
-            assertThat(response.getStatsResponses().get(0).status().failedWriteRequests(), greaterThanOrEqualTo(1L));
-            ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
-            assertThat(fatalException, notNullValue());
-            assertThat(fatalException.getMessage(), equalTo("no such index [index2]"));
+            if (response.getStatsResponses().isEmpty() == false) {
+                assertThat(response.getStatsResponses(), hasSize(1));
+                assertThat(response.getStatsResponses().get(0).status().failedWriteRequests(), greaterThanOrEqualTo(1L));
+                ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
+                assertThat(fatalException, notNullValue());
+                assertThat(fatalException.getMessage(), equalTo("no such index [index2]"));
+            }
         });
-        pauseFollow("index2");
         ensureNoCcrTasks();
     }
 
@@ -1186,8 +1232,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             final CheckedRunnable<Exception> afterPausingFollower,
             final Consumer<Collection<ResourceNotFoundException>> exceptionConsumer) throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
-                singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final Map<String, String> extraSettingsMap = new HashMap<>(2);
+        extraSettingsMap.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true");
+        extraSettingsMap.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms");
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1), extraSettingsMap);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
 
@@ -1220,6 +1268,15 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         leaderClient().prepareDelete("index1", "doc", "1").get();
         leaderClient().admin().indices().refresh(new RefreshRequest("index1")).actionGet();
         leaderClient().admin().indices().flush(new FlushRequest("index1").force(true)).actionGet();
+        assertBusy(() -> {
+            final ShardStats[] shardsStats = leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+            for (final ShardStats shardStats : shardsStats) {
+                final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+                assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
+                    .filter(retentionLease -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source()))
+                    .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
+            }
+        });
         ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index1");
         forceMergeRequest.maxNumSegments(1);
         leaderClient().admin().indices().forceMerge(forceMergeRequest).actionGet();
@@ -1301,7 +1358,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
@@ -1316,6 +1373,37 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 .put(seeds.getKey(), address));
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
         }
+    }
+
+    public void testCleanUpShardFollowTasksForDeletedIndices() throws Exception {
+        final int numberOfShards = randomIntBetween(1, 10);
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+                .build()));
+
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        leaderClient().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)));
+
+        assertBusy(() -> {
+            String action = ShardFollowTask.NAME + "[c]";
+            ListTasksResponse listTasksResponse = followerClient().admin().cluster().prepareListTasks().setActions(action).get();
+            assertThat(listTasksResponse.getTasks(), hasSize(numberOfShards));
+        });
+
+        assertAcked(followerClient().admin().indices().prepareDelete("index2"));
+
+        assertBusy(() -> {
+            String action = ShardFollowTask.NAME + "[c]";
+            ListTasksResponse listTasksResponse = followerClient().admin().cluster().prepareListTasks().setActions(action).get();
+            assertThat(listTasksResponse.getTasks(), hasSize(0));
+        });
+        ensureNoCcrTasks();
     }
 
     private long getFollowTaskSettingsVersion(String followerIndex) {
@@ -1408,7 +1496,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int key, final int value) {
         return () -> {
-            final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(key)).get();
+            final GetResponse getResponse = followerClient().prepareGet("index2", Integer.toString(key)).get();
             assertTrue("Doc with id [" + key + "] is missing", getResponse.isExists());
             assertTrue((getResponse.getSource().containsKey("f")));
             assertThat(getResponse.getSource().get("f"), equalTo(value));

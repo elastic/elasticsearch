@@ -5,41 +5,55 @@
 <titleabbrev>Get watch</titleabbrev>
 ++++
 
-This API retrieves a watch by its ID.
+Retrieves a watch by its ID.
 
-[float]
-==== Request
+[[watcher-api-get-watch-request]]
+==== {api-request-title}
 
 `GET _watcher/watch/<watch_id>`
 
-[float]
-==== Path Parameters
+[[watcher-api-get-watch-prereqs]]
+==== {api-prereq-title}
 
-`watch_id` (required)::
-  (string) Identifier for the watch.
-
-[float]
-==== Authorization
-
-You must have `manage_watcher` or `monitor_watcher` cluster privileges to use
+* You must have `manage_watcher` or `monitor_watcher` cluster privileges to use
 this API. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
-[float]
-==== Examples
+//[[watcher-api-get-watch-desc]]
+//==== {api-description-title}
+
+[[watcher-api-get-watch-path-params]]
+==== {api-path-parms-title}
+
+`<watch_id>`::
+  (Required, string) Identifier for the watch.
+
+//[[watcher-api-get-watch-query-params]]
+//==== {api-query-parms-title}
+
+//[[watcher-api-get-watch-request-body]]
+//==== {api-request-body-title}
+
+//[[watcher-api-get-watch-response-body]]
+//==== {api-response-body-title}
+
+//[[watcher-api-get-watch-response-codes]]
+//==== {api-response-codes-title}
+
+[[watcher-api-get-watch-example]]
+==== {api-examples-title}
 
 The following example gets a watch with `my-watch` id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -91,4 +105,5 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"timestamp": "2015-05-26T18:21:08.630Z"/"timestamp": "$body.status.state.timestamp"/]
+
 <1> The current status of the watch

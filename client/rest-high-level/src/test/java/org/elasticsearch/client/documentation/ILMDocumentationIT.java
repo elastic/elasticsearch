@@ -31,38 +31,43 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.indexlifecycle.DeleteAction;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
-import org.elasticsearch.client.indexlifecycle.IndexLifecycleExplainResponse;
-import org.elasticsearch.client.indexlifecycle.LifecycleAction;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
-import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.client.indexlifecycle.LifecyclePolicyMetadata;
-import org.elasticsearch.client.indexlifecycle.OperationMode;
-import org.elasticsearch.client.indexlifecycle.Phase;
-import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RolloverAction;
-import org.elasticsearch.client.indexlifecycle.ShrinkAction;
-import org.elasticsearch.client.indexlifecycle.StartILMRequest;
-import org.elasticsearch.client.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.ilm.DeleteAction;
+import org.elasticsearch.client.ilm.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.ExplainLifecycleRequest;
+import org.elasticsearch.client.ilm.ExplainLifecycleResponse;
+import org.elasticsearch.client.ilm.GetLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.GetLifecyclePolicyResponse;
+import org.elasticsearch.client.ilm.IndexLifecycleExplainResponse;
+import org.elasticsearch.client.ilm.LifecycleAction;
+import org.elasticsearch.client.ilm.LifecycleManagementStatusRequest;
+import org.elasticsearch.client.ilm.LifecycleManagementStatusResponse;
+import org.elasticsearch.client.ilm.LifecyclePolicy;
+import org.elasticsearch.client.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.client.ilm.OperationMode;
+import org.elasticsearch.client.ilm.Phase;
+import org.elasticsearch.client.ilm.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyResponse;
+import org.elasticsearch.client.ilm.RetryLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.client.ilm.ShrinkAction;
+import org.elasticsearch.client.ilm.StartILMRequest;
+import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.snapshotlifecycle.DeleteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyResponse;
-import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyResponse;
-import org.elasticsearch.client.snapshotlifecycle.PutSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.SnapshotInvocationRecord;
-import org.elasticsearch.client.snapshotlifecycle.SnapshotLifecyclePolicy;
-import org.elasticsearch.client.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecycleRetentionRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsResponse;
+import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.SnapshotInvocationRecord;
+import org.elasticsearch.client.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.client.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.client.slm.SnapshotLifecycleStats;
+import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -88,6 +93,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -773,8 +779,11 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::slm-put-snapshot-lifecycle-policy
         Map<String, Object> config = new HashMap<>();
         config.put("indices", Collections.singletonList("idx"));
+        SnapshotRetentionConfiguration retention =
+            new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), 2, 10);
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
-            "policy_id", "name", "1 2 3 * * ?", "my_repository", config);
+            "policy_id", "name", "1 2 3 * * ?",
+            "my_repository", config, retention);
         PutSnapshotLifecyclePolicyRequest request =
             new PutSnapshotLifecyclePolicyRequest(policy);
         // end::slm-put-snapshot-lifecycle-policy
@@ -854,6 +863,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         long nextPolicyExecutionDate = policyMeta.getNextExecution();
         SnapshotInvocationRecord lastSuccess = policyMeta.getLastSuccess();
         SnapshotInvocationRecord lastFailure = policyMeta.getLastFailure();
+        SnapshotLifecyclePolicyMetadata.SnapshotInProgress inProgress =
+            policyMeta.getSnapshotInProgress();
         SnapshotLifecyclePolicy retrievedPolicy = policyMeta.getPolicy(); // <2>
         String id = retrievedPolicy.getId();
         String snapshotNameFormat = retrievedPolicy.getName();
@@ -864,7 +875,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         assertNotNull(policyMeta);
         assertThat(retrievedPolicy, equalTo(policy));
-        assertThat(policyVersion, equalTo(1L));
 
         createIndex("idx", Settings.builder().put("index.number_of_shards", 1).build());
 
@@ -931,6 +941,22 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::slm-execute-snapshot-lifecycle-policy-execute-async
         latch.await(5, TimeUnit.SECONDS);
 
+        // tag::slm-get-snapshot-lifecycle-stats
+        GetSnapshotLifecycleStatsRequest getStatsRequest =
+            new GetSnapshotLifecycleStatsRequest();
+        // end::slm-get-snapshot-lifecycle-stats
+
+        // tag::slm-get-snapshot-lifecycle-stats-execute
+        GetSnapshotLifecycleStatsResponse statsResp = client.indexLifecycle()
+            .getSnapshotLifecycleStats(getStatsRequest, RequestOptions.DEFAULT);
+        SnapshotLifecycleStats stats = statsResp.getStats();
+        SnapshotLifecycleStats.SnapshotPolicyStats policyStats =
+            stats.getMetrics().get("policy_id");
+        // end::slm-get-snapshot-lifecycle-stats-execute
+        assertThat(
+            statsResp.getStats().getMetrics().get("policy_id").getSnapshotsTaken(),
+            greaterThanOrEqualTo(1L));
+
         //////// DELETE
         // tag::slm-delete-snapshot-lifecycle-policy
         DeleteSnapshotLifecyclePolicyRequest deleteRequest =
@@ -962,6 +988,44 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::slm-delete-snapshot-lifecycle-policy-execute-async
 
         assertTrue(deleteResp.isAcknowledged());
+
+        //////// EXECUTE RETENTION
+        // tag::slm-execute-snapshot-lifecycle-retention
+        ExecuteSnapshotLifecycleRetentionRequest req =
+            new ExecuteSnapshotLifecycleRetentionRequest();
+        // end::slm-execute-snapshot-lifecycle-retention
+
+        // tag::slm-execute-snapshot-lifecycle-retention-execute
+        AcknowledgedResponse retentionResp =
+            client.indexLifecycle()
+                .executeSnapshotLifecycleRetention(req,
+                    RequestOptions.DEFAULT);
+        // end::slm-execute-snapshot-lifecycle-retention-execute
+
+        // tag::slm-execute-snapshot-lifecycle-retention-response
+        final boolean acked = retentionResp.isAcknowledged();
+        // end::slm-execute-snapshot-lifecycle-retention-response
+
+        // tag::slm-execute-snapshot-lifecycle-policy-execute-listener
+        ActionListener<AcknowledgedResponse> retentionListener =
+            new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse r) {
+                    assert r.isAcknowledged(); // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::slm-execute-snapshot-lifecycle-retention-execute-listener
+
+        // tag::slm-execute-snapshot-lifecycle-retention-execute-async
+        client.indexLifecycle()
+            .executeSnapshotLifecycleRetentionAsync(req,
+                RequestOptions.DEFAULT, retentionListener);
+        // end::slm-execute-snapshot-lifecycle-retention-execute-async
     }
 
     private void assertSnapshotExists(final RestHighLevelClient client, final String repo, final String snapshotName) throws Exception {

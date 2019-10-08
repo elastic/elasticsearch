@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -18,6 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.KeyManagerFactory;
@@ -95,7 +97,7 @@ public class SSLService {
     private final Map<String, SSLConfiguration> sslConfigurations;
 
     /**
-     * A mapping from a SSLConfiguration to a pre-built context.
+     * A mapping from an SSLConfiguration to a pre-built context.
      * <p>
      * This is managed separately to the {@link #sslConfigurations} map, so that a single configuration (by object equality)
      * always maps to the same {@link SSLContextHolder}, even if it is being used within a different context-name.
@@ -247,7 +249,7 @@ public class SSLService {
         String[] supportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
         if (configuration.verificationMode().isHostnameVerificationEnabled() && host != null) {
-            // By default, a SSLEngine will not perform hostname verification. In order to perform hostname verification
+            // By default, an SSLEngine will not perform hostname verification. In order to perform hostname verification
             // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
             // man in the middle attacks for all of our connections.
             parameters.setEndpointIdentificationAlgorithm("HTTPS");
@@ -297,7 +299,7 @@ public class SSLService {
         Objects.requireNonNull(sslConfiguration, "SSL Configuration cannot be null");
         SSLContextHolder holder = sslContexts.get(sslConfiguration);
         if (holder == null) {
-            throw new IllegalArgumentException("did not find a SSLContext for [" + sslConfiguration.toString() + "]");
+            throw new IllegalArgumentException("did not find an SSLContext for [" + sslConfiguration.toString() + "]");
         }
         return holder;
     }
@@ -415,26 +417,33 @@ public class SSLService {
         sslSettingsMap.put("xpack.http.ssl", settings.getByPrefix("xpack.http.ssl."));
         sslSettingsMap.putAll(getRealmsSSLSettings(settings));
         sslSettingsMap.putAll(getMonitoringExporterSettings(settings));
+        sslSettingsMap.put(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX, settings.getByPrefix(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX));
 
-        sslSettingsMap.forEach((key, sslSettings) -> {
-            final SSLConfiguration configuration = new SSLConfiguration(sslSettings);
-            storeSslConfiguration(key, configuration);
-            sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
-        });
+        sslSettingsMap.forEach((key, sslSettings) -> loadConfiguration(key, sslSettings, sslContextHolders));
 
         final Settings transportSSLSettings = settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
-        final SSLConfiguration transportSSLConfiguration = new SSLConfiguration(transportSSLSettings);
+        final SSLConfiguration transportSSLConfiguration =
+            loadConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLSettings, sslContextHolders);
         this.transportSSLConfiguration.set(transportSSLConfiguration);
-        storeSslConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLConfiguration);
         Map<String, Settings> profileSettings = getTransportProfileSSLSettings(settings);
-        sslContextHolders.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
-        profileSettings.forEach((key, profileSetting) -> {
-            final SSLConfiguration configuration = new SSLConfiguration(profileSetting);
-            storeSslConfiguration(key, configuration);
-            sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
-        });
+        profileSettings.forEach((key, profileSetting) -> loadConfiguration(key, profileSetting, sslContextHolders));
 
         return Collections.unmodifiableMap(sslContextHolders);
+    }
+
+    private SSLConfiguration loadConfiguration(String key, Settings settings, Map<SSLConfiguration, SSLContextHolder> contextHolders) {
+        if (key.endsWith(".")) {
+            // Drop trailing '.' so that any exception messages are consistent
+            key = key.substring(0, key.length() - 1);
+        }
+        try {
+            final SSLConfiguration configuration = new SSLConfiguration(settings);
+            storeSslConfiguration(key, configuration);
+            contextHolders.computeIfAbsent(configuration, this::createSslContext);
+            return configuration;
+        } catch (Exception e) {
+            throw new ElasticsearchSecurityException("failed to load SSL configuration [{}]", e, key);
+        }
     }
 
     private void storeSslConfiguration(String key, SSLConfiguration configuration) {
@@ -623,7 +632,7 @@ public class SSLService {
         while (sessionIds.hasMoreElements()) {
             byte[] sessionId = sessionIds.nextElement();
             SSLSession session = sslSessionContext.getSession(sessionId);
-            // a SSLSession could be null as there is no lock while iterating, the session cache
+            // an SSLSession could be null as there is no lock while iterating, the session cache
             // could have evicted a value, the session could be timed out, or the session could
             // have already been invalidated, which removes the value from the session cache in the
             // sun implementation

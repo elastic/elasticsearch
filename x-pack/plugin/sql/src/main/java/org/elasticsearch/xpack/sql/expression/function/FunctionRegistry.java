@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.User;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTime;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
@@ -104,8 +106,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
@@ -193,6 +195,8 @@ public class FunctionRegistry {
                 def(DayOfMonth.class, DayOfMonth::new, "DAY_OF_MONTH", "DAYOFMONTH", "DAY", "DOM"),
                 def(DayOfWeek.class, DayOfWeek::new, "DAY_OF_WEEK", "DAYOFWEEK", "DOW"),
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
+                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
+                def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
                 def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISO_DAY_OF_WEEK", "ISODAYOFWEEK", "ISODOW", "IDOW"),
                 def(IsoWeekOfYear.class, IsoWeekOfYear::new, "ISO_WEEK_OF_YEAR", "ISOWEEKOFYEAR", "ISOWEEK", "IWOY", "IW"),

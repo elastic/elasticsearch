@@ -49,7 +49,7 @@ public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements 
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeStats> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override

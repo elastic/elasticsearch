@@ -70,7 +70,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         return new CompressedXContent(Strings.toString(builder));
     }
 
-    public void testBaseAsyncTask() throws InterruptedException, IOException {
+    public void testBaseAsyncTask() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
         AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));
         AtomicReference<CountDownLatch> latch2 = new AtomicReference<>(new CountDownLatch(1));
@@ -126,7 +126,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         // now close the index
         final Index index = indexService.index();
         assertAcked(client().admin().indices().prepareClose(index.getName()));
-        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
 
         final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(indexService, closedIndexService);
@@ -136,7 +136,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
         // now reopen the index
         assertAcked(client().admin().indices().prepareOpen(index.getName()));
-        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
         indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(closedIndexService, indexService);
 
@@ -204,7 +204,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         // now close the index
         final Index index = indexService.index();
         assertAcked(client().admin().indices().prepareClose(index.getName()));
-        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
 
         final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(indexService, closedIndexService);
@@ -215,7 +215,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
         // now reopen the index
         assertAcked(client().admin().indices().prepareOpen(index.getName()));
-        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
         indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(closedIndexService, indexService);
         refreshTask = indexService.getRefreshTask();
@@ -241,7 +241,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         // now close the index
         final Index index = indexService.index();
         assertAcked(client().admin().indices().prepareClose(index.getName()));
-        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
 
         final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(indexService, closedIndexService);
@@ -252,7 +252,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
         // now reopen the index
         assertAcked(client().admin().indices().prepareOpen(index.getName()));
-        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
         indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(closedIndexService, indexService);
         fsyncTask = indexService.getFsyncTask();
@@ -390,20 +390,24 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex(indexName, Settings.builder()
             .put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .build());
-
         Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
         final Path translogPath = translog.getConfig().getTranslogPath();
         final String translogUuid = translog.getTranslogUUID();
 
+        int translogOps = 0;
         final int numDocs = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex().setIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+            translogOps++;
             if (randomBoolean()) {
                 client().admin().indices().prepareFlush(indexName).get();
+                if (indexService.getIndexSettings().isSoftDeleteEnabled()) {
+                    translogOps = 0;
+                }
             }
         }
-        assertThat(translog.totalOperations(), equalTo(numDocs));
-        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(numDocs));
+        assertThat(translog.totalOperations(), equalTo(translogOps));
+        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(translogOps));
         assertAcked(client().admin().indices().prepareClose("test"));
 
         indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());

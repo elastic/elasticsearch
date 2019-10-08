@@ -43,7 +43,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -81,6 +83,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.xpack.core.index.query.PinnedQueryBuilder;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -92,7 +95,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -221,7 +227,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(5, searchResponse.getHits().getHits().length);
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
             assertEquals("index", searchHit.getIndex());
-            assertEquals("type", searchHit.getType());
             assertThat(Integer.valueOf(searchHit.getId()), both(greaterThan(0)).and(lessThan(6)));
             assertEquals(1.0f, searchHit.getScore(), 0);
             assertEquals(-1L, searchHit.getVersion());
@@ -246,7 +251,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
         SearchHit searchHit = searchResponse.getHits().getHits()[0];
         assertEquals("index", searchHit.getIndex());
-        assertEquals("type", searchHit.getType());
         assertEquals("1", searchHit.getId());
         assertThat(searchHit.getScore(), greaterThan(0f));
         assertEquals(-1L, searchHit.getVersion());
@@ -1087,7 +1091,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1102,7 +1105,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1117,7 +1119,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1133,7 +1134,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1161,7 +1161,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(explainResponse.getId(), equalTo("999"));
             assertFalse(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1347,9 +1346,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testCountMultipleIndicesMatchQueryUsingConstructor() throws IOException {
-
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1"));
-        CountRequest countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, sourceBuilder);
+        CountRequest countRequest;
+        if (randomBoolean()) {
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1"));
+            countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, sourceBuilder);
+        } else {
+            QueryBuilder query = new MatchQueryBuilder("field", "value1");
+            countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, query);
+        }
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
@@ -1357,9 +1361,12 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testCountMultipleIndicesMatchQuery() throws IOException {
-
         CountRequest countRequest = new CountRequest("index1", "index2", "index3");
-        countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        if (randomBoolean()) {
+            countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        } else {
+            countRequest.query(new MatchQueryBuilder("field", "value1"));
+        }
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
@@ -1372,6 +1379,18 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
+    }
+
+    public void testSearchWithBasicLicensedQuery() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index");
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        PinnedQueryBuilder pinnedQuery = new PinnedQueryBuilder(new MatchAllQueryBuilder(), "2", "1");
+        searchSourceBuilder.query(pinnedQuery);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertFirstHit(searchResponse, hasId("2"));
+        assertSecondHit(searchResponse, hasId("1"));
     }
 
     private static void assertCountHeader(CountResponse countResponse) {

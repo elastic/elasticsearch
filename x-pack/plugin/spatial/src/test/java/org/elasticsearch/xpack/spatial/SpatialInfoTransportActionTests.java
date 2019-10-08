@@ -15,7 +15,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
-import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;
@@ -67,7 +66,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new VectorsFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureSet.Usage serializedUsage = new SpatialFeatureSetUsage(out.bytes().streamInput());
         assertTrue(serializedUsage.enabled());
     }
 

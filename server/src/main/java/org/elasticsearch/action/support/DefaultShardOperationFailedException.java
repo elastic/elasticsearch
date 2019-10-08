@@ -33,7 +33,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class DefaultShardOperationFailedException extends ShardOperationFailedException implements Writeable {
@@ -45,10 +44,14 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     public static final ConstructingObjectParser<DefaultShardOperationFailedException, Void> PARSER = new ConstructingObjectParser<>(
         "failures", true, arg -> new DefaultShardOperationFailedException((String) arg[0], (int) arg[1] ,(Throwable) arg[2]));
 
+    protected static <T extends DefaultShardOperationFailedException> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
+        objectParser.declareString(constructorArg(), new ParseField(INDEX));
+        objectParser.declareInt(constructorArg(), new ParseField(SHARD_ID));
+        objectParser.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
+    }
+
     static {
-        PARSER.declareString(constructorArg(), new ParseField(INDEX));
-        PARSER.declareInt(constructorArg(), new ParseField(SHARD_ID));
-        PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
+        declareFields(PARSER);
     }
 
     protected DefaultShardOperationFailedException() {}
@@ -59,11 +62,11 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
 
     public DefaultShardOperationFailedException(ElasticsearchException e) {
         super(e.getIndex() == null ? null : e.getIndex().getName(), e.getShardId() == null ? -1 : e.getShardId().getId(),
-            detailedMessage(e), e.status(), e);
+            ExceptionsHelper.stackTrace(e), e.status(), e);
     }
 
     public DefaultShardOperationFailedException(String index, int shardId, Throwable cause) {
-        super(index, shardId, detailedMessage(cause), ExceptionsHelper.status(cause), cause);
+        super(index, shardId, ExceptionsHelper.stackTrace(cause), ExceptionsHelper.status(cause), cause);
     }
 
     public static DefaultShardOperationFailedException readShardOperationFailed(StreamInput in) throws IOException {
@@ -75,6 +78,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         f.shardId = in.readVInt();
         f.cause = in.readException();
         f.status = RestStatus.readFrom(in);
+        f.reason = ExceptionsHelper.stackTrace(f.cause);
     }
 
     @Override

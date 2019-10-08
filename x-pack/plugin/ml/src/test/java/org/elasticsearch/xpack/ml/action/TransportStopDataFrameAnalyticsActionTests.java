@@ -75,8 +75,13 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
 
     private static void addAnalyticsTask(PersistentTasksCustomMetaData.Builder builder, String analyticsId, String nodeId,
                                          DataFrameAnalyticsState state) {
+        addAnalyticsTask(builder, analyticsId, nodeId, state, false);
+    }
+
+    private static void addAnalyticsTask(PersistentTasksCustomMetaData.Builder builder, String analyticsId, String nodeId,
+                                         DataFrameAnalyticsState state, boolean allowLazyStart) {
         builder.addTask(MlTasks.dataFrameAnalyticsTaskId(analyticsId), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, Collections.emptyList()),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, Collections.emptyList(), allowLazyStart),
             new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
 
         builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(analyticsId),

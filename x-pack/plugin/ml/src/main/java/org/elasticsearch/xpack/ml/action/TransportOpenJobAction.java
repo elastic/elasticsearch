@@ -376,7 +376,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // If the task parameters do not have a job field then the job
             // was first opened on a pre v6.6 node and has not been migrated
-            if (params.getJob() == null) {
+            Job job = params.getJob();
+            if (job == null) {
                 return AWAITING_MIGRATION;
             }
 
@@ -405,9 +406,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 }
             }
 
-            Job job = params.getJob();
             JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, jobId, MlTasks.JOB_TASK_NAME, memoryTracker,
-                maxLazyMLNodes, node -> nodeFilter(node, job));
+                job.allowLazyOpen() ? Integer.MAX_VALUE : maxLazyMLNodes, node -> nodeFilter(node, job));
             return jobNodeSelector.selectNode(
                 maxOpenJobs, maxConcurrentJobAllocations, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
         }

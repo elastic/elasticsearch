@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -18,9 +19,7 @@ import java.time.temporal.ChronoField;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.BinaryDateTimeProcessor.BinaryDateOperation.TRUNC;
+import java.util.function.UnaryOperator;
 
 public class DateTrunc extends BinaryDateTimeFunction {
 
@@ -106,10 +105,10 @@ public class DateTrunc extends BinaryDateTimeFunction {
             VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
-        private Function<ZonedDateTime, ZonedDateTime> truncateFunction;
+        private UnaryOperator<ZonedDateTime> truncateFunction;
         private Set<String> aliases;
 
-        Part(Function<ZonedDateTime, ZonedDateTime> truncateFunction, String... aliases) {
+        Part(UnaryOperator<ZonedDateTime> truncateFunction, String... aliases) {
             this.truncateFunction = truncateFunction;
             this.aliases = Set.of(aliases);
         }
@@ -133,7 +132,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
     }
 
     public DateTrunc(Source source, Expression truncateTo, Expression timestamp, ZoneId zoneId) {
-        super(source, truncateTo, timestamp, zoneId, TRUNC);
+        super(source, truncateTo, timestamp, zoneId);
     }
 
     @Override
@@ -157,16 +156,6 @@ public class DateTrunc extends BinaryDateTimeFunction {
     }
 
     @Override
-    protected boolean resolveDateTimeField(String dateTimeField) {
-        return Part.resolve(dateTimeField) != null;
-    }
-
-    @Override
-    protected List<String> findSimilarDateTimeFields(String dateTimeField) {
-        return Part.findSimilar(dateTimeField);
-    }
-
-    @Override
     protected String scriptMethodName() {
         return "dateTrunc";
     }
@@ -174,6 +163,21 @@ public class DateTrunc extends BinaryDateTimeFunction {
     @Override
     public Object fold() {
         return DateTruncProcessor.process(left().fold(), right().fold(), zoneId());
+    }
+
+    @Override
+    protected Pipe createPipe(Pipe left, Pipe right, ZoneId zoneId) {
+        return new DateTruncPipe(source(), this, left, right, zoneId);
+    }
+
+    @Override
+    protected boolean resolveDateTimeField(String dateTimeField) {
+        return Part.resolve(dateTimeField) != null;
+    }
+
+    @Override
+    protected List<String> findSimilarDateTimeFields(String dateTimeField) {
+        return Part.findSimilar(dateTimeField);
     }
 
     @Override

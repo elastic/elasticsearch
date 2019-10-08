@@ -102,7 +102,7 @@ public class QueryTranslatorTests extends ESTestCase {
     private LogicalPlan plan(String sql) {
         return analyzer.analyze(parser.createStatement(sql), true);
     }
-    
+
     private PhysicalPlan optimizeAndPlan(String sql) {
         return  planner.plan(optimizer.optimize(plan(sql)), true);
     }
@@ -134,7 +134,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("int", tq.term());
         assertEquals(5, tq.value());
     }
-    
+
     public void testTermEqualityForDate() {
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date = 5");
         assertTrue(p instanceof Project);
@@ -148,7 +148,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("date", tq.term());
         assertEquals(5, tq.value());
     }
-    
+
     public void testTermEqualityForDateWithLiteralDate() {
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('2019-08-08T12:34:56' AS DATETIME)");
         assertTrue(p instanceof Project);
@@ -166,7 +166,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(rq.includeUpper());
         assertEquals(DATE_FORMAT, rq.format());
     }
-    
+
     public void testTermEqualityForDateWithLiteralTime() {
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('12:34:56' AS TIME)");
         assertTrue(p instanceof Project);
@@ -236,27 +236,27 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("date", rq.field());
         assertEquals("1969-05-13T12:34:56.000Z", rq.lower());
     }
-    
+
     public void testDateRangeWithCurrentTimestamp() {
         testDateRangeWithCurrentFunctions("CURRENT_TIMESTAMP()", DATE_FORMAT, TestUtils.TEST_CFG.now());
     }
-    
+
     public void testDateRangeWithCurrentDate() {
         testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
     }
-    
+
     public void testDateRangeWithToday() {
         testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
     }
-    
+
     public void testDateRangeWithNow() {
         testDateRangeWithCurrentFunctions("NOW()", DATE_FORMAT, TestUtils.TEST_CFG.now());
     }
-    
+
     public void testDateRangeWithCurrentTime() {
         testDateRangeWithCurrentFunctions("CURRENT_TIME()", TIME_FORMAT, TestUtils.TEST_CFG.now());
     }
-    
+
     private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {
         String operator = randomFrom(new String[] {">", ">=", "<", "<=", "=", "!="});
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function);
@@ -267,7 +267,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, false);
         Query query = translation.query;
         RangeQuery rq;
-        
+
         if (operator.equals("!=")) {
             assertTrue(query instanceof NotQuery);
             NotQuery nq = (NotQuery) query;
@@ -278,7 +278,7 @@ public class QueryTranslatorTests extends ESTestCase {
             rq = (RangeQuery) query;
         }
         assertEquals("date", rq.field());
-        
+
         if (operator.contains("<") || operator.equals("=") || operator.equals("!=")) {
             assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
                     rq.upper());
@@ -291,6 +291,23 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals("<="), rq.includeUpper());
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals(">="), rq.includeLower());
         assertEquals(pattern, rq.format());
+    }
+
+    public void testTranslateDateAdd_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT int FROM test WHERE DATE_ADD('quarter',int, date) > '2018-09-04'::date");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.dateAdd(" +
+                "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1),InternalSqlScriptUtils.docValue(doc,params.v2)," +
+                "params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))",
+            sc.script().toString());
+        assertEquals("[{v=quarter}, {v=int}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
     }
 
     public void testTranslateDateTrunc_WhereClause_Painless() {
@@ -336,7 +353,7 @@ public class QueryTranslatorTests extends ESTestCase {
         WildcardQuery qsq = ((WildcardQuery) qt.query);
         assertEquals("some.string.typical", qsq.field());
     }
-    
+
     public void testRLikeOnInexact() {
         LogicalPlan p = plan("SELECT * FROM test WHERE some.string RLIKE '.*a.*'");
         assertTrue(p instanceof Project);
@@ -348,7 +365,7 @@ public class QueryTranslatorTests extends ESTestCase {
         RegexQuery qsq = ((RegexQuery) qt.query);
         assertEquals("some.string.typical", qsq.field());
     }
-    
+
     public void testLikeConstructsNotSupported() {
         LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) like '%a%'");
         assertTrue(p instanceof Project);
@@ -358,7 +375,7 @@ public class QueryTranslatorTests extends ESTestCase {
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LIKE", ex.getMessage());
     }
-    
+
     public void testRLikeConstructsNotSupported() {
         LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) RLIKE '.*a.*'");
         assertTrue(p instanceof Project);
@@ -368,13 +385,13 @@ public class QueryTranslatorTests extends ESTestCase {
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for RLIKE", ex.getMessage());
     }
-    
+
     public void testDifferentLikeAndNotLikePatterns() {
         LogicalPlan p = plan("SELECT keyword k FROM test WHERE k LIKE 'X%' AND k NOT LIKE 'Y%'");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
-        
+
         Expression condition = ((Filter) p).condition();
         QueryTranslation qt = QueryTranslator.toQuery(condition, false);
         assertEquals(BoolQuery.class, qt.query.getClass());
@@ -382,18 +399,18 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(bq.isAnd());
         assertTrue(bq.left() instanceof WildcardQuery);
         assertTrue(bq.right() instanceof NotQuery);
-        
+
         NotQuery nq = (NotQuery) bq.right();
         assertTrue(nq.child() instanceof WildcardQuery);
         WildcardQuery lqsq = (WildcardQuery) bq.left();
         WildcardQuery rqsq = (WildcardQuery) nq.child();
-        
+
         assertEquals("X*", lqsq.query());
         assertEquals("keyword", lqsq.field());
         assertEquals("Y*", rqsq.query());
         assertEquals("keyword", rqsq.field());
     }
-    
+
     public void testRLikePatterns() {
         String[] patterns = new String[] {"(...)+", "abab(ab)?", "(ab){1,2}", "(ab){3}", "aabb|bbaa", "a+b+|b+a+", "aa(cc|bb)",
                 "a{4,6}b{4,6}", ".{3}.{3}", "aaa*bbb*", "a+.+", "a.c.e", "[^abc\\-]"};
@@ -401,13 +418,13 @@ public class QueryTranslatorTests extends ESTestCase {
             assertDifferentRLikeAndNotRLikePatterns(randomFrom(patterns), randomFrom(patterns));
         }
     }
-    
+
     private void assertDifferentRLikeAndNotRLikePatterns(String firstPattern, String secondPattern) {
         LogicalPlan p = plan("SELECT keyword k FROM test WHERE k RLIKE '" + firstPattern + "' AND k NOT RLIKE '" + secondPattern + "'");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
-        
+
         Expression condition = ((Filter) p).condition();
         QueryTranslation qt = QueryTranslator.toQuery(condition, false);
         assertEquals(BoolQuery.class, qt.query.getClass());
@@ -415,12 +432,12 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(bq.isAnd());
         assertTrue(bq.left() instanceof RegexQuery);
         assertTrue(bq.right() instanceof NotQuery);
-        
+
         NotQuery nq = (NotQuery) bq.right();
         assertTrue(nq.child() instanceof RegexQuery);
         RegexQuery lqsq = (RegexQuery) bq.left();
         RegexQuery rqsq = (RegexQuery) nq.child();
-        
+
         assertEquals(firstPattern, lqsq.regex());
         assertEquals("keyword", lqsq.field());
         assertEquals(secondPattern, rqsq.regex());
@@ -646,7 +663,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
     }
-    
+
     public void testTranslateRoundWithOneParameter() {
         LogicalPlan p = plan("SELECT ROUND(YEAR(date)) FROM test GROUP BY ROUND(YEAR(date))");
 
@@ -667,16 +684,16 @@ public class QueryTranslatorTests extends ESTestCase {
             scriptTemplate.toString());
         assertEquals("[{v=date}, {v=Z}, {v=YEAR}, {v=null}]", scriptTemplate.params().toString());
     }
-    
+
     public void testTranslateRoundWithTwoParameters() {
         LogicalPlan p = plan("SELECT ROUND(YEAR(date), -2) FROM test GROUP BY ROUND(YEAR(date), -2)");
-        
+
         assertTrue(p instanceof Aggregate);
         assertEquals(1, ((Aggregate) p).groupings().size());
         assertEquals(1, ((Aggregate) p).aggregates().size());
         assertTrue(((Aggregate) p).groupings().get(0) instanceof Round);
         assertTrue(((Aggregate) p).aggregates().get(0) instanceof Round);
-        
+
         Round groupingRound = (Round) ((Aggregate) p).groupings().get(0);
         assertEquals(2, groupingRound.children().size());
         assertTrue(groupingRound.children().get(1) instanceof Literal);
@@ -905,7 +922,7 @@ public class QueryTranslatorTests extends ESTestCase {
             containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
                     + "\"fixed_interval\":\"62208000000ms\",\"time_zone\":\"Z\"}}}]}"));
     }
-    
+
     public void testGroupByYearQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT YEAR(date) FROM test GROUP BY YEAR(date)");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -971,7 +988,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("dkey{a->"));
         assertThat(ee.output().get(1).toString(), startsWith("key{a->"));
-        
+
         Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
         assertEquals(2, subAggs.size());
         assertTrue(subAggs.toArray()[0] instanceof CardinalityAggregationBuilder);
@@ -979,15 +996,15 @@ public class QueryTranslatorTests extends ESTestCase {
 
         CardinalityAggregationBuilder cardinalityKeyword = (CardinalityAggregationBuilder) subAggs.toArray()[0];
         assertEquals("keyword", cardinalityKeyword.field());
-        
+
         FilterAggregationBuilder existsKeyword = (FilterAggregationBuilder) subAggs.toArray()[1];
         assertTrue(existsKeyword.getFilter() instanceof ExistsQueryBuilder);
         assertEquals("keyword", ((ExistsQueryBuilder) existsKeyword.getFilter()).fieldName());
-        
+
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("{\"filter\":{\"exists\":{\"field\":\"keyword\",\"boost\":1.0}}}}}}"));
     }
-    
+
     public void testAllCountVariantsWithHavingGenerateCorrectAggregations() {
         PhysicalPlan p = optimizeAndPlan("SELECT AVG(int), COUNT(keyword) ln, COUNT(distinct keyword) dln, COUNT(some.dotted.field) fn,"
                 + "COUNT(distinct some.dotted.field) dfn, COUNT(*) ccc FROM test GROUP BY bool "
@@ -1001,7 +1018,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(ee.output().get(3).toString(), startsWith("fn{a->"));
         assertThat(ee.output().get(4).toString(), startsWith("dfn{a->"));
         assertThat(ee.output().get(5).toString(), startsWith("ccc{a->"));
-        
+
         Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
         assertEquals(5, subAggs.size());
         assertTrue(subAggs.toArray()[0] instanceof AvgAggregationBuilder);
@@ -1009,21 +1026,21 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(subAggs.toArray()[2] instanceof CardinalityAggregationBuilder);
         assertTrue(subAggs.toArray()[3] instanceof FilterAggregationBuilder);
         assertTrue(subAggs.toArray()[4] instanceof CardinalityAggregationBuilder);
-        
+
         AvgAggregationBuilder avgInt = (AvgAggregationBuilder) subAggs.toArray()[0];
         assertEquals("int", avgInt.field());
-        
+
         FilterAggregationBuilder existsKeyword = (FilterAggregationBuilder) subAggs.toArray()[1];
         assertTrue(existsKeyword.getFilter() instanceof ExistsQueryBuilder);
         assertEquals("keyword", ((ExistsQueryBuilder) existsKeyword.getFilter()).fieldName());
-        
+
         CardinalityAggregationBuilder cardinalityKeyword = (CardinalityAggregationBuilder) subAggs.toArray()[2];
         assertEquals("keyword", cardinalityKeyword.field());
-        
+
         FilterAggregationBuilder existsDottedField = (FilterAggregationBuilder) subAggs.toArray()[3];
         assertTrue(existsDottedField.getFilter() instanceof ExistsQueryBuilder);
         assertEquals("some.dotted.field", ((ExistsQueryBuilder) existsDottedField.getFilter()).fieldName());
-        
+
         CardinalityAggregationBuilder cardinalityDottedField = (CardinalityAggregationBuilder) subAggs.toArray()[4];
         assertEquals("some.dotted.field", cardinalityDottedField.field());
 
@@ -1193,7 +1210,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + "\"lang\":\"painless\","
                 + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"2019-03-11T12:34:56.000Z\"}},"));
     }
-    
+
     public void testChronoFieldBasedDateTimeFunctionsWithMathIntervalAndGroupBy() {
         DateTimeExtractor randomFunction = randomValueOtherThan(DateTimeExtractor.YEAR, () -> randomFrom(DateTimeExtractor.values()));
         PhysicalPlan p = optimizeAndPlan(
@@ -1210,7 +1227,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + "\"v3\":\"Z\",\"v4\":\"" + randomFunction.chronoField().name() + "\"}},\"missing_bucket\":true,"
                 + "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}}"));
     }
-    
+
     public void testDateTimeFunctionsWithMathIntervalAndGroupBy() {
         String[] functions = new String[] {"DAY_NAME", "MONTH_NAME", "DAY_OF_WEEK", "WEEK_OF_YEAR", "QUARTER"};
         String[] scriptMethods = new String[] {"dayName", "monthName", "dayOfWeek", "weekOfYear", "quarter"};

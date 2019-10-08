@@ -42,19 +42,24 @@ NOTE: To roll over an index, a condition must be met *when you call the API*.
 automatically roll over indices when a condition is met, you can use {es}'s
 <<index-lifecycle-management, index lifecycle management (ILM) policies>>.
 
-The API accepts a single alias name and a list of `conditions`. The alias must point to a write index for
-a Rollover request to be valid. There are two ways this can be achieved, and depending on the configuration, the
-alias metadata will be updated differently. The two scenarios are as follows:
+The rollover index API accepts a single alias name
+and a list of `conditions`.
 
- - The alias only points to a single index with `is_write_index` not configured (defaults to `null`).
+If the specified alias points to a single index,
+the rollover request:
 
-In this scenario, the original index will have their rollover alias will be added to the newly created index, and removed
-from the original (rolled-over) index.
+. Creates a new index
+. Adds the alias to the new index
+. Removes the alias from the original index
 
- - The alias points to one or more indices with `is_write_index` set to `true` on the index to be rolled over (the write index).
+If the specified alias points to multiple indices,
+one of these indices must have `is_write_index` set to `true`.
+In this case,
+the rollover request:
 
-In this scenario, the write index will have its rollover alias' `is_write_index` set to `false`, while the newly created index
-will now have the rollover alias pointing to it as the write index with `is_write_index` as `true`.
+. Creates a new index
+. Sets `is_write_index` to `true` for the new index
+. Sets `is_write_index` to `false` for the original index
 
 
 [[rollover-wait-active-shards]]

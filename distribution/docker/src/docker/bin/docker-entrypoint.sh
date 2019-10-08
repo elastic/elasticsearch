@@ -52,16 +52,16 @@ for VAR_NAME_FILE in $(env | cut -f1 -d= | grep '_FILE$'); do
     fi
 
     if [[ ! -e "${!VAR_NAME_FILE}" ]]; then
-      echo "ERROR: File ${!VAR_NAME_FILE} does not exist" >&2
+      echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE does not exist" >&2
       exit 1
     fi
 
     if [[ ! -r "${!VAR_NAME_FILE}" ]]; then
-      echo "ERROR: File ${!VAR_NAME_FILE} is not readable" >&2
+      echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE is not readable" >&2
       exit 1
     fi
 
-    echo "Setting $VAR_NAME from ${!VAR_NAME_FILE}" >&2
+    echo "Setting $VAR_NAME from $VAR_NAME_FILE at ${!VAR_NAME_FILE}" >&2
     export "$VAR_NAME"="$(cat ${!VAR_NAME_FILE})"
 
     unset VAR_NAME

@@ -710,3 +710,14 @@ See <<transform-source>>.
 ==== Pivot objects
 
 See <<transform-pivot>>.
+
+[role="exclude",id="configuring-monitoring"]
+=== Configuring monitoring in {es}
+
+See <<monitoring-overview>>.
+
+[role="exclude",id="es-monitoring"]
+=== Monitoring {es}
+
+See <<monitor-elasticsearch-cluster>>.
+

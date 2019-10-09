@@ -3813,7 +3813,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
 
-        logger.info("--> snapshot with [{}] shards", initialShardCount);
+        logger.info("--> snapshot with [{}] shards", newShardCount);
         final SnapshotInfo snapshot2 =
             client().admin().cluster().prepareCreateSnapshot(repoName, "snap-2").setWaitForCompletion(true).get().getSnapshotInfo();
         assertThat(snapshot2.state(), is(SnapshotState.SUCCESS));

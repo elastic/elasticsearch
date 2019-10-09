@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[config-monitoring-indices]]
-=== Configuring Indices for Monitoring
+=== Configuring indices for monitoring
 
 <<indices-templates,Index templates>> are used to configure the indices
 that store the monitoring data collected from a cluster.

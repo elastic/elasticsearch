@@ -550,7 +550,7 @@ See <<commands>>.
 
 See <<api-definitions>>.
 
-[role="exclude",id-"configuring-monitoring"]
+[role="exclude",id="configuring-monitoring"]
 === Configuring monitoring in {es}
 
 See <<monitoring-overview>>.

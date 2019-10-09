@@ -15,7 +15,7 @@ beta[]
 [[preview-transform-request]]
 ==== {api-request-title}
 
-`POST _data_frame/transforms/_preview`
+`POST _transform/_preview`
 
 [[preview-transform-prereq]]
 ==== {api-prereq-title}
@@ -68,7 +68,7 @@ on all the current data in the source index.
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/_preview
+POST _transform/_preview
 {
   "source": {
     "index": "kibana_sample_data_ecommerce"

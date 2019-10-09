@@ -16,11 +16,11 @@ beta[]
 [[stop-transform-request]]
 ==== {api-request-title}
 
-`POST _data_frame/transforms/<transform_id>/_stop` +
+`POST _transform/<transform_id>/_stop` +
 
-`POST _data_frame/transforms/<transform_id1>,<transform_id2>/_stop` +
+`POST _transform/<transform_id1>,<transform_id2>/_stop` +
 
-`POST _data_frame/transforms/_all/_stop`
+`POST _transform/_all/_stop`
 
 
 [[stop-transform-prereq]]
@@ -104,7 +104,7 @@ are no matches or only partial matches.
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/ecommerce_transform/_stop
+POST _transform/ecommerce_transform/_stop
 --------------------------------------------------
 // TEST[skip:set up kibana samples]
 

@@ -148,7 +148,7 @@ public class DatafeedJobBuilder {
                     .size(1)
                     .includeInterim(false);
             jobResultsProvider.bucketsViaInternalClient(jobId, latestBucketQuery, bucketsHandler, e -> {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     QueryPage<Bucket> empty = new QueryPage<>(Collections.emptyList(), 0, Bucket.RESULT_TYPE_FIELD);
                     bucketsHandler.accept(empty);
                 } else {

@@ -85,7 +85,7 @@ If you prefer, you can use the
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/_preview
+POST _transform/_preview
 {
   "source": {
     "index": "kibana_sample_data_ecommerce",
@@ -161,7 +161,7 @@ example:
 
 [source,console]
 --------------------------------------------------
-PUT _data_frame/transforms/ecommerce-customer-transform
+PUT _transform/ecommerce-customer-transform
 {
   "source": {
     "index": [
@@ -237,7 +237,7 @@ example:
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/ecommerce-customer-transform/_start
+POST _transform/ecommerce-customer-transform/_start
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 

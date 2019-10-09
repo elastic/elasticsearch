@@ -23,6 +23,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -222,88 +223,113 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
      * Splits the specified line by datelines and adds them to the supplied lines array
      */
     private List<Line> decomposeGeometry(Line line, List<Line> lines) {
-
-        for (Line partPlus : decompose(+DATELINE, line)) {
-            for (Line partMinus : decompose(-DATELINE, partPlus)) {
-                double[] lats = new double[partMinus.length()];
-                double[] lons = new double[partMinus.length()];
-                for (int i = 0; i < partMinus.length(); i++) {
-                    lats[i] = normalizeLat(partMinus.getY(i));
-                    lons[i] = normalizeLonMinus180Inclusive(partMinus.getX(i));
-                }
-                lines.add(new Line(lons, lats));
+        for (Line part : decompose(line)) {
+            double[] lats = new double[part.length()];
+            double[] lons = new double[part.length()];
+            for (int i = 0; i < part.length(); i++) {
+                lats[i] = normalizeLat(part.getY(i));
+                lons[i] = normalizeLonMinus180Inclusive(part.getX(i));
             }
+            lines.add(new Line(lons, lats));
         }
         return lines;
     }
 
     /**
-     * Decompose a linestring given as array of coordinates at a vertical line.
-     *
-     * @param dateline x-axis intercept of the vertical line
-     * @param line     linestring that should be decomposed
-     * @return array of linestrings given as coordinate arrays
+     * Calculates how many degres the given longitude needs to be moved east in order to be in -180 - +180. +180 is inclusive only
+     * if include180 is true.
      */
-    private List<Line> decompose(double dateline, Line line) {
-        double[] lons = line.getX();
-        double[] lats = line.getY();
-        return decompose(dateline, lons, lats);
+    double calculateShift(double lon, boolean include180) {
+        double normalized = GeoUtils.centeredModulus(lon, 360);
+        double shift = Math.round(normalized - lon);
+        if (!include180 && normalized == 180.0) {
+            shift = shift - 360;
+        }
+        return shift;
     }
 
     /**
-     * Decompose a linestring given as two arrays of coordinates at a vertical line.
+     * Decompose a linestring given as array of coordinates by anti-meridian.
+     *
+     * @param line     linestring that should be decomposed
+     * @return array of linestrings given as coordinate arrays
      */
-    private List<Line> decompose(double dateline, double[] lons, double[] lats) {
+    private List<Line> decompose(Line line) {
+        double[] lons = line.getX();
+        double[] lats = line.getY();
         int offset = 0;
         ArrayList<Line> parts = new ArrayList<>();
 
-        double lastLon = lons[0];
-        double shift = lastLon > DATELINE ? DATELINE : (lastLon < -DATELINE ? -DATELINE : 0);
-
-        for (int i = 1; i < lons.length; i++) {
-            double t = intersection(lastLon, lons[i], dateline);
-            lastLon = lons[i];
-            if (Double.isNaN(t) == false) {
-                double[] partLons = Arrays.copyOfRange(lons, offset, i + 1);
-                double[] partLats = Arrays.copyOfRange(lats, offset, i + 1);
-                if (t < 1) {
-                    Point intersection = position(new Point(lons[i - 1], lats[i - 1]), new Point(lons[i], lats[i]), t);
-                    partLons[partLons.length - 1] = intersection.getX();
-                    partLats[partLats.length - 1] = intersection.getY();
-
-                    lons[offset + i - 1] = intersection.getX();
-                    lats[offset + i - 1] = intersection.getY();
-
-                    shift(shift, partLons);
-                    offset = i - 1;
-                    shift = lons[i] > DATELINE ? DATELINE : (lons[i] < -DATELINE ? -DATELINE : 0);
-                } else {
-                    shift(shift, partLons);
-                    offset = i;
-                }
+        double shift = 0;
+        int i = 1;
+        while (i < lons.length) {
+            // Check where the line is going east (+1), west (-1) or directly north/south (0)
+            int direction = Double.compare(lons[i], lons[i - 1]);
+            double newShift = calculateShift(lons[i - 1], direction < 0);
+            // first point lon + shift is always between -180.0 and +180.0
+            if (i - offset > 1 && newShift != shift) {
+                // Jumping over anti-meridian - we need to start a new segment
+                double[] partLons = Arrays.copyOfRange(lons, offset, i);
+                double[] partLats = Arrays.copyOfRange(lats, offset, i);
+                performShift(shift, partLons);
+                shift = newShift;
+                offset = i - 1;
                 parts.add(new Line(partLons, partLats));
+            } else {
+                // Check if new point intersects with anti-meridian
+                shift = newShift;
+                double t = intersection(lons[i - 1] + shift, lons[i] + shift);
+                if (Double.isNaN(t) == false) {
+                    // Found intersection, all previous segments are now part of the linestring
+                    double[] partLons = Arrays.copyOfRange(lons, offset, i + 1);
+                    double[] partLats = Arrays.copyOfRange(lats, offset, i + 1);
+                    lons[i - 1] = partLons[partLons.length - 1] = (direction > 0 ? DATELINE : -DATELINE) - shift;
+                    lats[i - 1] = partLats[partLats.length - 1] = lats[i - 1] + (lats[i] - lats[i - 1]) * t;
+                    performShift(shift, partLons);
+                    offset = i - 1;
+                    parts.add(new Line(partLons, partLats));
+                } else {
+                    // Didn't find intersection - just continue checking
+                    i++;
+                }
             }
         }
 
         if (offset == 0) {
-            shift(shift, lons);
+            performShift(shift, lons);
             parts.add(new Line(lons, lats));
         } else if (offset < lons.length - 1) {
             double[] partLons = Arrays.copyOfRange(lons, offset, lons.length);
             double[] partLats = Arrays.copyOfRange(lats, offset, lats.length);
-            shift(shift, partLons);
+            performShift(shift, partLons);
             parts.add(new Line(partLons, partLats));
         }
         return parts;
     }
 
     /**
-     * shifts all coordinates by  (- shift * 2)
+     * Checks it the segment from p1x to p2x intersects with anti-meridian
+     * p1x must be with in -180 +180 range
      */
-    private static void shift(double shift, double[] lons) {
+    private static double intersection(double p1x, double p2x) {
+        if (p1x == p2x) {
+            return Double.NaN;
+        }
+        final double t = ((p1x < p2x ? DATELINE : -DATELINE) - p1x) / (p2x - p1x);
+        if (t >= 1 || t <= 0) {
+            return Double.NaN;
+        } else {
+            return t;
+        }
+    }
+
+    /**
+     * shifts all coordinates by shift
+     */
+    private static void performShift(double shift, double[] lons) {
         if (shift != 0) {
             for (int j = 0; j < lons.length; j++) {
-                lons[j] = lons[j] - 2 * shift;
+                lons[j] = lons[j] + shift;
             }
         }
     }

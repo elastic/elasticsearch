@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -66,13 +67,18 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     @Override
-    protected void connectImpl(ActionListener<Void> listener) {
-        collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(), listener);
+    protected boolean shouldOpenMoreConnections() {
+        return connectionManager.size() < maxNumRemoteConnections;
     }
 
     @Override
-    protected boolean shouldOpenMoreConnections() {
-        return connectionManager.size() < maxNumRemoteConnections;
+    protected boolean strategyMustImplMustBeRebuilt(Settings newSettings) {
+        return false;
+    }
+
+    @Override
+    protected void connectImpl(ActionListener<Void> listener) {
+        collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(), listener);
     }
 
     private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {

@@ -26,6 +26,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,15 +35,30 @@ import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
+    enum ConnectionStrategy {
+        SNIFF,
+        SIMPLE;
+    }
+
+    public static final Setting.AffixSetting<ConnectionStrategy> REMOTE_CONNECTION_MODE = Setting.affixKeySetting(
+        "cluster.remote.", "mode", key -> new Setting<>(
+            key,
+            ConnectionStrategy.SNIFF.name(),
+            value -> ConnectionStrategy.valueOf(value.toUpperCase(Locale.ROOT)),
+            Setting.Property.Dynamic));
+
+
     private static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
 
     private static final int MAX_LISTENERS = 100;
+    private final ConnectionStrategy connectionMode;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
@@ -50,11 +67,17 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected final RemoteConnectionManager connectionManager;
     protected final String clusterAlias;
 
-    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager) {
+    RemoteConnectionStrategy(String clusterAlias, Settings settings, TransportService transportService,
+                             RemoteConnectionManager connectionManager) {
+        this.connectionMode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
         this.connectionManager = connectionManager;
         connectionManager.getConnectionManager().addListener(this);
+    }
+
+    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager) {
+        this(clusterAlias, Settings.EMPTY, transportService, connectionManager);
     }
 
     /**
@@ -110,6 +133,16 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             });
         }
     }
+
+    public boolean shouldRebuildConnection(Settings newSettings) {
+        if (REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(newSettings).equals(connectionMode)) {
+            return strategyMustImplMustBeRebuilt(newSettings);
+        } else {
+            return true;
+        }
+    }
+
+    protected abstract boolean strategyMustImplMustBeRebuilt(Settings newSettings);
 
     @Override
     public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {

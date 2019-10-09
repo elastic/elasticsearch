@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
 
@@ -82,6 +83,11 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     @Override
+    protected boolean strategyMustImplMustBeRebuilt(Settings newSettings) {
+        return false;
+    }
+
+    @Override
     protected void connectImpl(ActionListener<Void> listener) {
         performSimpleConnectionProcess(addresses.iterator(), listener);
     }
@@ -125,7 +131,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                 TransportAddress address = nextAddress(resolved);
                 String id = clusterAlias + "#" + address;
                 DiscoveryNode node = new DiscoveryNode(id, address, Version.CURRENT.minimumCompatibilityVersion());
-                
+
                 connectionManager.connectToNode(node, profile, clusterNameValidator, new ActionListener<>() {
                     @Override
                     public void onResponse(Void v) {

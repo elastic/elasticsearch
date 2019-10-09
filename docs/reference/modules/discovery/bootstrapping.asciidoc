@@ -34,7 +34,7 @@ this setting is no longer required and is ignored. It should not be set on
 master-ineligible nodes, nor on master-eligible nodes that will be joining an
 existing cluster, nor when restarting a cluster. Master-eligible nodes
 should use storage that persists across restarts. If they do not and
-`cluster.initial_master_nodes` is set, and a full cluster restart occurs, then
+`cluster.initial_master_nodes` is set during  a full cluster restart,
 a new cluster will form, which may result in data loss.
 
 It is technically sufficient to set `cluster.initial_master_nodes` on a single

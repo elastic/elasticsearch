@@ -38,8 +38,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
@@ -338,11 +336,11 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             }
             matchingNodes.put(discoNode, matchingNode);
             if (logger.isTraceEnabled()) {
-                if (matchingNode.matchingBytes == Long.MAX_VALUE) {
-                    logger.trace("{}: node [{}] has same sync id {} as primary", shard, discoNode.getName(), storeFilesMetaData.syncId());
-                } else if (matchingNode.matchingOperations > 0) {
-                    logger.trace("{}: node [{}] can perform operation-based recovery with [{}] matching operations",
-                        shard, discoNode.getName(), matchingNode.matchingOperations);
+                if (matchingNode.isNoopRecovery) {
+                    logger.trace("{}: node [{}] can perform a noop recovery", shard, discoNode.getName());
+                } else if (matchingNode.retainingSeqNo >= 0) {
+                    logger.trace("{}: node [{}] can perform operation-based recovery with retaining sequence number [{}]",
+                        shard, discoNode.getName(), matchingNode.retainingSeqNo);
                 } else {
                     logger.trace("{}: node [{}] has [{}/{}] bytes of re-usable data",
                         shard, discoNode.getName(), new ByteSizeValue(matchingNode.matchingBytes), matchingNode.matchingBytes);
@@ -371,22 +369,15 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return primarySyncId != null && primarySyncId.equals(replicaStore.syncId());
     }
 
-    private static long getRetainingSeqNoForNode(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore, DiscoveryNode node) {
-        final String retentionLeaseId = ReplicationTracker.getPeerRecoveryRetentionLeaseId(node.getId());
-        return primaryStore.peerRecoveryRetentionLeases().stream()
-            .filter(lease -> lease.id().equals(retentionLeaseId))
-            .mapToLong(RetentionLease::retainingSequenceNumber).findFirst().orElse(0L);
-    }
-
     private static MatchingNode computeMatchingNode(
         DiscoveryNode primaryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
         DiscoveryNode replicaNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData replicaStore) {
         if (replicaStore.isEmpty()) {
-            return new MatchingNode(0, 0, false); // store is corrupted
+            return new MatchingNode(0, -1, false); // store is corrupted
         }
-        final long retainingSeqNoForPrimary = getRetainingSeqNoForNode(primaryStore, primaryNode);
-        final long retainingSeqNoForReplica = getRetainingSeqNoForNode(primaryStore, replicaNode);
-        final boolean isNoopRecovery = (retainingSeqNoForReplica > 0 && retainingSeqNoForReplica == retainingSeqNoForPrimary)
+        final long retainingSeqNoForPrimary = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(primaryNode);
+        final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(replicaNode);
+        final boolean isNoopRecovery = (retainingSeqNoForReplica >= 0 && retainingSeqNoForReplica >= retainingSeqNoForPrimary)
             || hasMatchedSyncId(primaryStore, replicaStore);
         final long matchingBytes = computeMatchingBytes(primaryStore, replicaStore);
         return new MatchingNode(matchingBytes, retainingSeqNoForReplica, isNoopRecovery);
@@ -402,7 +393,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (hasMatchedSyncId(primaryStore, targetNodeStore.storeFilesMetaData())) {
             return true;
         }
-        return getRetainingSeqNoForNode(primaryStore, targetNode) > 0;
+        return primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(targetNode) >= 0;
     }
 
     protected abstract AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation);
@@ -414,20 +405,20 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     private static class MatchingNode {
         static final Comparator<MatchingNode> COMPARATOR = Comparator.<MatchingNode, Boolean>comparing(m -> m.isNoopRecovery)
-            .thenComparing(m -> m.matchingOperations).thenComparing(m -> m.matchingBytes);
+            .thenComparing(m -> m.retainingSeqNo).thenComparing(m -> m.matchingBytes);
 
         final long matchingBytes;
-        final long matchingOperations;
+        final long retainingSeqNo;
         final boolean isNoopRecovery;
 
-        MatchingNode(long matchingBytes, long matchingOperations, boolean isNoopRecovery) {
+        MatchingNode(long matchingBytes, long retainingSeqNo, boolean isNoopRecovery) {
             this.matchingBytes = matchingBytes;
-            this.matchingOperations = matchingOperations;
+            this.retainingSeqNo = retainingSeqNo;
             this.isNoopRecovery = isNoopRecovery;
         }
 
         boolean anyMatch() {
-            return isNoopRecovery || matchingOperations > 0 || matchingBytes > 0;
+            return isNoopRecovery || retainingSeqNo >= 0 || matchingBytes > 0;
         }
     }
 

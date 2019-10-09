@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -223,6 +224,16 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
         public StoreFileMetaData file(String name) {
             return metadataSnapshot.asMap().get(name);
+        }
+
+        /**
+         * Returns the retaining sequence number of the peer recovery retention lease for a given node if exists; otherwise, returns -1.
+         */
+        public long getPeerRecoveryRetentionLeaseRetainingSeqNo(DiscoveryNode node) {
+            assert node != null;
+            final String retentionLeaseId = ReplicationTracker.getPeerRecoveryRetentionLeaseId(node.getId());
+            return peerRecoveryRetentionLeases.stream().filter(lease -> lease.id().equals(retentionLeaseId))
+                .mapToLong(RetentionLease::retainingSequenceNumber).findFirst().orElse(-1L);
         }
 
         public List<RetentionLease> peerRecoveryRetentionLeases() {

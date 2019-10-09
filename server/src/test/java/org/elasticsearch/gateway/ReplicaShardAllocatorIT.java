@@ -244,7 +244,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 final IndexService indexService = indicesService.indexService(index);
                 if (indexService != null) {
                     for (IndexShard shard : indexService) {
-                        assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(shard.getLocalCheckpoint()));
+                        assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
                         for (RetentionLease lease : shard.getPeerRecoveryRetentionLeases()) {
                             assertThat(lease.retainingSequenceNumber(), equalTo(shard.getLastSyncedGlobalCheckpoint() + 1));
                         }

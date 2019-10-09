@@ -165,9 +165,10 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
 
     public void testPreferCopyWithHighestMatchingOperations() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
-        long retainingSeqNoOnPrimary = randomLongBetween(1, Long.MAX_VALUE);
+        long retainingSeqNoOnPrimary = randomLongBetween(1, Integer.MAX_VALUE);
         long retainingSeqNoForNode2 = randomLongBetween(0, retainingSeqNoOnPrimary - 1);
-        long retainingSeqNoForNode3 = randomLongBetween(retainingSeqNoForNode2 + 1, retainingSeqNoOnPrimary);
+        // Rarely use a seqNo above retainingSeqNoOnPrimary, which could in theory happen when primary fails and comes back quickly.
+        long retainingSeqNoForNode3 = randomLongBetween(retainingSeqNoForNode2 + 1, retainingSeqNoOnPrimary + 100);
         List<RetentionLease> retentionLeases = Arrays.asList(newRetentionLease(node1, retainingSeqNoOnPrimary),
             newRetentionLease(node2, retainingSeqNoForNode2), newRetentionLease(node3, retainingSeqNoForNode3));
         testAllocator.addData(node1, retentionLeases, "MATCH",
@@ -180,7 +181,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             equalTo(node3.getId()));
     }
 
-    public void testCancelRecoveryIfFoundCopyWithRetentionLease() {
+    public void testCancelRecoveryIfFoundCopyWithNoopRetentionLease() {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
         long retainingSeqNo = randomLongBetween(1, Long.MAX_VALUE);
         testAllocator.addData(node1, Arrays.asList(newRetentionLease(node1, retainingSeqNo), newRetentionLease(node3, retainingSeqNo)),

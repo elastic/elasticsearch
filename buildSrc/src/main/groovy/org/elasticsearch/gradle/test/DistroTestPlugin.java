@@ -62,12 +62,26 @@ import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.gradle.tool.DockerUtils.getDockerAvailability;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 public class DistroTestPlugin implements Plugin<Project> {
     private final Logger logger = Logging.getLogger(getClass());
+
+    /**
+     * The Docker distribution is tested on all OS platforms, apart
+     * from those listed here.
+     */
+    private static final List<String> DOCKER_EXCLUDE_LIST = List.of(
+        "centos-6",
+        "debian-8",
+        "oel-6",
+        "oel-7",
+        "opensuse-42",
+        "sles-12",
+        "windows-2012r2",
+        "windows-2016"
+    );
 
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
     private static final String SYSTEM_JDK_VENDOR = "openjdk";
@@ -124,6 +138,10 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
             for (ElasticsearchDistribution distribution : distributions) {
+                if (distribution.getType() == Type.DOCKER && DOCKER_EXCLUDE_LIST.contains(vmProject.getName())) {
+                    continue;
+                }
+
                 String destructiveTaskName = destructiveDistroTestTaskName(distribution);
                 Platform platform = distribution.getPlatform();
                 // this condition ensures windows boxes get windows distributions, and linux boxes get linux distributions
@@ -323,21 +341,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        boolean shouldAddDocker = false;
-
-        try {
-            final String buildDockerProperty = System.getProperty("build.docker");
-            shouldAddDocker = (buildDockerProperty == null || "true".equals(buildDockerProperty))
-                && getDockerAvailability().isAvailable;
-        } catch (Exception e) {
-            logger.warn("Caught exception while checking for Docker", e);
-        }
-
-        final List<Type> applicablePackageTypes = shouldAddDocker
-            ? List.of(Type.DEB, Type.RPM, Type.DOCKER)
-            : List.of(Type.DEB, Type.RPM);
-
-        for (Type type : applicablePackageTypes) {
+        for (Type type : List.of(Type.DEB, Type.RPM, Type.DOCKER)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     // We should never add a Docker distro with bundledJdk == false

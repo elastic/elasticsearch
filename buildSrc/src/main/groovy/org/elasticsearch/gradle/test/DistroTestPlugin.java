@@ -39,6 +39,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.Directory;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
@@ -46,6 +47,7 @@ import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskInputs;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
+import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -60,11 +62,12 @@ import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.gradle.DockerUtils.getDockerAvailability;
+import static org.elasticsearch.gradle.tool.DockerUtils.getDockerAvailability;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 public class DistroTestPlugin implements Plugin<Project> {
+    private final Logger logger = Logging.getLogger(getClass());
 
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
     private static final String SYSTEM_JDK_VENDOR = "openjdk";
@@ -320,9 +323,15 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        final String buildDockerProperty = System.getProperty("build.docker");
-        final boolean shouldAddDocker = (buildDockerProperty == null || "true".equals(buildDockerProperty))
-            && getDockerAvailability().isAvailable();
+        boolean shouldAddDocker = false;
+
+        try {
+            final String buildDockerProperty = System.getProperty("build.docker");
+            shouldAddDocker = (buildDockerProperty == null || "true".equals(buildDockerProperty))
+                && getDockerAvailability().isAvailable;
+        } catch (Exception e) {
+            logger.warn("Caught exception while checking for Docker", e);
+        }
 
         final List<Type> applicablePackageTypes = shouldAddDocker
             ? List.of(Type.DEB, Type.RPM, Type.DOCKER)

@@ -83,11 +83,10 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
-import static DockerUtils.DOCKER_BINARIES
-import static DockerUtils.getDockerAvailability
-import static DockerUtils.getDockerPath
 import static org.elasticsearch.gradle.tool.Boilerplate.findByName
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
+import static org.elasticsearch.gradle.tool.DockerUtils.assertDockerIsAvailable
+import static org.elasticsearch.gradle.tool.DockerUtils.getDockerPath
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -211,59 +210,12 @@ class BuildPlugin implements Plugin<Project> {
                 final List<String> tasks = taskGraph.allTasks.intersect(ext.get('requiresDocker') as List<Task>).collect { "  ${it.path}".toString()}
 
                 if (tasks.isEmpty() == false) {
-                    final DockerUtils.DockerAvailability dockerAvailability = getDockerAvailability()
-
-                    if (dockerAvailability.isAvailable() == true) {
-                        return
-                    }
-
-                    /*
-                     * There are tasks in the task graph that require Docker.
-                     * Now we are failing because either the Docker binary does
-                     * not exist or because execution of a privileged Docker
-                     * command failed.
-                     */
-                    if (dockerAvailability.getPath() == null) {
-                        final String message = String.format(
-                                Locale.ROOT,
-                                "Docker (checked [%s]) is required to run the following task%s: \n%s",
-                                DOCKER_BINARIES.join(","),
-                                tasks.size() > 1 ? "s" : "",
-                                tasks.join('\n'))
-                        throwDockerRequiredException(message)
-                    }
-
-                    if (dockerAvailability.isVersionHighEnough() == false) {
-                        final String message = String.format(
-                                Locale.ROOT,
-                                "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
-                                dockerAvailability.getVersion())
-                        throwDockerRequiredException(message)
-                    }
-
-                    // Some other problem, print the error
-                    final String message = String.format(
-                            Locale.ROOT,
-                            "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n" +
-                                    "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
-                            dockerBinary,
-                            tasks.size() > 1 ? "s" : "",
-                            tasks.join('\n'),
-                            dockerAvailability.getLastCommand().exitCode,
-                            dockerAvailability.getLastCommand().stderr.trim())
-                    throwDockerRequiredException(message)
+                    assertDockerIsAvailable(tasks)
                 }
             }
         }
 
         (ext.get('requiresDocker') as List<Task>).add(task)
-    }
-
-    private static void throwDockerRequiredException(final String message) {
-        throw new GradleException(
-                message + "\nyou can address this by attending to the reported issue, "
-                        + "removing the offending tasks from being executed, "
-                        + "or by passing -Dbuild.docker=false")
     }
 
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */

@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -76,7 +77,7 @@ public class DatePart extends BinaryDateTimeFunction {
     }
 
     public DatePart(Source source, Expression truncateTo, Expression timestamp, ZoneId zoneId) {
-        super(source, truncateTo, timestamp, zoneId, BinaryDateTimeProcessor.BinaryDateOperation.PART);
+        super(source, truncateTo, timestamp, zoneId);
     }
 
     @Override
@@ -100,16 +101,6 @@ public class DatePart extends BinaryDateTimeFunction {
     }
 
     @Override
-    protected boolean resolveDateTimeField(String dateTimeField) {
-        return Part.resolve(dateTimeField) != null;
-    }
-
-    @Override
-    protected List<String> findSimilarDateTimeFields(String dateTimeField) {
-        return Part.findSimilar(dateTimeField);
-    }
-
-    @Override
     protected String scriptMethodName() {
         return "datePart";
     }
@@ -117,6 +108,21 @@ public class DatePart extends BinaryDateTimeFunction {
     @Override
     public Object fold() {
         return DatePartProcessor.process(left().fold(), right().fold(), zoneId());
+    }
+
+    @Override
+    protected Pipe createPipe(Pipe left, Pipe right, ZoneId zoneId) {
+        return new DatePartPipe(source(), this, left, right, zoneId);
+    }
+
+    @Override
+    protected boolean resolveDateTimeField(String dateTimeField) {
+        return Part.resolve(dateTimeField) != null;
+    }
+
+    @Override
+    protected List<String> findSimilarDateTimeFields(String dateTimeField) {
+        return Part.findSimilar(dateTimeField);
     }
 
     @Override

@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -84,6 +85,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  */
 public class Netty4Transport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(Netty4Transport.class);
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
@@ -220,6 +223,8 @@ public class Netty4Transport extends TcpTransport {
         // channels of type CopyBytesSocketChannel. CopyBytesSocketChannel pool a single direct buffer
         // per-event-loop thread to be used for IO operations.
         if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
+            deprecationLogger.deprecated("Using pooled direct Netty buffers is deprecated and may destabilize your cluster. " +
+                "Add `-Dio.netty.allocator.numDirectArenas=0` to your jvm.options to disable pooled direct buffers.");
             serverBootstrap.channel(NioServerSocketChannel.class);
         } else {
             serverBootstrap.channel(CopyBytesServerSocketChannel.class);

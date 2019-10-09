@@ -56,7 +56,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -125,7 +125,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -210,7 +210,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -308,7 +308,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -415,7 +415,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -522,7 +522,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -583,7 +583,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -610,7 +610,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -657,7 +657,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -706,7 +706,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -786,7 +786,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -909,7 +909,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -1040,7 +1040,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -1162,7 +1162,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
 
         logger.info("Starting policy run");
@@ -1258,7 +1258,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         String createdEnrichIndex = ".enrich-test1-" + createTime;
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<EnrichPolicyExecutionTask.Status> listener = createTestListener(latch, exception::set);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
         Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
@@ -1272,7 +1272,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
             @Override
             public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return new EnrichPolicyExecutionTask(id, type, action, getDescription(), parentTaskId, headers);
+                return new ExecuteEnrichPolicyTask(id, type, action, getDescription(), parentTaskId, headers);
             }
 
             @Override
@@ -1280,13 +1280,13 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 return policyName;
             }
         });
-        EnrichPolicyExecutionTask task = ((EnrichPolicyExecutionTask) asyncTask);
+        ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
         // The executor would wrap the listener in order to clean up the task in the
         // task manager, but we're just testing the runner, so we make sure to clean
         // up after ourselves.
-        ActionListener<EnrichPolicyExecutionTask.Status> wrappedListener = new ActionListener<>() {
+        ActionListener<ExecuteEnrichPolicyStatus> wrappedListener = new ActionListener<>() {
             @Override
-            public void onResponse(EnrichPolicyExecutionTask.Status policyExecutionResult) {
+            public void onResponse(ExecuteEnrichPolicyStatus policyExecutionResult) {
                 testTaskManager.unregister(task);
                 listener.onResponse(policyExecutionResult);
             }
@@ -1378,7 +1378,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     private EnrichPolicyRunner createPolicyRunner(String policyName, EnrichPolicy policy,
-                                                  ActionListener<EnrichPolicyExecutionTask.Status> listener, Long createTime) {
+                                                  ActionListener<ExecuteEnrichPolicyStatus> listener, Long createTime) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
         Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
@@ -1392,7 +1392,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
             @Override
             public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return new EnrichPolicyExecutionTask(id, type, action, getDescription(), parentTaskId, headers);
+                return new ExecuteEnrichPolicyTask(id, type, action, getDescription(), parentTaskId, headers);
             }
 
             @Override
@@ -1400,13 +1400,13 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 return policyName;
             }
         });
-        EnrichPolicyExecutionTask task = ((EnrichPolicyExecutionTask) asyncTask);
+        ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
         // The executor would wrap the listener in order to clean up the task in the
         // task manager, but we're just testing the runner, so we make sure to clean
         // up after ourselves.
-        ActionListener<EnrichPolicyExecutionTask.Status> wrappedListener = new ActionListener<>() {
+        ActionListener<ExecuteEnrichPolicyStatus> wrappedListener = new ActionListener<>() {
             @Override
-            public void onResponse(EnrichPolicyExecutionTask.Status policyExecutionResult) {
+            public void onResponse(ExecuteEnrichPolicyStatus policyExecutionResult) {
                 testTaskManager.unregister(task);
                 listener.onResponse(policyExecutionResult);
             }
@@ -1421,7 +1421,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             randomIntBetween(1, 10000), randomIntBetween(1, 10));
     }
 
-    private ActionListener<EnrichPolicyExecutionTask.Status> createTestListener(final CountDownLatch latch,
+    private ActionListener<ExecuteEnrichPolicyStatus> createTestListener(final CountDownLatch latch,
                                                                      final Consumer<Exception> exceptionConsumer) {
         return new LatchedActionListener<>(ActionListener.wrap((r) -> logger.info("Run complete"), exceptionConsumer), latch);
     }

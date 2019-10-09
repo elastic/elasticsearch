@@ -24,8 +24,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -35,9 +35,9 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
     private static ThreadPool testThreadPool;
     private static TaskManager testTaskManager;
-    private static final ActionListener<EnrichPolicyExecutionTask.Status> noOpListener = new ActionListener<>() {
+    private static final ActionListener<ExecuteEnrichPolicyStatus> noOpListener = new ActionListener<>() {
         @Override
-        public void onResponse(EnrichPolicyExecutionTask.Status ignored) { }
+        public void onResponse(ExecuteEnrichPolicyStatus ignored) { }
 
         @Override
         public void onFailure(Exception e) { }
@@ -59,11 +59,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
      */
     private static class BlockingTestPolicyRunner implements Runnable {
         private final CountDownLatch latch;
-        private final EnrichPolicyExecutionTask task;
-        private final ActionListener<EnrichPolicyExecutionTask.Status> listener;
+        private final ExecuteEnrichPolicyTask task;
+        private final ActionListener<ExecuteEnrichPolicyStatus> listener;
 
-        BlockingTestPolicyRunner(CountDownLatch latch, EnrichPolicyExecutionTask task,
-                                 ActionListener<EnrichPolicyExecutionTask.Status> listener) {
+        BlockingTestPolicyRunner(CountDownLatch latch, ExecuteEnrichPolicyTask task,
+                                 ActionListener<ExecuteEnrichPolicyStatus> listener) {
             this.latch = latch;
             this.task = task;
             this.listener = listener;
@@ -72,10 +72,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         @Override
         public void run() {
             try {
-                task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.RUNNING));
+                task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.RUNNING));
                 latch.await();
-                task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.COMPLETE));
-                listener.onResponse(task.getStatus());
+                ExecuteEnrichPolicyStatus newStatus = new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE);
+                task.setStatus(newStatus);
+                listener.onResponse(newStatus);
             } catch (InterruptedException e) {
                 throw new RuntimeException("Interrupted waiting for test framework to continue the test", e);
             }
@@ -96,7 +97,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         }
 
         private CountDownLatch currentLatch;
-        CountDownLatch testRunPolicy(String policyName, EnrichPolicy policy, ActionListener<EnrichPolicyExecutionTask.Status> listener) {
+        CountDownLatch testRunPolicy(String policyName, EnrichPolicy policy, ActionListener<ExecuteEnrichPolicyStatus> listener) {
             currentLatch = new CountDownLatch(1);
             ExecuteEnrichPolicyAction.Request request = new ExecuteEnrichPolicyAction.Request(policyName);
             runPolicy(request, policy, listener);
@@ -104,8 +105,8 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         }
 
         @Override
-        protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, EnrichPolicyExecutionTask task,
-                                              ActionListener<EnrichPolicyExecutionTask.Status> listener) {
+        protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, ExecuteEnrichPolicyTask task,
+                                              ActionListener<ExecuteEnrichPolicyStatus> listener) {
             if (currentLatch == null) {
                 throw new IllegalStateException("Use the testRunPolicy method on this test instance");
             }

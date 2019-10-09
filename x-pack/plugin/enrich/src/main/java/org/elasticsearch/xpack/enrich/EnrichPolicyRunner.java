@@ -48,7 +48,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -71,8 +71,8 @@ public class EnrichPolicyRunner implements Runnable {
 
     private final String policyName;
     private final EnrichPolicy policy;
-    private final EnrichPolicyExecutionTask task;
-    private final ActionListener<EnrichPolicyExecutionTask.Status> listener;
+    private final ExecuteEnrichPolicyTask task;
+    private final ActionListener<ExecuteEnrichPolicyStatus> listener;
     private final ClusterService clusterService;
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -80,8 +80,8 @@ public class EnrichPolicyRunner implements Runnable {
     private final int fetchSize;
     private final int maxForceMergeAttempts;
 
-    EnrichPolicyRunner(String policyName, EnrichPolicy policy, EnrichPolicyExecutionTask task,
-                       ActionListener<EnrichPolicyExecutionTask.Status> listener, ClusterService clusterService, Client client,
+    EnrichPolicyRunner(String policyName, EnrichPolicy policy, ExecuteEnrichPolicyTask task,
+                       ActionListener<ExecuteEnrichPolicyStatus> listener, ClusterService clusterService, Client client,
                        IndexNameExpressionResolver indexNameExpressionResolver, LongSupplier nowSupplier, int fetchSize,
                        int maxForceMergeAttempts) {
         this.policyName = policyName;
@@ -99,7 +99,7 @@ public class EnrichPolicyRunner implements Runnable {
     @Override
     public void run() {
         logger.info("Policy [{}]: Running enrich policy", policyName);
-        task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.RUNNING));
+        task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.RUNNING));
         // Collect the source index information
         final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
         logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
@@ -455,8 +455,9 @@ public class EnrichPolicyRunner implements Runnable {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info("Policy [{}]: Policy execution complete", policyName);
-                task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.COMPLETE));
-                listener.onResponse(task.getStatus());
+                ExecuteEnrichPolicyStatus completeStatus = new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE);
+                task.setStatus(completeStatus);
+                listener.onResponse(completeStatus);
             }
 
             @Override

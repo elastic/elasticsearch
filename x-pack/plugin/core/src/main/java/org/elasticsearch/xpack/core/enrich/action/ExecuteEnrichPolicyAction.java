@@ -78,9 +78,9 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final TaskId taskId;
-        private final EnrichPolicyExecutionTask.Status status;
+        private final ExecuteEnrichPolicyStatus status;
 
-        public Response(EnrichPolicyExecutionTask.Status status) {
+        public Response(ExecuteEnrichPolicyStatus status) {
             this.taskId = null;
             this.status = status;
         }
@@ -94,14 +94,14 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
             return taskId;
         }
 
-        public EnrichPolicyExecutionTask.Status getStatus() {
+        public ExecuteEnrichPolicyStatus getStatus() {
             return status;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.readBoolean()) {
-                this.status = new EnrichPolicyExecutionTask.Status(in);
+                this.status = new ExecuteEnrichPolicyStatus(in);
                 this.taskId = null;
             } else {
                 this.taskId = TaskId.readFromStream(in);

@@ -24,8 +24,8 @@ import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 
 public class EnrichPolicyExecutor {
 
@@ -80,14 +80,14 @@ public class EnrichPolicyExecutor {
         }
     }
 
-    private class PolicyCompletionListener implements ActionListener<EnrichPolicyExecutionTask.Status> {
+    private class PolicyCompletionListener implements ActionListener<ExecuteEnrichPolicyStatus> {
         private final String policyName;
-        private final EnrichPolicyExecutionTask task;
-        private final BiConsumer<Task, EnrichPolicyExecutionTask.Status> onResponse;
+        private final ExecuteEnrichPolicyTask task;
+        private final BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse;
         private final BiConsumer<Task, Exception> onFailure;
 
-        PolicyCompletionListener(String policyName, EnrichPolicyExecutionTask task,
-                                 BiConsumer<Task, EnrichPolicyExecutionTask.Status> onResponse, BiConsumer<Task, Exception> onFailure) {
+        PolicyCompletionListener(String policyName, ExecuteEnrichPolicyTask task,
+                                 BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse, BiConsumer<Task, Exception> onFailure) {
             this.policyName = policyName;
             this.task = task;
             this.onResponse = onResponse;
@@ -95,8 +95,8 @@ public class EnrichPolicyExecutor {
         }
 
         @Override
-        public void onResponse(EnrichPolicyExecutionTask.Status status) {
-            assert EnrichPolicyExecutionTask.PolicyPhases.COMPLETE.equals(status.getPhase()) : "incomplete task returned";
+        public void onResponse(ExecuteEnrichPolicyStatus status) {
+            assert ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE.equals(status.getPhase()) : "incomplete task returned";
             releasePolicy(policyName);
             try {
                 taskManager.unregister(task);
@@ -108,7 +108,7 @@ public class EnrichPolicyExecutor {
         @Override
         public void onFailure(Exception e) {
             // Set task status to failed to avoid having to catch and rethrow exceptions everywhere
-            task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.FAILED));
+            task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.FAILED));
             releasePolicy(policyName);
             try {
                 taskManager.unregister(task);
@@ -118,8 +118,8 @@ public class EnrichPolicyExecutor {
         }
     }
 
-    protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, EnrichPolicyExecutionTask task,
-                                          ActionListener<EnrichPolicyExecutionTask.Status> listener) {
+    protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, ExecuteEnrichPolicyTask task,
+                                          ActionListener<ExecuteEnrichPolicyStatus> listener) {
         return new EnrichPolicyRunner(policyName, policy, task, listener, clusterService, client, indexNameExpressionResolver, nowSupplier,
             fetchSize, maxForceMergeAttempts);
     }
@@ -133,26 +133,26 @@ public class EnrichPolicyExecutor {
         return policy;
     }
 
-    public void runPolicy(ExecuteEnrichPolicyAction.Request request, ActionListener<EnrichPolicyExecutionTask.Status> listener) {
+    public void runPolicy(ExecuteEnrichPolicyAction.Request request, ActionListener<ExecuteEnrichPolicyStatus> listener) {
         runPolicy(request, getPolicy(request), listener);
     }
 
-    public void runPolicy(ExecuteEnrichPolicyAction.Request request, TaskListener<EnrichPolicyExecutionTask.Status> listener) {
+    public void runPolicy(ExecuteEnrichPolicyAction.Request request, TaskListener<ExecuteEnrichPolicyStatus> listener) {
         runPolicy(request, getPolicy(request), listener);
     }
 
     public Task runPolicy(ExecuteEnrichPolicyAction.Request request, EnrichPolicy policy,
-                          ActionListener<EnrichPolicyExecutionTask.Status> listener) {
+                          ActionListener<ExecuteEnrichPolicyStatus> listener) {
         return runPolicy(request, policy, (t, r) -> listener.onResponse(r), (t, e) -> listener.onFailure(e));
     }
 
     public Task runPolicy(ExecuteEnrichPolicyAction.Request request, EnrichPolicy policy,
-                          TaskListener<EnrichPolicyExecutionTask.Status> listener) {
+                          TaskListener<ExecuteEnrichPolicyStatus> listener) {
         return runPolicy(request, policy, listener::onResponse, listener::onFailure);
     }
 
     private Task runPolicy(ExecuteEnrichPolicyAction.Request request, EnrichPolicy policy,
-                           BiConsumer<Task, EnrichPolicyExecutionTask.Status> onResponse, BiConsumer<Task, Exception> onFailure) {
+                           BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse, BiConsumer<Task, Exception> onFailure) {
         tryLockingPolicy(request.getName());
         try {
             return runPolicyTask(request, policy, onResponse, onFailure);
@@ -164,7 +164,7 @@ public class EnrichPolicyExecutor {
     }
 
     private Task runPolicyTask(final ExecuteEnrichPolicyAction.Request request, EnrichPolicy policy,
-                               BiConsumer<Task, EnrichPolicyExecutionTask.Status> onResponse, BiConsumer<Task, Exception> onFailure) {
+                               BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse, BiConsumer<Task, Exception> onFailure) {
         Task asyncTask = taskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
             @Override
             public void setParentTask(TaskId taskId) {
@@ -178,7 +178,7 @@ public class EnrichPolicyExecutor {
 
             @Override
             public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return new EnrichPolicyExecutionTask(id, type, action, getDescription(), parentTaskId, headers);
+                return new ExecuteEnrichPolicyTask(id, type, action, getDescription(), parentTaskId, headers);
             }
 
             @Override
@@ -186,16 +186,16 @@ public class EnrichPolicyExecutor {
                 return request.getName();
             }
         });
-        EnrichPolicyExecutionTask task = (EnrichPolicyExecutionTask) asyncTask;
+        ExecuteEnrichPolicyTask task = (ExecuteEnrichPolicyTask) asyncTask;
         try {
-            task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.SCHEDULED));
+            task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));
             PolicyCompletionListener completionListener = new PolicyCompletionListener(request.getName(), task, onResponse, onFailure);
             Runnable runnable = createPolicyRunner(request.getName(), policy, task, completionListener);
             threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
             return asyncTask;
         } catch (Exception e) {
             // Unregister task in case of exception
-            task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.FAILED));
+            task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.FAILED));
             taskManager.unregister(asyncTask);
             throw e;
         }

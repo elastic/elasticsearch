@@ -20,8 +20,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 
@@ -62,7 +62,7 @@ public class TransportExecuteEnrichPolicyAction
                                    ActionListener<ExecuteEnrichPolicyAction.Response> listener) {
         executor.runPolicy(request, new ActionListener<>() {
             @Override
-            public void onResponse(EnrichPolicyExecutionTask.Status executionStatus) {
+            public void onResponse(ExecuteEnrichPolicyStatus executionStatus) {
                 listener.onResponse(new ExecuteEnrichPolicyAction.Response(executionStatus));
             }
 

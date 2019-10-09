@@ -105,7 +105,7 @@ public class PackageTests extends PackagingTestCase {
             Files.write(installation.envFile, originalEnvFile);
         }
 
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "elasticsearch*.log.gz"),
             containsString(systemJavaHome));
     }
 

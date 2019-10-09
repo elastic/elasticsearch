@@ -126,7 +126,7 @@ public class ArchiveTests extends PackagingTestCase {
         Archives.stopElasticsearch(installation, sh);
 
         String systemJavaHome = sh.getEnv().get("JAVA_HOME");
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "elasticsearch*.log.gz"),
             containsString(systemJavaHome));
     }
 

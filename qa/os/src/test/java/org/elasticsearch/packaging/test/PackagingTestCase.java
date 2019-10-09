@@ -32,6 +32,7 @@ import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -43,6 +44,7 @@ import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
@@ -116,9 +118,23 @@ public abstract class PackagingTestCase extends Assert {
         assumeFalse(failed); // skip rest of tests once one fails
 
         sh = newShell();
+    }
 
-        if (installation != null && Files.exists(installation.logs.resolve("elasticsearch.log"))) {
-            FileUtils.rm(installation.logs.resolve("elasticsearch.log"));
+    @After
+    public void teardown() throws Exception {
+        // move log file so we can avoid false positives when grepping for
+        // messages in logs during test
+        if (installation != null && Files.exists(installation.logs)) {
+            Path logFile = installation.logs.resolve("elasticsearch.log");
+            String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
+            if (Files.exists(logFile)) {
+                Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
+                FileUtils.mv(logFile, newFile);
+            }
+            for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
+                Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());
+                FileUtils.mv(rotatedLogFile, newRotatedLogFile);
+            }
         }
     }
 

@@ -6,6 +6,12 @@
 
 Retrieves the specified JSON document from an index.
 
+[source,console]
+--------------------------------------------------
+GET twitter/_doc/0
+--------------------------------------------------
+// TEST[setup:twitter]
+
 [[docs-get-api-request]]
 ==== {api-request-title}
 
@@ -150,32 +156,21 @@ deleted documents in the background as you continue to index more data.
 [[docs-get-api-query-params]]
 ==== {api-query-parms-title}
 
-`preference`::
-(Optional, string) Specify the node or shard the operation should
-be performed on (default: random).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
 
-`realtime`::
-(Optional, boolean) Set to `false` to disable real time GET
-(default: `true`). See <<realtime>>.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
 
-`stored_fields`::
-(Optional, boolean) Set to `true` to retrieve the document fields stored in the
-index rather than the document `_source` (default: `false`).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=stored_fields]
 
-`_source`::
-(Optional, list) Set to `false` to disable source retrieval (default: `true`).
- You can also specify a comma-separated list of the fields
-you want to retrieve.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
 
-`_source_excludes`::
-(Optional, list) Specify the source fields you want to exclude.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-`_source_includes`::
-(Optional, list) Specify the source fields you want to retrieve.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
 

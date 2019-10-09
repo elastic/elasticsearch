@@ -1073,6 +1073,11 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
+    public static Setting<String> simpleString(String key, String defaultValue, Validator<String> validator, Property... properties) {
+        validator.validate(defaultValue);
+        return new Setting<>(new SimpleKey(key), null, s -> defaultValue, Function.identity(), validator, properties);
+    }
+
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
         return simpleString(key, fallback, Function.identity(), properties);
     }

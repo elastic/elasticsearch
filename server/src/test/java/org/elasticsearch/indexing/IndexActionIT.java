@@ -58,7 +58,7 @@ public class IndexActionIT extends ESIntegTestCase {
             logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
-                builders.add(client().prepareIndex("test", "type").setSource("field", "value_" + j));
+                builders.add(client().prepareIndex("test").setSource("field", "value_" + j));
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
@@ -203,7 +203,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT), "mytype").setSource("foo", "bar").get();
+            client().prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT)).setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),
@@ -213,8 +213,7 @@ public class IndexActionIT extends ESIntegTestCase {
         try {
             // Catch chars that are more than a single byte
             client().prepareIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
-                            "Ϟ".toLowerCase(Locale.ROOT),
-                    "mytype").setSource("foo", "bar").get();
+                            "Ϟ".toLowerCase(Locale.ROOT)).setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),

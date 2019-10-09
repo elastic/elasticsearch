@@ -400,8 +400,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public IndexRequestBuilder prepareIndex(String index, String type) {
-        return prepareIndex(index, type, null);
+    public IndexRequestBuilder prepareIndex(String index) {
+        return prepareIndex(index, null, null);
     }
 
     @Override

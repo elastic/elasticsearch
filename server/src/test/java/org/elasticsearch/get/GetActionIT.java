@@ -712,7 +712,7 @@ public class GetActionIT extends ESIntegTestCase {
         String doc = "{\n" +
             "  \"text\": \"some text.\"\n" +
             "}\n";
-        client().prepareIndex("test", "_doc").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
+        client().prepareIndex("test").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
         String[] fieldsList = {"_routing"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "1", fieldsList, "1");

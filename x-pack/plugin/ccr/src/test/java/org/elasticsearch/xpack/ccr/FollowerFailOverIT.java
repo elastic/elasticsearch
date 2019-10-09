@@ -139,7 +139,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                     throw new AssertionError(e);
                 }
                 final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
-                IndexResponse indexResp = leaderClient().prepareIndex("index1", "doc")
+                IndexResponse indexResp = leaderClient().prepareIndex("index1")
                     .setSource(source, XContentType.JSON)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .get();

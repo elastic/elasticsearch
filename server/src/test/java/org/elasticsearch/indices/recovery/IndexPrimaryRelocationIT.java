@@ -61,7 +61,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
                     assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     DeleteResponse deleteResponse = client().prepareDelete("test", "type", "id").get();
                     assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-                    client().prepareIndex("test", "type").setSource("auto", true).get();
+                    client().prepareIndex("test").setSource("auto", true).get();
                     numAutoGenDocs.incrementAndGet();
                 }
             }

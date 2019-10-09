@@ -129,6 +129,26 @@ public interface Client extends ElasticsearchClient, Releasable {
     IndexRequestBuilder prepareIndex();
 
     /**
+     * Index a document associated with a given index.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
+     *
+     * @param index The index to index the document to
+     */
+    IndexRequestBuilder prepareIndex(String index);
+
+    /**
+     * Index a document associated with a given index and type.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
+     *
+     * @param index The index to index the document to
+     * @param type  The type to index the document to
+     * @param id    The id of the document
+     */
+    IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id);
+
+    /**
      * Updates a document based on a script.
      *
      * @param request The update request
@@ -153,27 +173,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Updates a document based on a script.
      */
     UpdateRequestBuilder prepareUpdate(String index, String type, String id);
-
-    /**
-     * Index a document associated with a given index and type.
-     * <p>
-     * The id is optional, if it is not provided, one will be generated automatically.
-     *
-     * @param index The index to index the document to
-     * @param type  The type to index the document to
-     */
-    IndexRequestBuilder prepareIndex(String index, String type);
-
-    /**
-     * Index a document associated with a given index and type.
-     * <p>
-     * The id is optional, if it is not provided, one will be generated automatically.
-     *
-     * @param index The index to index the document to
-     * @param type  The type to index the document to
-     * @param id    The id of the document
-     */
-    IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id);
 
     /**
      * Deletes a document from the index based on the index, type and id.

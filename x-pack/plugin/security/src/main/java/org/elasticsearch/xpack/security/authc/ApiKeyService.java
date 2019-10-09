@@ -243,7 +243,7 @@ public class ApiKeyService {
         try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication, roleDescriptorSet, created, expiration,
             request.getRoleDescriptors(), version)) {
             final IndexRequest indexRequest =
-                client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME)
+                client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setSource(builder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();

@@ -133,7 +133,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
             assertThrowsAuthorizationException(() -> client.prepareSearch(indexToTest).get(), "indices:data/read/search", "snapshot_user");
             assertThrowsAuthorizationException(() -> client.prepareGet(indexToTest, "1").get(), "indices:data/read/get",
                     "snapshot_user");
-            assertThrowsAuthorizationException(() -> client.prepareIndex(indexToTest, "doc").setSource("term", "val").get(),
+            assertThrowsAuthorizationException(() -> client.prepareIndex(indexToTest).setSource("term", "val").get(),
                     "indices:data/write/index", "snapshot_user");
             assertThrowsAuthorizationException(() -> client.prepareUpdate(indexToTest, "doc", "1").setDoc("term", "val").get(),
                     "indices:data/write/update", "snapshot_user");

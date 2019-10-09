@@ -192,7 +192,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     public void testDynamicMappingOnEmptyString() throws Exception {
         IndexService service = createIndex("test");
-        client().prepareIndex("test", "type").setSource("empty_field", "").get();
+        client().prepareIndex("test").setSource("empty_field", "").get();
         MappedFieldType fieldType = service.mapperService().fullName("empty_field");
         assertNotNull(fieldType);
     }

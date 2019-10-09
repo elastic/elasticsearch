@@ -1095,7 +1095,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * </pre>
      */
     protected final IndexResponse index(String index, String type, XContentBuilder source) {
-        return client().prepareIndex(index, type).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
     /**

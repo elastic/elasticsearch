@@ -155,7 +155,3 @@ more information, see
 
 . Optional: 
 <<config-monitoring-indices,Configure the indices that store the monitoring data>>. 
-
-include::indices.asciidoc[]
-include::tribe.asciidoc[]
-include::{es-repo-dir}/settings/monitoring-settings.asciidoc[]

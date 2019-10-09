@@ -160,7 +160,7 @@ xpack.monitoring.elasticsearch.password: beatspassword
 For example, see {metricbeat-ref}/monitoring.html[Monitoring {metricbeat}]. 
 
 The `remote_monitoring_user` is used when {metricbeat} collects and stores 
-monitoring data for the {stack}. See <<monitoring-production>>. 
+monitoring data for the {stack}.
 
 If you have upgraded from an older version of {es}, then you may not have set a
 password for the `beats_system` or `remote_monitoring_user` users. If this is 

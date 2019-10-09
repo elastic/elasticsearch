@@ -117,8 +117,7 @@ Configures where the agent stores monitoring data. By default, the agent uses a
 local exporter that indexes monitoring data on the cluster where it is installed.
 Use an HTTP exporter to send data to a separate monitoring cluster. For more
 information, see <<local-exporter-settings,Local exporter settings>>,
-<<http-exporter-settings,HTTP exporter settings>>, and
-<<how-monitoring-works>>.
+<<http-exporter-settings,HTTP exporter settings>>.
 
 [float]
 [[local-exporter-settings]]

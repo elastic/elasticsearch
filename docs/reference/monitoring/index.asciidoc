@@ -9,27 +9,16 @@ The {stack} {monitor-features} provide a way to keep a pulse on the health and
 performance of your {es} cluster.
 
 * <<monitoring-overview>>
-* <<how-monitoring-works>>
-* <<monitoring-production>>
 * <<configuring-metricbeat>>
 * <<configuring-filebeat>>
-* <<config-monitoring-indices>>
-* <<es-monitoring-collectors>>
-* <<es-monitoring-exporters>>
 * <<monitoring-troubleshooting>>
 
 --
 
 include::overview.asciidoc[]
 
-include::how-monitoring-works.asciidoc[]
-
-include::production.asciidoc[]
-
 include::configuring-metricbeat.asciidoc[]
 
 include::configuring-filebeat.asciidoc[]
-
-include::indices.asciidoc[]
 
 include::troubleshooting.asciidoc[]

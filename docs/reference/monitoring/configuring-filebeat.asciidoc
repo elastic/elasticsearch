@@ -22,8 +22,7 @@ TIP: In production environments, we strongly recommend using a separate cluster
 (referred to as the _monitoring cluster_) to store the data. Using a separate 
 monitoring cluster prevents production cluster outages from impacting your 
 ability to access your monitoring data. It also prevents monitoring activities 
-from impacting the performance of your production cluster. See
-<<monitoring-production>>.
+from impacting the performance of your production cluster.
 
 --
 

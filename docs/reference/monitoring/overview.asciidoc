@@ -5,9 +5,10 @@
 <titleabbrev>Overview</titleabbrev>
 ++++
 
-When you monitor a cluster, you collect data from the {es} nodes, {ls} nodes,
-{kib} instances, and Beats in your cluster. You can also
-<<configuring-filebeat,use {filebeat} to collect {es} logs>>.
+When you monitor a cluster, data is collected from the {es} nodes, {ls} nodes,
+{kib} instances, and {beats} in your cluster by monitoring agents .
+
+You can also <<configuring-filebeat,use {filebeat} to collect {es} logs>>.
 
 All of the monitoring metrics are stored in {es}, which enables you to easily
 visualize the data from {kib}. By default, the monitoring metrics are stored in

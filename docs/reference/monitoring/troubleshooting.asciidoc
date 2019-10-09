@@ -24,6 +24,5 @@ example, use the <<cat-indices,cat indices>> command to verify that
 there is a `.monitoring-kibana*` index for your {kib} monitoring data and a
 `.monitoring-es*` index for your {es} monitoring data. If you are collecting
 monitoring data by using {metricbeat} the indices have `-mb` in their names. If
-the indices do not exist, review your configuration. For example, see
-<<monitoring-production>>.
+the indices do not exist, review your configuration.
 

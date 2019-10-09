@@ -915,7 +915,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(DataType.INTEGER, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
-                    + "\"fixed_interval\":\"31536000000ms\",\"time_zone\":\"Z\"}}}]}}}"));
+                    + "\"calendar_interval\":\"1y\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
     public void testGroupByHistogramWithDate() {
@@ -940,7 +940,7 @@ public class QueryTranslatorTests extends ESTestCase {
         EsQueryExec eqe = (EsQueryExec) p;
         assertEquals(1, eqe.queryContainer().aggs().groups().size());
         assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
-        assertEquals(86400000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+        assertEquals(86400000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).fixedInterval());
     }
 
     public void testGroupByHistogramWithDateTruncateIntervalToDayMultiples() {
@@ -951,7 +951,7 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.queryContainer().aggs().groups().size());
             assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
-            assertEquals(172800000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+            assertEquals(172800000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).fixedInterval());
         }
         {
             PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
@@ -960,7 +960,7 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.queryContainer().aggs().groups().size());
             assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
-            assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+            assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).fixedInterval());
         }
     }
 

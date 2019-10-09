@@ -63,7 +63,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         reindexer.initTask(bulkByScrollTask, request, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
-                reindexer.execute(bulkByScrollTask, request, listener, null, null);
+                // the transport action is never resilient, neither when directly invoked due to "es.reindex.resilience" system
+                // property nor when slicing.
+                reindexer.execute(bulkByScrollTask, request, listener, null, null, false);
             }
 
             @Override

@@ -55,6 +55,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (System.getProperty("es.reindex.resilience", "true").equals("false")) {
+            // todo: remove this escape hatch in 8.0
+            return doPrepareRequest(request, client, true, true);
+        }
+
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
 
         // Build the internal request

@@ -86,7 +86,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             super(task,
                 // use sequence number powered optimistic concurrency control
                 false, true,
-                logger, client, threadPool, request, listener, scriptService, null, null, null, null);
+                logger, client, threadPool, request, listener, scriptService, null, false, null, null);
         }
 
         @Override

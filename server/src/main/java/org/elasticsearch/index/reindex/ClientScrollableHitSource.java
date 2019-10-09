@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -59,16 +60,14 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
-    private final String restartFromField;
 
     public ClientScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
                                      Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
-                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest, String restartFromField,
+                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest, boolean resilient,
                                      Checkpoint checkpoint) {
-        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail, restartFromField, checkpoint);
+        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail, resilient, checkpoint);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
-        this.restartFromField = restartFromField;
     }
 
     @Override
@@ -88,7 +87,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
     private SearchRequest createRestartFromRequest(long restartFromValue, TimeValue extraKeepAlive) {
         SearchRequest restartFromRequest = new SearchRequest(firstSearchRequest).scroll(keepAliveTime(extraKeepAlive));
-        RangeQueryBuilder restartFromFilter = new RangeQueryBuilder(restartFromField).gte(restartFromValue);
+        RangeQueryBuilder restartFromFilter = new RangeQueryBuilder(SeqNoFieldMapper.NAME).gte(restartFromValue);
         SearchSourceBuilder newSearchSourceBuilder =
             restartFromRequest.source() != null ? restartFromRequest.source().copy() : new SearchSourceBuilder();
         if (newSearchSourceBuilder.query() == null) {
@@ -110,11 +109,6 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
         request.scrollId(scrollId).scroll(keepAliveTime(extraKeepAlive));
         client.searchScroll(request, wrapListener(searchListener));
-    }
-
-    @Override
-    protected boolean canRestart() {
-        return restartFromField != null;
     }
 
     private TimeValue keepAliveTime(TimeValue extraKeepAlive) {

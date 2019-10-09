@@ -66,6 +66,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
             reindexValidator.initialValidation(request.getReindexRequest());
         } catch (Exception e) {
             listener.onFailure(e);
+            return;
         }
 
         String generatedId = UUIDs.randomBase64UUID();

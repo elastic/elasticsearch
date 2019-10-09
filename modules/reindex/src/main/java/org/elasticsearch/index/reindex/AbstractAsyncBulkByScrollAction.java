@@ -120,7 +120,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                                     boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
                                     @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig,
-                                    @Nullable String restartFromField,
+                                    boolean resilient,
                                     @Nullable ScrollableHitSource.Checkpoint checkpoint,
                                     @Nullable Reindexer.CheckpointListener checkpointListener) {
         this.task = task;
@@ -141,7 +141,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         // todo: this is trappy, since if a subclass override relies on subclass fields, they are not initialized. We should fix
         // to simply pass in the hit-source.
-        scrollSource = buildScrollableResultSource(backoffPolicy, restartFromField, checkpoint);
+        scrollSource = buildScrollableResultSource(backoffPolicy, resilient, checkpoint);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         /*
          * Default to sorting by doc. We can't do this in the request itself because it is normal to *add* to the sorts rather than replace
@@ -220,10 +220,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy,
-                                                              String restartFromField, ScrollableHitSource.Checkpoint checkpoint) {
+                                                              boolean resilient, ScrollableHitSource.Checkpoint checkpoint) {
         return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
             this::onScrollResponse, this::finishHim, client,
-                mainRequest.getSearchRequest(), restartFromField, checkpoint);
+                mainRequest.getSearchRequest(), resilient, checkpoint);
     }
 
     /**

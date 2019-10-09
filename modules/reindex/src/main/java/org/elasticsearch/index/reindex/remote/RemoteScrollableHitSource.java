@@ -69,7 +69,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     public RemoteScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
                                      Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
                                      RestClient client, BytesReference query, SearchRequest searchRequest) {
-        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail, null, null);// todo: handle resume or grace
+        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail, false, null);// todo: handle resume or grace
         this.query = query;
         this.searchRequest = searchRequest;
         this.client = client;
@@ -107,11 +107,6 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         TimeValue keepAlive = timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos());
         execute(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, searchListener);
-    }
-
-    @Override
-    protected boolean canRestart() {
-        return false;
     }
 
     @Override

@@ -14,7 +14,7 @@
   - do:
       enrich.execute_policy:
         name: policy-crud
-  - is_true: acknowledged
+  - match: { status.phase: "COMPLETE" }
 
   - do:
       enrich.get_policy:

@@ -163,14 +163,11 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         }
 
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
-        EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
-            new IndexNameExpressionResolver(), enrichPolicyLocks, System::currentTimeMillis);
         EnrichPolicyMaintenanceService enrichPolicyMaintenanceService = new EnrichPolicyMaintenanceService(settings, client,
             clusterService, threadPool, enrichPolicyLocks);
         enrichPolicyMaintenanceService.initialize();
         return Arrays.asList(
             enrichPolicyLocks,
-            enrichPolicyExecutor,
             new EnrichCoordinatorProxyAction.Coordinator(client, settings),
             enrichPolicyMaintenanceService
         );

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.enrich;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -19,10 +18,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -31,9 +33,10 @@ import static org.hamcrest.CoreMatchers.containsString;
 public class EnrichPolicyExecutorTests extends ESTestCase {
 
     private static ThreadPool testThreadPool;
-    private static final ActionListener<PolicyExecutionResult> noOpListener = new ActionListener<PolicyExecutionResult>() {
+    private static TaskManager testTaskManager;
+    private static final ActionListener<ExecuteEnrichPolicyStatus> noOpListener = new ActionListener<ExecuteEnrichPolicyStatus>() {
         @Override
-        public void onResponse(PolicyExecutionResult policyExecutionResult) { }
+        public void onResponse(ExecuteEnrichPolicyStatus ignored) { }
 
         @Override
         public void onFailure(Exception e) { }
@@ -42,6 +45,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
     @BeforeClass
     public static void beforeCLass() {
         testThreadPool = new TestThreadPool("EnrichPolicyExecutorTests");
+        testTaskManager = new TaskManager(Settings.EMPTY, testThreadPool, Collections.emptySet());
     }
 
     @AfterClass
@@ -54,18 +58,24 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
      */
     private static class BlockingTestPolicyRunner implements Runnable {
         private final CountDownLatch latch;
-        private final ActionListener<PolicyExecutionResult> listener;
+        private final ExecuteEnrichPolicyTask task;
+        private final ActionListener<ExecuteEnrichPolicyStatus> listener;
 
-        BlockingTestPolicyRunner(CountDownLatch latch, ActionListener<PolicyExecutionResult> listener) {
+        BlockingTestPolicyRunner(CountDownLatch latch, ExecuteEnrichPolicyTask task,
+                                 ActionListener<ExecuteEnrichPolicyStatus> listener) {
             this.latch = latch;
+            this.task = task;
             this.listener = listener;
         }
 
         @Override
         public void run() {
             try {
+                task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.RUNNING));
                 latch.await();
-                listener.onResponse(new PolicyExecutionResult(true));
+                ExecuteEnrichPolicyStatus newStatus = new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE);
+                task.setStatus(newStatus);
+                listener.onResponse(newStatus);
             } catch (InterruptedException e) {
                 throw new RuntimeException("Interrupted waiting for test framework to continue the test", e);
             }
@@ -78,33 +88,37 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
      */
     private static class EnrichPolicyTestExecutor extends EnrichPolicyExecutor {
 
-        EnrichPolicyTestExecutor(Settings settings, ClusterService clusterService, Client client, ThreadPool threadPool,
-                                 IndexNameExpressionResolver indexNameExpressionResolver, LongSupplier nowSupplier) {
-            super(settings, clusterService, client, threadPool, indexNameExpressionResolver, new EnrichPolicyLocks(), nowSupplier);
+        EnrichPolicyTestExecutor(Settings settings, ClusterService clusterService, Client client, TaskManager taskManager,
+                                 ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
+                                 LongSupplier nowSupplier) {
+            super(settings, clusterService, client, taskManager, threadPool, indexNameExpressionResolver, new EnrichPolicyLocks(),
+                nowSupplier);
         }
 
         private CountDownLatch currentLatch;
-        CountDownLatch testRunPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
+        CountDownLatch testRunPolicy(String policyName, EnrichPolicy policy, ActionListener<ExecuteEnrichPolicyStatus> listener) {
             currentLatch = new CountDownLatch(1);
-            runPolicy(policyName, policy, listener);
+            ExecuteEnrichPolicyAction.Request request = new ExecuteEnrichPolicyAction.Request(policyName);
+            runPolicy(request, policy, listener);
             return currentLatch;
         }
 
         @Override
-        protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
+        protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, ExecuteEnrichPolicyTask task,
+                                              ActionListener<ExecuteEnrichPolicyStatus> listener) {
             if (currentLatch == null) {
                 throw new IllegalStateException("Use the testRunPolicy method on this test instance");
             }
-            return new BlockingTestPolicyRunner(currentLatch, listener);
+            return new BlockingTestPolicyRunner(currentLatch, task, listener);
         }
     }
 
     public void testNonConcurrentPolicyExecution() throws InterruptedException {
         String testPolicyName = "test_policy";
-        EnrichPolicy testPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Arrays.asList("some_index"), "keyfield",
+        EnrichPolicy testPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList("some_index"), "keyfield",
             Collections.singletonList("valuefield"));
-        final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(Settings.EMPTY, null, null, testThreadPool,
-            new IndexNameExpressionResolver(), ESTestCase::randomNonNegativeLong);
+        final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(Settings.EMPTY, null, null, testTaskManager,
+            testThreadPool, new IndexNameExpressionResolver(), ESTestCase::randomNonNegativeLong);
 
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);
@@ -143,8 +157,8 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         Settings testSettings = Settings.builder().put(EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.getKey(), 2).build();
         EnrichPolicy testPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList("some_index"), "keyfield",
             Collections.singletonList("valuefield"));
-        final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(testSettings, null, null, testThreadPool,
-            new IndexNameExpressionResolver(), ESTestCase::randomNonNegativeLong);
+        final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(testSettings, null, null, testTaskManager,
+            testThreadPool, new IndexNameExpressionResolver(), ESTestCase::randomNonNegativeLong);
 
         // Launch a two fake policy runs that will block until counted down to use up the maximum concurrent
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);

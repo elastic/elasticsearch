@@ -39,12 +39,12 @@ public class EnrichClient {
 
     public void executeEnrichPolicy(
         final ExecuteEnrichPolicyAction.Request request,
-        final ActionListener<AcknowledgedResponse> listener) {
+        final ActionListener<ExecuteEnrichPolicyAction.Response> listener) {
         client.execute(ExecuteEnrichPolicyAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AcknowledgedResponse> executeEnrichPolicy(final ExecuteEnrichPolicyAction.Request request) {
-        final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+    public ActionFuture<ExecuteEnrichPolicyAction.Response> executeEnrichPolicy(final ExecuteEnrichPolicyAction.Request request) {
+        final PlainActionFuture<ExecuteEnrichPolicyAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(ExecuteEnrichPolicyAction.INSTANCE, request, listener);
         return listener;
     }

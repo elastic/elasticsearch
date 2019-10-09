@@ -18,7 +18,7 @@ token.
 
 * To call this API, the (proxy) user must have the `delegate_pki` or the `all`
 cluster privilege. The `kibana_system` built-in role already grants this
-privilege. See {stack-ov}/security-privileges.html[Security privileges].
+privilege. See <<security-privileges>>.
 
 [[security-api-delegate-pki-authentication-desc]]
 ==== {api-description-title}

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -104,7 +103,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -1323,7 +1321,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().cluster().prepareDeleteSnapshot("test-repo", lastSnapshot).get();
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
                     "plus one because one backup index-N file should remain");
-        assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 1));
+        assertFileCount(repo, numberOfFiles[0] + 1);
     }
 
     public void testGetSnapshotsNoRepos() {
@@ -3759,19 +3757,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
             assertThat(restoredIndexMetaData.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
         }
-    }
-
-    private RepositoryData getRepositoryData(Repository repository) throws InterruptedException {
-        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
-        final SetOnce<RepositoryData> repositoryData = new SetOnce<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-            repositoryData.set(repository.getRepositoryData());
-            latch.countDown();
-        });
-
-        latch.await();
-        return repositoryData.get();
     }
 
     private void verifySnapshotInfo(final String repo, final GetSnapshotsResponse response,

@@ -27,7 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldData;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
@@ -40,7 +40,7 @@ public class FlatObjectIndexFieldDataTests extends ESSingleNodeTestCase  {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FlattenedMapperPlugin.class, XPackPlugin.class);
+        return pluginList(FlattenedMapperPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     public void testGlobalFieldDataCaching() throws IOException {

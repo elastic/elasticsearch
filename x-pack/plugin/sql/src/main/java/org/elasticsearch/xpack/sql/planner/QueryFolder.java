@@ -483,19 +483,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     Attribute attr = ((NamedExpression) order.child()).toAttribute();
                     // check whether there's an alias (occurs with scalar functions which are not named)
                     attr = qContainer.aliases().getOrDefault(attr.id(), attr);
-                    String lookup = attr.id().toString();
-                    GroupByKey group = qContainer.findGroupForAgg(lookup);
+                    GroupByKey group = qContainer.findGroupForAgg(attr);
 
                     // TODO: might need to validate whether the target field or group actually exist
                     if (group != null && group != Aggs.IMPLICIT_GROUP_KEY) {
-                        // check whether the lookup matches a group
-                        if (group.id().equals(lookup)) {
-                            qContainer = qContainer.updateGroup(group.with(direction));
-                        }
-                        // else it's a leafAgg
-                        else {
-                            qContainer = qContainer.updateGroup(group.with(direction));
-                        }
+                        qContainer = qContainer.updateGroup(group.with(direction));
                     }
                     else {
                         // scalar functions typically require script ordering

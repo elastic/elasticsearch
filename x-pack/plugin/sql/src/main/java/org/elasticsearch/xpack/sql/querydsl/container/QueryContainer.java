@@ -487,8 +487,8 @@ public class QueryContainer {
         return with(aggs.addGroups(values));
     }
 
-    public GroupByKey findGroupForAgg(String aggId) {
-        return aggs.findGroupForAgg(aggId);
+    public GroupByKey findGroupForAgg(Attribute attr) {
+        return aggs.findGroupForAgg(attr);
     }
 
     public QueryContainer updateGroup(GroupByKey group) {

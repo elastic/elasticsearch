@@ -95,6 +95,7 @@ A successful call returns an object with "cluster" and "index" fields.
   "index" : [
     "all",
     "create",
+    "create_doc",
     "create_index",
     "delete",
     "delete_index",

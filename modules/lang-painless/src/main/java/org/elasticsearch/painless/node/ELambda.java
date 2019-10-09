@@ -27,10 +27,10 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Opcodes;
 
 import java.util.ArrayList;
@@ -185,6 +185,7 @@ public final class ELambda extends AExpression implements ILambda {
         desugared.analyze(scriptRoot, Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
                                                 desugared.parameters, captures.size(), settings.getMaxLoopCounter()));
         scriptRoot.getFunctionTable().addFunction(desugared.name, desugared.returnType, desugared.typeParameters, true);
+        scriptRoot.getClassNode().addFunction(desugared);
 
         // setup method reference to synthetic method
         if (expected == null) {
@@ -219,9 +220,6 @@ public final class ELambda extends AExpression implements ILambda {
                 methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
         }
-
-        // add synthetic method to the queue to be written
-        globals.addSyntheticMethod(desugared);
     }
 
     @Override

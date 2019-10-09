@@ -52,11 +52,11 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
             VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
-        private BiFunction<ZonedDateTime, Integer, ZonedDateTime> extractFunction;
+        private BiFunction<ZonedDateTime, Integer, ZonedDateTime> addFunction;
         private Set<String> aliases;
 
-        Part(BiFunction<ZonedDateTime, Integer, ZonedDateTime> extractFunction, String... aliases) {
-            this.extractFunction = extractFunction;
+        Part(BiFunction<ZonedDateTime, Integer, ZonedDateTime> addFunction, String... aliases) {
+            this.addFunction = addFunction;
             this.aliases = Set.of(aliases);
         }
 
@@ -74,7 +74,7 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
         }
 
         public ZonedDateTime add(ZonedDateTime dateTime, Integer numberOfUnits) {
-            return extractFunction.apply(dateTime, numberOfUnits);
+            return addFunction.apply(dateTime, numberOfUnits);
         }
     }
 

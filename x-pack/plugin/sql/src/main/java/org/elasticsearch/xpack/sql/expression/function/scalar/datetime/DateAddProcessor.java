@@ -41,6 +41,9 @@ public class DateAddProcessor extends ThreeArgsDateTimeProcessor {
      * Used in Painless scripting
      */
     public static Object process(Object source1, Object source2, Object source3, ZoneId zoneId) {
+        if (source1 == null || source2 == null || source3 == null) {
+            return null;
+        }
         if (source1 instanceof String == false) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", source1);
         }

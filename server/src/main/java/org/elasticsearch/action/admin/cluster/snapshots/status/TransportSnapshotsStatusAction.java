@@ -243,9 +243,14 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
                     }
                     final long startTime = snapshotInfo.startTime();
+                    final long endTime = snapshotInfo.endTime();
+                    assert endTime >= startTime || (endTime == 0L && snapshotInfo.state().completed() == false)
+                        : "Inconsistent timestamps found in SnapshotInfo [" + snapshotInfo + "]";
                     builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state,
                         Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState(),
-                        startTime, snapshotInfo.endTime() - startTime));
+                        startTime,
+                        // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
+                        (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime));
                 }
             }
         }

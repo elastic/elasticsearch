@@ -201,7 +201,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         boolean realtime = randomBoolean();
         GetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -209,7 +209,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getId(), equalTo("1"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareGet("test", "type1", "2")
+                .prepareGet("test", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -217,7 +217,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getId(), equalTo("2"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test","1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -225,7 +225,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getId(), equalTo("1"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareGet("test", "type1", "2")
+                .prepareGet("test", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -234,19 +234,19 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         // test documents user cannot see
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
         assertThat(response.isExists(), is(false));
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("test", "type1", "2")
+                .prepareGet("test", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
         assertThat(response.isExists(), is(false));
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareGet("test", "type1", "3")
+                .prepareGet("test", "3")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -266,7 +266,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         MultiGetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -276,7 +276,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "2")
+                .add("test", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -286,8 +286,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
-                .add("test", "type1", "2")
+                .add("test", "1")
+                .add("test", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -300,7 +300,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -309,7 +309,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "2")
+                .add("test", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -318,7 +318,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "3")
+                .add("test", "3")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -815,12 +815,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(e.getMessage(), equalTo("Can't execute an update request if field or document level security is enabled"));
         }
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value1"));
 
         // With no document level security enabled the update is allowed:
         client().prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2")
                 .get();
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value2"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 
         // With document level security enabled the update in bulk is not allowed:
         BulkResponse bulkResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue
@@ -837,12 +837,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(securityException.getMessage(),
                 equalTo("Can't execute a bulk item request with update requests embedded if field or document level security is enabled"));
 
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value2"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 
         client().prepareBulk()
                 .add(new UpdateRequest("test", "type", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3"))
                 .get();
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value3"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value3"));
     }
 
     public void testNestedInnerHits() throws Exception {

@@ -123,8 +123,8 @@ POST /index1
   },
   "mappings": {
     "properties": {
-      "text": {
-        "fingerprint": "text",
+      "fingerprint": {
+        "type": "text",
         "analyzer": "my_analyzer"
       }
     }

@@ -125,7 +125,9 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.PhaseProgress;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -167,20 +169,20 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItem;
-import static org.hamcrest.CoreMatchers.hasItems;
-import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
@@ -872,7 +874,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         // b) is slightly more efficient since we may not need to wait an entire second for the timestamp to increment
         assertBusy(() -> {
             long timeNow = System.currentTimeMillis() / 1000;
-            assertFalse(prevJobTimeStamp >= timeNow);
+            assertThat(prevJobTimeStamp, lessThan(timeNow));
         });
 
         // Update snapshot timestamp to force it out of snapshot retention window
@@ -890,7 +892,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         waitForForecastToComplete(jobId, forecastJobResponse.getForecastId());
 
         // Wait for the forecast to expire
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        // FIXME: We should wait for something specific to change, rather than waiting for time to pass.
+        waitUntil(() -> false, 1, TimeUnit.SECONDS);
 
         // Run up to now
         startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis));
@@ -934,7 +937,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(response.getDeleted());
 
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        // Wait for the forecast to expire
+        // FIXME: We should wait for something specific to change, rather than waiting for time to pass.
+        waitUntil(() -> false, 1, TimeUnit.SECONDS);
 
         GetModelSnapshotsRequest getModelSnapshotsRequest1 = new GetModelSnapshotsRequest(jobId);
         GetModelSnapshotsResponse getModelSnapshotsResponse1 = execute(getModelSnapshotsRequest1, machineLearningClient::getModelSnapshots,
@@ -1241,7 +1246,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getSource().getQueryConfig(), equalTo(new QueryConfig(new MatchAllQueryBuilder())));  // default value
         assertThat(createdConfig.getDest().getIndex(), equalTo(config.getDest().getIndex()));
         assertThat(createdConfig.getDest().getResultsField(), equalTo("ml"));  // default value
-        assertThat(createdConfig.getAnalysis(), equalTo(config.getAnalysis()));
+        assertThat(createdConfig.getAnalysis(), equalTo(OutlierDetection.builder()
+            .setComputeFeatureInfluence(true)
+            .setOutlierFraction(0.05)
+            .setStandardizationEnabled(true).build()));
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("some description"));
@@ -1280,6 +1288,41 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("this is a regression"));
+    }
+
+    public void testPutDataFrameAnalyticsConfig_GivenClassification() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-put-df-analytics-classification";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification
+                .builder("my_dependent_variable")
+                .setTrainingPercent(80.0)
+                .build())
+            .setDescription("this is a classification")
+            .build();
+
+        createIndex("put-test-source-index", defaultMappingForTest());
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+        assertThat(createdConfig.getId(), equalTo(config.getId()));
+        assertThat(createdConfig.getSource().getIndex(), equalTo(config.getSource().getIndex()));
+        assertThat(createdConfig.getSource().getQueryConfig(), equalTo(new QueryConfig(new MatchAllQueryBuilder())));  // default value
+        assertThat(createdConfig.getDest().getIndex(), equalTo(config.getDest().getIndex()));
+        assertThat(createdConfig.getDest().getResultsField(), equalTo("ml"));  // default value
+        assertThat(createdConfig.getAnalysis(), equalTo(config.getAnalysis()));
+        assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
+        assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
+        assertThat(createdConfig.getDescription(), equalTo("this is a classification"));
     }
 
     public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
@@ -1570,19 +1613,19 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testEvaluateDataFrame_BinarySoftClassification() throws IOException {
         String indexName = "evaluate-test-index";
-        createIndex(indexName, mappingForClassification());
+        createIndex(indexName, mappingForSoftClassification());
         BulkRequest bulk = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(docForClassification(indexName, "blue", false, 0.1))  // #0
-            .add(docForClassification(indexName, "blue", false, 0.2))  // #1
-            .add(docForClassification(indexName, "blue", false, 0.3))  // #2
-            .add(docForClassification(indexName, "blue", false, 0.4))  // #3
-            .add(docForClassification(indexName, "blue", false, 0.7))  // #4
-            .add(docForClassification(indexName, "blue", true, 0.2))  // #5
-            .add(docForClassification(indexName, "green", true, 0.3))  // #6
-            .add(docForClassification(indexName, "green", true, 0.4))  // #7
-            .add(docForClassification(indexName, "green", true, 0.8))  // #8
-            .add(docForClassification(indexName, "green", true, 0.9));  // #9
+            .add(docForSoftClassification(indexName, "blue", false, 0.1))  // #0
+            .add(docForSoftClassification(indexName, "blue", false, 0.2))  // #1
+            .add(docForSoftClassification(indexName, "blue", false, 0.3))  // #2
+            .add(docForSoftClassification(indexName, "blue", false, 0.4))  // #3
+            .add(docForSoftClassification(indexName, "blue", false, 0.7))  // #4
+            .add(docForSoftClassification(indexName, "blue", true, 0.2))  // #5
+            .add(docForSoftClassification(indexName, "green", true, 0.3))  // #6
+            .add(docForSoftClassification(indexName, "green", true, 0.4))  // #7
+            .add(docForSoftClassification(indexName, "green", true, 0.8))  // #8
+            .add(docForSoftClassification(indexName, "green", true, 0.9));  // #9
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
@@ -1644,19 +1687,19 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testEvaluateDataFrame_BinarySoftClassification_WithQuery() throws IOException {
         String indexName = "evaluate-with-query-test-index";
-        createIndex(indexName, mappingForClassification());
+        createIndex(indexName, mappingForSoftClassification());
         BulkRequest bulk = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(docForClassification(indexName, "blue", true, 1.0))  // #0
-            .add(docForClassification(indexName, "blue", true, 1.0))  // #1
-            .add(docForClassification(indexName, "blue", true, 1.0))  // #2
-            .add(docForClassification(indexName, "blue", true, 1.0))  // #3
-            .add(docForClassification(indexName, "blue", true, 0.0))  // #4
-            .add(docForClassification(indexName, "blue", true, 0.0))  // #5
-            .add(docForClassification(indexName, "green", true, 0.0))  // #6
-            .add(docForClassification(indexName, "green", true, 0.0))  // #7
-            .add(docForClassification(indexName, "green", true, 0.0))  // #8
-            .add(docForClassification(indexName, "green", true, 1.0));  // #9
+            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #0
+            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #1
+            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #2
+            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #3
+            .add(docForSoftClassification(indexName, "blue", true, 0.0))  // #4
+            .add(docForSoftClassification(indexName, "blue", true, 0.0))  // #5
+            .add(docForSoftClassification(indexName, "green", true, 0.0))  // #6
+            .add(docForSoftClassification(indexName, "green", true, 0.0))  // #7
+            .add(docForSoftClassification(indexName, "green", true, 0.0))  // #8
+            .add(docForSoftClassification(indexName, "green", true, 1.0));  // #9
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
@@ -1719,6 +1762,74 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(rSquaredResult.getValue(), closeTo(-5.1000000000000005, 1e-9));
     }
 
+    public void testEvaluateDataFrame_Classification() throws IOException {
+        String indexName = "evaluate-classification-test-index";
+        createIndex(indexName, mappingForClassification());
+        BulkRequest regressionBulk = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(docForClassification(indexName, "cat", "cat"))
+            .add(docForClassification(indexName, "cat", "cat"))
+            .add(docForClassification(indexName, "cat", "cat"))
+            .add(docForClassification(indexName, "cat", "dog"))
+            .add(docForClassification(indexName, "cat", "fish"))
+            .add(docForClassification(indexName, "dog", "cat"))
+            .add(docForClassification(indexName, "dog", "dog"))
+            .add(docForClassification(indexName, "dog", "dog"))
+            .add(docForClassification(indexName, "dog", "dog"))
+            .add(docForClassification(indexName, "horse", "cat"));
+        highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        {  // No size provided for MulticlassConfusionMatrixMetric, default used instead
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(actualClassField, predictedClassField, new MulticlassConfusionMatrixMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            MulticlassConfusionMatrixMetric.Result mcmResult =
+                evaluateDataFrameResponse.getMetricByName(MulticlassConfusionMatrixMetric.NAME);
+            assertThat(mcmResult.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
+            assertThat(
+                mcmResult.getConfusionMatrix(),
+                equalTo(
+                    Map.of(
+                        "cat", Map.of("cat", 3L, "dog", 1L, "horse", 0L, "_other_", 1L),
+                        "dog", Map.of("cat", 1L, "dog", 3L, "horse", 0L),
+                        "horse", Map.of("cat", 1L, "dog", 0L, "horse", 0L))));
+            assertThat(mcmResult.getOtherClassesCount(), equalTo(0L));
+        }
+        {  // Explicit size provided for MulticlassConfusionMatrixMetric metric
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(actualClassField, predictedClassField, new MulticlassConfusionMatrixMetric(2)));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            MulticlassConfusionMatrixMetric.Result mcmResult =
+                evaluateDataFrameResponse.getMetricByName(MulticlassConfusionMatrixMetric.NAME);
+            assertThat(mcmResult.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
+            assertThat(
+                mcmResult.getConfusionMatrix(),
+                equalTo(
+                    Map.of(
+                        "cat", Map.of("cat", 3L, "dog", 1L, "_other_", 1L),
+                        "dog", Map.of("cat", 1L, "dog", 3L))));
+            assertThat(mcmResult.getOtherClassesCount(), equalTo(1L));
+        }
+    }
+
     private static XContentBuilder defaultMappingForTest() throws IOException {
         return XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
@@ -1736,7 +1847,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     private static final String actualField = "label";
     private static final String probabilityField = "p";
 
-    private static XContentBuilder mappingForClassification() throws IOException {
+    private static XContentBuilder mappingForSoftClassification() throws IOException {
         return XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
                 .startObject(datasetField)
@@ -1752,10 +1863,32 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         .endObject();
     }
 
-    private static IndexRequest docForClassification(String indexName, String dataset, boolean isTrue, double p) {
+    private static IndexRequest docForSoftClassification(String indexName, String dataset, boolean isTrue, double p) {
         return new IndexRequest()
             .index(indexName)
             .source(XContentType.JSON, datasetField, dataset, actualField, Boolean.toString(isTrue), probabilityField, p);
+    }
+
+    private static final String actualClassField = "actual_class";
+    private static final String predictedClassField = "predicted_class";
+
+    private static XContentBuilder mappingForClassification() throws IOException {
+        return XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject(actualClassField)
+                    .field("type", "keyword")
+                .endObject()
+                .startObject(predictedClassField)
+                    .field("type", "keyword")
+                .endObject()
+            .endObject()
+        .endObject();
+    }
+
+    private static IndexRequest docForClassification(String indexName, String actualClass, String predictedClass) {
+        return new IndexRequest()
+            .index(indexName)
+            .source(XContentType.JSON, actualClassField, actualClass, predictedClassField, predictedClass);
     }
 
     private static final String actualRegression = "regression_actual";
@@ -1764,14 +1897,14 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     private static XContentBuilder mappingForRegression() throws IOException {
         return XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
-            .startObject(actualRegression)
-            .field("type", "double")
+                .startObject(actualRegression)
+                    .field("type", "double")
+                .endObject()
+                .startObject(probabilityRegression)
+                    .field("type", "double")
+                .endObject()
             .endObject()
-            .startObject(probabilityRegression)
-            .field("type", "double")
-            .endObject()
-            .endObject()
-            .endObject();
+        .endObject();
     }
 
     private static IndexRequest docForRegression(String indexName, double act, double p) {
@@ -1786,11 +1919,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testEstimateMemoryUsage() throws IOException {
         String indexName = "estimate-test-index";
-        createIndex(indexName, mappingForClassification());
+        createIndex(indexName, mappingForSoftClassification());
         BulkRequest bulk1 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; ++i) {
-            bulk1.add(docForClassification(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
+            bulk1.add(docForSoftClassification(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
         }
         highLevelClient().bulk(bulk1, RequestOptions.DEFAULT);
 
@@ -1816,7 +1949,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulk2 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 10; i < 100; ++i) {
-            bulk2.add(docForClassification(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
+            bulk2.add(docForSoftClassification(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
         }
         highLevelClient().bulk(bulk2, RequestOptions.DEFAULT);
 
@@ -2048,8 +2181,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
     }
-
-
 
     private String createAndPutDatafeed(String jobId, String indexName) throws IOException {
         String datafeedId = jobId + "-feed";

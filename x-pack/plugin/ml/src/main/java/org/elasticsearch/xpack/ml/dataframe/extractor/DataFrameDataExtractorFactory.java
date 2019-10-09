@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 
@@ -219,7 +220,7 @@ public class DataFrameDataExtractorFactory {
                 docValueFieldsLimitListener.onResponse(minDocValueFieldsLimit);
             },
             e -> {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     docValueFieldsLimitListener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
                         + ((IndexNotFoundException) e).getIndex() + " does not exist"));
                 } else {

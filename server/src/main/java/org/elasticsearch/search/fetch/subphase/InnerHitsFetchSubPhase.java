@@ -22,7 +22,9 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -44,11 +46,16 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        if ((context.innerHits() != null && context.innerHits().getInnerHits().size() > 0) == false) {
+        if (context.innerHits().isEmpty()) {
             return;
         }
 
-        for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : context.innerHits().getInnerHits().entrySet()) {
+        final InnerHitsContext innerHitsContext = new InnerHitsContext();
+        for (Map.Entry<String, InnerHitContextBuilder> entry : context.innerHits().entrySet()) {
+            entry.getValue().build(context, innerHitsContext);
+        }
+
+        for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHitsContext.getInnerHits().entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHits = entry.getValue();
             TopDocsAndMaxScore[] topDocs = innerHits.topDocs(hits);
             for (int i = 0; i < hits.length; i++) {
@@ -65,7 +72,7 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
                     docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
                 }
                 innerHits.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
-                innerHits.setUid(new Uid(hit.getType(), hit.getId()));
+                innerHits.setUid(new Uid(MapperService.SINGLE_MAPPING_NAME, hit.getId()));
                 fetchPhase.execute(innerHits);
                 FetchSearchResult fetchResult = innerHits.fetchResult();
                 SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();

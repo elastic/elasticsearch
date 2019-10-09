@@ -79,6 +79,7 @@
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       indices.stats:
         metric: [ translog ]
@@ -141,6 +142,7 @@
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       index:
         index: test
@@ -182,11 +184,8 @@
 ---
 "Translog stats on closed indices with soft-deletes":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/46535"
-  #- skip:
-  #    version: " - 7.9.99"
-  #    reason:  "start ignoring translog retention policy with soft-deletes enabled in 8.0"
+      version: " - 7.9.99"
+      reason:  "start ignoring translog retention policy with soft-deletes enabled in 8.0"
   - do:
       indices.create:
         index: test
@@ -196,6 +195,7 @@
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       index:
         index: test

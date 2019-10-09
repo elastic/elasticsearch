@@ -75,7 +75,7 @@ public class TransportExecuteEnrichPolicyAction
                 }
             });
         } else {
-            Task executeTask = executor.runPolicy(request, new LoggingTaskListener<>());
+            Task executeTask = executor.runPolicy(request, LoggingTaskListener.instance());
             TaskId taskId = new TaskId(clusterService.localNode().getId(), executeTask.getId());
             listener.onResponse(new ExecuteEnrichPolicyAction.Response(taskId));
         }

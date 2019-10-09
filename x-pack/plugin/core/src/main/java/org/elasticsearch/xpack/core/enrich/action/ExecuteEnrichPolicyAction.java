@@ -34,7 +34,7 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
 
         public Request(String name) {
             this.name = Objects.requireNonNull(name, "name cannot be null");
-            this.waitForCompletion = false;
+            this.waitForCompletion = true;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -58,8 +58,9 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
             return waitForCompletion;
         }
 
-        public void setWaitForCompletion(boolean waitForCompletion) {
+        public Request setWaitForCompletion(boolean waitForCompletion) {
             this.waitForCompletion = waitForCompletion;
+            return this;
         }
 
         @Override

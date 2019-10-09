@@ -23,7 +23,10 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -199,7 +202,10 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             if (numShards != 1) {
                 throw new IllegalStateException("index [" + index + "] should have 1 shard, but has " + numShards + " shards");
             }
-            return indexRouting.shard(0).shardsRandomIt();
+
+            GroupShardsIterator<ShardIterator> result =
+                clusterService.operationRouting().searchShards(state, new String[] {index}, null, Preference.LOCAL.type());
+            return result.get(0);
         }
 
         @Override

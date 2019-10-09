@@ -125,7 +125,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
             @Override
             public void onFailure(Exception e) {
                 Exception reportedException;
-                if (e instanceof VersionConflictEngineException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     reportedException = ExceptionsHelper.conflictStatusException("Error updating filter with id [" + filter.getId()
                             + "] because it was modified while the update was in progress", e);
                 } else {

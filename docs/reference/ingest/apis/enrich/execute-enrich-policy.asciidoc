@@ -71,7 +71,7 @@ Use the execute enrich policy API
 to create the enrich index for an existing enrich policy.
 
 // tag::execute-enrich-policy-def[]
-The *enrich index* contains documents from the policy's source indices.
+The _enrich index_ contains documents from the policy's source indices.
 Enrich indices always begin with `.enrich-*`,
 are read-only,
 and are <<indices-forcemerge,force merged>>.

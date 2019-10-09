@@ -27,6 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -41,10 +42,16 @@ public class ServerUtils {
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
 
     public static void waitForElasticsearch(Installation installation) throws IOException {
-        waitForElasticsearch("green", null, installation);
+        waitForElasticsearch("green", null, installation, null, null);
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation) throws IOException {
+    public static void waitForElasticsearch(
+        String status,
+        String index,
+        Installation installation,
+        String username,
+        String password
+    ) throws IOException {
 
         Objects.requireNonNull(status);
 
@@ -55,11 +62,16 @@ public class ServerUtils {
         while (started == false && timeElapsed < waitTime) {
             try {
 
-                final HttpResponse response = Request.Get("http://localhost:9200/_cluster/health")
+                final Request request = Request.Get("http://localhost:9200/_cluster/health")
                     .connectTimeout((int) timeoutLength)
-                    .socketTimeout((int) timeoutLength)
-                    .execute()
-                    .returnResponse();
+                    .socketTimeout((int) timeoutLength);
+
+                if (username != null) {
+                    final String encodedCredentials = Base64.getEncoder().encodeToString((username + ":" + password).getBytes());
+                    request.setHeader("Authorization", "Basic " + encodedCredentials);
+                }
+
+                final HttpResponse response = request.execute().returnResponse();
 
                 if (response.getStatusLine().getStatusCode() >= 300) {
                     final String statusLine = response.getStatusLine().toString();
@@ -110,6 +122,13 @@ public class ServerUtils {
         makeRequest(Request.Delete("http://localhost:9200/_all"));
     }
 
+    public static String makeAuthenticatedRequest(Request request, String username, String password) throws IOException {
+        final String encodedCredentials = Base64.getEncoder().encodeToString((username + ":" + password).getBytes());
+        request.setHeader("Authorization", "Basic " + encodedCredentials);
+
+        return makeRequest(request);
+    }
+
     public static String makeRequest(Request request) throws IOException {
         final HttpResponse response = request.execute().returnResponse();
         final String body = EntityUtils.toString(response.getEntity());
@@ -119,6 +138,5 @@ public class ServerUtils {
         }
 
         return body;
-
     }
 }

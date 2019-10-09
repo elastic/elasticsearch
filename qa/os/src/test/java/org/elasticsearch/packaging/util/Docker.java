@@ -25,7 +25,6 @@ import org.apache.commons.logging.LogFactory;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,7 +79,7 @@ public class Docker {
      * @param distribution details about the docker image being tested.
      */
     public static Installation runContainer(Distribution distribution) throws Exception {
-        return runContainer(distribution, null, Collections.emptyMap());
+        return runContainer(distribution, null, null);
     }
 
     /**
@@ -88,10 +87,14 @@ public class Docker {
      * through a bind mount, and passing additional environment variables.
      *
      * @param distribution details about the docker image being tested.
-     * @param configPath the path to the config to bind mount, or null
-     * @param envVars environment variables to set when running the container
+     * @param volumes a map that declares any volume mappings to apply, or null
+     * @param envVars environment variables to set when running the container, or null
      */
-    public static Installation runContainer(Distribution distribution, Path configPath, Map<String,String> envVars) throws Exception {
+    public static Installation runContainer(
+        Distribution distribution,
+        Map<Path, Path> volumes,
+        Map<String,String> envVars
+    ) throws Exception {
         removeContainer();
 
         final List<String> args = new ArrayList<>();
@@ -104,7 +107,9 @@ public class Docker {
         // Run the container in the background
         args.add("--detach");
 
-        envVars.forEach((key, value) -> args.add("--env " + key + "=\"" + value + "\""));
+        if (envVars != null) {
+            envVars.forEach((key, value) -> args.add("--env " + key + "=\"" + value + "\""));
+        }
 
         // The container won't run without configuring discovery
         args.add("--env discovery.type=single-node");
@@ -113,9 +118,9 @@ public class Docker {
         args.add("--publish 9200:9200");
         args.add("--publish 9300:9300");
 
-        if (configPath != null) {
-            // Bind-mount the config dir, if specified
-            args.add("--volume \"" + configPath + ":/usr/share/elasticsearch/config\"");
+        // Bind-mount any volumes
+        if (volumes != null) {
+            volumes.forEach((localPath, containerPath) -> args.add("--volume \"" + localPath + ":" + containerPath + "\""));
         }
 
         args.add(distribution.flavor.name + ":test");
@@ -133,19 +138,24 @@ public class Docker {
      * Waits for the Elasticsearch process to start executing in the container.
      * This is called every time a container is started.
      */
-    private static void waitForElasticsearchToStart() throws InterruptedException {
+    private static void waitForElasticsearchToStart() {
         boolean isElasticsearchRunning = false;
         int attempt = 0;
 
         do {
-            String psOutput = dockerShell.run("ps ax").stdout;
+            try {
+                String psOutput = dockerShell.run("ps ax").stdout;
 
-            if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java -X")) {
-                isElasticsearchRunning = true;
-                break;
+                if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java -X")) {
+                    isElasticsearchRunning = true;
+                    break;
+                }
+
+                Thread.sleep(1000);
             }
-
-            Thread.sleep(1000);
+            catch (Exception e) {
+                logger.info("Caught exception while waiting for ES to start", e);
+            }
         } while (attempt++ < 5);
 
         if (!isElasticsearchRunning) {
@@ -167,7 +177,7 @@ public class Docker {
 
                 if (result.isSuccess() == false) {
                     // I'm not sure why we're already removing this container, but that's OK.
-                    if (result.stderr.contains("removal of container " + " is already in progress") == false) {
+                    if (result.stderr.contains("removal of container " + containerId + " is already in progress") == false) {
                         throw new RuntimeException(
                             "Command was not successful: [" + command + "] result: " + result.toString());
                     }

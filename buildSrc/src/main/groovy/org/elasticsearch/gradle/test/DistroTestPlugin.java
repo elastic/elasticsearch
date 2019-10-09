@@ -320,7 +320,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
         // Docker disabled for https://github.com/elastic/elasticsearch/issues/47639
-        for (Type type : Arrays.asList(Type.DEB, Type.RPM /*,Type.DOCKER*/)) {
+        for (Type type : Arrays.asList(Type.DEB, Type.RPM, Type.DOCKER)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     // We should never add a Docker distro with bundledJdk == false

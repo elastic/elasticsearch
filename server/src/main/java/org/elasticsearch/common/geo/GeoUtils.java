@@ -337,7 +337,7 @@ public class GeoUtils {
         }
     }
 
-    private static double centeredModulus(double dividend, double divisor) {
+    public static double centeredModulus(double dividend, double divisor) {
         double rtn = dividend % divisor;
         if (rtn <= 0) {
             rtn += divisor;

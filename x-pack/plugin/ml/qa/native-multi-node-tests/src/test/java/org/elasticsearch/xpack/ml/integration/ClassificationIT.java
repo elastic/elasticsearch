@@ -47,7 +47,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String destIndex;
 
     @After
-    public void cleanup() throws Exception {
+    public void cleanup() {
         cleanUp();
     }
 
@@ -109,6 +109,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
@@ -145,6 +146,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
@@ -196,6 +198,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
@@ -239,6 +242,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
@@ -293,6 +297,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static void assertTopClasses(Map<String, Object> resultsObject, int numTopClasses) {
         assertThat(resultsObject.containsKey("top_classes"), is(true));
+        @SuppressWarnings("unchecked")
         List<Map<String, Object>> topClasses = (List<Map<String, Object>>) resultsObject.get("top_classes");
         assertThat(topClasses, hasSize(numTopClasses));
         List<String> classNames = new ArrayList<>(topClasses.size());

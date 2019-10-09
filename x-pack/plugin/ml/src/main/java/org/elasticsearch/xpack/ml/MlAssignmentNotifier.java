@@ -126,10 +126,10 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                 String id = ((StartDataFrameAnalyticsAction.TaskParams) currentTask.getParams()).getId();
                 if (isTaskAssigned) {
                     DiscoveryNode node = nodes.get(currentAssignment.getExecutorNode());
-                    dataFrameAnalyticsAuditor.info(id, "Starting data frame analytics on node [" + node.toString() + "]");
+                    dataFrameAnalyticsAuditor.info(id, "Starting analytics on node [" + node.toString() + "]");
                 } else {
                     dataFrameAnalyticsAuditor.warning(id,
-                        "No node found to start data frame analytics. Reasons [" + currentAssignment.getExplanation() + "]");
+                        "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]");
                 }
             }
         }

@@ -58,7 +58,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
     @OutputDirectory
     File testRoot = project.file('build/rest')
 
-    Set<String> names = new HashSet<>()
+    private Set<String> names = new HashSet<>()
 
     RestTestsFromSnippetsTask() {
         project.afterEvaluate {

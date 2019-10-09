@@ -158,4 +158,9 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
     public int hashCode() {
         return Objects.hash(weights);
     }
+
+    @Override
+    public boolean providesProbabilities() {
+        return true;
+    }
 }

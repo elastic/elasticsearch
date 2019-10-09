@@ -12,6 +12,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -25,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 
 public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
@@ -106,14 +114,21 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     @Override
-    public double infer(Map<String, Object> fields) {
-        List<Double> processedInferences = inferAndProcess(fields);
-        return outputAggregator.aggregate(processedInferences);
-    }
-
-    @Override
-    public double infer(List<Double> fields) {
-        throw new UnsupportedOperationException("Ensemble requires map containing field names and values");
+    public InferenceResults infer(Map<String, Object> fields, InferenceParams params) {
+        if (params.getNumTopClasses() != 0 &&
+            (targetType != TargetType.CLASSIFICATION || outputAggregator.providesProbabilities() == false)) {
+            throw ExceptionsHelper.badRequestException(
+                "Cannot return top classes for target_type [{}] and aggregate_output [{}]",
+                targetType,
+                outputAggregator.getName());
+        }
+        List<Double> inferenceResults = this.models.stream().map(model -> {
+            InferenceResults results = model.infer(fields, InferenceParams.EMPTY_PARAMS);
+            assert results instanceof SingleValueInferenceResults;
+            return ((SingleValueInferenceResults)results).value();
+        }).collect(Collectors.toList());
+        List<Double> processed = outputAggregator.processValues(inferenceResults);
+        return buildResults(processed, params);
     }
 
     @Override
@@ -121,28 +136,25 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return targetType;
     }
 
-    @Override
-    public List<Double> classificationProbability(Map<String, Object> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
-            throw new UnsupportedOperationException(
-                "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
+    private InferenceResults buildResults(List<Double> processedInferences, InferenceParams params) {
+        switch(targetType) {
+            case REGRESSION:
+                return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences));
+            case CLASSIFICATION:
+                List<ClassificationInferenceResults.TopClassEntry> topClasses =
+                    InferenceHelpers.topClasses(processedInferences, classificationLabels, params.getNumTopClasses());
+                double value = outputAggregator.aggregate(processedInferences);
+                return new ClassificationInferenceResults(outputAggregator.aggregate(processedInferences),
+                    classificationLabel(value, classificationLabels),
+                    topClasses);
+            default:
+                throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on ensemble model");
         }
-        return inferAndProcess(fields);
-    }
-
-    @Override
-    public List<Double> classificationProbability(List<Double> fields) {
-        throw new UnsupportedOperationException("Ensemble requires map containing field names and values");
     }
 
     @Override
     public List<String> classificationLabels() {
         return classificationLabels;
-    }
-
-    private List<Double> inferAndProcess(Map<String, Object> fields) {
-        List<Double> modelInferences = models.stream().map(m -> m.infer(fields)).collect(Collectors.toList());
-        return outputAggregator.processValues(modelInferences);
     }
 
     @Override

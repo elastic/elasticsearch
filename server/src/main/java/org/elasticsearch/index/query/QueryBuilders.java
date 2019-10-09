@@ -28,7 +28,6 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
@@ -423,10 +422,10 @@ public final class QueryBuilders {
      * A query that allows to define a custom scoring function through script.
      *
      * @param queryBuilder The query to custom score
-     * @param function     The script score function builder used to custom score
+     * @param script       The script used to score the query
      */
-    public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, ScriptScoreFunctionBuilder function) {
-        return new ScriptScoreQueryBuilder(queryBuilder, function);
+    public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, Script script) {
+        return new ScriptScoreQueryBuilder(queryBuilder, script);
     }
 
 

@@ -341,7 +341,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                             @Override
                             public void onFailure(Exception e) {
                                 final int slot = counter.incrementAndGet();
-                                if ((e instanceof ResourceNotFoundException &&
+                                if ((ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException &&
                                     Strings.isAllOrWildcard(new String[]{request.getJobId()})) == false) {
                                     failures.set(slot - 1, e);
                                 }

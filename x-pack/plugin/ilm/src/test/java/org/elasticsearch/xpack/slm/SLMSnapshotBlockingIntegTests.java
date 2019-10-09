@@ -117,7 +117,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         return settings.build();
     }
 
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47689")
     public void testSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";

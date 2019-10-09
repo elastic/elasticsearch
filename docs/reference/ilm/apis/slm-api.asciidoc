@@ -110,20 +110,45 @@ To update an existing policy, simply use the put snapshot lifecycle policy API
 with the same policy id as an existing policy.
 
 [[slm-api-get]]
-=== Get Snapshot Lifecycle Policy API
+=== Get snapshot lifecycle policy API
+++++
+<titleabbrev>Get snapshot lifecycle policy</titleabbrev>
+++++
+
+Returns information
+about one or more snapshot lifecycle policies.
+
+
+[[slm-api-get-request]]
+==== {api-request-title}
+
+`GET /_slm/policy/<snapshot-lifecycle-policy-id>`
+
+`GET /_slm/policy/`
+
+
+[[slm-api-get-desc]]
+==== {api-description-title}
 
 Once a policy is in place, you can retrieve one or more of the policies using
 the get snapshot lifecycle policy API. This also includes information about the
 latest successful and failed invocation that the automatic snapshots have taken.
 
-==== Path Parameters
+[[slm-api-get-path-params]]
+==== {api-path-parms-title}
 
-`policy_ids` (optional)::
-  (string) Comma-separated ids of policies to retrieve.
+`<snapshot-lifecycle-policy-id>`::
+(Optional, string)
+Comma-separated list of snapshot lifecycle policy IDs
+to retrieve.
 
-==== Examples
 
-To retrieve a policy, perform a `GET` with the policy's id
+[[slm-api-get-example]]
+==== {api-examples-title}
+
+
+[[slm-api-get-specific-ex]]
+===== Get a specific policy
 
 [source,console]
 --------------------------------------------------
@@ -131,7 +156,7 @@ GET /_slm/policy/daily-snapshots?human
 --------------------------------------------------
 // TEST[continued]
 
-The output looks similar to the following:
+The API returns the following response:
 
 [source,console-result]
 --------------------------------------------------
@@ -172,13 +197,16 @@ The output looks similar to the following:
 <2> The last time this policy was modified
 <3> The next time this policy will be executed
 
-Or, to retrieve all policies:
+
+[[slm-api-get-all-ex]]
+===== Get all policies
 
 [source,console]
 --------------------------------------------------
 GET /_slm/policy
 --------------------------------------------------
 // TEST[continued]
+
 
 [[slm-api-execute]]
 === Execute Snapshot Lifecycle Policy API

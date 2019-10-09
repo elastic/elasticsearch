@@ -1678,6 +1678,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * required generation
      */
     public void trimUnreferencedReaders() throws IOException {
+        // move most of the data to disk to reduce the time the lock is held
+        sync();
         try (ReleasableLock ignored = writeLock.acquire()) {
             if (closed.get()) {
                 // we're shutdown potentially on some tragic event, don't delete anything
@@ -1705,6 +1707,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // We now update the checkpoint to ignore the file we are going to remove.
                 // Note that there is a provision in recoverFromFiles to allow for the case where we synced the checkpoint
                 // but crashed before we could delete the file.
+                // sync at once to make sure that there's at most one unreferenced generation.
                 current.sync();
                 deleteReaderFiles(reader);
             }

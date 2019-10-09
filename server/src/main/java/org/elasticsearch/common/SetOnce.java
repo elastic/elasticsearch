@@ -21,6 +21,18 @@ package org.elasticsearch.common;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * A convenient class which offers a semi-immutable object wrapper
+ * implementation which allows one to set the value of an object exactly once,
+ * and retrieve it many times. If {@link #set(Object)} is called more than once,
+ * {@link AlreadySetException} is thrown and the operation
+ * will fail. {@link #trySet(Object)} on the other hand will return false and no
+ * exception will be thrown.
+ *
+ * @deprecated this class is supposed to be replaced with {@link org.apache.lucene.util.SetOnce}
+ * after https://issues.apache.org/jira/browse/LUCENE-9001 is resolved
+ */
+@Deprecated
 public class SetOnce<T> {
 
     private final class Wrapper {

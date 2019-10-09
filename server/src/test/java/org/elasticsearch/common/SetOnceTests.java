@@ -79,8 +79,8 @@ public class SetOnceTests extends ESTestCase {
                         successfulValue.set(threadNumber);
                     }
                     end.countDown();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
                 }
 
             }).start();

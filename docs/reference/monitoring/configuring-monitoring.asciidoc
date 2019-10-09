@@ -51,7 +51,8 @@ as {kib}, Beats, and Logstash to a monitoring cluster:
 .. Verify that `xpack.monitoring.collection.enabled` settings are `true` on each 
 node in the cluster. 
 
-..  {stack-ov}/xpack-monitoring.html[Configure monitoring across the {stack}].
+.. Configure monitoring across the {stack}. For example, see
+<<monitoring-production>>.
 
 . Identify where to store monitoring data. 
 +
@@ -68,7 +69,7 @@ cluster that stores the monitoring data must have at least one
 <<ingest,ingest node>>.
 
 For more information about typical monitoring architectures, 
-see {stack-ov}/how-monitoring-works.html[How Monitoring Works].
+see <<monitoring-overview>>.
 --
 
 . If {es} {security-features} are enabled and you are using an `http` exporter

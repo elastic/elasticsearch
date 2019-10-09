@@ -261,7 +261,7 @@ that includes:
 * The `shape_relation`,
  which indicates how the processor matches geo_shapes in incoming documents
  to geo_shapes in documents from the enrich index.
- See <<_spatial_relations>> for valid operators and more information.
+ See <<_spatial_relations>> for valid options and more information.
 
 [source,console]
 ----

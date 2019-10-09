@@ -347,7 +347,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
         private volatile boolean stop;
-        private volatile List<String> lastActivePatterns = Collections.emptyList();
+        private volatile List<String> lastActivePatterns = List.of();
 
         AutoFollower(final String remoteCluster,
                      final Consumer<List<AutoFollowResult>> statsUpdater,
@@ -404,7 +404,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             // order to avoid timeouts when waiting for the next remote cluster state
             // version that might never arrive
             final long nextMetadataVersion = Objects.equals(patterns, lastActivePatterns) ? metadataVersion + 1 : metadataVersion;
-            this.lastActivePatterns = Collections.unmodifiableList(patterns);
+            this.lastActivePatterns = List.copyOf(patterns);
 
             final Thread thread = Thread.currentThread();
             getRemoteClusterState(remoteCluster, Math.max(1L, nextMetadataVersion), (remoteClusterStateResponse, remoteError) -> {

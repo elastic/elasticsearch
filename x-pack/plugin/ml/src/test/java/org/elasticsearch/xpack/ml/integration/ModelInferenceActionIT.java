@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -58,13 +59,13 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         Map<String, String> oneHotEncoding = new HashMap<>();
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
-        TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2, 0)
+        TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
                 .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
                 .setTrainedModel(buildClassification(true)))
             .build(Version.CURRENT);
-        TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1, 0)
+        TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
                 .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
@@ -106,19 +107,19 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         }});
 
         // Test regression
-        InferModelAction.Request request = new InferModelAction.Request(modelId1, 0, toInfer, null);
+        InferModelAction.Request request = new InferModelAction.Request(modelId1, 0, toInfer, new RegressionConfig());
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.3, 1.25));
 
-        request = new InferModelAction.Request(modelId1, 0, toInfer2, null);
+        request = new InferModelAction.Request(modelId1, 0, toInfer2, new RegressionConfig());
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.65, 1.55));
 
 
         // Test classification
-        request = new InferModelAction.Request(modelId2, 0, toInfer, null);
+        request = new InferModelAction.Request(modelId2, 0, toInfer, new ClassificationConfig(0));
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults()
                 .stream()
@@ -156,7 +157,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
     public void testInferMissingModel() {
         String model = "test-infer-missing-model";
-        InferModelAction.Request request = new InferModelAction.Request(model, 0, Collections.emptyList(), null);
+        InferModelAction.Request request = new InferModelAction.Request(model, 0, Collections.emptyList(), new RegressionConfig());
         try {
             client().execute(InferModelAction.INSTANCE, request).actionGet();
         } catch (ElasticsearchException ex) {
@@ -164,14 +165,13 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         }
     }
 
-    private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId, long modelVersion) {
+    private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
             .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .setDescription("trained model config for test")
             .setModelId(modelId)
-            .setModelType("binary_decision_tree")
-            .setModelVersion(modelVersion);
+            .setModelType("binary_decision_tree");
     }
 
     @Override

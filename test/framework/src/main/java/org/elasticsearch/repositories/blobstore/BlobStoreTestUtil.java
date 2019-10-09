@@ -169,8 +169,9 @@ public final class BlobStoreTestUtil {
                     if (entry.getKey().startsWith("extra")) {
                         continue;
                     }
-                    if (snapshotInfo.shardFailures().stream().noneMatch(shardFailure ->
-                        shardFailure.index().equals(index) && shardFailure.shardId() == Integer.parseInt(entry.getKey()))) {
+                    final int shardId = Integer.parseInt(entry.getKey());
+                    if (shardId < snapshotInfo.totalShards() && snapshotInfo.shardFailures().stream().noneMatch(
+                        shardFailure -> shardFailure.index().equals(index) && shardFailure.shardId() == shardId)) {
                         final Map<String, BlobMetaData> shardPathContents = entry.getValue().listBlobs();
                         assertThat(shardPathContents,
                             hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())));

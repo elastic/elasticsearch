@@ -3773,6 +3773,65 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
     }
 
+    public void testSnapshotDifferentIndicesBySameName() {
+        String indexName = "testindex";
+        String repoName = "test-repo";
+        String absolutePath = randomRepoPath().toAbsolutePath().toString();
+        logger.info("Path [{}]", absolutePath);
+
+        final int initialShardCount = randomIntBetween(1, 10);
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", initialShardCount).build());
+        ensureGreen();
+
+        logger.info("--> indexing some documents");
+        final int docCount = initialShardCount * randomIntBetween(1, 10);
+        for (int i = 0; i < docCount; i++) {
+            index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository(repoName)
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", absolutePath)));
+
+        logger.info("--> snapshot with [{}] shards", initialShardCount);
+        final SnapshotInfo snapshot1 =
+            client().admin().cluster().prepareCreateSnapshot(repoName, "snap-1").setWaitForCompletion(true).get().getSnapshotInfo();
+        assertThat(snapshot1.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshot1.successfulShards(), is(initialShardCount));
+
+        logger.info("--> delete index");
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final int newShardCount = randomIntBetween(1, 10);
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", newShardCount).build());
+        ensureGreen();
+
+        logger.info("--> indexing some documents");
+        final int newDocCount = newShardCount * randomIntBetween(1, 10);
+        for (int i = 0; i < newDocCount; i++) {
+            index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+
+        logger.info("--> snapshot with [{}] shards", initialShardCount);
+        final SnapshotInfo snapshot2 =
+            client().admin().cluster().prepareCreateSnapshot(repoName, "snap-2").setWaitForCompletion(true).get().getSnapshotInfo();
+        assertThat(snapshot2.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshot2.successfulShards(), is(newShardCount));
+
+        logger.info("--> restoring snapshot 1");
+        client().admin().cluster().prepareRestoreSnapshot(repoName, "snap-1").setIndices(indexName).setRenamePattern(indexName)
+            .setRenameReplacement("restored-1").setWaitForCompletion(true).get();
+
+        logger.info("--> restoring snapshot 2");
+        client().admin().cluster().prepareRestoreSnapshot(repoName, "snap-2").setIndices(indexName).setRenamePattern(indexName)
+            .setRenameReplacement("restored-2").setWaitForCompletion(true).get();
+
+        logger.info("--> verify doc counts");
+        assertHitCount(client().prepareSearch("restored-1").setSize(0).get(), docCount);
+        assertHitCount(client().prepareSearch("restored-2").setSize(0).get(), newDocCount);
+    }
+
     private RepositoryData getRepositoryData(Repository repository) throws InterruptedException {
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
         final SetOnce<RepositoryData> repositoryData = new SetOnce<>();

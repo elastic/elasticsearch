@@ -68,11 +68,10 @@ public final class ShardGenerations implements ToXContentFragment {
             final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
             assert updatedGenerations != null
                 : "Index [" + indexId + "] present in previous shard generations, but missing from updated generations";
-            for (int i = 0; i < oldGens.size(); i++) {
+            for (int i = 0; i < Math.min(oldGens.size(), updatedGenerations.size()); i++) {
                 final String oldGeneration = oldGens.get(i);
                 final String updatedGeneration = updatedGenerations.get(i);
-                assert updatedGeneration != null : "Can't update from a non-null generation to a null generation";
-                if (oldGeneration != null && oldGeneration.equals(updatedGeneration) == false) {
+                if (updatedGeneration != null && oldGeneration != null && oldGeneration.equals(updatedGeneration) == false) {
                     obsoleteShardIndices.put(i, oldGeneration);
                 }
             }

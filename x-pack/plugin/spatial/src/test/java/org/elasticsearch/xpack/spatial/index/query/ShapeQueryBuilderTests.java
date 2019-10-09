@@ -152,7 +152,7 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
 
     public void testNoIndexedShape() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new ShapeQueryBuilder(fieldName(), null, "type"));
+            () -> new ShapeQueryBuilder(fieldName(), null, null));
         assertEquals("either shape or indexedShapeId is required", e.getMessage());
     }
 

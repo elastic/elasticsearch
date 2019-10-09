@@ -144,6 +144,12 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     protected AbstractGeometryQueryBuilder(String fieldName, Supplier<Geometry> supplier, String indexedShapeId) {
+        if (fieldName == null) {
+            throw new IllegalArgumentException("fieldName is required");
+        }
+        if (supplier == null && indexedShapeId == null) {
+            throw new IllegalArgumentException("either shape or indexedShapeId is required");
+        }
         this.fieldName = fieldName;
         this.shape = null;
         this.supplier = supplier;

@@ -309,6 +309,22 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=month}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
     }
 
+    public void testTranslateDatePart_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT int FROM test WHERE DATE_PART('month', date) > '2018-09-04'::date");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.datePart(" +
+                "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))",
+            sc.script().toString());
+        assertEquals("[{v=month}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
+    }
+
     public void testLikeOnInexact() {
         LogicalPlan p = plan("SELECT * FROM test WHERE some.string LIKE '%a%'");
         assertTrue(p instanceof Project);
@@ -899,7 +915,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(DataType.INTEGER, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
-                    + "\"fixed_interval\":\"31536000000ms\",\"time_zone\":\"Z\"}}}]}}}"));
+                    + "\"calendar_interval\":\"1y\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
     public void testGroupByHistogramWithDate() {
@@ -924,7 +940,7 @@ public class QueryTranslatorTests extends ESTestCase {
         EsQueryExec eqe = (EsQueryExec) p;
         assertEquals(1, eqe.queryContainer().aggs().groups().size());
         assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
-        assertEquals(86400000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+        assertEquals(86400000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).fixedInterval());
     }
 
     public void testGroupByHistogramWithDateTruncateIntervalToDayMultiples() {
@@ -935,7 +951,7 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.queryContainer().aggs().groups().size());
             assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
-            assertEquals(172800000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+            assertEquals(172800000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).fixedInterval());
         }
         {
             PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
@@ -944,7 +960,7 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.queryContainer().aggs().groups().size());
             assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
-            assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+            assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).fixedInterval());
         }
     }
 

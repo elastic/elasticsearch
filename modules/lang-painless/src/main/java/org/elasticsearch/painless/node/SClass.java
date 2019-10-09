@@ -24,13 +24,14 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -62,10 +63,10 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_METHOD;
 import static org.elasticsearch.painless.WriterConstants.EMPTY_MAP_METHOD;
 import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
+import static org.elasticsearch.painless.WriterConstants.FUNCTION_TABLE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
-import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
@@ -81,12 +82,13 @@ public final class SClass extends AStatement {
     private final ScriptClassInfo scriptClassInfo;
     private final String name;
     private final Printer debugStream;
-    private final List<SFunction> functions;
+    private final List<SFunction> functions = new ArrayList<>();
     private final Globals globals;
     private final List<AStatement> statements;
 
     private CompilerSettings settings;
 
+    private ScriptRoot table;
     private Locals mainMethod;
     private final Set<String> extractedVariables;
     private final List<org.objectweb.asm.commons.Method> getMethods;
@@ -98,12 +100,16 @@ public final class SClass extends AStatement {
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.name = Objects.requireNonNull(name);
         this.debugStream = debugStream;
-        this.functions = Collections.unmodifiableList(functions);
+        this.functions.addAll(Objects.requireNonNull(functions));
         this.statements = Collections.unmodifiableList(statements);
         this.globals = new Globals(new BitSet(sourceText.length()));
 
         this.extractedVariables = new HashSet<>();
         this.getMethods = new ArrayList<>();
+    }
+
+    void addFunction(SFunction function) {
+        functions.add(function);
     }
 
     @Override
@@ -133,29 +139,34 @@ public final class SClass extends AStatement {
     }
 
     public void analyze(PainlessLookup painlessLookup) {
-        Map<String, LocalMethod> methods = new HashMap<>();
+        table = new ScriptRoot(painlessLookup, settings, scriptClassInfo, this);
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);
 
-            String key = Locals.buildLocalMethodKey(function.name, function.parameters.size());
+            String key = FunctionTable.buildLocalFunctionKey(function.name, function.parameters.size());
 
-            if (methods.put(key,
-                    new LocalMethod(function.name, function.returnType, function.typeParameters, function.methodType)) != null) {
-                throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));
+            if (table.getFunctionTable().getFunction(key) != null) {
+                throw createError(new IllegalArgumentException("Illegal duplicate functions [" + key + "]."));
             }
+
+            table.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, false);
         }
 
-        Locals locals = Locals.newProgramScope(scriptClassInfo, painlessLookup, methods.values());
-        analyze(locals);
+        Locals locals = Locals.newProgramScope();
+        analyze(table, locals);
     }
 
     @Override
-    void analyze(Locals program) {
+    void analyze(ScriptRoot scriptRoot, Locals program) {
+        // copy protection is required because synthetic functions are
+        // added for lambdas/method references and analysis here is
+        // only for user-defined functions
+        List<SFunction> functions = new ArrayList<>(this.functions);
         for (SFunction function : functions) {
             Locals functionLocals =
                 Locals.newFunctionScope(program, function.returnType, function.parameters, settings.getMaxLoopCounter());
-            function.analyze(functionLocals);
+            function.analyze(scriptRoot, functionLocals);
         }
 
         if (statements == null || statements.isEmpty()) {
@@ -186,8 +197,7 @@ public final class SClass extends AStatement {
             }
 
             statement.lastSource = statement == last;
-
-            statement.analyze(mainMethod);
+            statement.analyze(scriptRoot, mainMethod);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
@@ -212,7 +222,7 @@ public final class SClass extends AStatement {
         MethodWriter bootstrapDef = classWriter.newMethodWriter(Opcodes.ACC_STATIC | Opcodes.ACC_VARARGS, DEF_BOOTSTRAP_METHOD);
         bootstrapDef.visitCode();
         bootstrapDef.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
-        bootstrapDef.getStatic(CLASS_TYPE, "$LOCALS", MAP_TYPE);
+        bootstrapDef.getStatic(CLASS_TYPE, "$FUNCTIONS", FUNCTION_TABLE_TYPE);
         bootstrapDef.loadArgs();
         bootstrapDef.invokeStatic(DEF_BOOTSTRAP_DELEGATE_TYPE, DEF_BOOTSTRAP_DELEGATE_METHOD);
         bootstrapDef.returnValue();
@@ -226,7 +236,8 @@ public final class SClass extends AStatement {
         // Write the static variables used by the method to bootstrap def calls
         classVisitor.visitField(
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
-        classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$LOCALS", MAP_TYPE.getDescriptor(), null, null).visitEnd();
+        classVisitor.visitField(
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$FUNCTIONS", FUNCTION_TABLE_TYPE.getDescriptor(), null, null).visitEnd();
 
         org.objectweb.asm.commons.Method init;
 
@@ -276,15 +287,6 @@ public final class SClass extends AStatement {
         // Write all functions:
         for (SFunction function : functions) {
             function.write(classWriter, globals);
-        }
-
-        // Write all synthetic functions. Note that this process may add more :)
-        while (!globals.getSyntheticMethods().isEmpty()) {
-            List<SFunction> current = new ArrayList<>(globals.getSyntheticMethods().values());
-            globals.getSyntheticMethods().clear();
-            for (SFunction function : current) {
-                function.write(classWriter, globals);
-            }
         }
 
         // Write the constants
@@ -345,7 +347,7 @@ public final class SClass extends AStatement {
         bytes = classWriter.getClassBytes();
 
         Map<String, Object> statics = new HashMap<>();
-        statics.put("$LOCALS", mainMethod.getMethods());
+        statics.put("$FUNCTIONS", table.getFunctionTable());
 
         for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
             statics.put(instanceBinding.getValue(), instanceBinding.getKey());

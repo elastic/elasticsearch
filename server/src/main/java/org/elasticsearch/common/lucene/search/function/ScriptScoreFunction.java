@@ -55,15 +55,6 @@ public class ScriptScoreFunction extends ScoreFunction {
     private final String indexName;
     private final Version indexVersion;
 
-    public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script) {
-        super(CombineFunction.REPLACE);
-        this.sScript = sScript;
-        this.script = script;
-        this.indexName = null;
-        this.shardId = -1;
-        this.indexVersion = null;
-    }
-
     public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script, String indexName, int shardId, Version indexVersion) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
@@ -87,7 +78,7 @@ public class ScriptScoreFunction extends ScoreFunction {
                 leafScript.setDocument(docId);
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
-                double result = leafScript.execute();
+                double result = leafScript.execute(null);
                 if (result < 0f) {
                     throw new IllegalArgumentException("script score function must not produce negative scores, but got: [" + result + "]");
                 }

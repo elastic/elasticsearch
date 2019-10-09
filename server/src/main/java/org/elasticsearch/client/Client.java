@@ -231,9 +231,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     BulkRequestBuilder prepareBulk();
 
     /**
-     * Executes a bulk of index / delete operations with default index and/or type
+     * Executes a bulk of index / delete operations with default index
      */
-    BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType);
+    BulkRequestBuilder prepareBulk(@Nullable String globalIndex);
 
     /**
      * Gets the document that was indexed from an index with a type and id.

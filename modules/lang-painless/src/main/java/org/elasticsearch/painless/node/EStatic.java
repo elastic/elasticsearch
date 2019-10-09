@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -53,8 +54,8 @@ public final class EStatic extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
-        actual = locals.getPainlessLookup().canonicalTypeNameToType(type);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 
         if (actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));

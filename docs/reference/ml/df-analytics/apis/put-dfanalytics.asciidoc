@@ -70,7 +70,7 @@ and mappings.
   If `analyzed_fields` is not set, only the relevant fields will be included. 
   For example, all the numeric fields for {oldetection}. For the potential field 
   type limitations, see 
-  {stack-ov}/ml-dfa-limitations.html[{dfanalytics limitations}].
+  {stack-ov}/ml-dfa-limitations.html[{dfanalytics} limitations].
   
   `includes`:::
     (Optional, array) An array of strings that defines the fields that will be 

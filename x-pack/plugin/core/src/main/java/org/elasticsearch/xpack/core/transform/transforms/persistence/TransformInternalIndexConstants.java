@@ -29,9 +29,10 @@ public final class TransformInternalIndexConstants {
     public static final String INDEX_NAME_PATTERN = INDEX_PATTERN + "*";
 
     // audit index
-    public static final String AUDIT_TEMPLATE_VERSION = "1";
+    public static final String AUDIT_TEMPLATE_VERSION = "000001";
     public static final String AUDIT_INDEX_PREFIX = ".transform-notifications-";
     public static final String AUDIT_INDEX_PATTERN = AUDIT_INDEX_PREFIX + "*";
+    public static final String AUDIT_INDEX_DEPRECATED = ".data-frame-notifications-1";
     public static final String AUDIT_INDEX_PATTERN_DEPRECATED = ".data-frame-notifications-*";
 
     public static final String AUDIT_INDEX_READ_ALIAS = ".transform-notifications-read";

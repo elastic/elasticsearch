@@ -61,19 +61,22 @@ and mappings.
 ==== {api-request-body-title}
 
 `analysis`::
-  (Required, object) Defines the type of {dfanalytics} you want to perform on your source 
-  index. For example: `outlier_detection`. See <<dfanalytics-types>>.
+  (Required, object) Defines the type of {dfanalytics} you want to perform on 
+  your source index. For example: `outlier_detection`. See 
+  <<dfanalytics-types>>.
   
 `analyzed_fields`::
   (Optional, object) You can specify both `includes` and/or `excludes` patterns. 
   If `analyzed_fields` is not set, only the relevant fields will be included. 
-  For example, all the numeric fields for {oldetection}.
+  For example, all the numeric fields for {oldetection}. For the potential field 
+  type limitations, see 
+  {stack-ov}/ml-dfa-limitations.html[{dfanalytics} limitations].
   
-  `analyzed_fields.includes`:::
+  `includes`:::
     (Optional, array) An array of strings that defines the fields that will be 
     included in the analysis.
     
-  `analyzed_fields.excludes`:::
+  `excludes`:::
     (Optional, array) An array of strings that defines the fields that will be 
     excluded from the analysis.
 

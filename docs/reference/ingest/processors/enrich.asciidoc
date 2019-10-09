@@ -19,17 +19,15 @@ check out the <<ingest-enriching-data,tutorial>> to get familiar with enrich pol
 | `override`         | no        | true                 | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will                                                             not be touched.
 | `max_matches`      | no        | 1                    | The maximum number of matched documents to include under the configured target field. In order to avoid                                                                    documents getting too large, the maximum allowed value is 128.
 | `shape_relation`   | no        | `INTERSECTS`         a| Spatial relation operator
-used to match the <<geo-shape,geoshape>> of incoming documents
+used to match the <<geo-shape,geo_shape>> of incoming documents
 to documents in the enrich index.
-Valid operators are:
++
+This option is only used for `geo_match` enrich policy types.
++
+The <<spatial-strategy, geo_shape strategy>> mapping parameter determines
+which spatial relation operators are availlble.
+See <<_spatial_relations>>
+for operators and more information.
 
-* `INTERSECTS`:
-Match documents whose geoshapes intersect.
-* `DISJOINT`:
-Match documents whose geoshapes do not intersect at all.
-* `WITHIN`:
-To match, the geoshape of an incoming document
-must be completely within the geoshape of a document
-in the enrich index.
 include::common-options.asciidoc[]
 |======

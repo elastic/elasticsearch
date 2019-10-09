@@ -120,7 +120,7 @@ See <<enrich-setup>> for an example.
 
 `geo_match`::
 Match documents in the enrich index
-using a <<query-dsl-geo-shape-query,geoshape query>> for the `match_field`.
+using a <<query-dsl-geo-shape-query,`geo_shape` query>> for the `match_field`.
 See <<put-enrich-policy-geo-match-ex>> for an example.
 
 The parameter value is the enrich policy.
@@ -155,17 +155,17 @@ from matching documents in the enrich index.
 ==== {api-examples-title}
 
 [[put-enrich-policy-geo-match-ex]]
-===== Geo match policy type
+===== `geo_match` policy type
 
 You can use the `geo_match` enrich policy type
 to enrich incoming documents
-based on matching geoshapes.
+based on matching geo_shapes.
 For example,
 you can add postal codes
 to incoming documents
 based on a set of coordinates.
 
-To see how the geo match policy type works,
+To see how the `geo_match` policy type works,
 try the following example.
 
 Use the <<indices-create-index, create index API>>
@@ -173,7 +173,7 @@ to create a source index.
 The field mappings for the source index
 must contain:
 
-* A <<geo-shape,geoshape>> field
+* A <<geo-shape,`geo_shape`>> field
   which the enrich processor can use to match incoming documents
 * One or more enrich fields
   you'd like to append to incoming documents
@@ -218,7 +218,7 @@ This policy must include:
 
 * One or more source indices
 * A `match_field`,
-  the geoshape field from the source indices
+  the `geo_shape` field from the source indices
   used to match incoming documents
 * Enrich fields from the source indices
   you'd like to append to incoming documents
@@ -255,12 +255,13 @@ that includes:
 
 * Your enrich policy
 * The `field` of incoming documents used
-  to match the geoshape of documents from the enrich index.
+  to match the geo_shape of documents from the enrich index.
 * The `target_field` used
   to store appended enrich data for incoming documents.
 * The `shape_relation`,
- which indicates how the processor matches geoshapes in incoming documents
- to geoshapes in documents from the enrich index.
+ which indicates how the processor matches geo_shapes in incoming documents
+ to geo_shapes in documents from the enrich index.
+ See <<_spatial_relations>> for valid operators and more information.
 
 [source,console]
 ----

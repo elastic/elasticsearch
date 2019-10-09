@@ -20,11 +20,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,7 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public final class ShardGenerations implements ToXContentFragment {
+public final class ShardGenerations {
 
     public static final ShardGenerations EMPTY = ShardGenerations.builder().build();
 
@@ -97,12 +93,9 @@ public final class ShardGenerations implements ToXContentFragment {
         return generations.get(shardId);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (Map.Entry<IndexId, List<String>> entry : shardGenerations.entrySet()) {
-            builder.array(entry.getKey().getId(), entry.getValue().toArray(Strings.EMPTY_ARRAY));
-        }
-        return builder;
+    public List<String> getGens(IndexId indexId) {
+        final List<String> existing = shardGenerations.get(indexId);
+        return existing == null ? Collections.emptyList() : Collections.unmodifiableList(existing);
     }
 
     @Override
@@ -124,7 +117,7 @@ public final class ShardGenerations implements ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return "ShardGenerations{generations:" + this.shardGenerations + "}";
     }
 
     public static Builder builder() {

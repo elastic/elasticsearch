@@ -23,11 +23,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -326,6 +325,10 @@ public final class RepositoryData {
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version version) throws IOException {
+        final boolean shouldWriteShardGens = version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
+        assert shouldWriteShardGens || shardGenerations.indices().isEmpty() :
+            "Should not build shard generations in BwC mode but saw generations [" + shardGenerations + "]";
+
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
@@ -351,19 +354,16 @@ public final class RepositoryData {
                 builder.value(snapshotId.getUUID());
             }
             builder.endArray();
+            if (shouldWriteShardGens) {
+                builder.startArray(SHARD_GENERATIONS);
+                for (String gen : shardGenerations.getGens(indexId)) {
+                    builder.value(gen);
+                }
+                builder.endArray();
+            }
             builder.endObject();
         }
         builder.endObject();
-
-        if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
-            builder.startObject(RepositoryData.SHARD_GENERATIONS);
-            shardGenerations.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-        } else {
-            assert shardGenerations.indices().isEmpty() :
-                "Should not build shard generations in BwC mode but saw generations [" + shardGenerations + "]";
-        }
-
         builder.endObject();
         return builder;
     }
@@ -375,7 +375,7 @@ public final class RepositoryData {
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
         final Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
-        final Map<String, String[]> shardStatus = new HashMap<>();
+        final ShardGenerations.Builder shardGenerations = ShardGenerations.builder();
 
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
@@ -421,6 +421,7 @@ public final class RepositoryData {
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         final String indexName = parser.currentName();
                         final Set<SnapshotId> snapshotIds = new LinkedHashSet<>();
+                        final List<String> gens = new ArrayList<>();
 
                         IndexId indexId = null;
                         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
@@ -463,23 +464,19 @@ public final class RepositoryData {
                                             + " references an unknown snapshot uuid [" + uuid + "]");
                                     }
                                 }
+                            } else if (SHARD_GENERATIONS.equals(indexMetaFieldName)) {
+                                XContentParserUtils.ensureExpectedToken(
+                                    XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                    gens.add(parser.textOrNull());
+                                }
+
                             }
                         }
                         assert indexId != null;
                         indexSnapshots.put(indexId, snapshotIds);
-                    }
-                } else if (SHARD_GENERATIONS.equals(field)) {
-                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                        while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                            final String indexId = parser.currentName();
-                            if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
-                                throw new ElasticsearchParseException("start array expected [shards]");
-                            }
-                            final Collection<String> generations = new ArrayList<>();
-                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                generations.add(parser.textOrNull());
-                            }
-                            shardStatus.put(indexId, generations.toArray(Strings.EMPTY_ARRAY));
+                        for (int i = 0; i < gens.size(); i++) {
+                            shardGenerations.add(indexId, i, gens.get(i));
                         }
                     }
                 } else {
@@ -489,17 +486,7 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        final ShardGenerations.Builder builder = ShardGenerations.builder();
-        final Map<String, IndexId> indexLookup =
-            indexSnapshots.keySet().stream().collect(Collectors.toMap(IndexId::getId, Function.identity()));
-        shardStatus.forEach((indexId, gens) -> {
-            final IndexId idx = indexLookup.get(indexId);
-            assert idx != null : "shard generations contained index [" + indexId + "] that isn't part of any snapshot";
-            for (int i = 0; i < gens.length; i++) {
-                builder.add(idx, i, gens[i]);
-            }
-        });
-        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, builder.build());
+        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, shardGenerations.build());
     }
 
 }

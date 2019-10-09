@@ -1150,11 +1150,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 for (SnapshotFiles point : snapshots) {
                     newSnapshotsList.add(point);
                 }
+                final List<String> blobsToDelete;
                 final String indexGeneration;
                 if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
                     indexGeneration = UUIDs.randomBase64UUID();
+                    blobsToDelete = Collections.emptyList();
                 } else {
                     indexGeneration = Long.toString(Long.parseLong(fileListGeneration) + 1);
+                    // Delete all previous index-N blobs
+                    blobsToDelete = blobs.stream().filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)).collect(Collectors.toList());
+                    assert blobsToDelete.stream().mapToLong(b -> Long.parseLong(b.replaceFirst(SNAPSHOT_INDEX_PREFIX, "")))
+                        .max().orElse(-1L) < Long.parseLong(indexGeneration)
+                        : "Tried to delete an index-N blob newer than the current generation [" + indexGeneration
+                        + "] when deleting index-N blobs " + blobsToDelete;
                 }
                 try {
                     final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
@@ -1163,6 +1171,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw new IndexShardSnapshotFailedException(shardId,
                         "Failed to finalize snapshot creation [" + snapshotId + "] with shard index ["
                             + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
+                }
+                if (version.before(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                    try {
+                        shardContainer.deleteBlobsIgnoringIfNotExists(blobsToDelete);
+                    } catch (IOException e) {
+                        logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete old index-N blobs during finalization",
+                            snapshotId, shardId), e);
+                    }
                 }
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), indexGeneration);
                 snapshotDoneListener.onResponse(indexGeneration);

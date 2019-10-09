@@ -151,6 +151,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     public final void start() {
         if (getNumShards() == 0) {
+            task.getStatus().phaseStarted(getName(), 0);
             //no search shards to search on, bail with empty response
             //(it happens with search across _all with no indices around and consistent with broadcast operations)
             int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
@@ -160,6 +161,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),
                 ShardSearchFailure.EMPTY_ARRAY, clusters));
+            task.getStatus().phaseCompleted(getName());
             return;
         }
         executePhase(this);
@@ -383,7 +385,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
-            task.getStatus().shardFailed(getName(), shardIt.shardId(), e);
+            task.getStatus().shardFailed(getName(), shardTarget, e);
             onPhaseDone();
         } else {
             final ShardRouting nextShard = shardIt.nextOrNull();
@@ -395,7 +397,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (lastShard == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             } else {
-                task.getStatus().shardFailed(getName(), shardIt.shardId(), e);
+                task.getStatus().shardFailed(getName(), shardTarget, e);
                 // no more shards active, add a failure
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                     if (e != null && !TransportActions.isShardNotAvailableException(e)) {
@@ -533,8 +535,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        task.getStatus().phaseFailed(phase.getName(), cause);
-        raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
+        SearchPhaseExecutionException phaseFailure = new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures());
+        task.getStatus().phaseFailed(phase.getName(), phaseFailure);
+        raisePhaseFailure(phaseFailure);
     }
 
     /**

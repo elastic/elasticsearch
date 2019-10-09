@@ -30,7 +30,7 @@ import java.util.function.Supplier;
  */
 public final class MainSearchTask extends SearchTask {
 
-    private final SearchTaskStatus searchTaskStatus = new SearchTaskStatus();
+    private final MainSearchTaskStatus mainSearchTaskStatus = new MainSearchTaskStatus();
 
     public MainSearchTask(long id, String type, String action, Supplier<String> description,
                           TaskId parentTaskId, Map<String, String> headers) {
@@ -38,7 +38,7 @@ public final class MainSearchTask extends SearchTask {
     }
 
     @Override
-    public SearchTaskStatus getStatus() {
-        return searchTaskStatus;
+    public MainSearchTaskStatus getStatus() {
+        return mainSearchTaskStatus;
     }
 }

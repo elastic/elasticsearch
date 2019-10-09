@@ -66,6 +66,7 @@ final class ExpandSearchPhase extends SearchPhase {
     @Override
     public void run() {
         //TODO we can't really tell how many shards this runs on, we could say 0 whenever nothing has to happen, but what otherwise?
+        //TODO shall we always mark the phase started even when it does nothing?
         context.getTask().getStatus().phaseStarted(getName(), -1);
         if (isCollapseRequest() && searchResponse.hits().getHits().length > 0) {
             SearchRequest searchRequest = context.getRequest();

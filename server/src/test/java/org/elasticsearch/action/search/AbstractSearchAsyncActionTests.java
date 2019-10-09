@@ -24,30 +24,43 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -58,10 +71,15 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private final Set<Long> releasedContexts = new CopyOnWriteArraySet<>();
 
     private AbstractSearchAsyncAction<SearchPhaseResult> createAction(SearchRequest request,
+                                                                      MainSearchTask mainSearchTask,
                                                                       ArraySearchPhaseResults<SearchPhaseResult> results,
                                                                       ActionListener<SearchResponse> listener,
                                                                       final boolean controlled,
-                                                                      final AtomicLong expected) {
+                                                                      final AtomicLong expected,
+                                                                      final BiConsumer<SearchActionListener<SearchPhaseResult>,
+                                                                          ShardId> shardOp,
+                                                                      Executor executor,
+                                                                      final SearchPhase nextPhase) {
         final Runnable runnable;
         final TransportSearchAction.SearchTimeProvider timeProvider;
         if (controlled) {
@@ -83,24 +101,30 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             return null;
         };
 
+        ShardId shardId1 = new ShardId("index", "uuid", 0);
+        ShardRouting shardRouting1 = TestShardRouting.newShardRouting(shardId1, "node", true, ShardRoutingState.STARTED);
+        ShardRouting shardRouting1Replica = TestShardRouting.newShardRouting(shardId1, "another_node", false, ShardRoutingState.STARTED);
+        SearchShardIterator iterator1 = new SearchShardIterator(null, shardId1, Arrays.asList(shardRouting1, shardRouting1Replica), null);
+        ShardId shardId2 = new ShardId("index", "uuid", 1);
+        ShardRouting shardRouting2 = TestShardRouting.newShardRouting(shardId2, "node", true, ShardRoutingState.STARTED);
+        ShardRouting shardRouting2Replica = TestShardRouting.newShardRouting(shardId2, "another_node", false, ShardRoutingState.STARTED);
+        SearchShardIterator iterator2 = new SearchShardIterator(null, shardId2, Arrays.asList(shardRouting2, shardRouting2Replica), null);
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, null, nodeIdToConnection,
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
-                Collections.singletonMap("name", Sets.newHashSet("bar", "baz")), null, request, listener,
-                new GroupShardsIterator<>(
-                    Collections.singletonList(
-                        new SearchShardIterator(null, null, Collections.emptyList(), null)
-                    )
-                ), timeProvider, 0, new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
+                Collections.singletonMap("name", Sets.newHashSet("bar", "baz")), executor, request, listener,
+                new GroupShardsIterator<>(Arrays.asList(iterator1, iterator2)),
+                timeProvider, 0, mainSearchTask,
                 results, request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
-                return null;
+                return nextPhase;
             }
 
             @Override
             protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
                                                final SearchActionListener<SearchPhaseResult> listener) {
+                shardOp.accept(listener, shard.shardId());
             }
 
             @Override
@@ -127,7 +151,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private void runTestTook(final boolean controlled) {
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(new SearchRequest(),
-            new ArraySearchPhaseResults<>(10), null, controlled, expected);
+            new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
+            new ArraySearchPhaseResults<>(10), null, controlled, expected, (listener, shard) -> {}, null, null);
         final long actual = action.buildTookInMillis();
         if (controlled) {
             // with a controlled clock, we can assert the exact took time
@@ -142,7 +167,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean()).preference("_shards:1,3");
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            new ArraySearchPhaseResults<>(10), null, false, expected);
+            new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
+            new ArraySearchPhaseResults<>(10), null, false, expected, (listener, shard) -> {}, null, null);
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
@@ -160,7 +186,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     public void testBuildSearchResponse() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            new ArraySearchPhaseResults<>(10), null, false, new AtomicLong());
+            new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
+            new ArraySearchPhaseResults<>(10), null, false, new AtomicLong(), (listener, shard) -> {}, null, null);
         String scrollId = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
         SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId);
@@ -174,7 +201,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     public void testBuildSearchResponseAllowPartialFailures() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            new ArraySearchPhaseResults<>(10), null, false, new AtomicLong());
+            new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
+            new ArraySearchPhaseResults<>(10), null, false, new AtomicLong(), (listener, shard) -> {}, null, null);
         action.onShardFailure(0, new SearchShardTarget("node", new ShardId("index", "index-uuid", 0), null, OriginalIndices.NONE),
             new IllegalArgumentException());
         String scrollId = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
@@ -195,7 +223,9 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         int numFailures = randomIntBetween(1, 5);
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, numFailures);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
+            new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()), phaseResults, listener, false, new AtomicLong(),
+            (searchActionListener, shard) -> {}, null, null);
         for (int i = 0; i < numFailures; i++) {
             ShardId failureShardId = new ShardId("index", "index-uuid", i);
             String failureClusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
@@ -222,7 +252,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         Set<Long> requestIds = new HashSet<>();
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, 0);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
+            new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()), phaseResults, listener, false, new AtomicLong(),
+            (searchActionListener, shard) -> {}, null, null);
+        action.getTask().getStatus().phaseStarted("test", -1);
         action.onPhaseFailure(new SearchPhase("test") {
             @Override
             public void run() {
@@ -237,6 +270,17 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
         assertEquals(nodeLookups, resolvedNodes);
         assertEquals(requestIds, releasedContexts);
+
+        MainSearchTaskStatus status = action.getTask().getStatus();
+        assertNull(status.getCurrentPhase());
+        List<MainSearchTaskStatus.PhaseInfo> completedPhases = status.getCompletedPhases();
+        assertEquals(1, completedPhases.size());
+        MainSearchTaskStatus.PhaseInfo phaseInfo = completedPhases.get(0);
+        assertEquals("test", phaseInfo.getName());
+        assertEquals(-1, phaseInfo.getExpectedOps());
+        assertEquals(0, phaseInfo.getProcessedShards().size());
+        assertThat(phaseInfo.getFailure(), instanceOf(SearchPhaseExecutionException.class));
+        assertEquals("message", phaseInfo.getFailure().getMessage());
     }
 
     public void testShardNotAvailableWithDisallowPartialFailures() {
@@ -246,11 +290,14 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         int numShards = randomIntBetween(2, 10);
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults =
             new ArraySearchPhaseResults<>(numShards);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
+            new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()), phaseResults, listener, false, new AtomicLong(),
+            (searchActionListener, shard) -> {}, null, null);
         // skip one to avoid the "all shards failed" failure.
         SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
         skipIterator.resetAndSkip();
         action.skipShard(skipIterator);
+        action.getTask().getStatus().phaseStarted("test", -1);
         // expect at least 2 shards, so onPhaseDone should report failure.
         action.onPhaseDone();
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
@@ -260,6 +307,273 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals("test", searchPhaseExecutionException.getPhaseName());
         assertEquals(0, searchPhaseExecutionException.shardFailures().length);
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
+
+        MainSearchTaskStatus status = action.getTask().getStatus();
+        assertNull(status.getCurrentPhase());
+        List<MainSearchTaskStatus.PhaseInfo> completedPhases = status.getCompletedPhases();
+        assertEquals(1, completedPhases.size());
+        MainSearchTaskStatus.PhaseInfo phaseInfo = completedPhases.get(0);
+        assertEquals("test", phaseInfo.getName());
+        assertThat(phaseInfo.getFailure(), instanceOf(SearchPhaseExecutionException.class));
+        assertEquals(-1, phaseInfo.getExpectedOps());
+        assertEquals(0, phaseInfo.getProcessedShards().size());
+    }
+
+    public void testPartialResultsProgressReporting() throws Exception {
+        ShardNotFoundException exception = new ShardNotFoundException(new ShardId("", "", 0));
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        try {
+
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                searchRequest,
+                new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
+                new ArraySearchPhaseResults<>(2),
+                ActionListener.wrap(r -> {}, e -> {}),
+                false,
+                new AtomicLong(),
+                (searchActionListener, shard) -> {
+                    if (shard.id() == 0) {
+                        searchActionListener.onFailure(exception);
+                    } else {
+                        SearchPhaseResult searchPhaseResult = new SearchPhaseResult() {};
+                        searchPhaseResult.setTaskInfo(new TaskInfo(new TaskId("node_id", 1), "type", "action",
+                            null, null, -1, -1, true, null, Collections.emptyMap()));
+                        searchActionListener.onResponse(searchPhaseResult);
+                    }
+                },
+                executorService,
+                new SearchPhase("next") {
+                    @Override
+                    public void run() {
+
+                    }
+                });
+
+            action.start();
+
+            assertBusy(() -> {
+                MainSearchTaskStatus status = action.getTask().getStatus();
+                assertNull(status.getCurrentPhase());
+                List<MainSearchTaskStatus.PhaseInfo> completedPhases = status.getCompletedPhases();
+                assertEquals(1, completedPhases.size());
+                MainSearchTaskStatus.PhaseInfo phaseInfo = completedPhases.get(0);
+                assertNull(phaseInfo.getFailure());
+                assertEquals("test", phaseInfo.getName());
+                assertEquals(2, phaseInfo.getExpectedOps());
+                assertEquals(2, phaseInfo.getProcessedShards().size());
+                for (MainSearchTaskStatus.ShardInfo shardInfo : phaseInfo.getProcessedShards()) {
+                    assertEquals("index", shardInfo.getSearchShardTarget().getShardId().getIndexName());
+                    assertThat(shardInfo.getSearchShardTarget().getNodeId(), endsWith("node"));
+                    if (shardInfo.getSearchShardTarget().getShardId().id() == 0) {
+                        assertSame(exception, shardInfo.getFailure());
+                        assertNull(shardInfo.getTaskInfo());
+                    } else {
+                        assertEquals(1, shardInfo.getSearchShardTarget().getShardId().id());
+                        TaskInfo taskInfo = shardInfo.getTaskInfo();
+                        assertEquals(1, taskInfo.getTaskId().getId());
+                        assertEquals("node_id", taskInfo.getTaskId().getNodeId());
+                        assertEquals("action", taskInfo.getAction());
+                    }
+                }
+            });
+        } finally {
+            ThreadPool.terminate(executorService, 5, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testPartialShardFailureProgressReporting() throws Exception {
+        ShardNotFoundException exception = new ShardNotFoundException(new ShardId("", "", 0));
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(false);
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        try {
+
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                searchRequest,
+                new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
+                new ArraySearchPhaseResults<>(2),
+                ActionListener.wrap(r -> {}, e -> {}),
+                false,
+                new AtomicLong(),
+                (searchActionListener, shard) -> {
+                    if (shard.id() == 0) {
+                        searchActionListener.onFailure(exception);
+                    } else {
+                        SearchPhaseResult searchPhaseResult = new SearchPhaseResult() {};
+                        searchPhaseResult.setTaskInfo(new TaskInfo(new TaskId("node_id", 1), "type", "action",
+                            null, null, -1, -1, true, null, Collections.emptyMap()));
+                        searchActionListener.onResponse(searchPhaseResult);
+                    }
+                },
+                executorService,
+                new SearchPhase("next") {
+                    @Override
+                    public void run() {
+
+                    }
+                });
+
+            action.start();
+
+            assertBusy(() -> {
+                MainSearchTaskStatus status = action.getTask().getStatus();
+                assertNull(status.getCurrentPhase());
+                List<MainSearchTaskStatus.PhaseInfo> completedPhases = status.getCompletedPhases();
+                assertEquals(1, completedPhases.size());
+                MainSearchTaskStatus.PhaseInfo phaseInfo = completedPhases.get(0);
+                assertEquals("test", phaseInfo.getName());
+                assertThat(phaseInfo.getFailure(), instanceOf(SearchPhaseExecutionException.class));
+                assertEquals(2, phaseInfo.getExpectedOps());
+                assertEquals(2, phaseInfo.getProcessedShards().size());
+                for (MainSearchTaskStatus.ShardInfo shardInfo : phaseInfo.getProcessedShards()) {
+                    assertEquals("index", shardInfo.getSearchShardTarget().getShardId().getIndexName());
+                    assertThat(shardInfo.getSearchShardTarget().getNodeId(), endsWith("node"));
+                    if (shardInfo.getSearchShardTarget().getShardId().id() == 0) {
+                        assertSame(exception, shardInfo.getFailure());
+                        assertNull(shardInfo.getTaskInfo());
+                    } else {
+                        assertEquals(1, shardInfo.getSearchShardTarget().getShardId().id());
+                        TaskInfo taskInfo = shardInfo.getTaskInfo();
+                        assertEquals(1, taskInfo.getTaskId().getId());
+                        assertEquals("node_id", taskInfo.getTaskId().getNodeId());
+                        assertEquals("action", taskInfo.getAction());
+                    }
+                }
+            });
+        } finally {
+            ThreadPool.terminate(executorService, 5, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testPhasesProgressReporting() throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        MainSearchTask mainSearchTask = new MainSearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        try {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                searchRequest,
+                mainSearchTask,
+                new ArraySearchPhaseResults<>(2),
+                ActionListener.wrap(r -> { }, e -> { }),
+                false,
+                new AtomicLong(),
+                (searchActionListener, shard) -> {
+                    try {
+                        //block while performing phase on the shards so that we can check the status while the phase is being executed
+                        latch.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    SearchPhaseResult searchPhaseResult = new SearchPhaseResult() {};
+                    searchPhaseResult.setTaskInfo(new TaskInfo(new TaskId("node", 1), "type", "action", null, null, -1, -1, true, null,
+                        Collections.emptyMap()));
+                    searchActionListener.onResponse(searchPhaseResult);
+                },
+                executorService,
+                new SearchPhase("next") {
+                    @Override
+                    public void run() {
+                        mainSearchTask.getStatus().phaseStarted("next", 10);
+                        mainSearchTask.getStatus().phaseCompleted("next");
+                    }
+                });
+            new Thread(action::start).start();
+
+            assertSame(mainSearchTask, action.getTask());
+
+            assertBusy(() -> {
+                MainSearchTaskStatus status = action.getTask().getStatus();
+                MainSearchTaskStatus.PhaseInfo currentPhase = status.getCurrentPhase();
+                assertNotNull(currentPhase);
+                assertEquals("test", currentPhase.getName());
+                assertEquals(2, currentPhase.getExpectedOps());
+                assertNull(currentPhase.getFailure());
+                assertEquals(0, currentPhase.getProcessedShards().size());
+                assertEquals(0, status.getCompletedPhases().size());
+            });
+
+            //stop waiting on the shard operations and let the phase complete
+            latch.countDown();
+
+            assertBusy(() -> {
+                MainSearchTaskStatus status = action.getTask().getStatus();
+                assertNull(status.getCurrentPhase());
+                List<MainSearchTaskStatus.PhaseInfo> completedPhases = status.getCompletedPhases();
+                assertEquals(2, completedPhases.size());
+                {
+                    MainSearchTaskStatus.PhaseInfo phaseInfo = completedPhases.get(0);
+                    assertNull(phaseInfo.getFailure());
+                    assertEquals("test", phaseInfo.getName());
+                    assertEquals(2, phaseInfo.getExpectedOps());
+                    assertEquals(2, phaseInfo.getProcessedShards().size());
+                    {
+                        MainSearchTaskStatus.ShardInfo shardInfo = phaseInfo.getProcessedShards().get(0);
+                        assertNull(shardInfo.getFailure());
+                        assertEquals("index", shardInfo.getSearchShardTarget().getIndex());
+                        assertEquals(0, shardInfo.getSearchShardTarget().getShardId().getId());
+                        TaskInfo taskInfo = shardInfo.getTaskInfo();
+                        assertEquals(1, taskInfo.getTaskId().getId());
+                        assertEquals("node", taskInfo.getTaskId().getNodeId());
+                        assertEquals("action", taskInfo.getAction());
+                    }
+                    {
+                        MainSearchTaskStatus.ShardInfo shardInfo = phaseInfo.getProcessedShards().get(1);
+                        assertNull(shardInfo.getFailure());
+                        assertEquals("index", shardInfo.getSearchShardTarget().getIndex());
+                        assertEquals(1, shardInfo.getSearchShardTarget().getShardId().getId());
+                        TaskInfo taskInfo = shardInfo.getTaskInfo();
+                        assertEquals(1, taskInfo.getTaskId().getId());
+                        assertEquals("node", taskInfo.getTaskId().getNodeId());
+                        assertEquals("action", taskInfo.getAction());
+                    }
+                }
+                {
+                    MainSearchTaskStatus.PhaseInfo phaseInfo = completedPhases.get(1);
+                    assertNull(phaseInfo.getFailure());
+                    assertEquals("next", phaseInfo.getName());
+                    assertEquals(10, phaseInfo.getExpectedOps());
+                    assertEquals(0, phaseInfo.getProcessedShards().size());
+                }
+            });
+        } finally {
+            ThreadPool.terminate(executorService, 5, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testNoShardsProgressReporting() {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        MainSearchTask mainSearchTask = new MainSearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            mainSearchTask,
+            new ArraySearchPhaseResults<>(0),
+            ActionListener.wrap(r -> { }, e -> { }),
+            false,
+            new AtomicLong(),
+            (searchActionListener, shard) -> {},
+            null,
+            new SearchPhase("next") {
+                @Override
+                public void run() {
+                }
+            });
+
+        action.start();
+
+        MainSearchTaskStatus status = action.getTask().getStatus();
+        assertNull(status.getCurrentPhase());
+        List<MainSearchTaskStatus.PhaseInfo> completedPhases = status.getCompletedPhases();
+        assertEquals(1, completedPhases.size());
+        MainSearchTaskStatus.PhaseInfo phaseInfo = completedPhases.get(0);
+        assertNull(phaseInfo.getFailure());
+        assertEquals("test", phaseInfo.getName());
+        assertEquals(0, phaseInfo.getExpectedOps());
+        assertEquals(0, phaseInfo.getProcessedShards().size());
     }
 
     private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(Set<Long> requestIds,

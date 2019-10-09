@@ -79,7 +79,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
-            searchRequest, null, shardsIter, timeProvider, 0, null,
+            searchRequest, null, shardsIter, timeProvider, 0,
+            new MainSearchTask(0, "type", SearchAction.NAME, () -> "test", null, Collections.emptyMap()),
             (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() throws IOException {
@@ -147,7 +148,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
-            searchRequest, null, shardsIter, timeProvider, 0, null,
+            searchRequest, null, shardsIter, timeProvider, 0,
+            new MainSearchTask(0, "type", SearchAction.NAME, () -> "test", null, Collections.emptyMap()),
             (iter) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -202,6 +204,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
             (e) -> { throw new AssertionError("unexpected", e);});
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
+        MainSearchTask task = new MainSearchTask(0, "type", SearchAction.NAME, () -> "test", null, Collections.emptyMap());
         final CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
             logger,
             searchTransportService,
@@ -215,7 +218,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             shardsIter,
             timeProvider,
             0,
-            null,
+            task,
             (iter) -> new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
@@ -233,7 +236,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 iter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 0,
-                null,
+                task,
                 new ArraySearchPhaseResults<>(iter.size()),
                 randomIntBetween(1, 32),
                 SearchResponse.Clusters.EMPTY) {

@@ -91,6 +91,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+        task.getStatus().phaseFailed(phase.getName(), cause);
         phaseFailure.set(cause);
     }
 
@@ -120,6 +121,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
         phasesExecuted.incrementAndGet();
+        task.getStatus().phaseCompleted(currentPhase.getName());
         try {
             nextPhase.run();
         } catch (Exception e) {

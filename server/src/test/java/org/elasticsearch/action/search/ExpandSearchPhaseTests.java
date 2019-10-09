@@ -32,9 +32,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -42,9 +40,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.instanceOf;
+
 public class ExpandSearchPhaseTests extends ESTestCase {
 
-    public void testCollapseSingleHit() throws IOException {
+    public void testCollapseSingleHit() {
         final int iters = randomIntBetween(5, 10);
         for (int i = 0; i < iters; i++) {
             final int numInnerHits = randomIntBetween(1, 5);
@@ -77,12 +78,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
                     BoolQueryBuilder groupBuilder = (BoolQueryBuilder) searchRequest.source().query();
                     if (collapseValue == null) {
-                        assertThat(groupBuilder.mustNot(), Matchers.contains(QueryBuilders.existsQuery("someField")));
+                        assertThat(groupBuilder.mustNot(), contains(QueryBuilders.existsQuery("someField")));
                     } else {
-                        assertThat(groupBuilder.filter(), Matchers.contains(QueryBuilders.matchQuery("someField", "boom")));
+                        assertThat(groupBuilder.filter(), contains(QueryBuilders.matchQuery("someField", "boom")));
                     }
                     if (originalQuery != null) {
-                        assertThat(groupBuilder.must(), Matchers.contains(QueryBuilders.termQuery("foo", "bar")));
+                        assertThat(groupBuilder.must(), contains(QueryBuilders.termQuery("foo", "bar")));
                     }
                     assertArrayEquals(mockSearchPhaseContext.getRequest().indices(), searchRequest.indices());
 
@@ -125,10 +126,19 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
             assertTrue(executedMultiSearch.get());
             assertEquals(1, mockSearchPhaseContext.phasesExecuted.get());
+
+            MainSearchTask task = mockSearchPhaseContext.getTask();
+            assertNull(task.getStatus().getCurrentPhase());
+            assertEquals(1, task.getStatus().getCompletedPhases().size());
+            MainSearchTaskStatus.PhaseInfo phaseInfo = task.getStatus().getCompletedPhases().get(0);
+            assertEquals("expand", phaseInfo.getName());
+            assertEquals(-1, phaseInfo.getExpectedOps());
+            assertEquals(0, phaseInfo.getProcessedShards().size());
+            assertNull(phaseInfo.getFailure());
         }
     }
 
-    public void testFailOneItemFailsEntirePhase() throws IOException {
+    public void testFailOneItemFailsEntirePhase() {
         AtomicBoolean executedMultiSearch = new AtomicBoolean(false);
 
         SearchHits collapsedHits = new SearchHits(new SearchHit[]{new SearchHit(2, "ID",
@@ -169,14 +179,23 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             }
         );
         phase.run();
-        assertThat(mockSearchPhaseContext.phaseFailure.get(), Matchers.instanceOf(RuntimeException.class));
+        assertThat(mockSearchPhaseContext.phaseFailure.get(), instanceOf(RuntimeException.class));
         assertEquals("boom", mockSearchPhaseContext.phaseFailure.get().getMessage());
         assertNotNull(mockSearchPhaseContext.phaseFailure.get());
         assertNull(mockSearchPhaseContext.searchResponse.get());
         assertEquals(0, mockSearchPhaseContext.phasesExecuted.get());
+
+        MainSearchTask task = mockSearchPhaseContext.getTask();
+        assertNull(task.getStatus().getCurrentPhase());
+        assertEquals(1, task.getStatus().getCompletedPhases().size());
+        MainSearchTaskStatus.PhaseInfo phaseInfo = task.getStatus().getCompletedPhases().get(0);
+        assertEquals("expand", phaseInfo.getName());
+        assertEquals(-1, phaseInfo.getExpectedOps());
+        assertEquals(0, phaseInfo.getProcessedShards().size());
+        assertThat(phaseInfo.getFailure(), instanceOf(RuntimeException.class));
     }
 
-    public void testSkipPhase() throws IOException {
+    public void testSkipPhase() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
             @Override
@@ -203,9 +222,16 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());
         assertEquals(1, mockSearchPhaseContext.phasesExecuted.get());
+
+        MainSearchTask task = mockSearchPhaseContext.getTask();
+        assertNull(task.getStatus().getCurrentPhase());
+        assertEquals(1, task.getStatus().getCompletedPhases().size());
+        MainSearchTaskStatus.PhaseInfo phaseInfo = task.getStatus().getCompletedPhases().get(0);
+        assertEquals("expand", phaseInfo.getName());
+        assertEquals(-1, phaseInfo.getExpectedOps());
     }
 
-    public void testSkipExpandCollapseNoHits() throws IOException {
+    public void testSkipExpandCollapseNoHits() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
             @Override
@@ -230,9 +256,18 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());
         assertEquals(1, mockSearchPhaseContext.phasesExecuted.get());
+
+        MainSearchTask task = mockSearchPhaseContext.getTask();
+        assertNull(task.getStatus().getCurrentPhase());
+        assertEquals(1, task.getStatus().getCompletedPhases().size());
+        MainSearchTaskStatus.PhaseInfo phaseInfo = task.getStatus().getCompletedPhases().get(0);
+        assertEquals("expand", phaseInfo.getName());
+        assertEquals(-1, phaseInfo.getExpectedOps());
+        assertEquals(0, phaseInfo.getProcessedShards().size());
+        assertNull(phaseInfo.getFailure());
     }
 
-    public void testExpandRequestOptions() throws IOException {
+    public void testExpandRequestOptions() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         boolean version = randomBoolean();
         final boolean seqNoAndTerm = randomBoolean();

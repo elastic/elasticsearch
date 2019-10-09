@@ -20,17 +20,15 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 
@@ -39,7 +37,12 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class SearchTaskStatus implements Task.Status {
+/**
+ * Incorporates the status of a search task running on the coordinate node. Allows to monitor the progress of a search including
+ * which phases were completed, which one is running, and for each phase how many shards is it expected to run and which ones have
+ * they already been processed.
+ */
+public class MainSearchTaskStatus implements Task.Status {
 
     public static final String NAME = "search_task_status";
 
@@ -47,13 +50,13 @@ public class SearchTaskStatus implements Task.Status {
     private final List<PhaseInfo> phases;
     private final AtomicReference<PhaseInfo> currentPhase;
 
-    SearchTaskStatus() {
+    MainSearchTaskStatus() {
         this.phases = new CopyOnWriteArrayList<>();
         this.currentPhase = new AtomicReference<>();
         this.readOnly = false;
     }
 
-    public SearchTaskStatus(StreamInput in) throws IOException {
+    public MainSearchTaskStatus(StreamInput in) throws IOException {
         this.currentPhase = new AtomicReference<>(in.readOptionalWriteable(PhaseInfo::new));
         this.phases = in.readList(PhaseInfo::new);
         this.readOnly = true;
@@ -70,10 +73,18 @@ public class SearchTaskStatus implements Task.Status {
         return NAME;
     }
 
+    public List<PhaseInfo> getCompletedPhases() {
+        return phases;
+    }
+
+    public PhaseInfo getCurrentPhase() {
+        return currentPhase.get();
+    }
+
     void phaseStarted(String phase, int expectedOps) {
         assert readOnly == false;
         boolean result = currentPhase.compareAndSet(null, new PhaseInfo(phase, expectedOps));
-        assert result : "another previous phase has not normally completed";
+        assert result : "phase [" + currentPhase.get().getName() + "] has not normally completed, unable to start [" + phase + "]";
     }
 
     void phaseFailed(String phase, Throwable t) {
@@ -101,16 +112,16 @@ public class SearchTaskStatus implements Task.Status {
         assert current != null : "no current phase running, though shards are being report processed for [" + phase + "]";
         assert phase.equals(current.name) : "phase mismatch: current phase is [" + current.name +
             "] while shards are being reported processed for [" + phase + "]";
-        current.shardProcessed(searchPhaseResult.getSearchShardTarget().getShardId(), searchPhaseResult.getTaskInfo());
+        current.shardProcessed(searchPhaseResult.getSearchShardTarget(), searchPhaseResult.getTaskInfo());
     }
 
-    void shardFailed(String phase, ShardId shardId, Exception e) {
+    void shardFailed(String phase, SearchShardTarget searchShardTarget, Exception e) {
         assert readOnly == false;
         PhaseInfo current = currentPhase.get();
         assert current != null : "no current phase running, though shards are being reported failed for [" + phase + "]";
         assert phase.equals(current.name) : "phase mismatch: current phase is [" + current.name +
             "] while shards are being reported failed for [" + phase + "]";
-        current.shardFailed(shardId, e);
+        current.shardFailed(searchShardTarget, e);
     }
 
     @Override
@@ -135,7 +146,7 @@ public class SearchTaskStatus implements Task.Status {
         return builder;
     }
 
-    private static class PhaseInfo implements ToXContentFragment, Writeable {
+    public static class PhaseInfo implements ToXContentFragment, Writeable {
         private final String name;
         private final int expectedOps;
         private final List<ShardInfo> processed;
@@ -146,13 +157,6 @@ public class SearchTaskStatus implements Task.Status {
             this.expectedOps = expectedOps;
             this.processed = new CopyOnWriteArrayList<>();
             this.failure = null;
-        }
-
-        PhaseInfo(String name, Throwable t) {
-            this.name = name;
-            this.expectedOps = -1;
-            this.processed = new CopyOnWriteArrayList<>();
-            this.failure = t;
         }
 
         PhaseInfo(PhaseInfo partialPhase, Throwable t) {
@@ -177,12 +181,28 @@ public class SearchTaskStatus implements Task.Status {
             out.writeException(failure);
         }
 
-        void shardProcessed(ShardId shardId, TaskInfo taskInfo) {
-            processed.add(new ShardInfo(shardId, taskInfo));
+        public String getName() {
+            return name;
         }
 
-        void shardFailed(ShardId shardId, Exception e) {
-            processed.add(new ShardInfo(shardId, e));
+        public int getExpectedOps() {
+            return expectedOps;
+        }
+
+        public List<ShardInfo> getProcessedShards() {
+            return processed;
+        }
+
+        public Throwable getFailure() {
+            return failure;
+        }
+
+        void shardProcessed(SearchShardTarget searchShardTarget, TaskInfo taskInfo) {
+            processed.add(new ShardInfo(searchShardTarget, taskInfo));
+        }
+
+        void shardFailed(SearchShardTarget searchShardTarget, Exception e) {
+            processed.add(new ShardInfo(searchShardTarget, e));
         }
 
         @Override
@@ -196,51 +216,77 @@ public class SearchTaskStatus implements Task.Status {
                     shardInfo.toXContent(builder, params);
                 }
                 builder.endArray();
+                if (failure != null) {
+                    builder.startObject("failure");
+                    ElasticsearchException.generateThrowableXContent(builder, params, failure);
+                    builder.endObject();
+                }
             }
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public String toString() {
+            return "PhaseInfo{name='" + name + "'}";
+        }
     }
 
-    private static class ShardInfo implements Writeable, ToXContentObject {
-        private final ShardId shardId;
+    //TODO shall we keep track of which shard copies have failed? At the moment we know which shard was successful, and in case of failures,
+    //we have info for the last shard that failed as part of the replica set.
+    public static class ShardInfo implements Writeable, ToXContentObject {
+        private final SearchShardTarget searchShardTarget;
         @Nullable
         private final Exception exception;
         @Nullable
         private final TaskInfo taskInfo;
 
-        ShardInfo(ShardId shardId, TaskInfo taskInfo) {
-            this.shardId = shardId;
+        ShardInfo(SearchShardTarget searchShardTarget, TaskInfo taskInfo) {
+            this.searchShardTarget = searchShardTarget;
             this.taskInfo = taskInfo;
             this.exception = null;
         }
 
-        ShardInfo(ShardId shardId, Exception exception) {
-            this.shardId = shardId;
+        ShardInfo(SearchShardTarget searchShardTarget, Exception exception) {
+            this.searchShardTarget = searchShardTarget;
             this.exception = exception;
             this.taskInfo = null;
         }
 
         ShardInfo(StreamInput in) throws IOException {
-            this.shardId = new ShardId(in);
+            this.searchShardTarget = new SearchShardTarget(in);
             this.taskInfo = in.readOptionalWriteable(TaskInfo::new);
             this.exception = in.readException();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            this.shardId.writeTo(out);
+            this.searchShardTarget.writeTo(out);
             out.writeOptionalWriteable(this.taskInfo);
             out.writeException(exception);
+        }
+
+        public SearchShardTarget getSearchShardTarget() {
+            return searchShardTarget;
+        }
+
+        public Exception getFailure() {
+            return exception;
+        }
+
+        public TaskInfo getTaskInfo() {
+            return taskInfo;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field("index_name", shardId.getIndex().getName());
+                builder.field("index_name", searchShardTarget.getFullyQualifiedIndexName());
+                ShardId shardId = searchShardTarget.getShardId();
                 builder.field("index_uuid", shardId.getIndex().getUUID());
                 builder.field("shard_id", shardId.getId());
+                builder.field("node_id", searchShardTarget.getNodeId());
                 if (taskInfo != null) {
                     builder.startObject("task_info");
                     taskInfo.toXContent(builder, params);
@@ -254,6 +300,13 @@ public class SearchTaskStatus implements Task.Status {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            return "ShardInfo{" +
+                "searchShardTarget=" + searchShardTarget +
+                '}';
         }
     }
 }

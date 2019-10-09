@@ -183,7 +183,7 @@ final class FetchSearchPhase extends SearchPhase {
                 @Override
                 public void onFailure(Exception e) {
                     try {
-                        context.getTask().getStatus().shardFailed(getName(), shardTarget.getShardId(), e);
+                        context.getTask().getStatus().shardFailed(getName(), shardTarget, e);
                         logger.debug(() -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
                         counter.onFailure(shardIndex, shardTarget, e);
                     } finally {

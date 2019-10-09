@@ -178,6 +178,9 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
+    //TODO when we split indices, we need to also split the main search task into two tasks. But that introduces one more level in the
+    //tasks hierarchy which breaks tasks cancellation. We need to first make tasks cancellation work with more than two levels,
+    //then we can split search tasks and have proper reporting. Otherwise all the assertions in the search task status fail.
     public void testSplitIndices() {
         {
             CreateIndexResponse response = client().admin().indices().prepareCreate("write").get();

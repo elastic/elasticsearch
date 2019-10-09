@@ -1,10 +1,7 @@
 [role="xpack"]
 [testenv="gold"]
 [[collecting-monitoring-data]]
-=== Collecting monitoring data
-++++
-<titleabbrev>Collecting monitoring data</titleabbrev>
-++++
+== Collecting monitoring data
 
 If you enable the Elastic {monitor-features} in your cluster, you can 
 optionally collect metrics about {es}. By default, monitoring is enabled but 

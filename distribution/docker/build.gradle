@@ -202,9 +202,6 @@ subprojects { Project subProject ->
     def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
-      outputs.file(tarFile)
-      outputs.cacheIf { true }
-      
       executable 'docker'
       args "save",
         "-o",

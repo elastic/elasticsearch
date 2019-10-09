@@ -20,6 +20,7 @@ import java.time.ZonedDateTime;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_NANOS;
 
@@ -88,9 +89,14 @@ public class DateAddProcessorTests extends AbstractSqlWireSerializingTestCase<Da
     }
 
     public void testWithNulls() {
-        assertNull(new DateAdd(Source.EMPTY, NULL, randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
-        assertNull(new DateAdd(Source.EMPTY, l("days"), NULL, randomZone()).makePipe().asProcessor().process(null));
-        assertNull(new DateAdd(Source.EMPTY, NULL, NULL, randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateAdd(Source.EMPTY,
+            NULL, randomIntLiteral(), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateAdd(Source.EMPTY,
+            l("days"), NULL, randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateAdd(Source.EMPTY,
+            l("days"), randomIntLiteral(), NULL, randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateAdd(Source.EMPTY,
+            NULL, NULL, NULL, randomZone()).makePipe().asProcessor().process(null));
     }
 
     public void testAddition() {

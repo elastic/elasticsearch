@@ -33,40 +33,40 @@ public class DateAddProcessor extends ThreeArgsDateTimeProcessor {
     }
 
     @Override
-    public Object doProcess(Object o1, Object o2, Object o3, ZoneId zoneId) {
-        return process(o1, o2, o3, zoneId);
+    public Object doProcess(Object unit, Object numberOfUnits, Object timestamp, ZoneId zoneId) {
+        return process(unit, numberOfUnits, timestamp, zoneId);
     }
 
     /**
      * Used in Painless scripting
      */
-    public static Object process(Object source1, Object source2, Object source3, ZoneId zoneId) {
-        if (source1 == null || source2 == null || source3 == null) {
+    public static Object process(Object unit, Object numberOfUnits, Object timestamp, ZoneId zoneId) {
+        if (unit == null || numberOfUnits == null || timestamp == null) {
             return null;
         }
-        if (source1 instanceof String == false) {
-            throw new SqlIllegalArgumentException("A string is required; received [{}]", source1);
+        if (unit instanceof String == false) {
+            throw new SqlIllegalArgumentException("A string is required; received [{}]", unit);
         }
-        Part datePartField = Part.resolve((String) source1);
+        Part datePartField = Part.resolve((String) unit);
         if (datePartField == null) {
-            List<String> similar = Part.findSimilar((String) source1);
+            List<String> similar = Part.findSimilar((String) unit);
             if (similar.isEmpty()) {
                 throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
-                    Part.values(), source1);
+                    Part.values(), unit);
             } else {
                 throw new SqlIllegalArgumentException("Received value [{}] is not valid date part to add; " +
-                    "did you mean {}?", source1, similar);
+                    "did you mean {}?", unit, similar);
             }
         }
 
-        if (source2 instanceof Integer == false) {
-            throw new SqlIllegalArgumentException("An integer is required; received [{}]", source2);
+        if (numberOfUnits instanceof Integer == false) {
+            throw new SqlIllegalArgumentException("An integer is required; received [{}]", numberOfUnits);
         }
 
-        if (source3 instanceof ZonedDateTime == false) {
-            throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", source3);
+        if (timestamp instanceof ZonedDateTime == false) {
+            throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", timestamp);
         }
 
-        return datePartField.add(((ZonedDateTime) source3).withZoneSameInstant(zoneId), (Integer) source2);
+        return datePartField.add(((ZonedDateTime) timestamp).withZoneSameInstant(zoneId), (Integer) numberOfUnits);
     }
 }

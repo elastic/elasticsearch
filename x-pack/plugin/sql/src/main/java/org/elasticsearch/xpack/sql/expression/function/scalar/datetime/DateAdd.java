@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -78,13 +77,8 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
         }
     }
 
-    public DateAdd(Source source, Expression truncateTo, Expression timestamp, Expression startOfWeek, ZoneId zoneId) {
-        super(source, truncateTo, timestamp, startOfWeek == null ? Literal.of(Source.EMPTY, "Sunday") : startOfWeek, zoneId);
-    }
-
-    // Used by DateAddProcessorTests
-    DateAdd(Source source, Expression truncateTo, Expression timestamp, ZoneId zoneId) {
-        this(source, truncateTo, timestamp, null, zoneId);
+    public DateAdd(Source source, Expression unit, Expression numberOfUnits, Expression timestamp, ZoneId zoneId) {
+        super(source, unit, numberOfUnits, timestamp, zoneId);
     }
 
     @Override

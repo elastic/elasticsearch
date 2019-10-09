@@ -146,7 +146,7 @@ class PluginBuildPlugin implements Plugin<Project> {
 
     private static void configureDependencies(Project project) {
         project.dependencies {
-            if (ClasspathUtils.isElasticsearchProject()) {
+            if (ClasspathUtils.isElasticsearchProject(project)) {
                 compileOnly project.project(':server')
                 testCompile project.project(':test:framework')
             } else {

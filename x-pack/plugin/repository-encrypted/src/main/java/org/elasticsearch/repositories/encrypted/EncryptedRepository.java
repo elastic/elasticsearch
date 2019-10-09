@@ -62,7 +62,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     // given the mode, the IV and the tag length, the maximum "chunk" size is ~64GB, we set it to 32GB to err on the safe side
     public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.GB);
 
-    private static final BouncyCastleFipsProvider BC_PROV = new BouncyCastleFipsProvider();
+    private static final BouncyCastleFipsProvider BC_FIPS_PROV = new BouncyCastleFipsProvider();
 
     private final BlobStoreRepository delegatedRepository;
     private final SecretKey masterSecretKey;
@@ -197,7 +197,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             final BytesReference dataDecryptionKeyBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
             try {
                 SecretKey dataDecryptionKey = unwrapKey(BytesReference.toBytes(dataDecryptionKeyBytes), this.masterSecretKey);
-                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_PROV);
+                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_FIPS_PROV);
                 cipher.init(Cipher.DECRYPT_MODE, dataDecryptionKey, ivParameterSpec);
                 return new CipherInputStream(this.delegatedBlobContainer.readBlob(blobName), cipher);
             } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException e) {
@@ -213,7 +213,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 try (InputStream stream = new ByteArrayInputStream(wrappedDataEncryptionKey)) {
                     this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
                 }
-                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_PROV);
+                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_FIPS_PROV);
                 cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey, ivParameterSpec);
                 this.delegatedBlobContainer.writeBlob(blobName, new CipherInputStream(inputStream, cipher), blobSize + GCM_TAG_BYTES_LENGTH,
                         failIfAlreadyExists);
@@ -287,7 +287,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     private static SecretKey generateRandomSecretKey() throws NoSuchAlgorithmException {
-        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES", BC_FIPS_PROV);
         keyGen.init(256);
         return keyGen.generateKey();
     }

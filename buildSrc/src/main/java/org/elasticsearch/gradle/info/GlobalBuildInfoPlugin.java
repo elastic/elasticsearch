@@ -108,6 +108,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
             ext.set("testSeed", testSeed);
             ext.set("isCi", System.getenv("JENKINS_URL") != null);
+            ext.set("isInternal", GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
         });
     }
 

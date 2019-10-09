@@ -1088,7 +1088,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         ClusterState remoteState = null;
-        final int nbLeaderIndices = randomInt(15);
+        final int nbLeaderIndices = randomIntBetween(1, 15);
         for (int i = 0; i < nbLeaderIndices; i++) {
             String indexName = "docs-" + i;
             if (remoteState == null) {

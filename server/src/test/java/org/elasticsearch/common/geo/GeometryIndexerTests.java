@@ -222,6 +222,15 @@ public class GeometryIndexerTests extends ESTestCase {
 
         point = new Point(2, 1, 3);
         assertEquals(indexed, indexer.prepareForIndexing(point));
+
+        point = new Point(362, 1);
+        assertEquals(indexed, indexer.prepareForIndexing(point));
+
+        point = new Point(-178, 179);
+        assertEquals(indexed, indexer.prepareForIndexing(point));
+
+        point = new Point(180, 180);
+        assertEquals(new Point(0, 0), indexer.prepareForIndexing(point));
     }
 
     public void testMultiPoint() {

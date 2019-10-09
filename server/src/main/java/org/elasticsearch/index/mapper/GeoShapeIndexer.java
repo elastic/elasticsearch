@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.apache.lucene.geo.GeoUtils.orient;
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
+import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 
 /**
  * Utility class that converts geometries into Lucene-compatible form
@@ -161,8 +162,9 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
             @Override
             public Geometry visit(Point point) {
-                //TODO: Just remove altitude for now. We need to add normalization later
-                return new Point(point.getX(), point.getY());
+                double[] latlon = new double[]{point.getX(), point.getY()};
+                normalizePoint(latlon);
+                return new Point(latlon[0], latlon[1]);
             }
 
             @Override

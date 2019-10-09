@@ -32,8 +32,6 @@ If any repository fails during the request, {es} returns an error.
 [[cat-snapshots-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]

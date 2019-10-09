@@ -39,8 +39,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=actions]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
@@ -53,13 +51,13 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 

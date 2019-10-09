@@ -679,7 +679,8 @@ end::terminate_after[]
 
 tag::time[]
 `time`::
-(Optional, <<time-units,time units>>) Unit used to display time values.
+(Optional, <<time-units,time units>>)
+Unit used to display time values.
 end::time[]
 
 tag::timeoutparms[]

@@ -15,7 +15,7 @@ beta[]
 [[update-transform-request]]
 ==== {api-request-title}
 
-`POST _data_frame/transforms/<transform_id>/_update`
+`POST _transform/<transform_id>/_update`
 
 [[update-transform-prereqs]]
 ==== {api-prereq-title}
@@ -122,7 +122,7 @@ delays.
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/simple-kibana-ecomm-pivot/_update
+POST _transform/simple-kibana-ecomm-pivot/_update
 {
   "source": {
     "index": "kibana_sample_data_ecommerce",

@@ -99,7 +99,7 @@ public class DataFrameAnalyticsConfigProvider {
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                 listener::onResponse,
                 e -> {
-                    if (e instanceof VersionConflictEngineException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(id));
                     } else {
                         listener.onFailure(e);

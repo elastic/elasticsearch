@@ -77,7 +77,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField MODEL_SNAPSHOT_MIN_VERSION = new ParseField("model_snapshot_min_version");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
     public static final ParseField DELETING = new ParseField("deleting");
-    public static final ParseField ALLOW_LAZY_OPEN = new ParseField("lazy_open");
+    public static final ParseField ALLOW_LAZY_OPEN = new ParseField("allow_lazy_open");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");

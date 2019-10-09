@@ -110,7 +110,7 @@ For more information about the configuration options for the collectors, see
 
 [float]
 [[es-monitoring-stack]]
-=== Collecting data from across the Elastic Stack
+==== Collecting data from across the Elastic Stack
 
 {monitoring} in {es} also receives monitoring data from other parts of the
 Elastic Stack. In this way, it serves as an unscheduled monitoring data

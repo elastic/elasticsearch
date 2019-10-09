@@ -49,13 +49,8 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         createRepository("test-repo");
         repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(new ActionRunnable<Void>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                repository.blobStore().blobContainer(repository.basePath()).delete();
-                future.onResponse(null);
-            }
-        });
+        repository.threadPool().generic().execute(ActionRunnable.run(future,
+            () -> repository.blobStore().blobContainer(repository.basePath()).delete()));
         future.actionGet();
         assertBusy(() -> BlobStoreTestUtil.assertBlobsByPrefix(repository, repository.basePath(), "", Collections.emptyMap()), 10L,
             TimeUnit.MINUTES);

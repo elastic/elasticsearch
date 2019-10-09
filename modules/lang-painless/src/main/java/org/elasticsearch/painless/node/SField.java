@@ -30,6 +30,9 @@ import org.objectweb.asm.Type;
 
 import java.util.Set;
 
+/**
+ * Represents a member field for its parent class (internal only).
+ */
 public class SField extends ANode {
 
     private final int access;
@@ -37,6 +40,14 @@ public class SField extends ANode {
     private final Class<?> type;
     private final Object instance;
 
+    /**
+     * Standard constructor.
+     * @param location original location in the source
+     * @param access asm constants for field modifiers
+     * @param name name of the field
+     * @param type type of the field
+     * @param instance initial value for the field
+     */
     public SField(Location location, int access, String name, Class<?> type, Object instance) {
         super(location);
 

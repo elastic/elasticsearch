@@ -180,7 +180,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Internal
     public Version getVersion() {
-        return distributions.get(currentDistro).getVersion();
+        return Version.fromString(distributions.get(currentDistro).getVersion());
     }
 
     @Internal

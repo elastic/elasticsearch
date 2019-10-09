@@ -223,25 +223,6 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             this.active = active;
         }
 
-        // for testing purpose
-        public AutoFollowPattern(String remoteCluster,
-                                 List<String> leaderIndexPatterns,
-                                 String followIndexPattern,
-                                 Integer maxReadRequestOperationCount,
-                                 Integer maxWriteRequestOperationCount,
-                                 Integer maxOutstandingReadRequests,
-                                 Integer maxOutstandingWriteRequests,
-                                 ByteSizeValue maxReadRequestSize,
-                                 ByteSizeValue maxWriteRequestSize,
-                                 Integer maxWriteBufferCount,
-                                 ByteSizeValue maxWriteBufferSize,
-                                 TimeValue maxRetryDelay,
-                                 TimeValue pollTimeout) {
-            this(remoteCluster, leaderIndexPatterns, followIndexPattern, true,
-                maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests, maxOutstandingWriteRequests,
-                maxReadRequestSize, maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize, maxRetryDelay, pollTimeout);
-        }
-
         public static AutoFollowPattern readFrom(StreamInput in) throws IOException {
             return new AutoFollowPattern(in.readString(), in.readStringList(), in.readOptionalString(), in);
         }

@@ -861,6 +861,46 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    public void testILMRolloverRetriesOnReadOnlyBlock() throws Exception {
+        String firstIndex = index + "-000001";
+
+        Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
+        updateLifecylePollSetting.setJsonEntity("{" +
+            "  \"transient\": {\n" +
+            "     \"indices.lifecycle.poll_interval\" : \"1s\" \n" +
+            "  }\n" +
+            "}");
+        client().performRequest(updateLifecylePollSetting);
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null));
+
+        // create the index as readonly and associate the ILM policy to it
+        createIndexWithSettings(
+            firstIndex,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+                .put("index.blocks.read_only_allow_delete", true),
+            true
+        );
+
+        // ILM should run into an error step as the rollover could not be executed
+        assertBusy(() -> assertThat(getStepKeyForIndex(firstIndex).getName(), equalTo(ErrorStep.NAME)));
+
+        // remove the readonly block
+        Request allowWritesOnIndexSettingUpdate = new Request("PUT", firstIndex + "/_settings");
+        allowWritesOnIndexSettingUpdate.setJsonEntity("{" +
+            "  \"index\": {\n" +
+            "     \"blocks.read_only_allow_delete\" : \"false\" \n" +
+            "  }\n" +
+            "}");
+        client().performRequest(allowWritesOnIndexSettingUpdate);
+
+        // index is not readonly so the ILM should complete eventually
+        assertBusy(() -> assertThat(getStepKeyForIndex(firstIndex), equalTo(TerminalPolicyStep.KEY)));
+    }
+
    public void testILMRolloverOnManuallyRolledIndex() throws Exception {
        String originalIndex = index + "-000001";
        String secondIndex = index + "-000002";

@@ -133,10 +133,10 @@ public final class ShardGenerations implements ToXContentFragment {
 
     public static final class Builder {
 
-        private final Map<IndexId, Map<Integer, String>> raw = new HashMap<>();
+        private final Map<IndexId, Map<Integer, String>> generations = new HashMap<>();
 
         public Builder retainIndices(Set<IndexId> indices) {
-            raw.keySet().retainAll(indices);
+            generations.keySet().retainAll(indices);
             return this;
         }
 
@@ -153,12 +153,12 @@ public final class ShardGenerations implements ToXContentFragment {
         }
 
         public Builder add(IndexId indexId, int shardId, String generation) {
-            raw.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
+            generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             return this;
         }
 
         public ShardGenerations build() {
-            return new ShardGenerations(raw.entrySet().stream().collect(Collectors.toMap(
+            return new ShardGenerations(generations.entrySet().stream().collect(Collectors.toMap(
                 Map.Entry::getKey,
                 entry -> {
                     final Set<Integer> shardIds = entry.getValue().keySet();

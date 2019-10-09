@@ -95,7 +95,7 @@ public final class RepositoryData {
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
-        this.shardGenerations = shardGenerations;
+        this.shardGenerations = Objects.requireNonNull(shardGenerations);
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
             + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
     }

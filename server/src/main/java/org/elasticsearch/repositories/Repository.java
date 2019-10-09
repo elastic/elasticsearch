@@ -127,9 +127,9 @@ public interface Repository extends LifecycleComponent {
      * @param listener listener to be called on completion of the snapshot
      */
     void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
-                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                                  Version version, ActionListener<SnapshotInfo> listener);
+                          int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                          boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
+                          Version version, ActionListener<SnapshotInfo> listener);
 
     /**
      * Deletes snapshot

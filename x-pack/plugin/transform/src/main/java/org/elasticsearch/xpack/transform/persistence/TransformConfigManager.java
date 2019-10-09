@@ -168,7 +168,9 @@ public class TransformConfigManager {
      * @param listener listener to alert on completion
      */
     public void deleteOldTransformConfigurations(String transformId, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .mustNot(QueryBuilders.termQuery("_index", TransformInternalIndexConstants.LATEST_INDEX_NAME))
                 .filter(QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId)))))
@@ -195,7 +197,8 @@ public class TransformConfigManager {
      * @param listener listener to alert on completion
      */
     public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN, TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .mustNot(QueryBuilders.termQuery("_index", TransformInternalIndexConstants.LATEST_INDEX_NAME))
                 .filter(QueryBuilders.termQuery("_id", TransformStoredDoc.documentId(transformId)))))
@@ -261,7 +264,9 @@ public class TransformConfigManager {
      */
     public void getTransformCheckpoint(String transformId, long checkpoint, ActionListener<TransformCheckpoint> resultListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformCheckpoint.documentId(transformId, checkpoint));
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client
+            .prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
             .setQuery(queryBuilder)
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
@@ -290,7 +295,9 @@ public class TransformConfigManager {
      */
     public void getTransformConfiguration(String transformId, ActionListener<TransformConfig> resultListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId));
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client
+            .prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
             .setQuery(queryBuilder)
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
@@ -321,7 +328,9 @@ public class TransformConfigManager {
                                                    ActionListener<Tuple<TransformConfig,
                                                        SeqNoPrimaryTermAndIndex>> configAndVersionListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId));
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client
+            .prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
             .setQuery(queryBuilder)
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
@@ -362,7 +371,9 @@ public class TransformConfigManager {
         String[] idTokens = ExpandedIdsMatcher.tokenizeExpression(transformIdsExpression);
         QueryBuilder queryBuilder = buildQueryFromTokenizedIds(idTokens, TransformConfig.NAME);
 
-        SearchRequest request = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+        SearchRequest request = client
+            .prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
             .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
             .setFrom(pageParams.getFrom())
             .setTrackTotalHits(true)
@@ -413,7 +424,7 @@ public class TransformConfigManager {
         DeleteByQueryRequest request = new DeleteByQueryRequest()
             .setAbortOnVersionConflict(false); //since these documents are not updated, a conflict just means it was deleted previously
 
-        request.indices(TransformInternalIndexConstants.INDEX_NAME_PATTERN);
+        request.indices(TransformInternalIndexConstants.INDEX_NAME_PATTERN, TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED);
         QueryBuilder query = QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId);
         request.setQuery(query);
         request.setRefresh(true);
@@ -472,7 +483,9 @@ public class TransformConfigManager {
     public void getTransformStoredDoc(String transformId,
                                       ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformStoredDoc.documentId(transformId));
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client
+            .prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
             .setQuery(queryBuilder)
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
@@ -508,7 +521,9 @@ public class TransformConfigManager {
             .filter(QueryBuilders.termsQuery(TransformField.ID.getPreferredName(), transformIds))
             .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformStoredDoc.NAME)));
 
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client
+            .prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
             .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
             .addSort("_index", SortOrder.DESC)
             .setQuery(builder)

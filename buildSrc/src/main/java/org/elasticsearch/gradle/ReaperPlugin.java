@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
@@ -34,6 +35,8 @@ public class ReaperPlugin implements Plugin<Project> {
         if (project != project.getRootProject()) {
             throw new IllegalArgumentException("ReaperPlugin can only be applied to the root project of a build");
         }
+
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
 
         Path inputDir = project.getRootDir().toPath().resolve(".gradle")
             .resolve("reaper").resolve("build-" + ProcessHandle.current().pid());

@@ -46,10 +46,19 @@ public class ServerUtils {
         waitForElasticsearch("green", null, installation, null, null);
     }
 
+    /**
+     * Executes the supplied request, optionally applying HTTP basic auth if the
+     * username and pasword field are supplied.
+     * @param request the request to execute
+     * @param username the username to supply, or null
+     * @param password the password to supply, or null
+     * @return the response from the server
+     * @throws IOException if an error occurs
+     */
     private static HttpResponse execute(Request request, String username, String password) throws IOException {
         final Executor executor = Executor.newInstance();
 
-        if (username != null) {
+        if (username != null && password != null) {
             executor.auth(username, password);
             executor.authPreemptive(new HttpHost("localhost", 9200));
         }

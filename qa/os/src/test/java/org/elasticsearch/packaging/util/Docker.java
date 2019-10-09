@@ -94,7 +94,7 @@ public class Docker {
         Distribution distribution,
         Map<Path, Path> volumes,
         Map<String,String> envVars
-    ) throws Exception {
+    ) {
         removeContainer();
 
         final List<String> args = new ArrayList<>();
@@ -126,7 +126,7 @@ public class Docker {
         args.add(distribution.flavor.name + ":test");
 
         final String command = String.join(" ", args);
-        logger.debug("Running command: " + command);
+        logger.info("Running command: " + command);
         containerId = sh.run(command).stdout.trim();
 
         waitForElasticsearchToStart();
@@ -154,11 +154,11 @@ public class Docker {
                 Thread.sleep(1000);
             }
             catch (Exception e) {
-                logger.info("Caught exception while waiting for ES to start", e);
+                logger.debug("Caught exception while waiting for ES to start", e);
             }
         } while (attempt++ < 5);
 
-        if (!isElasticsearchRunning) {
+        if (isElasticsearchRunning == false) {
             final String logs = sh.run("docker logs " + containerId).stdout;
             fail("Elasticsearch container did start successfully.\n\n" + logs);
         }

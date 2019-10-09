@@ -48,7 +48,6 @@ import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.ServerUtils.makeAuthenticatedRequest;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.elasticsearch.packaging.util.ServerUtils.waitForElasticsearch;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -57,7 +56,7 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeTrue;
 
-//@Ignore("https://github.com/elastic/elasticsearch/issues/47639")
+@Ignore("https://github.com/elastic/elasticsearch/issues/47639")
 public class DockerTests extends PackagingTestCase {
     protected DockerShell sh;
 
@@ -190,22 +189,24 @@ public class DockerTests extends PackagingTestCase {
     public void test80SetEnvironmentVariablesUsingFiles() throws Exception {
         final String xpackPassword = "hunter2";
         final Path secretsDir = getTempDir().resolve("secrets");
+        final String optionsFilename = "esJavaOpts.txt";
+        final String passwordFilename = "password.txt";
 
         try {
             mkdir(secretsDir);
 
             // ES_JAVA_OPTS_FILE
-            Files.writeString(secretsDir.resolve("esJavaOpts.txt"), "-XX:-UseCompressedOops\n");
+            Files.writeString(secretsDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
 
             // ELASTIC_PASSWORD_FILE
-            Files.writeString(secretsDir.resolve("password.txt"), xpackPassword + "\n");
+            Files.writeString(secretsDir.resolve(passwordFilename), xpackPassword + "\n");
 
             // Make the temp directory and contents accessible when bind-mounted
             Files.setPosixFilePermissions(secretsDir, fromString("rwxrwxrwx"));
 
             Map<String, String> envVars = Map.of(
-                "ES_JAVA_OPTS_FILE", "/run/secrets/esJavaOptsPath.txt",
-                "ELASTIC_PASSWORD_FILE", "/run/secrets/password.txt",
+                "ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename,
+                "ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename,
                 // Enable security so that we can test that the password has been used
                 "xpack.security.enabled", "true"
             );
@@ -213,21 +214,22 @@ public class DockerTests extends PackagingTestCase {
             final Map<Path, Path> volumes = Map.of(secretsDir, Path.of("/run/secrets"));
 
             // Restart the container
-            removeContainer();
             runContainer(distribution(), volumes, envVars);
 
             // If we configured security correctly, then this call will only work if we specify the correct credentials.
             waitForElasticsearch("green", null, installation, "elastic", "hunter2");
 
             // Try to call `/_nodes` first without authentication, and ensure it's rejected.
+            // We don't use the `makeRequest()` helper as it checks the status code.
             final int statusCode = Request.Get("http://localhost:9200/_nodes").execute().returnResponse().getStatusLine().getStatusCode();
             assertThat("Expected server to require authentication", statusCode, equalTo(401));
 
-            // Now try again, but with credentials
-            final String nodesResponse = makeAuthenticatedRequest(
+            // Now try again, but with credentials, to check that ES_JAVA_OPTS_FILE took effect
+            final String nodesResponse = makeRequest(
                 Request.Get("http://localhost:9200/_nodes"),
                 "elastic",
                 xpackPassword);
+
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
         } finally {
             rm(secretsDir);

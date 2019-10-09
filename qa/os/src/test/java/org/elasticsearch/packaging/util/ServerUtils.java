@@ -19,7 +19,9 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.fluent.Executor;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -27,7 +29,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.util.Base64;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -36,13 +37,24 @@ import static org.hamcrest.Matchers.containsString;
 
 public class ServerUtils {
 
-    protected static final Logger logger =  LogManager.getLogger(ServerUtils.class);
+    private static final Logger logger =  LogManager.getLogger(ServerUtils.class);
 
     private static final long waitTime = TimeUnit.SECONDS.toMillis(60);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
 
     public static void waitForElasticsearch(Installation installation) throws IOException {
         waitForElasticsearch("green", null, installation, null, null);
+    }
+
+    private static HttpResponse execute(Request request, String username, String password) throws IOException {
+        final Executor executor = Executor.newInstance();
+
+        if (username != null) {
+            executor.auth(username, password);
+            executor.authPreemptive(new HttpHost("localhost", 9200));
+        }
+
+        return executor.execute(request).returnResponse();
     }
 
     public static void waitForElasticsearch(
@@ -59,19 +71,15 @@ public class ServerUtils {
         final long startTime = System.currentTimeMillis();
         long timeElapsed = 0;
         boolean started = false;
+        Exception lastException = null;
+
         while (started == false && timeElapsed < waitTime) {
             try {
-
                 final Request request = Request.Get("http://localhost:9200/_cluster/health")
                     .connectTimeout((int) timeoutLength)
                     .socketTimeout((int) timeoutLength);
 
-                if (username != null) {
-                    final String encodedCredentials = Base64.getEncoder().encodeToString((username + ":" + password).getBytes());
-                    request.setHeader("Authorization", "Basic " + encodedCredentials);
-                }
-
-                final HttpResponse response = request.execute().returnResponse();
+                final HttpResponse response = execute(request, username, password);
 
                 if (response.getStatusLine().getStatusCode() >= 300) {
                     final String statusLine = response.getStatusLine().toString();
@@ -82,7 +90,8 @@ public class ServerUtils {
                 started = true;
 
             } catch (IOException e) {
-                logger.info("Got exception when waiting for cluster health", e);
+                lastException = e;
+                logger.debug("Got exception when waiting for cluster health", e);
             }
 
             timeElapsed = System.currentTimeMillis() - startTime;
@@ -92,7 +101,7 @@ public class ServerUtils {
             if (installation != null) {
                 FileUtils.logAllLogs(installation.logs, logger);
             }
-            throw new RuntimeException("Elasticsearch did not start");
+            throw new RuntimeException("Elasticsearch did not start", lastException);
         }
 
         final String url;
@@ -103,7 +112,7 @@ public class ServerUtils {
 
         }
 
-        final String body = makeRequest(Request.Get(url));
+        final String body = makeRequest(Request.Get(url), username, password);
         assertThat("cluster health response must contain desired status", body, containsString(status));
     }
 
@@ -122,15 +131,12 @@ public class ServerUtils {
         makeRequest(Request.Delete("http://localhost:9200/_all"));
     }
 
-    public static String makeAuthenticatedRequest(Request request, String username, String password) throws IOException {
-        final String encodedCredentials = Base64.getEncoder().encodeToString((username + ":" + password).getBytes());
-        request.setHeader("Authorization", "Basic " + encodedCredentials);
-
-        return makeRequest(request);
+    public static String makeRequest(Request request) throws IOException {
+        return makeRequest(request, null, null);
     }
 
-    public static String makeRequest(Request request) throws IOException {
-        final HttpResponse response = request.execute().returnResponse();
+    public static String makeRequest(Request request, String username, String password) throws IOException {
+        final HttpResponse response = execute(request, username, password);
         final String body = EntityUtils.toString(response.getEntity());
 
         if (response.getStatusLine().getStatusCode() >= 300) {

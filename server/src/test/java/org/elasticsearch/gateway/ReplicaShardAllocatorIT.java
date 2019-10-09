@@ -64,7 +64,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
     }
 
     /**
-     * Verify that if we found a new copy where it can perform a no-nop recovery,
+     * Verify that if we found a new copy where it can perform a no-op recovery,
      * then we will cancel the current recovery and allocate replica to the new copy.
      */
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {

@@ -7,22 +7,22 @@
 
 When you monitor a cluster, you collect data from the {es} nodes, {ls} nodes,
 {kib} instances, and Beats in your cluster. You can also
-<<configuring-filebeat,use {filebeat} to collect {es} logs>>. 
+<<configuring-filebeat,use {filebeat} to collect {es} logs>>.
 
 All of the monitoring metrics are stored in {es}, which enables you to easily
 visualize the data from {kib}. By default, the monitoring metrics are stored in
 local indices.
 
-TIP: In production, we strongly recommend using a separate monitoring cluster.
+TIP: In production, we strongly recommend using a separate monitoring cluster
+with a separate instance of Kibana.
+
 Using a separate monitoring cluster prevents production cluster outages from
 impacting your ability to access your monitoring data. It also prevents
 monitoring activities from impacting the performance of your production cluster.
 For the same reason, we also recommend using a separate {kib} instance for
 viewing the monitoring data.
 
-You can use {metricbeat} to collect and ship data about {es}, {kib}, {ls}, and
-Beats directly to your monitoring cluster rather than routing it through your
-production cluster. The following diagram illustrates a typical monitoring
+The following diagram illustrates a typical monitoring
 architecture with separate production and monitoring clusters:
 
 image::images/architecture.png[A typical monitoring environment]

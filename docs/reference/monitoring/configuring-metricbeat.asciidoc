@@ -8,9 +8,8 @@
 <titleabbrev>Collecting monitoring data with {metricbeat}</titleabbrev>
 ++++
 
-In 6.5 and later, you can use {metricbeat} to collect data about {es} 
-and ship it to the monitoring cluster, rather than routing it through exporters 
-as described in <<collecting-monitoring-data>>. 
+Metricbeat gathers performance data from a monitored service and ships 
+it to the monitoring cluster.
 
 image::monitoring/images/metricbeat.png[Example monitoring architecture]
 

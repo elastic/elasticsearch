@@ -14,14 +14,8 @@ Monitoring documents are just ordinary JSON documents built by monitoring each
 {stack} component at a specified collection interval. If you want to alter the
 templates for these indices, see <<config-monitoring-indices>>.
 
-Each component in the {stack} is responsible for monitoring itself and then 
-forwarding those documents to the production cluster for both routing and 
-indexing (storage). The routing and indexing processes in {es} are handled by 
-what are called <<es-monitoring-collectors,collectors>> and 
-<<es-monitoring-exporters,exporters>>.
-
-Alternatively, you can use {metricbeat} to collect monitoring data and ship it
-directly to the monitoring cluster. 
+{metricbeat} is used to collect monitoring data and to ship it directly to the 
+monitoring cluster. 
 
 To learn how to collect monitoring data, see:
 

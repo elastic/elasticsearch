@@ -66,9 +66,12 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
+import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.StartSLMAction;
+import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
@@ -98,15 +101,21 @@ import org.elasticsearch.xpack.slm.SnapshotRetentionTask;
 import org.elasticsearch.xpack.slm.action.RestDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotRetentionAction;
+import org.elasticsearch.xpack.slm.action.RestGetSLMStatusAction;
 import org.elasticsearch.xpack.slm.action.RestGetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestGetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.slm.action.RestPutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.slm.action.RestStartSLMAction;
+import org.elasticsearch.xpack.slm.action.RestStopSLMAction;
 import org.elasticsearch.xpack.slm.action.TransportDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportExecuteSnapshotRetentionAction;
+import org.elasticsearch.xpack.slm.action.TransportGetSLMStatusAction;
 import org.elasticsearch.xpack.slm.action.TransportGetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportGetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.slm.action.TransportPutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.slm.action.TransportStartSLMAction;
+import org.elasticsearch.xpack.slm.action.TransportStopSLMAction;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -234,7 +243,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestGetSnapshotLifecycleAction(restController),
                 new RestExecuteSnapshotLifecycleAction(restController),
                 new RestGetSnapshotLifecycleStatsAction(restController),
-                new RestExecuteSnapshotRetentionAction(restController)
+                new RestExecuteSnapshotRetentionAction(restController),
+                new RestStopSLMAction(restController),
+                new RestStartSLMAction(restController),
+                new RestGetSLMStatusAction(restController)
             ));
         }
         return handlers;
@@ -270,7 +282,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
                 new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
-                new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class)
+                new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
+                new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
+                new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
+                new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)
             ));
         }
         return actions;

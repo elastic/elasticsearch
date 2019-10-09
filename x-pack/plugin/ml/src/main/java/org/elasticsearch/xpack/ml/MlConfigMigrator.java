@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -467,7 +468,7 @@ public class MlConfigMigrator {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
                         },
                         e -> {
-                            if (e instanceof VersionConflictEngineException) {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                                 // the snapshot already exists
                                 listener.onResponse(Boolean.TRUE);
                             } else {

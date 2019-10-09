@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.junit.After;
+import org.junit.Ignore;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -85,6 +86,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         return Arrays.asList(MockRepository.Plugin.class, LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
     }
 
+    @Ignore("https://github.com/elastic/elasticsearch/issues/47689")
     public void testSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";

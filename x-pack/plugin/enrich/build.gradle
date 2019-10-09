@@ -19,10 +19,6 @@ dependencies {
     }
 }
 
-run {
-    plugin xpackModule('core')
-}
-
 // No real integ tests in the module:
 integTest.enabled = false
 

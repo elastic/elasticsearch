@@ -95,7 +95,7 @@ prevent non-administrators exfiltrating data.
 +
 --
 The following example creates a new user `snapshot_user` in the
-{stack-ov}/native-realm.html[native realm], but it is not important which
+<<native-realm,native realm>>, but it is not important which
 realm the user is a member of:
 
 [source,console]
@@ -202,7 +202,7 @@ Then log into one of the node hosts, navigate to {es} installation directory,
 and follow these steps:
 
 . Add a new user with the `superuser` built-in role to the
-{stack-ov}/file-realm.html[file realm].
+<<file-realm,file realm>>.
 +
 --
 For example, create a user named `restore_user`:

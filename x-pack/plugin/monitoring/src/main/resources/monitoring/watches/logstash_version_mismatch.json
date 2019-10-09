@@ -7,7 +7,7 @@
       "link": "logstash/instances",
       "severity": 1000,
       "type": "monitoring",
-      "version_created": 7000099,
+      "version_created": "${monitoring.version_created}",
       "watch": "${monitoring.watch.id}"
     }
   },

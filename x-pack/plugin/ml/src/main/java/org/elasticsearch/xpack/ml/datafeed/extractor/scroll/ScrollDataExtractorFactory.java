@@ -74,9 +74,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                     new ScrollDataExtractorFactory(client, datafeed, job, extractedFields, xContentRegistry, timingStatsReporter));
             },
             e -> {
-                if (e instanceof IndexNotFoundException) {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()
-                            + "] cannot retrieve data because index " + ((IndexNotFoundException) e).getIndex() + " does not exist"));
+                            + "] cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"));
                 } else if (e instanceof IllegalArgumentException) {
                     listener.onFailure(ExceptionsHelper.badRequestException("[" + datafeed.getId() + "] " + e.getMessage()));
                 } else {

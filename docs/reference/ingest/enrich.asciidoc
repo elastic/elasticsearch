@@ -12,6 +12,7 @@ For example, you can use the enrich processor to:
 * Identify web services or vendors based on known IP addresses
 * Add product information to retail orders based on product IDs
 * Supplement contact information based on an email address
+* Add postal codes based on user coordinates
 
 
 [float]
@@ -31,7 +32,7 @@ follow these steps:
 Once you have an enrich processor set up,
 you can <<update-enrich-data,update your enrich data>>
 and <<update-enrich-policies, update your enrich policies>>
-using the <<enrich-apis,enrich>> APIs.
+using the <<enrich-apis,enrich APIs>>.
 
 [IMPORTANT]
 ====
@@ -59,17 +60,17 @@ include::{docdir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-polic
 To begin,
 create one or more source indices.
 
-A *source index* contains data you want to append to incoming documents.
+A _source index_ contains data you want to append to incoming documents.
 You can index and manage documents in a source index
 like a regular index.
 
-The following <<docs-index_,index>> API request creates the `users` source index
+The following <<docs-index_,index API>> request creates the `users` source index
 containing user data.
 This request also indexes a new document to the `users` source index.
 
 [source,console]
 ----
-PUT /users/_doc/1?refresh
+PUT /users/_doc/1?refresh=wait_for
 {
     "email": "mardy.brown@asciidocsmith.com",
     "first_name": "Mardy",
@@ -93,7 +94,7 @@ See {beats-ref}/getting-started.html[Getting started with {beats}].
 [[create-enrich-policy]]
 ==== Create an enrich policy
 
-Use the <<put-enrich-policy-api, put enrich policy>> API
+Use the <<put-enrich-policy-api,put enrich policy API>>
 to create an enrich policy.
 
 include::{docdir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-def]
@@ -116,7 +117,7 @@ PUT /_enrich/policy/users-policy
 [[execute-enrich-policy]]
 ==== Execute an enrich policy
 
-Use the <<execute-enrich-policy-api, execute enrich policy>> API
+Use the <<execute-enrich-policy-api,execute enrich policy API>>
 to create an enrich index for the policy.
 
 include::apis/enrich/execute-enrich-policy.asciidoc[tag=execute-enrich-policy-def]
@@ -136,7 +137,7 @@ POST /_enrich/policy/users-policy/_execute
 [[add-enrich-processor]]
 ==== Add the enrich processor to an ingest pipeline
 
-Use the <<put-pipeline-api,put pipeline>> API
+Use the <<put-pipeline-api,put pipeline API>>
 to create an ingest pipeline.
 Include an <<enrich-processor,enrich processor>>
 that uses your enrich policy.
@@ -144,14 +145,12 @@ that uses your enrich policy.
 When defining an enrich processor,
 you must include the following:
 
-* The *field* used to match incoming documents
+* The field used to match incoming documents
   to documents in the enrich index.
 +
 This field should be included in incoming documents.
-To match, this field must contain the exact
-value of the match field of a document in the enrich index.
 
-* The *target field* added to incoming documents.
+* The target field added to incoming documents.
   This field contains all appended enrich data.
 
 The following request adds a new pipeline, `user_lookup`.
@@ -204,10 +203,10 @@ the processor appends data from those documents to the array.
 If the incoming document matches no documents in the enrich index,
 the processor appends no data.
 
-The following <<docs-index_,index>> API request uses the ingest pipeline
+The following <<docs-index_,index API>> request uses the ingest pipeline
 to index a document
-containing the `email` field,
-the `match_field` specified in the `users-policy` enrich policy.
+containing the `email` field
+specified in the enrich processor.
 
 [source,console]
 ----
@@ -220,7 +219,7 @@ PUT /my_index/_doc/my_id?pipeline=user_lookup
 
 To verify the enrich processor matched 
 and appended the appropriate field data,
-use the <<docs-get,get>> API to view the indexed document.
+use the <<docs-get,get API>> to view the indexed document.
 
 [source,console]
 ----

@@ -22,8 +22,7 @@ Logstash, configure
 {logstash-ref}/monitoring-internal-collection.html#monitoring-settings[`xpack.monitoring` settings]
 in `logstash.yml`.
 
-For more information, see
-{xpack-ref}/xpack-monitoring.html[Monitoring the Elastic Stack].
+For more information, see <<monitor-elasticsearch-cluster>>.
 
 [float]
 [[general-monitoring-settings]]

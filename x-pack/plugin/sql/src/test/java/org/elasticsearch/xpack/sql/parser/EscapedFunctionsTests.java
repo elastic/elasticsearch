@@ -22,42 +22,58 @@ import org.junit.Assert;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.StringJoiner;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public class EscapedFunctionsTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
+    private String randomWhitespaces() {
+        StringJoiner sj = new StringJoiner("");
+        for (int i = 0; i < randomInt(10); i++) {
+            sj.add(randomFrom(" ", "\t", "\r", "\n"));
+        }
+        return sj.toString();
+    }
+
+    private String buildExpression(String escape, String pattern, Object value) {
+        return format(Locale.ROOT, "{" + randomWhitespaces() + escape + " " + randomWhitespaces() +
+            pattern + randomWhitespaces() + "}", value);
+    }
+
     private Literal dateLiteral(String date) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{d '%s'}", date));
+        Expression exp = parser.createExpression(buildExpression("d", "'%s'", date));
         assertThat(exp, instanceOf(Expression.class));
         return (Literal) exp;
     }
 
     private Literal timeLiteral(String date) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{t '%s'}", date));
+        Expression exp = parser.createExpression(buildExpression("t", "'%s'", date));
         assertThat(exp, instanceOf(Expression.class));
         return (Literal) exp;
     }
 
     private Literal timestampLiteral(String date) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{ts '%s'}", date));
+        Expression exp = parser.createExpression(buildExpression("ts", "'%s'", date));
         assertThat(exp, instanceOf(Expression.class));
         return (Literal) exp;
     }
 
-    private Literal guidLiteral(String date) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{guid '%s'}", date));
+    private Literal guidLiteral(String guid) {
+        Expression exp = parser.createExpression(buildExpression("guid", "'%s'", guid));
         assertThat(exp, instanceOf(Expression.class));
         return (Literal) exp;
     }
 
     private Limit limit(int limit) {
-        LogicalPlan plan = parser.createStatement(format(Locale.ROOT, "SELECT * FROM emp {limit %d}", limit));
+        LogicalPlan plan = parser.createStatement("SELECT * FROM emp " + buildExpression("limit", "%d", limit));
         assertThat(plan, instanceOf(With.class));
         With with = (With) plan;
         Limit limitPlan = (Limit) (with.child());
@@ -66,25 +82,31 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     private LikePattern likeEscape(String like, String character) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "exp LIKE '%s' {escape '%s'}", like, character));
+        Expression exp = parser.createExpression(format(Locale.ROOT, "exp LIKE '%s' ", like) +
+                buildExpression("escape", "'%s'", character));
         assertThat(exp, instanceOf(Like.class));
         return ((Like) exp).pattern();
     }
 
     private Function function(String name) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{fn %s}", name));
+        Expression exp = parser.createExpression(
+            format(Locale.ROOT, "{" + randomWhitespaces() + "fn" + randomWhitespaces() + "%s" + randomWhitespaces() + "}", name));
         assertThat(exp, instanceOf(Function.class));
         return (Function) exp;
     }
 
+    private void assertFunction(String name, String result) {
+        String escapedName = name.replace("(", "\\(").replace(")", "\\)").replace("{", "\\{").replace("}", "\\}");
+        assertThat(result, matchesPattern("\\{\\s*fn\\s*" + escapedName + "\\s*}"));
+    }
     public void testFunctionNoArg() {
         Function f = function("SCORE()");
-        assertEquals("{fn SCORE()}", f.sourceText());
+        assertFunction("SCORE()", f.sourceText());
     }
 
     public void testFunctionOneArg() {
         Function f = function("ABS(foo)");
-        assertEquals("{fn ABS(foo)}", f.sourceText());
+        assertFunction("ABS(foo)", f.sourceText());
         assertEquals(1, f.arguments().size());
         Expression arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedAttribute.class));
@@ -94,7 +116,7 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testFunctionOneArgFunction() {
         Function f = function("ABS({fn SCORE()})");
-        assertEquals("{fn ABS({fn SCORE()})}", f.sourceText());
+        assertFunction("ABS({fn SCORE()})", f.sourceText());
         assertEquals(1, f.arguments().size());
         Expression arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
@@ -120,7 +142,7 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testFunctionWithFunctionWithArg() {
         Function f = function("POWER(foo, {fn POWER({fn SCORE()}, {fN SCORE()})})");
-        assertEquals("{fn POWER(foo, {fn POWER({fn SCORE()}, {fN SCORE()})})}", f.sourceText());
+        assertFunction("POWER(foo, {fn POWER({fn SCORE()}, {fN SCORE()})})", f.sourceText());
         assertEquals(2, f.arguments().size());
         Expression arg = f.arguments().get(1);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
@@ -213,17 +235,17 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testGUIDValidationHexa() {
         ParsingException ex = expectThrows(ParsingException.class, () -> guidLiteral("12345678-90ab-cdef-0123-456789abcdeH"));
-        assertEquals("line 1:8: Invalid GUID, expected hexadecimal at offset[35], found [H]", ex.getMessage());
+        assertThat(ex.getMessage(), endsWith(": Invalid GUID, expected hexadecimal at offset[35], found [H]"));
     }
 
     public void testGUIDValidationGroups() {
         ParsingException ex = expectThrows(ParsingException.class, () -> guidLiteral("12345678A90ab-cdef-0123-456789abcdeH"));
-        assertEquals("line 1:8: Invalid GUID, expected group separator at offset [8], found [A]", ex.getMessage());
+        assertThat(ex.getMessage(), endsWith(": Invalid GUID, expected group separator at offset [8], found [A]"));
     }
 
     public void testGUIDValidationLength() {
         ParsingException ex = expectThrows(ParsingException.class, () -> guidLiteral("12345678A90"));
-        assertEquals("line 1:8: Invalid GUID, too short", ex.getMessage());
+        assertThat(ex.getMessage(), endsWith(": Invalid GUID, too short"));
     }
 
     public void testCurrentTimestampAsEscapedExpression() {

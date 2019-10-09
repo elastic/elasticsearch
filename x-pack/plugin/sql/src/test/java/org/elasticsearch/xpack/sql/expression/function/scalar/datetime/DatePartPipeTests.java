@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.expression.Expressions.pipe;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
 
@@ -40,7 +41,7 @@ public class DatePartPipeTests extends AbstractNodeTestCase<DatePartPipe, Pipe> 
         return (DatePartPipe) new DatePart(
             randomSource(),
             randomStringLiteral(),
-            randomStringLiteral(),
+            randomDatetimeLiteral(),
             randomZone())
             .makePipe();
     }

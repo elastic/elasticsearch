@@ -18,9 +18,6 @@ Advanced monitoring settings enable you to control how frequently data is
 collected, configure timeouts, and set the retention period for locally-stored 
 monitoring indices. You can also adjust how monitoring data is displayed. 
 
-To learn about monitoring in general, see 
-{stack-ov}/xpack-monitoring.html[Monitoring the {stack}]. 
-
 . Configure your cluster to collect monitoring data:
 
 .. Verify that the `xpack.monitoring.enabled` setting is `true`, which is its 
@@ -108,7 +105,7 @@ cluster that stores the monitoring data must have at least one
 <<ingest,ingest node>>. 
 
 For more information about typical monitoring architectures, 
-see {stack-ov}/how-monitoring-works.html[How Monitoring Works].
+see <<monitoring-overview>>.
 --
 
 . If you choose to use an `http` exporter: 
@@ -197,9 +194,7 @@ xpack.monitoring.exporters:
 --
 
 . Configure your cluster to route monitoring data from sources such as {kib}, 
-Beats, and {ls} to the monitoring cluster. For information about configuring
-each product to collect and send monitoring data, see
-{stack-ov}/xpack-monitoring.html[Monitoring the {stack}].
+Beats, and {ls} to the monitoring cluster.
 
 . If you updated settings in the `elasticsearch.yml` files on your production 
 cluster, restart {es}. See <<stopping-elasticsearch>> and <<starting-elasticsearch>>. 

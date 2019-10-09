@@ -31,6 +31,7 @@ import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -380,5 +381,10 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public void innerHits(Map<String, InnerHitContextBuilder> innerHits) {
         this.innerHits = innerHits;
+    }
+
+    @Override
+    public SearchLookup lookup() {
+        return queryShardContext.lookup();
     }
 }

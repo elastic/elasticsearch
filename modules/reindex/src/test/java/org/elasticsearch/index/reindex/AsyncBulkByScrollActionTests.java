@@ -292,7 +292,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 if (rarely()) {
                     versionConflicts++;
                     responses[i] = new BulkItemResponse(i, randomFrom(DocWriteRequest.OpType.values()),
-                        new Failure(shardId.getIndexName(), "type", "id" + i,
+                        new Failure(shardId.getIndexName(), "id" + i,
                             new VersionConflictEngineException(shardId, "id", "test")));
                     continue;
                 }
@@ -401,7 +401,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * Mimicks bulk indexing failures.
      */
     public void testBulkFailuresAbortRequest() throws Exception {
-        Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
+        Failure failure = new Failure("index", "id", new RuntimeException("test"));
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]
             {new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, failure)}, randomLong());
@@ -983,7 +983,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     }
                     if (i == toReject) {
                         responses[i] = new BulkItemResponse(i, item.opType(),
-                                new Failure(response.getIndex(), response.getType(), response.getId(), new EsRejectedExecutionException()));
+                                new Failure(response.getIndex(), response.getId(), new EsRejectedExecutionException()));
                     } else {
                         responses[i] = new BulkItemResponse(i, item.opType(), response);
                     }

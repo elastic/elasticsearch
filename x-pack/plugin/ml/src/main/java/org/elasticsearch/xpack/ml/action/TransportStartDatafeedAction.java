@@ -179,7 +179,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e instanceof ResourceAlreadyExistsException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                             logger.debug("datafeed already started", e);
                             e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
                                     "] because it has already been started", RestStatus.CONFLICT);

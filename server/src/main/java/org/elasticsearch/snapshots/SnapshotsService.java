@@ -785,19 +785,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
                         boolean snapshotChanged = false;
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : snapshot.shards()) {
-                            ShardSnapshotStatus shardStatus = shardEntry.value;
+                            final ShardSnapshotStatus shardStatus = shardEntry.value;
+                            final ShardId shardId = shardEntry.key;
                             if (!shardStatus.state().completed() && shardStatus.nodeId() != null) {
                                 if (nodes.nodeExists(shardStatus.nodeId())) {
-                                    shards.put(shardEntry.key, shardEntry.value);
+                                    shards.put(shardId, shardStatus);
                                 } else {
                                     // TODO: Restart snapshot on another node?
                                     snapshotChanged = true;
                                     logger.warn("failing snapshot of shard [{}] on closed node [{}]",
-                                        shardEntry.key, shardStatus.nodeId());
-                                    shards.put(shardEntry.key,
+                                        shardId, shardStatus.nodeId());
+                                    shards.put(shardId,
                                         new ShardSnapshotStatus(shardStatus.nodeId(), ShardState.FAILED, "node shutdown",
                                             shardStatus.generation()));
                                 }
+                            } else {
+                                shards.put(shardId, shardStatus);
                             }
                         }
                         if (snapshotChanged) {
@@ -829,6 +832,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         }, updatedSnapshot.getRepositoryStateId(), false);
                     }
+                    assert updatedSnapshot.shards().size() == snapshot.shards().size()
+                        : "Shard count changed during snapshot status update from [" + snapshot + "] to [" + updatedSnapshot + "]";
                 }
                 if (changed) {
                     return ClusterState.builder(currentState)

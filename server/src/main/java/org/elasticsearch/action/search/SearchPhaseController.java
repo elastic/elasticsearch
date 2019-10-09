@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -559,12 +558,12 @@ public final class SearchPhaseController {
     }
 
     /**
-     * A {@link InitialSearchPhase.ArraySearchPhaseResults} implementation
+     * A {@link ArraySearchPhaseResults} implementation
      * that incrementally reduces aggregation results as shard results are consumed.
      * This implementation can be configured to batch up a certain amount of results and only reduce them
      * iff the buffer is exhausted.
      */
-    static final class QueryPhaseResultConsumer extends InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> {
+    static final class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
         private final InternalAggregations[] aggsBuffer;
         private final TopDocs[] topDocsBuffer;
         private final boolean hasAggs;
@@ -679,7 +678,7 @@ public final class SearchPhaseController {
     /**
      * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
      */
-    InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchRequest request, int numShards) {
+    ArraySearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchRequest request, int numShards) {
         SearchSourceBuilder source = request.source();
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
@@ -693,7 +692,7 @@ public final class SearchPhaseController {
                     trackTotalHitsUpTo, request.isFinalReduce());
             }
         }
-        return new InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
+        return new ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
             ReducedQueryPhase reduce() {
                 return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo, request.isFinalReduce());

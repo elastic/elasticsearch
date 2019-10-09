@@ -8,16 +8,18 @@ if (buildNumber) {
         project.file("build/upload-files").mkdir()
         project.sync {
             from fileTree(projectDir)
-            include "**/*.hprof"
-            include "**/build/testclusters/**"
-            exclude "**/build/testclusters/**/data"
-            exclude "**/build/testclusters/**/distro"
-            exclude "**/build/testclusters/**/repo"
-            exclude "**/build/testclusters/**/extract"
-            exclude "build/upload-files"
+                .include("**/*.hprof")
+                .include("**/build/testclusters/**")
+                .exclude("**/build/testclusters/**/data")
+                .exclude("**/build/testclusters/**/distro")
+                .exclude("**/build/testclusters/**/repo")
+                .exclude("**/build/testclusters/**/extract")
+                .exclude("build/upload-files")
             into "build/upload-files"
             includeEmptyDirs = false
         }
+        long size = project.file("build/upload-files").directorySize()
+        println "Creating archive from directory: ${(size / 1024 / 1024).round(2)} MB"
         if (project.file(uploadFile)) {
             project.delete(uploadFile)
         }

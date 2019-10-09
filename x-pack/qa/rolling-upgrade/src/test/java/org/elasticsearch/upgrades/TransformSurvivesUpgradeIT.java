@@ -73,7 +73,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
-        return Stream.concat(XPackRestTestConstants.DATA_FRAME_TEMPLATES.stream(),
+        return Stream.concat(XPackRestTestConstants.TRANSFORM_TEMPLATES.stream(),
             super.templatesToWaitFor().stream()).collect(Collectors.toSet());
     }
 

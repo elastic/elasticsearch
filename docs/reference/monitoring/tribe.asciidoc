@@ -1,6 +1,6 @@
 [role="xpack"]
 [[monitoring-tribe]]
-=== Configuring a Tribe Node to Work with Monitoring
+=== Configuring a tribe node to work with monitoring
 
 If you connect to a cluster through a <<modules-tribe,tribe node>>,
 and you want to monitor the tribe node, then you will need to install {xpack} on

@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 
-import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -20,16 +23,18 @@ public final class Types {
     private Types() {}
 
     private static final Set<String> CATEGORICAL_TYPES =
-        Collections.unmodifiableSet(
-            Stream.of("text", "keyword", "ip")
-                .collect(Collectors.toSet()));
+        Stream.of(TextFieldMapper.CONTENT_TYPE, KeywordFieldMapper.CONTENT_TYPE, IpFieldMapper.CONTENT_TYPE)
+            .collect(Collectors.toUnmodifiableSet());
 
     private static final Set<String> NUMERICAL_TYPES =
-        Collections.unmodifiableSet(
-            Stream.concat(
-                    Stream.of(NumberFieldMapper.NumberType.values()).map(NumberFieldMapper.NumberType::typeName),
-                    Stream.of("scaled_float"))
-                .collect(Collectors.toSet()));
+        Stream.concat(Stream.of(NumberType.values()).map(NumberType::typeName), Stream.of("scaled_float"))
+            .collect(Collectors.toUnmodifiableSet());
+
+    private static final Set<String> BOOLEAN_AND_DISCRETE_NUMERICAL_TYPES =
+        Stream.concat(
+                Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG).map(NumberType::typeName),
+                Stream.of(BooleanFieldMapper.CONTENT_TYPE))
+            .collect(Collectors.toUnmodifiableSet());
 
     public static Set<String> categorical() {
         return CATEGORICAL_TYPES;
@@ -37,5 +42,9 @@ public final class Types {
 
     public static Set<String> numerical() {
         return NUMERICAL_TYPES;
+    }
+
+    public static Set<String> booleanAndDiscreteNumerical() {
+        return BOOLEAN_AND_DISCRETE_NUMERICAL_TYPES;
     }
 }

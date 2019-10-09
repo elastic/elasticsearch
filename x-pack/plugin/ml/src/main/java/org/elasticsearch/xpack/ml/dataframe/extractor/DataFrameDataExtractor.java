@@ -23,7 +23,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
 
@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -265,15 +264,11 @@ public class DataFrameDataExtractor {
             .setTrackTotalHits(true);
     }
 
-    public Set<String> getCategoricalFields() {
-        Set<String> categoricalFields = new HashSet<>();
-        for (ExtractedField extractedField : context.extractedFields.getAllFields()) {
-            String fieldName = extractedField.getName();
-            if (Types.categorical().containsAll(extractedField.getTypes())) {
-                categoricalFields.add(fieldName);
-            }
-        }
-        return categoricalFields;
+    public Set<String> getCategoricalFields(DataFrameAnalysis analysis) {
+        return context.extractedFields.getAllFields().stream()
+            .filter(extractedField -> analysis.getAllowedCategoricalTypes(extractedField.getName()).containsAll(extractedField.getTypes()))
+            .map(ExtractedField::getName)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     public static class DataSummary {

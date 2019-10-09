@@ -423,7 +423,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 response -> finishedHandler.onResponse(true),
                 e -> {
                     // It's not a problem for us if the index wasn't found - it's equivalent to document not found
-                    if (e instanceof IndexNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         finishedHandler.onResponse(true);
                     } else {
                         finishedHandler.onFailure(e);
@@ -467,7 +467,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 },
                 e -> {
                     // It's not a problem for us if the index wasn't found - it's equivalent to document not found
-                    if (e instanceof IndexNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         finishedHandler.onResponse(true);
                     } else {
                         finishedHandler.onFailure(e);
@@ -537,7 +537,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     normalDeleteJob(parentTaskClient, request, listener);
                 } else {
                     listener.onFailure(e);
@@ -550,7 +550,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         ActionListener<KillProcessAction.Response> killJobListener = ActionListener.wrap(
                 response -> removePersistentTask(request.getJobId(), state, removeTaskListener),
                 e -> {
-                    if (e instanceof ElasticsearchStatusException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ElasticsearchStatusException) {
                         // Killing the process marks the task as completed so it
                         // may have disappeared when we get here
                         removePersistentTask(request.getJobId(), state, removeTaskListener);

@@ -57,7 +57,7 @@ public class MigrateToolIT extends MigrateToolTestCase {
         final Path configPath = PathUtils.get(testConfigDir);
         Settings settings = Settings.builder().put("path.home", configPath.getParent()).build();
         // Cluster should already be up
-        String url = "http://" + getHttpURL();
+        String url = "http://" + getHttpURL().split(",")[0];
         logger.info("--> using URL: {}", url);
         MockTerminal t = new MockTerminal();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();

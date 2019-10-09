@@ -718,6 +718,13 @@ end::master-timeout[]
 
 end::timeoutparms[]
 
+tag::type[]
+`<type>`::
+(Optional, string)
+Comma-separated list or wildcard expression of types
+used to limit the request.
+end::type[]
+
 tag::cat-v[]
 `v`::
 (Optional, boolean) If `true`, the response includes column headings. 

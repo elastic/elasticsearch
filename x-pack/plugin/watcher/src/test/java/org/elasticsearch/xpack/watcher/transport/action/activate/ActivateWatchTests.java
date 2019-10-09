@@ -82,18 +82,10 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
             assertThat(sum, is(0));
         });
 
-        logger.info("Ensured no more watches are being executed");
         refresh();
         long count1 = docCount(".watcher-history*", matchAllQuery());
 
-        logger.info("Sleeping for 5 seconds, watch history count [{}]", count1);
-        Thread.sleep(5000);
 
-        refresh();
-        // Ensure no new watch history. The assertion ought to always return false, but if it returns true
-        // then we know that more history has been written.
-        boolean hasNewHistory = waitUntil(() -> count1 != docCount(".watcher-history*", matchAllQuery()), 5, TimeUnit.SECONDS);
-        assertFalse("Watcher should have stopped executing but new history found", hasNewHistory);
 
         // lets activate it again
         logger.info("Activating watch again");

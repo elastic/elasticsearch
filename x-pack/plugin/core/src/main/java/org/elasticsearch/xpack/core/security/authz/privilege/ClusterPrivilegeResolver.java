@@ -50,8 +50,9 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_TOKEN_PATTERN = Collections.singleton("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Collections.singleton("cluster:admin/xpack/security/api_key/*");
     private static final Set<String> MONITOR_PATTERN = Collections.singleton("cluster:monitor/*");
+    private static final Set<String> MONITOR_DATA_FRAME_PATTERN = Collections.unmodifiableSet(
+        Sets.newHashSet("cluster:monitor/data_frame/*", "cluster:monitor/transform/*"));
     private static final Set<String> MONITOR_ML_PATTERN = Collections.singleton("cluster:monitor/xpack/ml/*");
-    private static final Set<String> MONITOR_DATA_FRAME_PATTERN = Collections.singleton("cluster:monitor/data_frame/*");
     private static final Set<String> MONITOR_WATCHER_PATTERN = Collections.singleton("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Collections.singleton("cluster:monitor/xpack/rollup/*");
     private static final Set<String> ALL_CLUSTER_PATTERN = Collections.unmodifiableSet(
@@ -59,7 +60,8 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_ML_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*"));
     private static final Set<String> MANAGE_DATA_FRAME_PATTERN = Collections.unmodifiableSet(
-        Sets.newHashSet("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*"));
+        Sets.newHashSet("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*",
+            "cluster:monitor/transform/*", "cluster:admin/transform/*"));
     private static final Set<String> MANAGE_WATCHER_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*"));
     private static final Set<String> TRANSPORT_CLIENT_PATTERN = Collections.unmodifiableSet(

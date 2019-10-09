@@ -23,8 +23,7 @@ experimental[]
 * You must have `machine_learning_admin` built-in role to use this API. You must 
 also have `read` and `view_index_metadata` privileges on the source index and 
 `read`, `create_index`, and `index` privileges on the destination index. For 
-more information, see {stack-ov}/security-privileges.html[Security privileges] 
-and {stack-ov}/built-in-roles.html[Built-in roles].
+more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-put-dfanalytics-desc]]
@@ -140,6 +139,9 @@ PUT _ml/data_frame/analytics/loganalytics
   },
   "analysis": {
     "outlier_detection": {
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
     }
   }
 }
@@ -166,8 +168,12 @@ The API returns the following result:
     "index" : "logdata_out",
     "results_field" : "ml"
   },
-  "analysis" : {
-    "outlier_detection" : { }
+  "analysis": {
+      "outlier_detection": {
+          "compute_feature_influence": true,
+          "outlier_fraction": 0.05,
+          "standardization_enabled": true
+      }
   },
   "model_memory_limit" : "1gb",
   "create_time" : 1562351429434,

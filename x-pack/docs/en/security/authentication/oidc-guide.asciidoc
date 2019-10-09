@@ -557,7 +557,7 @@ OP or a third party (see <<third-party-login>>, we need to explicitly _whitelist
 OpenID Connect authentication endpoint within {kib}, so that the {kib} server will
 not reject these external messages.
 
-
+[[oidc-without-kibana]]
 === OpenID Connect without {kib}
 
 The OpenID Connect realm is designed to allow users to authenticate to {kib} and as

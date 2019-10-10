@@ -52,15 +52,22 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
 
     @Override
     protected TrainedModelConfig createTestInstance() {
+        List<String> tags = null;
+        if (randomBoolean()) {
+            int tagsCount = randomIntBetween(0, 5);
+            tags = new ArrayList<>(tagsCount);
+            for (int i = 0; i < tagsCount; i++) {
+                tags.add(randomAlphaOfLength(10));
+            }
+        }
         return new TrainedModelConfig(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
-            randomBoolean() ? null : randomNonNegativeLong(),
-            randomAlphaOfLength(10),
             randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
+            tags,
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
     }
 

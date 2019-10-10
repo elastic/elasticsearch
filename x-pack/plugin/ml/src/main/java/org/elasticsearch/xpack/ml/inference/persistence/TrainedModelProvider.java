@@ -62,21 +62,17 @@ public class TrainedModelProvider {
             IndexRequest indexRequest = new IndexRequest(InferenceIndexConstants.LATEST_INDEX_NAME)
                 .opType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .id(TrainedModelConfig.documentId(trainedModelConfig.getModelId(), trainedModelConfig.getModelVersion()))
+                .id(trainedModelConfig.getModelId())
                 .source(source);
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest,
                 ActionListener.wrap(
                     r -> listener.onResponse(true),
                     e -> {
-                        logger.error(
-                            new ParameterizedMessage("[{}][{}] failed to store trained model for inference",
-                                trainedModelConfig.getModelId(),
-                                trainedModelConfig.getModelVersion()),
-                            e);
+                        logger.error(new ParameterizedMessage(
+                            "[{}] failed to store trained model for inference", trainedModelConfig.getModelId()), e);
                         if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             listener.onFailure(new ResourceAlreadyExistsException(
-                                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS,
-                                    trainedModelConfig.getModelId(), trainedModelConfig.getModelVersion())));
+                                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
                         } else {
                             listener.onFailure(
                                 new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
@@ -93,10 +89,10 @@ public class TrainedModelProvider {
         }
     }
 
-    public void getTrainedModel(String modelId, long modelVersion, ActionListener<TrainedModelConfig> listener) {
+    public void getTrainedModel(String modelId, ActionListener<TrainedModelConfig> listener) {
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders
             .idsQuery()
-            .addIds(TrainedModelConfig.documentId(modelId, modelVersion)));
+            .addIds(modelId));
         SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
@@ -109,11 +105,11 @@ public class TrainedModelProvider {
                 searchResponse -> {
                     if (searchResponse.getHits().getHits().length == 0) {
                         listener.onFailure(new ResourceNotFoundException(
-                            Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId, modelVersion)));
+                            Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                         return;
                     }
                     BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
-                    parseInferenceDocLenientlyFromSource(source, modelId, modelVersion, listener);
+                    parseInferenceDocLenientlyFromSource(source, modelId, listener);
                 },
                 listener::onFailure));
     }
@@ -121,14 +117,13 @@ public class TrainedModelProvider {
 
     private void parseInferenceDocLenientlyFromSource(BytesReference source,
                                                       String modelId,
-                                                      long modelVersion,
                                                       ActionListener<TrainedModelConfig> modelListener) {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
             modelListener.onResponse(TrainedModelConfig.fromXContent(parser, true).build());
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("[{}][{}] failed to parse model", modelId, modelVersion), e);
+            logger.error(new ParameterizedMessage("[{}] failed to parse model", modelId), e);
             modelListener.onFailure(e);
         }
     }

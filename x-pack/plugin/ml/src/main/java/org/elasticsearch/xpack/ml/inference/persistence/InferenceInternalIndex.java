@@ -23,12 +23,10 @@ import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappi
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DYNAMIC;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.ENABLED;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.KEYWORD;
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.LONG;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.PROPERTIES;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.TEXT;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.TYPE;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.addMetaInformation;
-
 
 /**
  * Changelog of internal index versions
@@ -87,16 +85,13 @@ public final class InferenceInternalIndex {
             .startObject(TrainedModelConfig.DESCRIPTION.getPreferredName())
             .field(TYPE, TEXT)
             .endObject()
-            .startObject(TrainedModelConfig.CREATED_TIME.getPreferredName())
+            .startObject(TrainedModelConfig.CREATE_TIME.getPreferredName())
             .field(TYPE, DATE)
-            .endObject()
-            .startObject(TrainedModelConfig.MODEL_VERSION.getPreferredName())
-            .field(TYPE, LONG)
             .endObject()
             .startObject(TrainedModelConfig.DEFINITION.getPreferredName())
             .field(ENABLED, false)
             .endObject()
-            .startObject(TrainedModelConfig.MODEL_TYPE.getPreferredName())
+            .startObject(TrainedModelConfig.TAGS.getPreferredName())
             .field(TYPE, KEYWORD)
             .endObject()
             .startObject(TrainedModelConfig.METADATA.getPreferredName())

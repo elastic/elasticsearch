@@ -18,8 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -81,26 +79,18 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startArray("executing_policies");
-            executingPolicies.stream().sorted(Comparator.comparing(ExecutingPolicy::getName)).forEachOrdered(policy -> {
-                try {
-                    builder.startObject();
-                    policy.toXContent(builder, params);
-                    builder.endObject();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            for (ExecutingPolicy policy : executingPolicies) {
+                builder.startObject();
+                policy.toXContent(builder, params);
+                builder.endObject();
+            }
             builder.endArray();
             builder.startArray("coordinator_stats");
-            coordinatorStats.stream().sorted(Comparator.comparing(CoordinatorStats::getNodeId)).forEachOrdered(entry -> {
-                try {
-                    builder.startObject();
-                    entry.toXContent(builder, params);
-                    builder.endObject();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            for (CoordinatorStats entry : coordinatorStats) {
+                builder.startObject();
+                entry.toXContent(builder, params);
+                builder.endObject();
+            }
             builder.endArray();
             builder.endObject();
             return builder;

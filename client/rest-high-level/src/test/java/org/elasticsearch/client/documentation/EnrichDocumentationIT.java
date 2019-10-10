@@ -29,6 +29,10 @@ import org.elasticsearch.client.enrich.NamedPolicy;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
+import org.elasticsearch.client.enrich.StatsRequest;
+import org.elasticsearch.client.enrich.StatsResponse;
+import org.elasticsearch.client.enrich.StatsResponse.CoordinatorStats;
+import org.elasticsearch.client.enrich.StatsResponse.ExecutingPolicy;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -194,6 +198,55 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         client.enrich().getPolicyAsync(getPolicyRequest,
             RequestOptions.DEFAULT, listener); // <1>
         // end::enrich-get-policy-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testStats() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::enrich-stats-request
+        StatsRequest statsRequest = new StatsRequest();
+        // end::enrich-stats-request
+
+        // tag::enrich-stats-execute
+        StatsResponse statsResponse =
+            client.enrich().stats(statsRequest, RequestOptions.DEFAULT);
+        // end::enrich-stats-execute
+
+        // tag::enrich-stats-response
+        List<ExecutingPolicy> executingPolicies =
+            statsResponse.getExecutingPolicies();  // <1>
+        List<CoordinatorStats> coordinatorStats =
+            statsResponse.getCoordinatorStats();  // <2>
+        // end::enrich-stats-response
+
+        // tag::enrich-stats-execute-listener
+        ActionListener<StatsResponse> listener =
+            new ActionListener<StatsResponse>() {
+            @Override
+            public void onResponse(StatsResponse response) { // <1>
+                List<ExecutingPolicy> executingPolicies =
+                    statsResponse.getExecutingPolicies();
+                List<CoordinatorStats> coordinatorStats =
+                    statsResponse.getCoordinatorStats();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::enrich-stats-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::enrich-stats-execute-async
+        client.enrich().statsAsync(statsRequest, RequestOptions.DEFAULT,
+            listener); // <1>
+        // end::enrich-stats-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

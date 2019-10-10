@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.Exe
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -74,11 +75,13 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
 
                 List<CoordinatorStats> coordinatorStats = response.getNodes().stream()
                     .map(EnrichCoordinatorStatsAction.NodeResponse::getCoordinatorStats)
+                    .sorted(Comparator.comparing(CoordinatorStats::getNodeId))
                     .collect(Collectors.toList());
                 List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks().values().stream()
                     .filter(t -> t.getAction().equals(ExecuteEnrichPolicyAction.NAME))
                     .map(t -> t.taskInfo(clusterService.localNode().getId(), true))
                     .map(t -> new ExecutingPolicy(t.getDescription(), t))
+                    .sorted(Comparator.comparing(ExecutingPolicy::getName))
                     .collect(Collectors.toList());
                 listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats));
             },

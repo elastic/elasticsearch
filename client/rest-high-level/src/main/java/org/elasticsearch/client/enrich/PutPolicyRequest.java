@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutPolicyRequest implements Validatable, ToXContentObject {
+public final class PutPolicyRequest implements Validatable, ToXContentObject {
 
     private final String name;
     private final String type;

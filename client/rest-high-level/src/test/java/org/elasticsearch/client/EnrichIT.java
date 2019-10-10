@@ -23,11 +23,15 @@ import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
+import org.elasticsearch.client.enrich.StatsRequest;
+import org.elasticsearch.client.enrich.StatsResponse;
 
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class EnrichIT extends ESRestHighLevelClientTestCase {
 
@@ -45,6 +49,16 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         assertThat(getPolicyResponse.getPolicies().get(0).getIndices(), equalTo(putPolicyRequest.getIndices()));
         assertThat(getPolicyResponse.getPolicies().get(0).getMatchField(), equalTo(putPolicyRequest.getMatchField()));
         assertThat(getPolicyResponse.getPolicies().get(0).getEnrichFields(), equalTo(putPolicyRequest.getEnrichFields()));
+
+        StatsRequest statsRequest = new StatsRequest();
+        StatsResponse statsResponse = execute(statsRequest, enrichClient::stats, enrichClient::statsAsync);
+        assertThat(statsResponse.getExecutingPolicies().size(), equalTo(0));
+        assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
+        assertThat(statsResponse.getCoordinatorStats().get(0).getNodeId(), notNullValue());
+        assertThat(statsResponse.getCoordinatorStats().get(0).getQueueSize(), greaterThanOrEqualTo(0));
+        assertThat(statsResponse.getCoordinatorStats().get(0).getRemoteRequestsCurrent(), greaterThanOrEqualTo(0));
+        assertThat(statsResponse.getCoordinatorStats().get(0).getRemoteRequestsTotal(), greaterThanOrEqualTo(0L));
+        assertThat(statsResponse.getCoordinatorStats().get(0).getExecutedSearchesTotal(), greaterThanOrEqualTo(0L));
 
         DeletePolicyRequest deletePolicyRequest = new DeletePolicyRequest("my-policy");
         AcknowledgedResponse deletePolicyResponse =

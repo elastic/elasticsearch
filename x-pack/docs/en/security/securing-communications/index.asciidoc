@@ -17,14 +17,4 @@ This section shows how to:
 The authentication of new nodes helps prevent a rogue node from joining the
 cluster and receiving data through replication.
 
-include::{es-repo-dir}/security/securing-communications/setting-up-ssl.asciidoc[]
-
-[[ciphers]]
-=== Enabling cipher suites for stronger encryption
-
-See {ref}/ciphers.html[Enabling Cipher Suites for Stronger Encryption].
-
-[[separating-node-client-traffic]]
-=== Separating node-to-node and client traffic
-
-See {ref}/separating-node-client-traffic.html[Separating node-to-node and client traffic].
+include::setting-up-ssl.asciidoc[]

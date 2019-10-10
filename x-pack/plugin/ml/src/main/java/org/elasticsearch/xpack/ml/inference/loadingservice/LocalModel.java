@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -40,9 +40,9 @@ public class LocalModel implements Model {
     }
 
     @Override
-    public void infer(Map<String, Object> fields, InferenceParams params, ActionListener<InferenceResults> listener) {
+    public void infer(Map<String, Object> fields, InferenceConfig config, ActionListener<InferenceResults> listener) {
         try {
-            listener.onResponse(trainedModelDefinition.infer(fields, params));
+            listener.onResponse(trainedModelDefinition.infer(fields, config));
         } catch (Exception e) {
             listener.onFailure(e);
         }

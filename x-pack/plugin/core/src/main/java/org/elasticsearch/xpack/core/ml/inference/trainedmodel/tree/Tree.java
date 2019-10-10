@@ -16,8 +16,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -112,30 +113,34 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     @Override
-    public InferenceResults infer(Map<String, Object> fields, InferenceParams params) {
-        if (targetType != TargetType.CLASSIFICATION && params.getNumTopClasses() != 0) {
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+        if (config.isTargetTypeSupported(targetType) == false) {
             throw ExceptionsHelper.badRequestException(
-                "Cannot return top classes for target_type [{}]", targetType.toString());
+                "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
         }
+
         List<Double> features = featureNames.stream().map(f ->
             fields.get(f) instanceof Number ? ((Number) fields.get(f)).doubleValue() : null
         ).collect(Collectors.toList());
-        return infer(features, params);
+        return infer(features, config);
     }
 
-    private InferenceResults infer(List<Double> features, InferenceParams params) {
+    private InferenceResults infer(List<Double> features, InferenceConfig config) {
         TreeNode node = nodes.get(0);
         while(node.isLeaf() == false) {
             node = nodes.get(node.compare(features));
         }
-        return buildResult(node.getLeafValue(), params);
+        return buildResult(node.getLeafValue(), config);
     }
 
-    private InferenceResults buildResult(Double value, InferenceParams params) {
+    private InferenceResults buildResult(Double value, InferenceConfig config) {
         switch (targetType) {
             case CLASSIFICATION:
-                List<ClassificationInferenceResults.TopClassEntry> topClasses =
-                    InferenceHelpers.topClasses(classificationProbability(value), classificationLabels, params.getNumTopClasses());
+                ClassificationConfig classificationConfig = (ClassificationConfig) config;
+                List<ClassificationInferenceResults.TopClassEntry> topClasses = InferenceHelpers.topClasses(
+                    classificationProbability(value),
+                    classificationLabels,
+                    classificationConfig.getNumTopClasses());
                 return new ClassificationInferenceResults(value, classificationLabel(value, classificationLabels), topClasses);
             case REGRESSION:
                 return new RegressionInferenceResults(value);

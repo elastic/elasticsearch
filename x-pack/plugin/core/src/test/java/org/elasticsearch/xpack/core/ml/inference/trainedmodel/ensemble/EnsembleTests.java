@@ -17,7 +17,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
@@ -159,6 +160,27 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         });
     }
 
+    public void testEnsembleWithAggregatorOutputNotSupportingTargetType() {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+            Ensemble.builder()
+                .setFeatureNames(featureNames)
+                .setTrainedModels(Arrays.asList(
+                    Tree.builder()
+                        .setNodes(TreeNode.builder(0)
+                            .setLeftChild(1)
+                            .setSplitFeature(1)
+                            .setThreshold(randomDouble()))
+                        .setFeatureNames(featureNames)
+                        .build()))
+                .setClassificationLabels(Arrays.asList("label1", "label2"))
+                .setTargetType(TargetType.CLASSIFICATION)
+                .setOutputAggregator(new WeightedSum())
+                .build()
+                .validate();
+        });
+    }
+
     public void testEnsembleWithTargetTypeAndLabelsMismatch() {
         List<String> featureNames = Arrays.asList("foo", "bar");
         String msg = "[target_type] should be [classification] if [classification_labels] is provided, and vice versa";
@@ -190,6 +212,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                         .setFeatureNames(featureNames)
                         .build()))
                 .setTargetType(TargetType.CLASSIFICATION)
+                .setOutputAggregator(new WeightedMode())
                 .build()
                 .validate();
         });
@@ -245,7 +268,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<Double> expected = Arrays.asList(0.768524783, 0.231475216);
         double eps = 0.000001;
         List<ClassificationInferenceResults.TopClassEntry> probabilities =
-            ((ClassificationInferenceResults)ensemble.infer(featureMap, new InferenceParams(2))).getTopClasses();
+            ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
         }
@@ -254,7 +277,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         featureMap = zipObjMap(featureNames, featureVector);
         expected = Arrays.asList(0.689974481, 0.3100255188);
         probabilities =
-            ((ClassificationInferenceResults)ensemble.infer(featureMap, new InferenceParams(2))).getTopClasses();
+            ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
         }
@@ -263,7 +286,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         featureMap = zipObjMap(featureNames, featureVector);
         expected = Arrays.asList(0.768524783, 0.231475216);
         probabilities =
-            ((ClassificationInferenceResults)ensemble.infer(featureMap, new InferenceParams(2))).getTopClasses();
+            ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
         }
@@ -275,7 +298,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         }};
         expected = Arrays.asList(0.6899744811, 0.3100255188);
         probabilities =
-            ((ClassificationInferenceResults)ensemble.infer(featureMap, new InferenceParams(2))).getTopClasses();
+            ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
         }
@@ -328,24 +351,24 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         assertThat(1.0,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(0))).value(), 0.00001));
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(1.0,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(0))).value(), 0.00001));
 
         featureVector = Arrays.asList(0.0, 1.0);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(1.0,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(0))).value(), 0.00001));
 
         featureMap = new HashMap<>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};
         assertThat(0.0,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(0))).value(), 0.00001));
     }
 
     public void testRegressionInference() {
@@ -385,12 +408,12 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.9,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.5,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         // Test with NO aggregator supplied, verifies default behavior of non-weighted sum
         ensemble = Ensemble.builder()
@@ -402,19 +425,19 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         featureVector = Arrays.asList(0.4, 0.0);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(1.8,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(1.0,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         featureMap = new HashMap<>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};
         assertThat(1.8,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {

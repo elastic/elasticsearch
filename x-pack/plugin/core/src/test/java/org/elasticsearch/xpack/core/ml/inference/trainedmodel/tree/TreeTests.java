@@ -12,7 +12,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.junit.Before;
 
@@ -124,21 +125,21 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.3,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         // This should hit the left child of the left child of the root node
         // i.e. it takes the path left, left
         featureVector = Arrays.asList(0.3, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         // This should hit the right child of the left child of the root node
         // i.e. it takes the path left, right
         featureVector = Arrays.asList(0.3, 0.9);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         // This should handle missing values and take the default_left path
         featureMap = new HashMap<>(2) {{
@@ -146,7 +147,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             put("bar", null);
         }};
         assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, InferenceParams.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
     }
 
     public void testTreeClassificationProbability() {
@@ -169,7 +170,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         List<String> expectedFields = Arrays.asList("dog", "cat");
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         List<ClassificationInferenceResults.TopClassEntry> probabilities =
-            ((ClassificationInferenceResults)tree.infer(featureMap, new InferenceParams(2))).getTopClasses();
+            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expectedProbs.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));
@@ -180,7 +181,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         featureVector = Arrays.asList(0.3, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         probabilities =
-            ((ClassificationInferenceResults)tree.infer(featureMap, new InferenceParams(2))).getTopClasses();
+            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expectedProbs.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));
@@ -192,7 +193,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             put("bar", null);
         }};
         probabilities =
-            ((ClassificationInferenceResults)tree.infer(featureMap, new InferenceParams(2))).getTopClasses();
+            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expectedProbs.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));

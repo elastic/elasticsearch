@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPr
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -125,9 +125,9 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
         preProcessors.forEach(preProcessor -> preProcessor.process(fields));
     }
 
-    public InferenceResults infer(Map<String, Object> fields, InferenceParams params) {
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
         preProcess(fields);
-        return trainedModel.infer(fields, params);
+        return trainedModel.infer(fields, config);
     }
 
     @Override

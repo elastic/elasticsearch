@@ -24,10 +24,11 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable {
      * Infer against the provided fields
      *
      * @param fields The fields and their values to infer against
+     * @param config The configuration options for inference
      * @return The predicted value. For classification this will be discrete values (e.g. 0.0, or 1.0).
      *                              For regression this is continuous.
      */
-    InferenceResults infer(Map<String, Object> fields, InferenceParams params);
+    InferenceResults infer(Map<String, Object> fields, InferenceConfig config);
 
     /**
      * @return {@link TargetType} for the model.

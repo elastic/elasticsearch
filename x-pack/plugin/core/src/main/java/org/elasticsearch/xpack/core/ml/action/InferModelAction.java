@@ -13,7 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -37,24 +38,24 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         private final String modelId;
         private final long modelVersion;
         private final List<Map<String, Object>> objectsToInfer;
-        private final InferenceParams params;
+        private final InferenceConfig config;
 
         public Request(String modelId, long modelVersion) {
-            this(modelId, modelVersion, Collections.emptyList(), InferenceParams.EMPTY_PARAMS);
+            this(modelId, modelVersion, Collections.emptyList(), new RegressionConfig());
         }
 
-        public Request(String modelId, long modelVersion, List<Map<String, Object>> objectsToInfer, InferenceParams inferenceParams) {
+        public Request(String modelId, long modelVersion, List<Map<String, Object>> objectsToInfer, InferenceConfig inferenceConfig) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.modelVersion = modelVersion;
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
-            this.params = inferenceParams == null ? InferenceParams.EMPTY_PARAMS : inferenceParams;
+            this.config = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
         }
 
-        public Request(String modelId, long modelVersion, Map<String, Object> objectToInfer, InferenceParams params) {
+        public Request(String modelId, long modelVersion, Map<String, Object> objectToInfer, InferenceConfig config) {
             this(modelId,
                 modelVersion,
                 Arrays.asList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
-                params);
+                config);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -62,7 +63,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.modelId = in.readString();
             this.modelVersion = in.readVLong();
             this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
-            this.params = new InferenceParams(in);
+            this.config = in.readNamedWriteable(InferenceConfig.class);
         }
 
         public String getModelId() {
@@ -77,8 +78,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return objectsToInfer;
         }
 
-        public InferenceParams getParams() {
-            return params;
+        public InferenceConfig getConfig() {
+            return config;
         }
 
         @Override
@@ -92,7 +93,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeString(modelId);
             out.writeVLong(modelVersion);
             out.writeCollection(objectsToInfer, StreamOutput::writeMap);
-            params.writeTo(out);
+            out.writeNamedWriteable(config);
         }
 
         @Override
@@ -102,13 +103,13 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             InferModelAction.Request that = (InferModelAction.Request) o;
             return Objects.equals(modelId, that.modelId)
                 && Objects.equals(modelVersion, that.modelVersion)
-                && Objects.equals(params, that.params)
+                && Objects.equals(config, that.config)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, modelVersion, objectsToInfer, params);
+            return Objects.hash(modelId, modelVersion, objectsToInfer, config);
         }
 
     }

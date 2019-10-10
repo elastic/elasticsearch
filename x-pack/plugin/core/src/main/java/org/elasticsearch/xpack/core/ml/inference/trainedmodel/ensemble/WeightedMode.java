@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,6 +125,11 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
     }
 
     @Override
+    public boolean compatibleWith(TargetType targetType) {
+        return true;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
     }
@@ -159,8 +165,4 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
         return Objects.hash(weights);
     }
 
-    @Override
-    public boolean providesProbabilities() {
-        return true;
-    }
 }

@@ -10,7 +10,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
@@ -49,12 +51,12 @@ public class LocalModelTests extends ESTestCase {
             put("categorical", "dog");
         }};
 
-        SingleValueInferenceResults result = getSingleValue(model, fields, InferenceParams.EMPTY_PARAMS);
+        SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfig(0));
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), is("0.0"));
 
         ClassificationInferenceResults classificationResult =
-            (ClassificationInferenceResults)getSingleValue(model, fields, new InferenceParams(1));
+            (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(1));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("0"));
 
@@ -65,18 +67,18 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassification(true))
             .build();
         model = new LocalModel(modelId, definition);
-        result = getSingleValue(model, fields, InferenceParams.EMPTY_PARAMS);
+        result = getSingleValue(model, fields, new ClassificationConfig(0));
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
 
-        classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new InferenceParams(1));
+        classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(1));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
 
-        classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new InferenceParams(2));
+        classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(2));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
 
-        classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new InferenceParams(-1));
+        classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(-1));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
     }
 
@@ -94,21 +96,21 @@ public class LocalModelTests extends ESTestCase {
             put("categorical", "dog");
         }};
 
-        SingleValueInferenceResults results = getSingleValue(model, fields, InferenceParams.EMPTY_PARAMS);
+        SingleValueInferenceResults results = getSingleValue(model, fields, new RegressionConfig());
         assertThat(results.value(), equalTo(1.3));
 
         PlainActionFuture<InferenceResults> failedFuture = new PlainActionFuture<>();
-        model.infer(fields, new InferenceParams(2), failedFuture);
+        model.infer(fields, new ClassificationConfig(2), failedFuture);
         ExecutionException ex = expectThrows(ExecutionException.class, failedFuture::get);
         assertThat(ex.getCause().getMessage(),
-            equalTo("Cannot return top classes for target_type [regression] and aggregate_output [weighted_sum]"));
+            equalTo("Cannot infer using configuration for [classification] when model target_type is [regression]"));
     }
 
     private static SingleValueInferenceResults getSingleValue(Model model,
                                                               Map<String, Object> fields,
-                                                              InferenceParams params) throws Exception {
+                                                              InferenceConfig config) throws Exception {
         PlainActionFuture<InferenceResults> future = new PlainActionFuture<>();
-        model.infer(fields, params, future);
+        model.infer(fields, config, future);
         return (SingleValueInferenceResults)future.get();
     }
 

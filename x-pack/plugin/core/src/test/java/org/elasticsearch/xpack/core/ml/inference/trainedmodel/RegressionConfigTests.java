@@ -8,20 +8,20 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class InferenceParamsTests extends AbstractWireSerializingTestCase<InferenceParams> {
+public class RegressionConfigTests extends AbstractWireSerializingTestCase<RegressionConfig> {
 
-    public static InferenceParams randomInferenceParams() {
-        return randomBoolean() ? InferenceParams.EMPTY_PARAMS : new InferenceParams(randomIntBetween(-1, 100));
+    public static RegressionConfig randomRegressionConfig() {
+        return new RegressionConfig();
     }
 
     @Override
-    protected InferenceParams createTestInstance() {
-        return randomInferenceParams();
+    protected RegressionConfig createTestInstance() {
+        return randomRegressionConfig();
     }
 
     @Override
-    protected Writeable.Reader<InferenceParams> instanceReader() {
-        return InferenceParams::new;
+    protected Writeable.Reader<RegressionConfig> instanceReader() {
+        return RegressionConfig::new;
     }
 
 }

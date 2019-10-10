@@ -134,7 +134,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
-     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not 
+     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not
      * noticeably slow down searches.
      */
     public static final Setting<Boolean> LOW_LEVEL_CANCELLATION_SETTING =
@@ -341,7 +341,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private <T> void runAsync(long id, Supplier<T> executable, ActionListener<T> listener) {
-        getExecutor(id).execute(ActionRunnable.wrap(listener, l -> l.onResponse(executable.get())));
+        getExecutor(id).execute(ActionRunnable.supply(listener, executable::get));
     }
 
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws Exception {
@@ -1053,7 +1053,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Executor executor = getExecutor(shard);
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
                 // now we need to check if there is a pending refresh and register
-                shard.awaitShardSearchActive(b -> executor.execute(ActionRunnable.wrap(listener, l -> l.onResponse(request)))),
+                shard.awaitShardSearchActive(b -> executor.execute(ActionRunnable.supply(listener, () -> request))),
             listener::onFailure);
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not

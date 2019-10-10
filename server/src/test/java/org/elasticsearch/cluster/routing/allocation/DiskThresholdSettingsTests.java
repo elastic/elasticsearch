@@ -44,7 +44,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(15.0D, diskThresholdSettings.getFreeDiskThresholdLow(), 0.0D);
         assertEquals(60L, diskThresholdSettings.getRerouteInterval().seconds());
         assertTrue(diskThresholdSettings.isEnabled());
-        assertTrue(diskThresholdSettings.includeRelocations());
         assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdFloodStage());
         assertEquals(5.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
     }
@@ -55,7 +54,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         Settings newSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "500mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1000mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "250mb")
@@ -71,10 +69,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
         assertEquals(30L, diskThresholdSettings.getRerouteInterval().seconds());
         assertFalse(diskThresholdSettings.isEnabled());
-        assertFalse(diskThresholdSettings.includeRelocations());
-
-        assertWarnings("[cluster.routing.allocation.disk.include_relocations] setting was deprecated in Elasticsearch and " +
-            "will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testInvalidConstruction() {

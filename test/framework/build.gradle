@@ -68,3 +68,7 @@ test {
 task integTest(type: Test) {
   include "**/*IT.class"
 }
+
+tasks.register("verifyVersions") {
+  dependsOn  test
+}

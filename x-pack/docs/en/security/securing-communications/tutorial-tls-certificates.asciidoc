@@ -68,7 +68,7 @@ The output file is a PKCS#12 keystore that includes a node certificate, node key
 and CA certificate.
 --
 
-TIP: The {ref}/certutil.html[elasticsearch-certutil] command has a lot more
+TIP: The <<certutil,elasticsearch-certutil>> command has a lot more
 options. For example, it can generate Privacy Enhanced Mail (PEM) formatted
 certificates and keys. It can also generate certificate signing requests (CSRs)
 that you can use to obtain signed certificates from a commercial or

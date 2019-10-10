@@ -56,8 +56,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      */
     private int maxSourceCharsToLog;
 
-    private SlowLogLevel level;
-
     private final Logger indexLogger;
 
     private static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
@@ -123,7 +121,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }
 
     private void setLevel(SlowLogLevel level) {
-        this.level = level;
         Loggers.setLevel(this.indexLogger, level.name());
     }
 
@@ -266,7 +263,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }
 
     SlowLogLevel getLevel() {
-        return level;
+        return SlowLogLevel.parse(indexLogger.getLevel().name());
     }
 
 }

@@ -49,8 +49,6 @@ public final class SearchSlowLog implements SearchOperationListener {
     private long fetchDebugThreshold;
     private long fetchTraceThreshold;
 
-    private SlowLogLevel level;
-
     private final Logger queryLogger;
     private final Logger fetchLogger;
 
@@ -121,7 +119,6 @@ public final class SearchSlowLog implements SearchOperationListener {
     }
 
     private void setLevel(SlowLogLevel level) {
-        this.level = level;
         Loggers.setLevel(queryLogger, level.name());
         Loggers.setLevel(fetchLogger, level.name());
     }
@@ -291,6 +288,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     }
 
     SlowLogLevel getLevel() {
-        return level;
+        assert queryLogger.getLevel().equals(fetchLogger.getLevel());
+        return SlowLogLevel.parse(queryLogger.getLevel().name());
     }
 }

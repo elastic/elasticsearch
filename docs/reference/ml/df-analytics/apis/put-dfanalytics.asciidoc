@@ -46,6 +46,26 @@ If the destination index already exists, then it will be use as is. This makes
 it possible to set up the destination index in advance with custom settings 
 and mappings.
 
+[[ml-put-dfanalytics-supported-fields]]
+===== Supported fields
+
+====== {oldetection-cap}
+
+{oldetection-cap} requires numeric or boolean data to analyze. The algorithms 
+don't support missing values therefore fields that have data types other than 
+numeric or boolean are ignored. Documents where included fields contain missing 
+values, null values, or an array are also ignored. Therefore the `dest` index 
+may contain documents that don't have an {olscore}.
+
+
+====== {regression-cap}
+
+{regression-cap} supports fields that are numeric, boolean, text, keyword and ip. It 
+is also tolerant of missing values. Fields that are supported are included in 
+the analysis, other fields are ignored. Documents where included fields contain 
+an array with two or more values are also ignored. Documents in the `dest` index 
+that don’t contain a results field are not included in the {reganalysis}.
+
 
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -68,9 +88,8 @@ and mappings.
 `analyzed_fields`::
   (Optional, object) You can specify both `includes` and/or `excludes` patterns. 
   If `analyzed_fields` is not set, only the relevant fields will be included. 
-  For example, all the numeric fields for {oldetection}. For the potential field 
-  type limitations, see 
-  {stack-ov}/ml-dfa-limitations.html[{dfanalytics} limitations].
+  For example, all the numeric fields for {oldetection}. For the supported field 
+  types, see <<ml-put-dfanalytics-supported-fields>>.
   
   `includes`:::
     (Optional, array) An array of strings that defines the fields that will be 

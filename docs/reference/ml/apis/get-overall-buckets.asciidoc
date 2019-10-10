@@ -89,8 +89,8 @@ You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. You also need `read` index privilege on the index
 that stores the results. The `machine_learning_admin` and `machine_learning_user`
 roles provide these privileges. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges] and
-{xpack-ref}/built-in-roles.html[Built-in Roles].
+<<security-privileges>> and
+<<built-in-roles>>.
 
 
 ==== Examples

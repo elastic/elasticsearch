@@ -74,7 +74,7 @@ If the {es} {security-features} are enabled, you must have `read` and `monitor`
 index privileges for the leader index patterns. You must also have `manage_ccr`
 cluster privileges on the cluster that contains the follower index. For more
 information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 ==== Example
 

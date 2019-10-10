@@ -27,8 +27,8 @@ what those defaults are.
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API.  The `machine_learning_admin` and `machine_learning_user`
 roles provide these privileges. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges] and
-{stack-ov}/built-in-roles.html[Built-in Roles].
+<<security-privileges>> and
+<<built-in-roles>>.
 
 
 ==== Examples

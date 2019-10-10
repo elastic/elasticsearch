@@ -125,7 +125,7 @@ The `parameters` contains the following fields:
 
 If the {es} {security-features} are enabled, you must have `monitor` cluster
 privileges. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 ==== Example
 

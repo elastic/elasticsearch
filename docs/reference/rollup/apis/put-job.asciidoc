@@ -50,7 +50,7 @@ For more details about the job configuration, see <<rollup-job-config>>.
 
 You must have `manage` or `manage_rollup` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
 
 ==== Examples

@@ -103,4 +103,8 @@ public class ExceptionsHelper {
     public static <T> T requireNonNull(T obj, ParseField paramName) {
         return requireNonNull(obj, paramName.getPreferredName());
     }
+
+    public static Throwable unwrapCause(Throwable t) {
+       return org.elasticsearch.ExceptionsHelper.unwrapCause(t);
+    }
 }

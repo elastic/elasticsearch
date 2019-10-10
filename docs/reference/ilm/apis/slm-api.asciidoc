@@ -7,7 +7,9 @@ The Snapshot Lifecycle Management APIs are used to manage policies for the time
 and frequency of automatic snapshots. Snapshot Lifecycle Management is related
 to <<index-lifecycle-management,Index Lifecycle Management>>, however, instead
 of managing a lifecycle of actions that are performed on a single index, SLM
-allows configuring policies spanning multiple indices.
+allows configuring policies spanning multiple indices. Snapshot Lifecycle
+Management can also perform deletion of older snapshots based on a configurable
+retention policy.
 
 SLM policy management is split into three different CRUD APIs, a way to put or update
 policies, a way to retrieve policies, and a way to delete unwanted policies, as
@@ -62,7 +64,11 @@ PUT /_slm/policy/daily-snapshots
     "ignore_unavailable": false,
     "include_global_state": false
   },
-  "retention": {}
+  "retention": { <6>
+    "expire_after": "30d", <7>
+    "min_count": 5, <8>
+    "max_count": 50 <9>
+  }
 }
 --------------------------------------------------
 // TEST[setup:setup-repository]
@@ -72,6 +78,10 @@ PUT /_slm/policy/daily-snapshots
 <3> Which repository to take the snapshot in
 <4> Any extra snapshot configuration
 <5> Which indices the snapshot should contain
+<6> Optional retention configuration
+<7> Keep snapshots for 30 days
+<8> Always keep at least 5 successful snapshots, even if they're more than 30 days old
+<9> Keep no more than 50 successful snapshots, even if they're less than 30 days old
 
 The top-level keys that the policy supports are described below:
 
@@ -139,7 +149,11 @@ The output looks similar to the following:
         "ignore_unavailable": false,
         "include_global_state": false
       },
-      "retention": {}
+      "retention": {
+        "expire_after": "30d",
+        "min_count": 5,
+        "max_count": 50
+      }
     },
     "stats": {
       "policy": "daily-snapshots",
@@ -229,7 +243,11 @@ Which, in this case shows an error because the index did not exist:
         "ignore_unavailable": false,
         "include_global_state": false
       },
-      "retention": {}
+      "retention": {
+        "expire_after": "30d",
+        "min_count": 5,
+        "max_count": 50
+      }
     },
     "stats": {
       "policy": "daily-snapshots",
@@ -270,6 +288,11 @@ PUT /_slm/policy/daily-snapshots
     "indices": ["data-*", "important"],
     "ignore_unavailable": true,
     "include_global_state": false
+  },
+  "retention": {
+    "expire_after": "30d",
+    "min_count": 5,
+    "max_count": 50
   }
 }
 --------------------------------------------------
@@ -318,7 +341,11 @@ Which now includes the successful snapshot information:
         "ignore_unavailable": true,
         "include_global_state": false
       },
-      "retention": {}
+      "retention": {
+        "expire_after": "30d",
+        "min_count": 5,
+        "max_count": 50
+      }
     },
     "stats": {
       "policy": "daily-snapshots",
@@ -374,22 +401,14 @@ Which returns a response similar to:
   "retention_timed_out": 0,
   "retention_deletion_time": "1.4s",
   "retention_deletion_time_millis": 1404,
-  "policy_metrics": [
-    {
-      "policy": "daily-snapshots",
-      "snapshots_taken": 1,
-      "snapshots_failed": 1,
-      "snapshots_deleted": 0,
-      "snapshot_deletion_failures": 0
-    }
-  ],
+  "policy_stats": [ ],
   "total_snapshots_taken": 1,
   "total_snapshots_failed": 1,
   "total_snapshots_deleted": 0,
   "total_snapshot_deletion_failures": 0
 }
 --------------------------------------------------
-// TESTRESPONSE[s/runs": 13/runs": $body.retention_runs/ s/_failed": 0/_failed": $body.retention_failed/ s/_timed_out": 0/_timed_out": $body.retention_timed_out/ s/"1.4s"/$body.retention_deletion_time/ s/1404/$body.retention_deletion_time_millis/]
+// TESTRESPONSE[s/runs": 13/runs": $body.retention_runs/ s/_failed": 0/_failed": $body.retention_failed/ s/_timed_out": 0/_timed_out": $body.retention_timed_out/ s/"1.4s"/$body.retention_deletion_time/ s/1404/$body.retention_deletion_time_millis/ s/total_snapshots_taken": 1/total_snapshots_taken": $body.total_snapshots_taken/ s/total_snapshots_failed": 1/total_snapshots_failed": $body.total_snapshots_failed/ s/"policy_stats": [.*]/"policy_stats": $body.policy_stats/]
 
 [[slm-api-delete]]
 === Delete Snapshot Lifecycle Policy API
@@ -410,3 +429,29 @@ any currently ongoing snapshots or remove any previously taken snapshots.
 DELETE /_slm/policy/daily-snapshots
 --------------------------------------------------
 // TEST[continued]
+
+[[slm-api-execute-retention]]
+=== Execute Snapshot Lifecycle Retention API
+
+While Snapshot Lifecycle Management retention is usually invoked through the global cluster settings
+for its schedule, it can sometimes be useful to invoke a retention run to expunge expired snapshots
+immediately. This API allows you to run a one-off retention run.
+
+==== Example
+
+To immediately start snapshot retention, use the following
+
+[source,console]
+--------------------------------------------------
+POST /_slm/_execute_retention
+--------------------------------------------------
+
+This API will immediately return, as retention will be run asynchronously in the background:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+

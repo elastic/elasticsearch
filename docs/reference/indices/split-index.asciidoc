@@ -21,9 +21,9 @@ POST /twitter/_split/split-twitter-index
 [[split-index-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_shrink/<target-index>`
+`POST /<index>/_split/<target-index>`
 
-`PUT /<index>/_shrink/<target-index>`
+`PUT /<index>/_split/<target-index>`
 
 
 [[split-index-api-prereqs]]

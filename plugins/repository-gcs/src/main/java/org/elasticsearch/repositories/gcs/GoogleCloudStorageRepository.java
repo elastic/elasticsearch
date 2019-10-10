@@ -94,7 +94,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected ByteSizeValue chunkSize() {
+    public ByteSizeValue chunkSize() {
         return chunkSize;
     }
 

@@ -625,7 +625,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
         assertEquals(numWrapReader, numWrapInvocations.get());
 
-        // make sure that the wrapper is called when we create the context is actually created
+        // make sure that the wrapper is called when the context is actually created
         service.createContext(new ShardSearchRequest(OriginalIndices.NONE, searchRequest,
             indexShard.shardId(), 1, new AliasFilter(null, Strings.EMPTY_ARRAY),
             1f, -1, null, null)).close();

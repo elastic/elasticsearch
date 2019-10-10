@@ -51,6 +51,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
 `ts` (timestamps)::
 (Optional, boolean) If `true`, returns `HH:MM:SS` and
 https://en.wikipedia.org/wiki/Unix_time[Unix `epoch`] timestamps. Defaults to

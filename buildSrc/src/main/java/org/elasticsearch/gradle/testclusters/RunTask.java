@@ -23,7 +23,7 @@ public class RunTask extends DefaultTestClustersTask {
         description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
     )
     public void setDebug(boolean enabled) {
-        this.debug = debug;
+        this.debug = enabled;
     }
 
     @Input

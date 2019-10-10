@@ -60,13 +60,8 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
     private void cleanupRepository(BlobStoreRepository repository) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                repository.blobStore().blobContainer(repository.basePath()).delete();
-                future.onResponse(null);
-            }
-        });
+        repository.threadPool().generic().execute(ActionRunnable.run(future,
+            () -> repository.blobStore().blobContainer(repository.basePath()).delete()));
         future.actionGet();
         assertBlobsByPrefix(repository, repository.basePath(), "", Collections.emptyMap());
     }

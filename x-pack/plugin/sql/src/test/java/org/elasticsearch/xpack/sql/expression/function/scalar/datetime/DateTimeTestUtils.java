@@ -42,7 +42,7 @@ public class DateTimeTestUtils {
         return OffsetTime.of(hour, minute, second, nano, ZoneOffset.UTC);
     }
 
-    public static ZonedDateTime nowWithMillisResolution() {
+    static ZonedDateTime nowWithMillisResolution() {
         Clock millisResolutionClock = Clock.tick(Clock.systemUTC(), Duration.ofMillis(1));
         return ZonedDateTime.now(millisResolutionClock);
     }

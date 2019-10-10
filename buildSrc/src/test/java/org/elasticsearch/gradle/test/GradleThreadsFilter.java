@@ -17,17 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.test.loggerusage;
+package org.elasticsearch.gradle.test;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import com.carrotsearch.randomizedtesting.ThreadFilter;
 
 /**
- * This class is for testing that <code>ESLoggerUsageChecker</code> can find incorrect usages of LogMessages
- * which are subclasses of <code>ParametrizedMessage</code>
- * @see ESLoggerUsageTests
+ * Filter out threads controlled by gradle that may be created during unit tests.
+ *
+ * Currently this is only the pooled threads for Exec.
  */
-class TestMessage extends ParameterizedMessage {
-    TestMessage(String messagePattern, String xOpaqueId, Object... args) {
-        super(messagePattern, args);
+public class GradleThreadsFilter implements ThreadFilter {
+
+    @Override
+    public boolean reject(Thread t) {
+        return t.getName().startsWith("Exec process");
     }
 }

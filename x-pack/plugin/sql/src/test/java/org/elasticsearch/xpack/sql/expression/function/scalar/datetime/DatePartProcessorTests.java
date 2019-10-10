@@ -71,7 +71,7 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DatePart(Source.EMPTY, l("dayfyear"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("Received value [dayfyear] is not valid date part for extraction; did you mean [dayofyear, year]?",
-             siae.getMessage());
+            siae.getMessage());
     }
 
     public void testWithNulls() {

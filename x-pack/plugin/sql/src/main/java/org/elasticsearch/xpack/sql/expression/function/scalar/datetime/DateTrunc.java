@@ -33,7 +33,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
                 .with(ChronoField.MONTH_OF_YEAR, 1)
                 .with(ChronoField.DAY_OF_MONTH, 1)
                 .toLocalDate().atStartOfDay(dt.getZone());
-            },"millennia"),
+        },"millennia"),
         CENTURY(dt -> {
             int year = dt.getYear();
             int firstYearOfCentury = year - (year % 100);
@@ -42,7 +42,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
                 .with(ChronoField.MONTH_OF_YEAR, 1)
                 .with(ChronoField.DAY_OF_MONTH, 1)
                 .toLocalDate().atStartOfDay(dt.getZone());
-            }, "centuries"),
+        }, "centuries"),
         DECADE(dt -> {
             int year = dt.getYear();
             int firstYearOfDecade = year - (year % 10);
@@ -51,7 +51,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
                 .with(ChronoField.MONTH_OF_YEAR, 1)
                 .with(ChronoField.DAY_OF_MONTH, 1)
                 .toLocalDate().atStartOfDay(dt.getZone());
-            }, "decades"),
+        }, "decades"),
         YEAR(dt -> dt
             .with(ChronoField.MONTH_OF_YEAR, 1)
             .with(ChronoField.DAY_OF_MONTH, 1)
@@ -64,14 +64,14 @@ public class DateTrunc extends BinaryDateTimeFunction {
                 .with(ChronoField.MONTH_OF_YEAR, firstMonthOfQuarter)
                 .with(ChronoField.DAY_OF_MONTH, 1)
                 .toLocalDate().atStartOfDay(dt.getZone());
-            }, "quarters", "qq", "q"),
+        }, "quarters", "qq", "q"),
         MONTH(dt -> dt
-                .with(ChronoField.DAY_OF_MONTH, 1)
-                .toLocalDate().atStartOfDay(dt.getZone()),
+            .with(ChronoField.DAY_OF_MONTH, 1)
+            .toLocalDate().atStartOfDay(dt.getZone()),
             "months", "mm", "m"),
         WEEK(dt -> dt
-                .with(ChronoField.DAY_OF_WEEK, 1)
-                .toLocalDate().atStartOfDay(dt.getZone()),
+            .with(ChronoField.DAY_OF_WEEK, 1)
+            .toLocalDate().atStartOfDay(dt.getZone()),
             "weeks", "wk", "ww"),
         DAY(dt -> dt.toLocalDate().atStartOfDay(dt.getZone()), "days", "dd", "d"),
         HOUR(dt -> {
@@ -85,16 +85,16 @@ public class DateTrunc extends BinaryDateTimeFunction {
             return dt.toLocalDate().atStartOfDay(dt.getZone())
                 .with(ChronoField.HOUR_OF_DAY, hour)
                 .with(ChronoField.MINUTE_OF_HOUR, minute);
-            }, "minutes", "mi", "n"),
+        }, "minutes", "mi", "n"),
         SECOND(dt -> dt.with(ChronoField.NANO_OF_SECOND, 0), "seconds", "ss", "s"),
         MILLISECOND(dt -> {
             int micros = dt.get(ChronoField.MICRO_OF_SECOND);
             return dt.with(ChronoField.MILLI_OF_SECOND, (micros / 1000));
-            }, "milliseconds", "ms"),
+        }, "milliseconds", "ms"),
         MICROSECOND(dt -> {
             int nanos = dt.getNano();
             return dt.with(ChronoField.MICRO_OF_SECOND, (nanos / 1000));
-            }, "microseconds", "mcs"),
+        }, "microseconds", "mcs"),
         NANOSECOND(dt -> dt, "nanoseconds", "ns");
 
         private static final Map<String, Part> NAME_TO_PART;

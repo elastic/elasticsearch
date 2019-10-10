@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.expression.Expressions.pipe;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
 
@@ -38,11 +39,11 @@ public class DatePartPipeTests extends AbstractNodeTestCase<DatePartPipe, Pipe> 
 
     public static DatePartPipe randomDatePartPipe() {
         return (DatePartPipe) new DatePart(
-                randomSource(),
-                randomStringLiteral(),
-                randomStringLiteral(),
-                randomZone())
-                .makePipe();
+            randomSource(),
+            randomStringLiteral(),
+            randomDatetimeLiteral(),
+            randomZone())
+            .makePipe();
     }
 
     @Override
@@ -53,23 +54,23 @@ public class DatePartPipeTests extends AbstractNodeTestCase<DatePartPipe, Pipe> 
 
         Expression newExpression = randomValueOtherThan(b1.expression(), this::randomDatePartPipeExpression);
         DatePartPipe newB = new DatePartPipe(
-                b1.source(),
-                newExpression,
-                b1.left(),
-                b1.right(),
-                b1.zoneId());
+            b1.source(),
+            newExpression,
+            b1.left(),
+            b1.right(),
+            b1.zoneId());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
 
         DatePartPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), SourceTests::randomSource);
         newB = new DatePartPipe(
-                newLoc,
-                b2.expression(),
-                b2.left(),
-                b2.right(),
-                b2.zoneId());
+            newLoc,
+            b2.expression(),
+            b2.left(),
+            b2.right(),
+            b2.zoneId());
         assertEquals(newB,
-                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+            b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
     }
 
     @Override
@@ -103,17 +104,17 @@ public class DatePartPipeTests extends AbstractNodeTestCase<DatePartPipe, Pipe> 
     protected DatePartPipe mutate(DatePartPipe instance) {
         List<Function<DatePartPipe, DatePartPipe>> randoms = new ArrayList<>();
         randoms.add(f -> new DatePartPipe(f.source(), f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
-                f.right(),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
+            pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
+            f.right(),
+            randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
         randoms.add(f -> new DatePartPipe(f.source(), f.expression(),
-                f.left(),
-                pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomDatetimeLiteral))),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
+            f.left(),
+            pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomDatetimeLiteral))),
+            randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
         randoms.add(f -> new DatePartPipe(f.source(), f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
-                pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomDatetimeLiteral))),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
+            pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
+            pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomDatetimeLiteral))),
+            randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
 
         return randomFrom(randoms).apply(instance);
     }

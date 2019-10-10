@@ -109,6 +109,11 @@ public class Distribution {
             return this;
         }
 
+        public PackagingConditional forDocker(Platforms.PlatformAction action) {
+            conditions.put(Packaging.DOCKER, action);
+            return this;
+        }
+
         public void run() throws Exception {
             HashSet<Packaging> missingPackaging = new HashSet<>(Arrays.asList(Packaging.values()));
             missingPackaging.removeAll(conditions.keySet());

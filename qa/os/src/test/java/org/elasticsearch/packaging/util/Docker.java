@@ -133,7 +133,7 @@ public class Docker {
      * Waits for the Elasticsearch process to start executing in the container.
      * This is called every time a container is started.
      */
-    private static void waitForElasticsearchToStart() throws InterruptedException {
+    public static void waitForElasticsearchToStart() throws InterruptedException {
         boolean isElasticsearchRunning = false;
         int attempt = 0;
 

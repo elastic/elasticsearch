@@ -194,6 +194,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 () -> sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE")
             )
             .forArchive(Platforms.NO_ACTION)
+            .forDocker(/* TODO */ Platforms.NO_ACTION)
             .run();
 
         Files.createFile(esKeystorePassphraseFile);
@@ -210,6 +211,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 () -> sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE")
             )
             .forArchive(Platforms.NO_ACTION)
+            .forDocker(/* TODO */ Platforms.NO_ACTION)
             .run();
     }
 
@@ -225,6 +227,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 () -> sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE")
             )
             .forArchive(Platforms.NO_ACTION)
+            .forDocker(/* TODO */ Platforms.NO_ACTION)
             .run();
 
         if (Files.exists(esKeystorePassphraseFile)) {
@@ -244,6 +247,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 () -> sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE")
             )
             .forArchive(Platforms.NO_ACTION)
+            .forDocker(/* TODO */ Platforms.NO_ACTION)
             .run();
     }
 
@@ -254,6 +258,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             distribution().packagingConditional()
                 .forPackage(() -> sh.run(bin.elasticsearchKeystore + " create"))
                 .forArchive(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"))
+                .forDocker(/* TODO */ Platforms.NO_ACTION)
                 .run();
         });
 
@@ -286,6 +291,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 bin.elasticsearchKeystore + " passwd"))
             .forArchive(() -> sh.run("( echo \'" + password + "\' ; echo \'" + password + "\' ) | " +
                 "sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " passwd"))
+            .forDocker(/* TODO */ Platforms.NO_ACTION)
             .run()
         );
         Platforms.onWindows(() -> {
@@ -304,6 +310,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         distribution().packagingConditional()
             .forPackage(() -> assertThat(keystore, file(File, "root", "elasticsearch", p660)))
             .forArchive(() -> assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)))
+            .forDocker(/* TODO */ Platforms.NO_ACTION)
             .run();
     }
 }

@@ -28,6 +28,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Docker;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
@@ -184,6 +185,7 @@ public abstract class PackagingTestCase extends Assert {
                 assertThat(distribution().isArchive(), equalTo(true));
                 Archives.stopElasticsearch(installation, sh);
             })
+            .forDocker(/* TODO */ Platforms.NO_ACTION)
             .run();
     }
 
@@ -191,10 +193,8 @@ public abstract class PackagingTestCase extends Assert {
         assertThat("Startup command should succeed", result.exitCode, equalTo(0));
         distribution().packagingConditional()
             .forPackage(() -> Packages.assertElasticsearchStarted(sh, installation))
-            .forArchive(() -> {
-                assertThat(distribution().isArchive(), equalTo(true));
-                Archives.assertElasticsearchStarted(installation, sh);
-            })
+            .forArchive(() -> Archives.assertElasticsearchStarted(installation, sh))
+            .forDocker(Docker::waitForElasticsearchToStart)
             .run();
     }
 

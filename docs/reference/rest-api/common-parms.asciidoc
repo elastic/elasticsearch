@@ -433,11 +433,6 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
-tag::name[]
-`<name>`::
-(Optional, string) Comma-separated list of alias names to return.
-end::name[]
-
 tag::node-id[]
 `<node_id>`::
 (Optional, string) Comma-separated list of node IDs or names used to limit
@@ -682,6 +677,12 @@ tag::terminate_after[]
 (Optional, integer) The maximum number of documents to collect for each shard, 
 upon reaching which the query execution will terminate early.
 end::terminate_after[]
+
+tag::time[]
+`time`::
+(Optional, <<time-units,time units>>)
+Unit used to display time values.
+end::time[]
 
 tag::timeoutparms[]
 

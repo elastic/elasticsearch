@@ -144,7 +144,11 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                                                 // The listener here can be a no-op, as waitForJobClosed() already waits for
                                                 // these persistent tasks to disappear.
                                                 persistentTasksService.sendRemoveRequest(jobTask.getId(),
-                                                    ActionListener.wrap(r -> {}, e -> {}));
+                                                    ActionListener.wrap(
+                                                        r -> logger.trace("[{}] removed task to close unassigned job", resolvedJobId),
+                                                        e -> logger.error("[" + resolvedJobId
+                                                            + "] failed to remove task to close unassigned job", e)
+                                                    ));
                                             }
                                         }
                                         request.setNodes(executorNodes.toArray(new String[0]));

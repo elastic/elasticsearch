@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -66,7 +65,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         }
 
         verify(client, Mockito.atLeast(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(mlAssignmentNotifier, Mockito.atLeast(triggerCount - 1)).auditMlTasks(any(), any(), any(), eq(true));
+        verify(mlAssignmentNotifier, Mockito.atLeast(triggerCount - 1)).auditUnassignedMlTasks(any(), any());
     }
 
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {

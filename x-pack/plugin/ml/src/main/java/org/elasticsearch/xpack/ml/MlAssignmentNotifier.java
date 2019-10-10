@@ -80,8 +80,17 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         auditMlTasks(event.state().nodes(), previousTasks, currentTasks, false);
     }
 
-    public void auditMlTasks(DiscoveryNodes nodes, PersistentTasksCustomMetaData previousTasks, PersistentTasksCustomMetaData currentTasks,
-                             boolean alwaysAuditUnassigned) {
+    /**
+     * Creates an audit warning for all currently unassigned ML
+     * tasks, even if a previous audit warning has been created.
+     * Care must be taken not to call this method frequently.
+     */
+    public void auditUnassignedMlTasks(DiscoveryNodes nodes, PersistentTasksCustomMetaData tasks) {
+        auditMlTasks(nodes, tasks, tasks, true);
+    }
+
+    private void auditMlTasks(DiscoveryNodes nodes, PersistentTasksCustomMetaData previousTasks, PersistentTasksCustomMetaData currentTasks,
+                              boolean alwaysAuditUnassigned) {
 
         for (PersistentTask<?> currentTask : currentTasks.tasks()) {
             Assignment currentAssignment = currentTask.getAssignment();

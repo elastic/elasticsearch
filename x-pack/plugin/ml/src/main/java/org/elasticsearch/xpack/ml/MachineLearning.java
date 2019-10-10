@@ -42,12 +42,14 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -202,6 +204,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.InferenceInternalIndex;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -303,7 +306,7 @@ import java.util.function.UnaryOperator;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
-public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
+public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, IngestPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
@@ -326,6 +329,16 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         }
 
     };
+
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(parameters.client,
+            parameters.ingestService.getClusterService(),
+            this.settings,
+            parameters.ingestService);
+        parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
+        return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
+    }
 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
@@ -416,7 +429,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
                 MAX_OPEN_JOBS_PER_NODE,
                 MIN_DISK_SPACE_OFF_HEAP,
-                MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION);
+                MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION,
+                InferenceProcessor.MAX_INFERENCE_PROCESSORS
+            );
     }
 
     public Settings additionalSettings() {

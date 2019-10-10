@@ -53,20 +53,21 @@ public class ModelLoadingService implements ClusterStateListener {
         if (cachedModel != null) {
             if (cachedModel.isSuccess()) {
                 modelActionListener.onResponse(cachedModel.getModel());
+                logger.trace("[{}] version [{}] loaded from cache", modelId, modelVersion);
                 return;
             }
         }
         if (loadModelIfNecessary(key, modelId, modelVersion, modelActionListener) == false) {
             // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
             // by a simulated pipeline
-            logger.debug("[{}] version [{}] not actively loading, eager loading without cache", modelId, modelVersion);
+            logger.trace("[{}] version [{}] not actively loading, eager loading without cache", modelId, modelVersion);
             provider.getTrainedModel(modelId, modelVersion, ActionListener.wrap(
                 trainedModelConfig ->
                     modelActionListener.onResponse(new LocalModel(trainedModelConfig.getModelId(), trainedModelConfig.getDefinition())),
                 modelActionListener::onFailure
             ));
         } else {
-            logger.debug("[{}] version [{}] is currently loading, added new listener to queue", modelId, modelVersion);
+            logger.trace("[{}] version [{}] is loading or loaded, added new listener to queue", modelId, modelVersion);
         }
     }
 
@@ -88,7 +89,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 if (loadingListeners.computeIfPresent(
                     key,
                     (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)) == null) {
-                    logger.debug("[{}] version [{}] attempting to load and cache", modelId, modelVersion);
+                    logger.trace("[{}] version [{}] attempting to load and cache", modelId, modelVersion);
                     loadingListeners.put(key, addFluently(new ArrayDeque<>(), modelActionListener));
                     loadModel(key, modelId, modelVersion);
                 }
@@ -157,6 +158,8 @@ public class ModelLoadingService implements ClusterStateListener {
             // The listeners still waiting for a model and we are canceling the load?
             List<Tuple<String, List<ActionListener<Model>>>> drainWithFailure = new ArrayList<>();
             synchronized (loadingListeners) {
+                HashSet<String> loadedModelBeforeClusterState = logger.isTraceEnabled() ? new HashSet<>(loadedModels.keySet()) : null;
+                HashSet<String> loadingModelBeforeClusterState = logger.isTraceEnabled() ? new HashSet<>(loadingListeners.keySet()) : null;
                 // If we had models still loading here but are no longer referenced
                 // we should remove them from loadingListeners and alert the listeners
                 for (String modelKey : loadingListeners.keySet()) {
@@ -181,6 +184,17 @@ public class ModelLoadingService implements ClusterStateListener {
                 for (String modelId : allReferencedModelKeys) {
                     loadingListeners.put(modelId, new ArrayDeque<>());
                 }
+                if (loadedModelBeforeClusterState != null && loadingModelBeforeClusterState != null) {
+                    if (loadingListeners.keySet().equals(loadingModelBeforeClusterState) == false) {
+                        logger.trace("cluster state event changed loading models: before {} after {}", loadingModelBeforeClusterState,
+                            loadingListeners.keySet());
+                    }
+                    if (loadedModels.keySet().equals(loadedModelBeforeClusterState) == false) {
+                        logger.trace("cluster state event changed loaded models: before {} after {}", loadedModelBeforeClusterState,
+                            loadedModels.keySet());
+                    }
+                }
+
             }
             for (Tuple<String, List<ActionListener<Model>>> modelAndListeners : drainWithFailure) {
                 final String msg = new ParameterizedMessage(

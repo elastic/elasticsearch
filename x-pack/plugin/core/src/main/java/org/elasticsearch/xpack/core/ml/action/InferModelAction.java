@@ -27,7 +27,7 @@ import java.util.Objects;
 public class InferModelAction extends ActionType<InferModelAction.Response> {
 
     public static final InferModelAction INSTANCE = new InferModelAction();
-    public static final String NAME = "cluster:admin/xpack/ml/infer";
+    public static final String NAME = "cluster:admin/xpack/ml/inference/infer";
 
     private InferModelAction() {
         super(NAME, Response::new);

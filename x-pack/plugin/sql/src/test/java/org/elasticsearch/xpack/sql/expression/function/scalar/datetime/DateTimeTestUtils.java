@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -38,5 +40,10 @@ public class DateTimeTestUtils {
 
     public static OffsetTime time(int hour, int minute, int second, int nano) {
         return OffsetTime.of(hour, minute, second, nano, ZoneOffset.UTC);
+    }
+
+    static ZonedDateTime nowWithMillisResolution() {
+        Clock millisResolutionClock = Clock.tick(Clock.systemUTC(), Duration.ofMillis(1));
+        return ZonedDateTime.now(millisResolutionClock);
     }
 }

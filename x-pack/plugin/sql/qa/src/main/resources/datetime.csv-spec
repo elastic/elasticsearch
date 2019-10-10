@@ -170,7 +170,7 @@ FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
 10042     | null                     |  null                    |  null                    |  null                    |  null                    |  null                    |  null                    |  null
 ;
 
-selectAddWithComplexExpressions
+selectAddWithComplexExpressions1
 SELECT gender, birth_date, TIMESTAMPADD('months', CASE WHEN gender = 'M' THEN 10 WHEN gender = 'F' THEN -10 ELSE 100 END,
 birth_date + INTERVAL 10 month) AS dt FROM test_emp WHERE dt > '1954-07-01'::date ORDER BY emp_no LIMIT 10;
 
@@ -186,6 +186,46 @@ M           | 1958-02-19 00:00:00.000Z | 1959-10-19 00:00:00.000Z
 null        | 1963-06-01 00:00:00.000Z | 1972-08-01 00:00:00.000Z
 null        | 1953-11-07 00:00:00.000Z | 1963-01-07 00:00:00.000Z
 null        | 1960-10-04 00:00:00.000Z | 1969-12-04 00:00:00.000Z
+;
+
+selectAddWithComplexExpressions2
+schema::languages:byte|first_name:s|gender:s|hire_date:ts|date_add:date
+SELECT languages, first_name, gender, hire_date,
+CAST(DATE_ADD(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN NULL ELSE 'quarter' END,
+    5, hire_date + INTERVAL 10 month) AS DATE) AS date_add
+FROM test_emp WHERE languages >= 3 AND first_name LIKE '%y%' ORDER BY date_add ASC, languages DESC;
+
+   languages   |  first_name   |    gender     |      hire_date          |   date_add
+---------------+---------------+---------------+-------------------------+---------------
+5              | Hironoby      | F             | 1988-07-21 00:00:00.00Z | null
+4              | Weiyi         | F             | 1993-02-14 00:00:00.00Z | null
+3              | Magy          | F             | 1993-03-21 00:00:00.00Z | null
+4              | Jayson        | M             | 1990-01-14 00:00:00.00Z | 1991-04-14
+5              | Mary          | null          | 1990-01-22 00:00:00.00Z | 1992-02-22
+5              | Georgy        | M             | 1992-04-27 00:00:00.00Z | 1993-07-27
+4              | Mayumi        | M             | 1995-03-13 00:00:00.00Z | 1996-06-13
+;
+
+selectAddWithComplexExpressions3
+schema::first_name:s|gender:s|hire_date:ts|date_add1:ts|date_add2:i
+SELECT first_name, gender, hire_date, DATE_ADD(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+5, hire_date + INTERVAL 10 month) AS date_add1,
+YEAR(DATE_ADD(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+5, hire_date + INTERVAL 10 month)) AS date_add2
+FROM test_emp WHERE YEAR(date_add1) > 1990 AND first_name LIKE '%y%' ORDER BY date_add1 DESC LIMIT 15;
+
+  first_name   |    gender     |      hire_date          |      date_add1          |   date_add2
+---------------+---------------+-------------------------+-------------------------+------------
+Magy           | F             | 1993-03-21 00:00:00.00Z | 1999-01-21 00:00:00.00Z | 1999
+Weiyi          | F             | 1993-02-14 00:00:00.00Z | 1998-12-14 00:00:00.00Z | 1998
+Mayumi         | M             | 1995-03-13 00:00:00.00Z | 1996-06-13 00:00:00.00Z | 1996
+Saniya         | M             | 1994-09-15 00:00:00.00Z | 1995-12-15 00:00:00.00Z | 1995
+Hironoby       | F             | 1988-07-21 00:00:00.00Z | 1994-05-21 00:00:00.00Z | 1994
+Georgy         | M             | 1992-04-27 00:00:00.00Z | 1993-07-27 00:00:00.00Z | 1993
+Mayuko         | M             | 1991-01-26 00:00:00.00Z | 1992-04-26 00:00:00.00Z | 1992
+Mary           | null          | 1990-01-22 00:00:00.00Z | 1992-02-22 00:00:00.00Z | 1992
+Yishay         | M             | 1990-10-20 00:00:00.00Z | 1992-01-20 00:00:00.00Z | 1992
+Jayson         | M             | 1990-01-14 00:00:00.00Z | 1991-04-14 00:00:00.00Z | 1991
 ;
 
 dateAddOrderBy

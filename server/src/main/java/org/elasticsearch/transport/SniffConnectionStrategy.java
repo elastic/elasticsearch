@@ -40,11 +40,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -73,7 +77,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustImplMustBeRebuilt(Settings newSettings) {
-        return false;
+        String proxy = RemoteClusterAware.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        List<String> addresses = RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        return seedsChanged(seedNodes, addresses) || proxyChanged(proxyAddress, proxy);
     }
 
     @Override
@@ -276,5 +282,23 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             return new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), node.getHostName(), node
                 .getHostAddress(), new TransportAddress(proxyInetAddress), node.getAttributes(), node.getRoles(), node.getVersion());
         }
+    }
+
+    private boolean seedsChanged(final List<Tuple<String, Supplier<DiscoveryNode>>> oldSeedNodes,
+                                 final List<String> newSeedNodes) {
+        if (oldSeedNodes.size() != newSeedNodes.size()) {
+            return true;
+        }
+        Set<String> oldSeeds = oldSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
+        Set<String> newSeeds = new HashSet<>(newSeedNodes);
+        return oldSeeds.equals(newSeeds) == false;
+    }
+
+    private boolean proxyChanged(String oldProxy, String newProxy) {
+        if (oldProxy == null || oldProxy.isEmpty()) {
+            return (newProxy == null || newProxy.isEmpty()) == false;
+        }
+
+        return Objects.equals(oldProxy, newProxy) == false;
     }
 }

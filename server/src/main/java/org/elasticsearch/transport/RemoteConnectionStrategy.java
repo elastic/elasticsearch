@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -135,10 +137,23 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     }
 
     public boolean shouldRebuildConnection(Settings newSettings) {
-        if (REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(newSettings).equals(connectionMode)) {
-            return strategyMustImplMustBeRebuilt(newSettings);
-        } else {
+        ConnectionStrategy newMode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        if (newMode.equals(connectionMode) == false) {
             return true;
+        } else {
+            Boolean compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(newSettings);
+            TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(newSettings);
+
+            ConnectionProfile oldProfile = connectionManager.getConnectionManager().getConnectionProfile();
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
+            builder.setCompressionEnabled(compressionEnabled);
+            builder.setPingInterval(pingSchedule);
+            ConnectionProfile newProfile = builder.build();
+            return connectionProfileChanged(oldProfile, newProfile) || strategyMustImplMustBeRebuilt(newSettings);
         }
     }
 
@@ -196,5 +211,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             }
         }
         return result;
+    }
+
+    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+        return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
+            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
     }
 }

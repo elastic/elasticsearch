@@ -56,6 +56,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 

@@ -102,9 +102,23 @@ public abstract class Exporter implements AutoCloseable {
     /**
      * Every {@code Exporter} allows users to use a different index time format.
      */
-    private static final Setting.AffixSetting<String> INDEX_NAME_TIME_FORMAT_SETTING =
+    static final Setting.AffixSetting<String> INDEX_NAME_TIME_FORMAT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
-                    key -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.simpleString(
+                        key,
+                        new Setting.Validator<String>() {
+                            @Override
+                            public void validate(String value) {
+                                try {
+                                    DateFormatter.forPattern(value).withZone(ZoneOffset.UTC);
+                                } catch (IllegalArgumentException e) {
+                                    throw new SettingsException("[" + INDEX_NAME_TIME_FORMAT_SETTING.getKey() +
+                                        "] invalid index name time format: [" + value + "]", e);
+                                }
+                            }
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope));
 
     private static final String INDEX_FORMAT = "yyyy.MM.dd";
 

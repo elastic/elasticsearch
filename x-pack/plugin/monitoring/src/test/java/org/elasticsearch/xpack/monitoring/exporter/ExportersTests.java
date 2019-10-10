@@ -111,6 +111,19 @@ public class ExportersTests extends ESTestCase {
         assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
     }
 
+    public void testIndexNameTimeFormatMustBeValid() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final String setting = ".index.name.time_format";
+        final String value = "yyyy.MM.dd.j";
+        final Settings settings = Settings.builder().put(prefix + setting, value).build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Exporter.INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSetting(prefix + setting).get(settings));
+        assertThat(e, hasToString(containsString("Failed to parse value [" + value + "] for setting [" + prefix + setting)));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("invalid index name time format: [" + value + "]")));
+    }
+
     public void testExporterIndexPattern() {
         Exporter.Config config = mock(Exporter.Config.class);
         when(config.name()).thenReturn("anything");

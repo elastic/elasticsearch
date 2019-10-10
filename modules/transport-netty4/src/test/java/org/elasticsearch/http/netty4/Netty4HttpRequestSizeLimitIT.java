@@ -80,7 +80,7 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
         @SuppressWarnings("unchecked")
         Tuple<String, CharSequence>[] requests = new Tuple[150];
         for (int i = 0; i < requests.length; i++) {
-            requests[i] = Tuple.tuple("/index/type/_bulk", bulkRequest);
+            requests[i] = Tuple.tuple("/index/_bulk", bulkRequest);
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);

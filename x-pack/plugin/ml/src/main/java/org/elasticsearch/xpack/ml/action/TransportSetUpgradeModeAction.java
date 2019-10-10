@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.io.IOException;
@@ -299,7 +300,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 // If the task was removed from the node, all is well
                 // We handle the case of allocation_id changing later in this transport class by timing out waiting for task completion
                 // Consequently, if the exception is ResourceNotFoundException, continue execution; circuit break otherwise.
-                ex -> ex instanceof ResourceNotFoundException == false);
+                ex -> ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException == false);
 
         for (PersistentTask<?> task : datafeedAndJobTasks) {
             chainTaskExecutor.add(

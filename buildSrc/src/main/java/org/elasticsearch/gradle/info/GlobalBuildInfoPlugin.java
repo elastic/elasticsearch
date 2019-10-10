@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -48,6 +49,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
+
+        String testSeedProperty = System.getProperty("tests.seed");
+        final String testSeed;
+        if (testSeedProperty == null) {
+            long seed = new Random(System.currentTimeMillis()).nextLong();
+            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT);
+        } else {
+            testSeed = testSeedProperty;
+        }
 
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
@@ -98,7 +108,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
             ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
+            ext.set("testSeed", testSeed);
             ext.set("isCi", System.getenv("JENKINS_URL") != null);
+            ext.set("isInternal", GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
         });
     }
 
@@ -288,5 +300,4 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
         return firstLine;
     }
-
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -72,7 +73,7 @@ public class TrainedModelProvider {
                                 trainedModelConfig.getModelId(),
                                 trainedModelConfig.getModelVersion()),
                             e);
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             listener.onFailure(new ResourceAlreadyExistsException(
                                 Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS,
                                     trainedModelConfig.getModelId(), trainedModelConfig.getModelVersion())));

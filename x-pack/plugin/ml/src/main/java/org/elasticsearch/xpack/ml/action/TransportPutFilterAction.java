@@ -67,7 +67,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
                     @Override
                     public void onFailure(Exception e) {
                         Exception reportedException;
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             reportedException = new ResourceAlreadyExistsException("A filter with id [" + filter.getId()
                                     + "] already exists");
                         } else {

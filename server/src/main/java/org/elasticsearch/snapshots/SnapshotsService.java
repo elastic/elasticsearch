@@ -445,7 +445,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             } else {
                                 // Replace the snapshot that was just initialized
                                 ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
-                                    shards(currentState, entry.indices(), repositoryData.shardGenerations());
+                                    shards(currentState, entry.indices(), repositoryData);
                                 if (!partial) {
                                     Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards,
                                         currentState.metaData());
@@ -1420,11 +1420,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(ClusterState clusterState,
                                                                                              List<IndexId> indices,
-                                                                                             ShardGenerations shardGenerations) {
+                                                                                             RepositoryData repositoryData) {
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         MetaData metaData = clusterState.metaData();
+        final ShardGenerations shardGenerations = repositoryData.shardGenerations();
         for (IndexId index : indices) {
             final String indexName = index.getName();
+            final boolean isNewIndex = repositoryData.resolveIndexId(indexName) == null;
             IndexMetaData indexMetaData = metaData.index(indexName);
             if (indexMetaData == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
@@ -1434,7 +1436,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(indexName);
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
                     ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
-                    final String shardRepoGeneration = shardGenerations.getShardGen(index, shardId.getId());
+                    final String shardRepoGeneration;
+                    if (isNewIndex) {
+                        assert shardGenerations.getShardGen(index, shardId.getId()) == null
+                            : "Found shard generation for new index [" + index + "]";
+                        shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
+                    } else {
+                        shardRepoGeneration = shardGenerations.getShardGen(index, shardId.getId());
+                    }
                     if (indexRoutingTable != null) {
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                         if (primary == null || !primary.assignedToNode()) {

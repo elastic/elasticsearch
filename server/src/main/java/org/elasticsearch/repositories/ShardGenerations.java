@@ -35,6 +35,8 @@ public final class ShardGenerations {
 
     public static final ShardGenerations EMPTY = ShardGenerations.builder().build();
 
+    public static final String NEW_SHARD_GEN = "_new";
+
     private final Map<IndexId, List<String>> shardGenerations;
 
     private ShardGenerations(Map<IndexId, List<String>> shardGenerations) {

@@ -1385,13 +1385,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *
      * @param blobs      list of blobs in repository
      * @param generation shard generation or {@code null} in case there was no shard generation tracked in the {@link RepositoryData} for
-     *                   this shard
+     *                   this shard because its snapshot was created in a version older than
+     *                   {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
     private Tuple<BlobStoreIndexShardSnapshots, String> buildBlobStoreIndexShardSnapshots(Set<String> blobs,
                                                                                           BlobContainer shardContainer,
                                                                                           @Nullable String generation) throws IOException {
         if (generation != null) {
+            if (generation.equals(ShardGenerations.NEW_SHARD_GEN)) {
+                return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, ShardGenerations.NEW_SHARD_GEN);
+            }
             return new Tuple<>(indexShardSnapshotsFormat.read(shardContainer, generation), generation);
         }
         final Tuple<BlobStoreIndexShardSnapshots, Long> legacyIndex = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);

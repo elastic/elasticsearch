@@ -346,6 +346,15 @@ final class Bootstrap {
             }
 
             INSTANCE.start();
+
+            // We don't close stderr if `--quiet` is passed, because that
+            // hides fatal startup errors. For example, if Elasticsearch is
+            // running via systemd, the init script only specifies
+            // `--quiet`, not `-d`, so we want users to be able to see
+            // startup errors via journalctl.
+            if (foreground == false) {
+                closeSysError();
+            }
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             final Logger rootLogger = LogManager.getRootLogger();
@@ -391,6 +400,11 @@ final class Bootstrap {
     @SuppressForbidden(reason = "System#out")
     private static void closeSystOut() {
         System.out.close();
+    }
+
+    @SuppressForbidden(reason = "System#err")
+    private static void closeSysError() {
+        System.err.close();
     }
 
     private static void checkLucene() {

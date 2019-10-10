@@ -272,7 +272,7 @@ if a negative value is used it results to a subtraction from the date/datetime
 .Description:
 
 Add the given number of date/time units to a date/datetime. If the number of units is negative then it's subtracted from
-the date/datetime.If any of the three arguments is `null` a `null` is returned.
+the date/datetime. If any of the three arguments is `null` a `null` is returned.
 
 [cols="^,^"]
 |===

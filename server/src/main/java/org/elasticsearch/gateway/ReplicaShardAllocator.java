@@ -363,8 +363,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return sizeMatched;
     }
 
-    private static boolean hasMatchedSyncId(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
-                                            TransportNodesListShardStoreMetaData.StoreFilesMetaData replicaStore) {
+    private static boolean hasMatchingSyncId(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
+                                             TransportNodesListShardStoreMetaData.StoreFilesMetaData replicaStore) {
         String primarySyncId = primaryStore.syncId();
         return primarySyncId != null && primarySyncId.equals(replicaStore.syncId());
     }
@@ -378,7 +378,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         final long retainingSeqNoForPrimary = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(primaryNode);
         final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(replicaNode);
         final boolean isNoopRecovery = (retainingSeqNoForReplica >= 0 && retainingSeqNoForReplica >= retainingSeqNoForPrimary)
-            || hasMatchedSyncId(primaryStore, replicaStore);
+            || hasMatchingSyncId(primaryStore, replicaStore);
         final long matchingBytes = computeMatchingBytes(primaryStore, replicaStore);
         return new MatchingNode(matchingBytes, retainingSeqNoForReplica, isNoopRecovery);
     }
@@ -390,7 +390,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (targetNodeStore == null || targetNodeStore.storeFilesMetaData().isEmpty()) {
             return false;
         }
-        if (hasMatchedSyncId(primaryStore, targetNodeStore.storeFilesMetaData())) {
+        if (hasMatchingSyncId(primaryStore, targetNodeStore.storeFilesMetaData())) {
             return true;
         }
         return primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(targetNode) >= 0;

@@ -36,7 +36,7 @@ include-tagged::{doc-tests-file}[{api}-evaluation-softclassification]
 <1> Constructing a new evaluation
 <2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) label for an example. Must be either true or false.
 <3> Name of the field in the index. Its value denotes the probability (as per some ML algorithm) of the example being classified as positive.
-<4> The remaining parameters are the metrics to be calculated based on the two fields described above.
+<4> The remaining parameters are the metrics to be calculated based on the two fields described above
 <5> https://en.wikipedia.org/wiki/Precision_and_recall[Precision] calculated at thresholds: 0.4, 0.5 and 0.6
 <6> https://en.wikipedia.org/wiki/Precision_and_recall[Recall] calculated at thresholds: 0.5 and 0.7
 <7> https://en.wikipedia.org/wiki/Confusion_matrix[Confusion matrix] calculated at threshold 0.5
@@ -51,7 +51,7 @@ include-tagged::{doc-tests-file}[{api}-evaluation-classification]
 <1> Constructing a new evaluation
 <2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) class the example belongs to.
 <3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) class of the example.
-<4> The remaining parameters are the metrics to be calculated based on the two fields described above.
+<4> The remaining parameters are the metrics to be calculated based on the two fields described above
 <5> Multiclass confusion matrix of size 3
 
 ===== Regression
@@ -63,7 +63,7 @@ include-tagged::{doc-tests-file}[{api}-evaluation-regression]
 <1> Constructing a new evaluation
 <2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) value for an example.
 <3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) value for the example.
-<4> The remaining parameters are the metrics to be calculated based on the two fields described above.
+<4> The remaining parameters are the metrics to be calculated based on the two fields described above
 <5> https://en.wikipedia.org/wiki/Mean_squared_error[Mean squared error]
 <6> https://en.wikipedia.org/wiki/Coefficient_of_determination[R squared]
 

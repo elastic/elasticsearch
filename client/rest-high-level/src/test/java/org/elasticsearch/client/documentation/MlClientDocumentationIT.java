@@ -141,11 +141,9 @@ import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
@@ -3342,7 +3340,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::evaluate-data-frame-evaluation-classification
             Evaluation evaluation =
-                new Classification( // <1>
+                new org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification( // <1>
                     "actual_class", // <2>
                     "predicted_class", // <3>
                     // Evaluation metrics // <4>
@@ -3405,7 +3403,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::evaluate-data-frame-evaluation-regression
             Evaluation evaluation =
-                new Regression( // <1>
+                new org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression( // <1>
                     "actual_value", // <2>
                     "predicted_value", // <3>
                     // Evaluation metrics // <4>

@@ -10,7 +10,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 
+import java.util.List;
 import java.util.function.BiConsumer;
 
 public class MatchProcessor extends AbstractEnrichProcessor {
@@ -42,6 +44,10 @@ public class MatchProcessor extends AbstractEnrichProcessor {
 
     @Override
     public QueryBuilder getQueryBuilder(Object fieldValue) {
-        return new TermQueryBuilder(matchField, fieldValue);
+        if (fieldValue instanceof List) {
+            return new TermsQueryBuilder(matchField, (List) fieldValue);
+        } else {
+            return new TermQueryBuilder(matchField, fieldValue);
+        }
     }
 }

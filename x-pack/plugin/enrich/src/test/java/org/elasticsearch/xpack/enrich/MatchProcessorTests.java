@@ -21,6 +21,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -31,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -206,6 +208,69 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(resultHolder[0].getFieldValue("tld", Object.class), equalTo(null));
     }
 
+    public void testNumericValue() {
+        int maxMatches = randomIntBetween(1, 8);
+        MockSearchFunction mockSearch = mockedSearchFunction(mapOf(2, mapOf("globalRank", 451, "tldRank", 23, "tld", "co")));
+        MatchProcessor processor =
+            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", maxMatches);
+        IngestDocument ingestDocument =
+            new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL, mapOf("domain", 2));
+
+        // Execute
+        IngestDocument[] holder = new IngestDocument[1];
+        processor.execute(ingestDocument, (result, e) -> holder[0] = result);
+        assertThat(holder[0], notNullValue());
+
+        // Check request
+        SearchRequest request = mockSearch.getCapturedRequest();
+        assertThat(request.source().query(), instanceOf(ConstantScoreQueryBuilder.class));
+        assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder termQueryBuilder = (TermQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();
+        assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
+        assertThat(termQueryBuilder.value(), equalTo(2));
+
+        // Check result
+        List<?> entries = ingestDocument.getFieldValue("entry", List.class);
+        Map<?, ?> entry = (Map<?, ?>) entries.get(0);
+        assertThat(entry.size(), equalTo(3));
+        assertThat(entry.get("globalRank"), equalTo(451));
+        assertThat(entry.get("tldRank"), equalTo(23));
+        assertThat(entry.get("tld"), equalTo("co"));
+    }
+
+    public void testArray() {
+        int maxMatches = randomIntBetween(1, 8);
+        MockSearchFunction mockSearch =
+            mockedSearchFunction(mapOf(Arrays.asList("1", "2"), mapOf("globalRank", 451, "tldRank", 23, "tld", "co")));
+        MatchProcessor processor =
+            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", maxMatches);
+        IngestDocument ingestDocument =
+            new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL, mapOf("domain", Arrays.asList("1", "2")));
+
+        // Execute
+        IngestDocument[] holder = new IngestDocument[1];
+        processor.execute(ingestDocument, (result, e) -> holder[0] = result);
+        assertThat(holder[0], notNullValue());
+
+        // Check request
+        SearchRequest request = mockSearch.getCapturedRequest();
+        assertThat(request.source().query(), instanceOf(ConstantScoreQueryBuilder.class));
+        assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(TermsQueryBuilder.class));
+        TermsQueryBuilder termQueryBuilder = (TermsQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();
+        assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
+        assertThat(termQueryBuilder.values().size(), equalTo(2));
+        assertThat(termQueryBuilder.values().get(0), equalTo("1"));
+        assertThat(termQueryBuilder.values().get(1), equalTo("2"));
+
+        // Check result
+        List<?> entries = ingestDocument.getFieldValue("entry", List.class);
+        Map<?, ?> entry = (Map<?, ?>) entries.get(0);
+        assertThat(entry.size(), equalTo(3));
+        assertThat(entry.get("globalRank"), equalTo(451));
+        assertThat(entry.get("tldRank"), equalTo(23));
+        assertThat(entry.get("tld"), equalTo("co"));
+    }
+
     private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>>  {
         private final SearchResponse mockResponse;
         private final SetOnce<SearchRequest> capturedRequest;
@@ -246,13 +311,13 @@ public class MatchProcessorTests extends ESTestCase {
         return new MockSearchFunction(exception);
     }
 
-    public MockSearchFunction mockedSearchFunction(Map<String, Map<String, ?>> documents) {
+    public MockSearchFunction mockedSearchFunction(Map<?, Map<String, ?>> documents) {
         return new MockSearchFunction(mockResponse(documents));
     }
 
-    public SearchResponse mockResponse(Map<String, Map<String, ?>> documents) {
+    public SearchResponse mockResponse(Map<?, Map<String, ?>> documents) {
         SearchHit[] searchHits = documents.entrySet().stream().map(e -> {
-            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), new Text(MapperService.SINGLE_MAPPING_NAME),
+            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey().toString(), new Text(MapperService.SINGLE_MAPPING_NAME),
                 Collections.emptyMap());
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(e.getValue());

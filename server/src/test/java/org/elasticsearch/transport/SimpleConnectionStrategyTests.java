@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 public class SimpleConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
-    private final ConnectionProfile profile = RemoteClusterService.buildConnectionProfileFromSettings(Settings.EMPTY, "cluster");
+    private final ConnectionProfile profile = RemoteClusterConnection.buildConnectionProfileFromSettings(Settings.EMPTY, "cluster");
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Override

@@ -176,18 +176,16 @@ public abstract class RemoteClusterAware {
         return perClusterIndices;
     }
 
-    void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy) {
-    }
-
-    void updateRemoteCluster(String clusterAlias, Settings settings) {
+    void validateAndUpdateRemoteCluster(String clusterAlias, Settings settings) {
+        // TODO: Test
         RemoteConnectionStrategy.validateSettings(clusterAlias, settings);
-        updateRemoteCluster1(clusterAlias, settings);
+        updateRemoteCluster(clusterAlias, settings);
     }
 
     /**
      * Subclasses must implement this to receive information about updated cluster aliases.
      */
-    protected abstract void updateRemoteCluster1(String clusterAlias, Settings settings);
+    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.
@@ -196,7 +194,7 @@ public abstract class RemoteClusterAware {
         List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
             RemoteClusterAware.REMOTE_CLUSTERS_SEEDS, RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE);
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::updateRemoteCluster);
+        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 
     static InetSocketAddress parseSeedAddress(String remoteHost) {

@@ -150,7 +150,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         if (mode.equals(ConnectionStrategy.SNIFF)) {
-            return true;
+            List<String> seeds = RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            return seeds.isEmpty() == false;
         } else {
             return false;
         }

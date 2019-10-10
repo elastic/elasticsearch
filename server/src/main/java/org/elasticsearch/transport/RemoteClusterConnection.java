@@ -99,7 +99,7 @@ final class RemoteClusterConnection implements Closeable {
     }
 
     RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
-        ConnectionManager connectionManager = createConnectionManager(null, transportService);
+        ConnectionManager connectionManager = createConnectionManager(buildConnectionProfileFromSettings(settings, clusterAlias), transportService);
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
         this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -130,11 +130,11 @@ final class RemoteClusterConnection implements Closeable {
      * Ensures that this cluster is connected. If the cluster is connected this operation
      * will invoke the listener immediately.
      */
-    void ensureConnected(ActionListener<Void> voidActionListener) {
+    void ensureConnected(ActionListener<Void> listener) {
         if (remoteConnectionManager.size() == 0) {
-            connectionStrategy.connect(voidActionListener);
+            connectionStrategy.connect(listener);
         } else {
-            voidActionListener.onResponse(null);
+            listener.onResponse(null);
         }
     }
 
@@ -268,5 +268,19 @@ final class RemoteClusterConnection implements Closeable {
 
     public boolean shouldRebuildConnection(Settings newSettings) {
         return connectionStrategy.shouldRebuildConnection(newSettings);
+    }
+
+    static ConnectionProfile buildConnectionProfileFromSettings(Settings settings, String clusterName) {
+        return new ConnectionProfile.Builder()
+            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
+            // we don't want this to be used for anything else but search
+            .addConnections(0, TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.STATE,
+                TransportRequestOptions.Type.RECOVERY)
+            .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterName).get(settings))
+            .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterName).get(settings))
+            .build();
     }
 }

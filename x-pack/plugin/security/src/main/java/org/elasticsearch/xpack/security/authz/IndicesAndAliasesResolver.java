@@ -446,7 +446,7 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected void updateRemoteCluster1(String clusterAlias, Settings settings) {
+        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
             if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings)) {
                 clusters.add(clusterAlias);
             } else {

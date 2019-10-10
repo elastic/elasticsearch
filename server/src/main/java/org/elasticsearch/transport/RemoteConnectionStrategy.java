@@ -136,6 +136,26 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
+    public static void validateSettings(String clusterAlias, Settings settings) {
+        ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        if (mode.equals(ConnectionStrategy.SNIFF)) {
+            List<String> seeds = RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            if (seeds.contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+            }
+        } else {
+        }
+    }
+
+    public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
+        ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        if (mode.equals(ConnectionStrategy.SNIFF)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     public boolean shouldRebuildConnection(Settings newSettings) {
         ConnectionStrategy newMode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         if (newMode.equals(connectionMode) == false) {

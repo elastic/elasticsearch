@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -30,6 +31,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +44,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -48,21 +54,46 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     private static final Logger logger = LogManager.getLogger(SniffConnectionStrategy.class);
 
-    private final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes;
+    private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
+        && (node.isMasterNode() == false  || node.isDataNode() || node.isIngestNode());
+
+
+    private final List<String> seedNodes;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private volatile String proxyAddress;
 
     SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                            Settings settings) {
+        this(
+            clusterAlias,
+            transportService,
+            connectionManager,
+            RemoteClusterAware.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings),
+            RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER.get(settings),
+            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings),
+            getNodePredicate(settings));
+    }
+
+    SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                             String proxyAddress, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
                             List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes) {
+        super(clusterAlias, transportService, connectionManager);
+        this.proxyAddress = proxyAddress;
+        this.maxNumRemoteConnections = maxNumRemoteConnections;
+        this.nodePredicate = nodePredicate;
+        this.seedNodes = new ArrayList<>();
+    }
+
+    private SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                                    String proxyAddress, int maxNumRemoteConnections, List<String> seedNodes,
+                                    Predicate<DiscoveryNode> nodePredicate) {
         super(clusterAlias, transportService, connectionManager);
         this.proxyAddress = proxyAddress;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
@@ -84,10 +115,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected void connectImpl(ActionListener<Void> listener) {
-        collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(), listener);
+        collectRemoteNodes(seedNodes.iterator(), listener);
     }
 
-    private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {
+    private void collectRemoteNodes(Iterator<String> seedNodes, ActionListener<Void> listener) {
         if (Thread.currentThread().isInterrupted()) {
             listener.onFailure(new InterruptedException("remote connect thread got interrupted"));
             return;
@@ -110,7 +141,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 listener.onFailure(e);
             };
 
-            final DiscoveryNode seedNode = maybeAddProxyAddress(proxyAddress, seedNodes.next().get());
+            final DiscoveryNode seedNode = resolveSeedNode(seedNodes.next());
             logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
                 proxyAddress);
             final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
@@ -180,15 +211,19 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
     }
 
+    List<String> getSeedNodes() {
+        return seedNodes;
+    }
+
     /* This class handles the _state response from the remote cluster when sniffing nodes to connect to */
     private class SniffClusterStateResponseHandler implements TransportResponseHandler<ClusterStateResponse> {
 
         private final Transport.Connection connection;
         private final ActionListener<Void> listener;
-        private final Iterator<Supplier<DiscoveryNode>> seedNodes;
+        private final Iterator<String> seedNodes;
 
         SniffClusterStateResponseHandler(Transport.Connection connection, ActionListener<Void> listener,
-                                         Iterator<Supplier<DiscoveryNode>> seedNodes) {
+                                         Iterator<String> seedNodes) {
             this.connection = connection;
             this.listener = listener;
             this.seedNodes = seedNodes;
@@ -273,6 +308,37 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         };
     }
 
+    private DiscoveryNode resolveSeedNode(String address) {
+        if (proxyAddress == null || proxyAddress.isEmpty()) {
+            TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(address));
+            return new DiscoveryNode(clusterAlias + "#" + transportAddress.toString(), transportAddress,
+                Version.CURRENT.minimumCompatibilityVersion());
+        } else {
+            TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(proxyAddress));
+            String hostName = address.substring(0, indexOfPortSeparator(address));
+            return new DiscoveryNode("", clusterAlias + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
+                transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.BUILT_IN_ROLES,
+                Version.CURRENT.minimumCompatibilityVersion());
+        }
+    }
+
+    private static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
+        if (RemoteClusterService.REMOTE_NODE_ATTRIBUTE.exists(settings)) {
+            // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
+            String attribute = RemoteClusterService.REMOTE_NODE_ATTRIBUTE.get(settings);
+            return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
+        }
+        return DEFAULT_NODE_PREDICATE;
+    }
+
+    private static int indexOfPortSeparator(String remoteHost) {
+        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
+        if (portSeparator == -1 || portSeparator == remoteHost.length()) {
+            throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");
+        }
+        return portSeparator;
+    }
+
     private static DiscoveryNode maybeAddProxyAddress(String proxyAddress, DiscoveryNode node) {
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             return node;
@@ -284,12 +350,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
     }
 
-    private boolean seedsChanged(final List<Tuple<String, Supplier<DiscoveryNode>>> oldSeedNodes,
-                                 final List<String> newSeedNodes) {
+    private boolean seedsChanged(final List<String> oldSeedNodes, final List<String> newSeedNodes) {
         if (oldSeedNodes.size() != newSeedNodes.size()) {
             return true;
         }
-        Set<String> oldSeeds = oldSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
+        Set<String> oldSeeds = new HashSet<>(oldSeedNodes);
         Set<String> newSeeds = new HashSet<>(newSeedNodes);
         return oldSeeds.equals(newSeeds) == false;
     }

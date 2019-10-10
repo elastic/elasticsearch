@@ -74,20 +74,20 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
      */
     public static final Setting<Integer> REMOTE_CONNECTIONS_PER_CLUSTER =
-            Setting.intSetting(
-                    "cluster.remote.connections_per_cluster",
-                    3,
-                    1,
-                    Setting.Property.NodeScope);
+        Setting.intSetting(
+            "cluster.remote.connections_per_cluster",
+            3,
+            1,
+            Setting.Property.NodeScope);
 
     /**
      * The initial connect timeout for remote cluster connections
      */
     public static final Setting<TimeValue> REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING =
-            Setting.positiveTimeSetting(
-                    "cluster.remote.initial_connect_timeout",
-                    TimeValue.timeValueSeconds(30),
-                    Setting.Property.NodeScope);
+        Setting.positiveTimeSetting(
+            "cluster.remote.initial_connect_timeout",
+            TimeValue.timeValueSeconds(30),
+            Setting.Property.NodeScope);
 
     /**
      * The name of a node attribute to select nodes that should be connected to in the remote cluster.
@@ -96,7 +96,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * The value of the setting is expected to be a boolean, {@code true} for nodes that can become gateways, {@code false} otherwise.
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE =
-            Setting.simpleString("cluster.remote.node.attr", Setting.Property.NodeScope);
+        Setting.simpleString("cluster.remote.node.attr", Setting.Property.NodeScope);
 
     /**
      * If <code>true</code> connecting to remote clusters is supported on this node. If <code>false</code> this node will not establish
@@ -104,27 +104,27 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * will fail if remote cluster syntax is used as an index pattern. The default is <code>true</code>
      */
     public static final Setting<Boolean> ENABLE_REMOTE_CLUSTERS =
-            Setting.boolSetting(
-                    "cluster.remote.connect",
-                    true,
-                    Setting.Property.NodeScope);
+        Setting.boolSetting(
+            "cluster.remote.connect",
+            true,
+            Setting.Property.NodeScope);
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
-            Setting.affixKeySetting(
-                    "cluster.remote.",
-                    "skip_unavailable",
-                    key -> boolSetting(
-                            key,
-                            false,
-                            Setting.Property.Dynamic,
-                            Setting.Property.NodeScope),
-                    REMOTE_CLUSTERS_SEEDS);
+        Setting.affixKeySetting(
+            "cluster.remote.",
+            "skip_unavailable",
+            key -> boolSetting(
+                key,
+                false,
+                Setting.Property.Dynamic,
+                Setting.Property.NodeScope),
+            REMOTE_CLUSTERS_SEEDS);
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
-            "cluster.remote.",
-            "transport.ping_schedule",
-            key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),
-            REMOTE_CLUSTERS_SEEDS);
+        "cluster.remote.",
+        "transport.ping_schedule",
+        key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),
+        REMOTE_CLUSTERS_SEEDS);
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
         "cluster.remote.",
@@ -133,7 +133,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         REMOTE_CLUSTERS_SEEDS);
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-            && (node.isMasterNode() == false  || node.isDataNode() || node.isIngestNode());
+        && (node.isMasterNode() == false || node.isDataNode() || node.isIngestNode());
 
     private final TransportService transportService;
     private final int numRemoteConnections;
@@ -148,74 +148,75 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     /**
      * This method updates the list of remote clusters. It's intended to be used as an update consumer on the settings infrastructure
-     * @param seeds a cluster alias to discovery node mapping representing the remote clusters seeds nodes
+     *
+     * @param seeds              a cluster alias to discovery node mapping representing the remote clusters seeds nodes
      * @param connectionListener a listener invoked once every configured cluster has been connected to
      */
     private synchronized void updateRemoteClusters(Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> seeds,
                                                    ActionListener<Void> connectionListener) {
-        if (seeds.containsKey(LOCAL_CLUSTER_GROUP_KEY)) {
-            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
-        }
-        Map<String, RemoteClusterConnection> remoteClusters = new HashMap<>();
-        if (seeds.isEmpty()) {
-            connectionListener.onResponse(null);
-        } else {
-            CountDown countDown = new CountDown(seeds.size());
-            remoteClusters.putAll(this.remoteClusters);
-            for (Map.Entry<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> entry : seeds.entrySet()) {
-                List<Tuple<String, Supplier<DiscoveryNode>>> seedList = entry.getValue().v2();
-                String proxyAddress = entry.getValue().v1();
-
-                String clusterAlias = entry.getKey();
-                RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
-                ConnectionProfile connectionProfile = this.remoteClusterConnectionProfiles.get(clusterAlias);
-                if (seedList.isEmpty()) { // with no seed nodes we just remove the connection
-                    try {
-                        IOUtils.close(remote);
-                    } catch (IOException e) {
-                        logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
-                    }
-                    remoteClusters.remove(clusterAlias);
-                    continue;
-                }
-
-                if (remote == null) { // this is a new cluster we have to add a new representation
-                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
-                        getNodePredicate(settings), proxyAddress, connectionProfile);
-                    remoteClusters.put(clusterAlias, remote);
-                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)
-                        || seedsChanged(remote.getSeedNodes(), seedList) || proxyChanged(proxyAddress, remote.getProxyAddress())) {
-                    // New ConnectionProfile. Must tear down existing connection
-                    try {
-                        IOUtils.close(remote);
-                    } catch (IOException e) {
-                        logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
-                    }
-                    remoteClusters.remove(clusterAlias);
-                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
-                        getNodePredicate(settings), proxyAddress, connectionProfile);
-                    remoteClusters.put(clusterAlias, remote);
-                }
-
-                // now update the seed nodes no matter if it's new or already existing
-                RemoteClusterConnection finalRemote = remote;
-                remote.ensureConnected(ActionListener.wrap(
-                        response -> {
-                            if (countDown.countDown()) {
-                                connectionListener.onResponse(response);
-                            }
-                        },
-                        exception -> {
-                            if (countDown.fastForward()) {
-                                connectionListener.onFailure(exception);
-                            }
-                            if (finalRemote.isClosed() == false) {
-                                logger.warn("failed to update seed list for cluster: " + clusterAlias, exception);
-                            }
-                        }));
-            }
-        }
-        this.remoteClusters = Collections.unmodifiableMap(remoteClusters);
+//        if (seeds.containsKey(LOCAL_CLUSTER_GROUP_KEY)) {
+//            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+//        }
+//        Map<String, RemoteClusterConnection> remoteClusters = new HashMap<>();
+//        if (seeds.isEmpty()) {
+//            connectionListener.onResponse(null);
+//        } else {
+//            CountDown countDown = new CountDown(seeds.size());
+//            remoteClusters.putAll(this.remoteClusters);
+//            for (Map.Entry<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> entry : seeds.entrySet()) {
+//                List<Tuple<String, Supplier<DiscoveryNode>>> seedList = entry.getValue().v2();
+//                String proxyAddress = entry.getValue().v1();
+//
+//                String clusterAlias = entry.getKey();
+//                RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
+//                ConnectionProfile connectionProfile = this.remoteClusterConnectionProfiles.get(clusterAlias);
+//                if (seedList.isEmpty()) { // with no seed nodes we just remove the connection
+//                    try {
+//                        IOUtils.close(remote);
+//                    } catch (IOException e) {
+//                        logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
+//                    }
+//                    remoteClusters.remove(clusterAlias);
+//                    continue;
+//                }
+//
+//                if (remote == null) { // this is a new cluster we have to add a new representation
+//                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
+//                        getNodePredicate(settings), proxyAddress, connectionProfile);
+//                    remoteClusters.put(clusterAlias, remote);
+//                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)
+//                        || seedsChanged(remote.getSeedNodes(), seedList) || proxyChanged(proxyAddress, remote.getProxyAddress())) {
+//                    // New ConnectionProfile. Must tear down existing connection
+//                    try {
+//                        IOUtils.close(remote);
+//                    } catch (IOException e) {
+//                        logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
+//                    }
+//                    remoteClusters.remove(clusterAlias);
+//                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
+//                        getNodePredicate(settings), proxyAddress, connectionProfile);
+//                    remoteClusters.put(clusterAlias, remote);
+//                }
+//
+//                // now update the seed nodes no matter if it's new or already existing
+//                RemoteClusterConnection finalRemote = remote;
+//                remote.ensureConnected(ActionListener.wrap(
+//                        response -> {
+//                            if (countDown.countDown()) {
+//                                connectionListener.onResponse(response);
+//                            }
+//                        },
+//                        exception -> {
+//                            if (countDown.fastForward()) {
+//                                connectionListener.onFailure(exception);
+//                            }
+//                            if (finalRemote.isClosed() == false) {
+//                                logger.warn("failed to update seed list for cluster: " + clusterAlias, exception);
+//                            }
+//                        }));
+//            }
+//        }
+//        this.remoteClusters = Collections.unmodifiableMap(remoteClusters);
     }
 
     static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
@@ -276,6 +277,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     /**
      * Returns a connection to the given node on the given remote cluster
+     *
      * @throws IllegalArgumentException if the remote cluster is unknown
      */
     public Transport.Connection getConnection(DiscoveryNode node, String cluster) {
@@ -316,7 +318,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     public void listenForUpdates(ClusterSettings clusterSettings) {
         super.listenForUpdates(clusterSettings);
-        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
+        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {
+        });
     }
 
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
@@ -327,25 +330,48 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     @Override
-    protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, boolean compressionEnabled,
-                                       TimeValue pingSchedule) {
+    protected synchronized void updateRemoteCluster1(String clusterAlias, Settings settings) {
+        updateRemoteCluster1(clusterAlias, settings, noopListener);
+    }
+
+    private synchronized void updateRemoteCluster1(String clusterAlias, Settings settings, ActionListener<Void> listener) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
-        ConnectionProfile oldProfile = remoteClusterConnectionProfiles.get(clusterAlias);
-        ConnectionProfile newProfile;
-        if (oldProfile != null) {
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
-            builder.setCompressionEnabled(compressionEnabled);
-            builder.setPingInterval(pingSchedule);
-            newProfile = builder.build();
-        } else {
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(buildConnectionProfileFromSettings(clusterAlias));
-            builder.setCompressionEnabled(compressionEnabled);
-            builder.setPingInterval(pingSchedule);
-            newProfile = builder.build();
+        // TODO: Move earlier
+        RemoteConnectionStrategy.validateSettings(clusterAlias, settings);
+
+        RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
+        if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings) == false) {
+            try {
+                IOUtils.close(remote);
+            } catch (IOException e) {
+                logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
+            }
+            remoteClusters.remove(clusterAlias);
+            listener.onResponse(null);
+            return;
         }
-        updateRemoteCluster(clusterAlias, addresses, proxyAddress, newProfile, noopListener);
+
+        // this is a new cluster we have to add a new representation
+        if (remote == null) {
+            Settings finalSettings = Settings.builder().put(this.settings).put(settings).build();
+            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
+            remoteClusters.put(clusterAlias, remote);
+        } else if (remote.shouldRebuildConnection(settings)) {
+            // New ConnectionProfile. Must tear down existing connection
+            try {
+                IOUtils.close(remote);
+            } catch (IOException e) {
+                logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
+            }
+            remoteClusters.remove(clusterAlias);
+            Settings finalSettings = Settings.builder().put(this.settings).put(settings).build();
+            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
+            remoteClusters.put(clusterAlias, remote);
+        }
+
+        remote.ensureConnected(listener);
     }
 
     void updateRemoteCluster(final String clusterAlias, final List<String> addresses, final String proxyAddress,
@@ -368,9 +394,32 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> seeds =
-                RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
+            RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
         initializeConnectionProfiles(seeds.keySet());
-        updateRemoteClusters(seeds, future);
+
+        ActionListener<Void> countedListener = new ActionListener<>() {
+
+            CountDown countDown = new CountDown(seeds.size());
+
+            @Override
+            public void onResponse(Void v) {
+                if (countDown.countDown()) {
+                    future.onResponse(v);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (countDown.fastForward()) {
+                    future.onFailure(e);
+                }
+            }
+        };
+
+        for (Map.Entry<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> entry : seeds.entrySet()) {
+            updateRemoteCluster1(entry.getKey(), settings, countedListener);
+        }
+
         try {
             future.get(timeValue.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
@@ -466,7 +515,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     }
                     if (countDown.countDown()) {
                         listener.onResponse((clusterAlias, nodeId)
-                                -> clusterMap.getOrDefault(clusterAlias, nullFunction).apply(nodeId));
+                            -> clusterMap.getOrDefault(clusterAlias, nullFunction).apply(nodeId));
                     }
                 }
 
@@ -482,9 +531,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
-     * @param threadPool the {@link ThreadPool} for the client
-     * @param clusterAlias the cluster alias the remote cluster is registered under
      *
+     * @param threadPool   the {@link ThreadPool} for the client
+     * @param clusterAlias the cluster alias the remote cluster is registered under
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {

@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -178,28 +177,17 @@ public abstract class RemoteClusterAware {
     }
 
     void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy) {
-        Boolean compress = TransportSettings.TRANSPORT_COMPRESS.get(settings);
-        TimeValue pingSchedule = TransportSettings.PING_SCHEDULE.get(settings);
-        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
     }
 
     void updateRemoteCluster(String clusterAlias, Settings settings) {
-        String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        List<String> addresses = REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        Boolean compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
-            .getConcreteSettingForNamespace(clusterAlias)
-            .get(settings);
-
-        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
+        RemoteConnectionStrategy.validateSettings(clusterAlias, settings);
+        updateRemoteCluster1(clusterAlias, settings);
     }
 
     /**
-     * Subclasses must implement this to receive information about updated cluster aliases. If the given address list is
-     * empty the cluster alias is unregistered and should be removed.
+     * Subclasses must implement this to receive information about updated cluster aliases.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, boolean compressionEnabled,
-                                                TimeValue pingSchedule);
+    protected abstract void updateRemoteCluster1(String clusterAlias, Settings settings);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.

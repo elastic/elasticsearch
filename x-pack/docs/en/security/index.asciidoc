@@ -1,3 +1,4 @@
+[role="xpack"]
 [[secure-cluster]]
 = Secure a cluster
 
@@ -10,6 +11,18 @@ IP filtering, and auditing.
 
 * <<elasticsearch-security>>
 * <<configuring-security>>
+* <<how-security-works>>
+* <<setting-up-authentication>>
+* <<saml-guide>>
+* <<oidc-guide>>
+* <<authorization>>
+* <<auditing>>
+* <<encrypting-communications>>
+* <<ccs-clients-integrations>>
+* <<security-getting-started>>
+* <<encrypting-internode-communications>>
+* <<security-troubleshooting>>
+* <<security-limitations>>
 
 --
 

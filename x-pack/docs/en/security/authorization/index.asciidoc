@@ -17,6 +17,6 @@ include::mapping-roles.asciidoc[]
 
 include::field-and-document-access-control.asciidoc[]
 
-include::authorization/run-as-privilege.asciidoc[]
+include::run-as-privilege.asciidoc[]
 
 include::custom-authorization.asciidoc[]

@@ -74,3 +74,7 @@ unitTest {
 task integTest(type: RandomizedTestingTask) {
   include "**/*IT.class"
 }
+
+tasks.register("verifyVersions") {
+  dependsOn  test
+}

@@ -60,7 +60,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testBadVersionFormat() {
-        assertDistroError(createProject(null), "testdistro", "badversion", Type.ARCHIVE, Platform.LINUX, Flavor.OSS, true,
+        assertDistroError(createProject(null, true), "testdistro", "badversion", Type.ARCHIVE, Platform.LINUX, Flavor.OSS, true,
             "Invalid version format: 'badversion'");
     }
 

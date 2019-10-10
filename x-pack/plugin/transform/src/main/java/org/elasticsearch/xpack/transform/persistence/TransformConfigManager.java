@@ -73,7 +73,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  *
  * Versioned Index:
  *
- * We wrap several indexes under 1 pattern: ".data-frame-internal-1", ".data-frame-internal-2", ".data-frame-internal-n" while
+ * We wrap several indexes under 1 pattern: ".data-frame-internal-1", ".data-frame-internal-2", ".transform-internal-n" while
  * n is the _current_ version of the index.
  *
  * - all gets/reads and dbq as well are searches on all indexes, while last-one-wins, so the result with the highest version is uses
@@ -288,7 +288,7 @@ public class TransformConfigManager {
 
     /**
      * Get the transform configuration for a given transform id. This function is only for internal use. For transforms returned via GET
-     * data_frame/transforms, see the @link{TransportGetTransformAction}
+     * _transform, see the @link{TransportGetTransformAction}
      *
      * @param transformId the transform id
      * @param resultListener listener to call after inner request has returned
@@ -319,7 +319,7 @@ public class TransformConfigManager {
 
     /**
      * Get the transform configuration for a given transform id. This function is only for internal use. For transforms returned via GET
-     * data_frame/transforms, see the @link{TransportGetTransformAction}
+     * _transform, see the @link{TransportGetTransformAction}
      *
      * @param transformId the transform id
      * @param configAndVersionListener listener to call after inner request has returned

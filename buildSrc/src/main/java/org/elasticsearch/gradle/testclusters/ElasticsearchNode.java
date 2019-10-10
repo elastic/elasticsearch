@@ -183,6 +183,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return distributions.get(currentDistro).getVersion();
     }
 
+    @Internal
     public Path getDistroDir() {
         return workingDir.resolve("distro").resolve(getVersion() + "-" + testDistribution);
     }

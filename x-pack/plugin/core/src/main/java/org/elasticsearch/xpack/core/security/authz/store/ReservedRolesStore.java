@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -179,28 +180,52 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 .application("kibana-*").resources("*").privileges("reserved_ml").build()
                         },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                // DEPRECATED: to be removed in 9.0.0
                 .put("data_frame_transforms_admin", new RoleDescriptor("data_frame_transforms_admin",
                         new String[] { "manage_data_frame_transforms" },
                         new RoleDescriptor.IndicesPrivileges[]{
                             RoleDescriptor.IndicesPrivileges.builder()
-                                .indices(".data-frame-notifications*")
+                                .indices(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN,
+                                         TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED,
+                                         TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
                                 .privileges("view_index_metadata", "read").build()
                         },
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                                 .application("kibana-*").resources("*").privileges("reserved_ml").build()
                         }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                // DEPRECATED: to be removed in 9.0.0
                 .put("data_frame_transforms_user", new RoleDescriptor("data_frame_transforms_user",
                         new String[] { "monitor_data_frame_transforms" },
                         new RoleDescriptor.IndicesPrivileges[]{
                             RoleDescriptor.IndicesPrivileges.builder()
-                                .indices(".data-frame-notifications*")
+                                .indices(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN,
+                                         TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED,
+                                         TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
                                 .privileges("view_index_metadata", "read").build()
                         },
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                                 .application("kibana-*").resources("*").privileges("reserved_ml").build()
                         }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                .put("transform_admin", new RoleDescriptor("transform_admin",
+                        new String[] { "manage_transform" },
+                        new RoleDescriptor.IndicesPrivileges[]{
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN,
+                                         TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED,
+                                         TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
+                                .privileges("view_index_metadata", "read").build()
+                        }, null, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                .put("transform_user", new RoleDescriptor("transform_user",
+                        new String[] { "monitor_transform" },
+                        new RoleDescriptor.IndicesPrivileges[]{
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                 .indices(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN,
+                                          TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED,
+                                          TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
+                                .privileges("view_index_metadata", "read").build()
+                        }, null, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("watcher_admin", new RoleDescriptor("watcher_admin", new String[] { "manage_watcher" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME,

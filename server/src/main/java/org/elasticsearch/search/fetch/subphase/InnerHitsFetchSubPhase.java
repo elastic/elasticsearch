@@ -45,7 +45,7 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        if (context.innerHits().isEmpty()) {
+        if ((context.innerHits() != null && context.innerHits().size() > 0) == false) {
             return;
         }
 
@@ -72,6 +72,10 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
                 }
                 innerHits.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
                 innerHits.setUid(new Uid(hit.getType(), hit.getId()));
+                innerHits.lookup().source().setSource(context.lookup().source().internalSourceRef());
+                if (context.lookup().source().source() != null) {
+                    innerHits.lookup().source().setSource(context.lookup().source().source());
+                }
                 fetchPhase.execute(innerHits);
                 FetchSearchResult fetchResult = innerHits.fetchResult();
                 SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();

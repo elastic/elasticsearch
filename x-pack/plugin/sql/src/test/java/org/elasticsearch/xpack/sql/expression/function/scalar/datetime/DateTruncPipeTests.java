@@ -22,13 +22,14 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.expression.Expressions.pipe;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
 
-public class BinaryDateTimePipeTests extends AbstractNodeTestCase<BinaryDateTimePipe, Pipe> {
+public class DateTruncPipeTests extends AbstractNodeTestCase<DateTruncPipe, Pipe> {
 
     @Override
-    protected BinaryDateTimePipe randomInstance() {
+    protected DateTruncPipe randomInstance() {
         return randomDateTruncPipe();
     }
 
@@ -36,52 +37,49 @@ public class BinaryDateTimePipeTests extends AbstractNodeTestCase<BinaryDateTime
         return randomDateTruncPipe().expression();
     }
 
-    public static BinaryDateTimePipe randomDateTruncPipe() {
-        return (BinaryDateTimePipe) new DateTrunc(
-                randomSource(),
-                randomStringLiteral(),
-                randomStringLiteral(),
-                randomZone())
-                .makePipe();
+    public static DateTruncPipe randomDateTruncPipe() {
+        return (DateTruncPipe) new DateTrunc(
+            randomSource(),
+            randomStringLiteral(),
+            randomDatetimeLiteral(),
+            randomZone())
+            .makePipe();
     }
 
     @Override
     public void testTransform() {
         // test transforming only the properties (source, expression),
         // skipping the children (the two parameters of the binary function) which are tested separately
-        BinaryDateTimePipe b1 = randomInstance();
+        DateTruncPipe b1 = randomInstance();
 
         Expression newExpression = randomValueOtherThan(b1.expression(), this::randomDateTruncPipeExpression);
-        BinaryDateTimePipe newB = new BinaryDateTimePipe(
-                b1.source(),
-                newExpression,
-                b1.left(),
-                b1.right(),
-                b1.zoneId(),
-                b1.operation());
+        DateTruncPipe newB = new DateTruncPipe(
+            b1.source(),
+            newExpression,
+            b1.left(),
+            b1.right(),
+            b1.zoneId());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
 
-        BinaryDateTimePipe b2 = randomInstance();
+        DateTruncPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), SourceTests::randomSource);
-        newB = new BinaryDateTimePipe(
-                newLoc,
-                b2.expression(),
-                b2.left(),
-                b2.right(),
-                b2.zoneId(),
-                b2.operation());
+        newB = new DateTruncPipe(
+            newLoc,
+            b2.expression(),
+            b2.left(),
+            b2.right(),
+            b2.zoneId());
         assertEquals(newB,
-                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+            b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
     }
 
     @Override
     public void testReplaceChildren() {
-        BinaryDateTimePipe b = randomInstance();
+        DateTruncPipe b = randomInstance();
         Pipe newLeft = pipe(((Expression) randomValueOtherThan(b.left(), FunctionTestUtils::randomStringLiteral)));
         Pipe newRight = pipe(((Expression) randomValueOtherThan(b.right(), FunctionTestUtils::randomDatetimeLiteral)));
         ZoneId newZoneId = randomValueOtherThan(b.zoneId(), ESTestCase::randomZone);
-        BinaryDateTimePipe newB = new BinaryDateTimePipe(
-            b.source(), b.expression(), b.left(), b.right(), newZoneId, randomFrom(BinaryDateTimeProcessor.BinaryDateOperation.values()));
+        DateTruncPipe newB = new DateTruncPipe( b.source(), b.expression(), b.left(), b.right(), newZoneId);
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
 
         assertEquals(transformed.left(), newLeft);
@@ -103,37 +101,31 @@ public class BinaryDateTimePipeTests extends AbstractNodeTestCase<BinaryDateTime
     }
 
     @Override
-    protected BinaryDateTimePipe mutate(BinaryDateTimePipe instance) {
-        List<Function<BinaryDateTimePipe, BinaryDateTimePipe>> randoms = new ArrayList<>();
-        randoms.add(f -> new BinaryDateTimePipe(f.source(),
-                f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
-                f.right(),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone),
-                randomFrom(BinaryDateTimeProcessor.BinaryDateOperation.values())));
-        randoms.add(f -> new BinaryDateTimePipe(f.source(),
-                f.expression(),
-                f.left(),
-                pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomDatetimeLiteral))),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone),
-                randomFrom(BinaryDateTimeProcessor.BinaryDateOperation.values())));
-        randoms.add(f -> new BinaryDateTimePipe(f.source(),
-                f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
-                pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomDatetimeLiteral))),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone),
-                randomFrom(BinaryDateTimeProcessor.BinaryDateOperation.values())));
+    protected DateTruncPipe mutate(DateTruncPipe instance) {
+        List<Function<DateTruncPipe, DateTruncPipe>> randoms = new ArrayList<>();
+        randoms.add(f -> new DateTruncPipe(f.source(), f.expression(),
+            pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
+            f.right(),
+            randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
+        randoms.add(f -> new DateTruncPipe(f.source(), f.expression(),
+            f.left(),
+            pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomDatetimeLiteral))),
+            randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
+        randoms.add(f -> new DateTruncPipe(f.source(), f.expression(),
+            pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
+            pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomDatetimeLiteral))),
+            randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
 
         return randomFrom(randoms).apply(instance);
     }
 
     @Override
-    protected BinaryDateTimePipe copy(BinaryDateTimePipe instance) {
-        return new BinaryDateTimePipe(instance.source(),
-                instance.expression(),
-                instance.left(),
-                instance.right(),
-                instance.zoneId(),
-                instance.operation());
+    protected DateTruncPipe copy(DateTruncPipe instance) {
+        return new DateTruncPipe(
+            instance.source(),
+            instance.expression(),
+            instance.left(),
+            instance.right(),
+            instance.zoneId());
     }
 }

@@ -73,7 +73,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search_timeout]
 
 
 Out of the above, the `search_type`, `request_cache` and the 

@@ -55,9 +55,8 @@ and mappings.
 don't support missing values therefore fields that have data types other than 
 numeric or boolean are ignored. Documents where included fields contain missing 
 values, null values, or an array are also ignored. Therefore the `dest` index 
-may contain documents that don't have an {olscore}. These documents are still 
-reindexed from the `source` index to the `dest`, but they are not included in 
-the {oldetection} analysis and therefore no {olscore} is computed.
+may contain documents that don't have an {olscore}.
+
 
 ====== {regression-cap}
 

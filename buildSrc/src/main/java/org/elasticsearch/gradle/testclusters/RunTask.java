@@ -45,7 +45,6 @@ public class RunTask extends DefaultTestClustersTask {
                 entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
                 entry -> entry.getValue().toString()
             ));
-        System.err.println(additionalSettings.toString());
         for (ElasticsearchCluster cluster : getClusters()) {
             cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
             httpPort++;

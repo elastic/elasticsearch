@@ -181,6 +181,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             .startObject()
                 .field("took", 0)
                 .field("timed_out", false)
+                .field("partial_results", false)
                 .startObject("_shards")
                     .field("total", 0)
                     .field("successful", 0)

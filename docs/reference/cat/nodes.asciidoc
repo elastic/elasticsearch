@@ -14,6 +14,8 @@ Returns information about a cluster's nodes.
 [[cat-nodes-api-query-params]]
 ==== {api-query-parms-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 `full_id`::
@@ -286,6 +288,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 

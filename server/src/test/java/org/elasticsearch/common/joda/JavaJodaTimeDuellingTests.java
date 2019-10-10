@@ -46,6 +46,28 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     protected boolean enableWarningsCheck() {
         return false;
     }
+    // date_optional part of a parser names "strict_date_optional_time" or "date_optional"time
+    // means that date part can be partially parsed.
+    public void testPartialParsing() {
+        assertSameDateAs("2001", "strict_date_optional_time_nanos", "strict_date_optional_time");
+        assertSameDateAs("2001-01", "strict_date_optional_time_nanos", "strict_date_optional_time");
+        assertSameDateAs("2001-01-01", "strict_date_optional_time_nanos", "strict_date_optional_time");
+
+        assertSameDate("2001", "strict_date_optional_time");
+        assertSameDate("2001-01", "strict_date_optional_time");
+        assertSameDate("2001-01-01", "strict_date_optional_time");
+
+        assertSameDate("2001", "date_optional_time");
+        assertSameDate("2001-01", "date_optional_time");
+        assertSameDate("2001-01-01", "date_optional_time");
+
+
+        assertSameDateAs("2001", "iso8601", "strict_date_optional_time");
+        assertSameDateAs("2001-01", "iso8601", "strict_date_optional_time");
+        assertSameDateAs("2001-01-01", "iso8601", "strict_date_optional_time");
+
+        assertSameDate("9999","date_optional_time||epoch_second");
+    }
 
     public void testCompositeDateMathParsing(){
         //in all these examples the second pattern will be used
@@ -889,5 +911,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         long gotMillisJoda = dateMathToMillis(text, Joda.forPattern(pattern));
 
         assertEquals(gotMillisJoda, gotMillisJava);
+    }
+
+    private void assertSameDateAs(String input, String javaPattern, String jodaPattern) {
+        DateFormatter javaFormatter = DateFormatter.forPattern(javaPattern);
+        DateFormatter jodaFormatter = Joda.forPattern(jodaPattern);
+        assertSameDate(input, javaPattern, jodaFormatter, javaFormatter);
     }
 }

@@ -25,6 +25,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocumentMapperParserTests extends ESSingleNodeTestCase {
@@ -98,5 +100,30 @@ public class DocumentMapperParserTests extends ESSingleNodeTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             mapperParser.parse("type", new CompressedXContent(mapping)));
         assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
+    }
+
+    public void testTypedAndTypelessMappingsAreEqual() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+
+        String typedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+                .startObject("field")
+                    .field("type", "text")
+                .endObject()
+            .endObject()
+        .endObject().endObject());
+
+        String typelessMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("field")
+                    .field("type", "text")
+                .endObject()
+            .endObject().endObject());
+
+        DocumentMapper typedMapper = parser.parse("_doc", new CompressedXContent(typedMapping));
+        DocumentMapper typelessMapper = parser.parse("_doc", new CompressedXContent(typelessMapping));
+
+        assertEquals(Strings.toString(typedMapper), Strings.toString(typelessMapper));
     }
 }

@@ -133,19 +133,19 @@ public final class ShardGenerations {
             return this;
         }
 
-        public Builder addAll(ShardGenerations shardGenerations) {
+        public Builder putAll(ShardGenerations shardGenerations) {
             shardGenerations.shardGenerations.forEach((indexId, gens) -> {
                 for (int i = 0; i < gens.size(); i++) {
                     final String gen = gens.get(i);
                     if (gen != null) {
-                        add(indexId, i, gens.get(i));
+                        put(indexId, i, gens.get(i));
                     }
                 }
             });
             return this;
         }
 
-        public Builder add(IndexId indexId, int shardId, String generation) {
+        public Builder put(IndexId indexId, int shardId, String generation) {
             generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             return this;
         }
@@ -157,6 +157,8 @@ public final class ShardGenerations {
                     final Set<Integer> shardIds = entry.getValue().keySet();
                     assert shardIds.isEmpty() == false;
                     final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
+                    // Create a list that can hold the highest shard id as index and leave null values for shards that don't have
+                    // a map entry.
                     final String[] gens = new String[size];
                     entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
                     return Arrays.asList(gens);

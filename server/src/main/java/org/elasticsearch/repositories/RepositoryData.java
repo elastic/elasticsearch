@@ -178,7 +178,7 @@ public final class RepositoryData {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
         return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots,
-            ShardGenerations.builder().addAll(this.shardGenerations).addAll(shardGenerations).build());
+            ShardGenerations.builder().putAll(this.shardGenerations).putAll(shardGenerations).build());
     }
 
     /**
@@ -231,7 +231,7 @@ public final class RepositoryData {
         }
 
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots,
-            ShardGenerations.builder().addAll(shardGenerations).addAll(updatedShardGenerations)
+            ShardGenerations.builder().putAll(shardGenerations).putAll(updatedShardGenerations)
                 .retainIndices(indexSnapshots.keySet()).build()
         );
     }
@@ -476,7 +476,7 @@ public final class RepositoryData {
                         assert indexId != null;
                         indexSnapshots.put(indexId, snapshotIds);
                         for (int i = 0; i < gens.size(); i++) {
-                            shardGenerations.add(indexId, i, gens.get(i));
+                            shardGenerations.put(indexId, i, gens.get(i));
                         }
                     }
                 } else {

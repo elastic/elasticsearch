@@ -96,14 +96,14 @@ public class RepositoryDataTests extends ESTestCase {
             IndexId indexId = new IndexId(randomAlphaOfLength(7), UUIDs.randomBase64UUID());
             newIndices.add(indexId);
             indices.add(indexId);
-            builder.add(indexId, 0, "1");
+            builder.put(indexId, 0, "1");
         }
         int numOld = randomIntBetween(1, indexIdMap.size());
         List<String> indexNames = new ArrayList<>(indexIdMap.keySet());
         for (int i = 0; i < numOld; i++) {
             final IndexId indexId = indexIdMap.get(indexNames.get(i));
             indices.add(indexId);
-            builder.add(indexId, 0, "2");
+            builder.put(indexId, 0, "2");
         }
         RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot,
             randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), builder.build());
@@ -209,7 +209,7 @@ public class RepositoryDataTests extends ESTestCase {
             indexSnapshots.put(indexId, snapshotsIds);
             final int shardCount = randomIntBetween(1, 10);
             for (int i = 0; i < shardCount; ++i) {
-                shardGenBuilder.add(indexId, i, UUIDs.randomBase64UUID(random()));
+                shardGenBuilder.put(indexId, i, UUIDs.randomBase64UUID(random()));
             }
         }
         assertNotNull(corruptedIndexId);
@@ -280,7 +280,7 @@ public class RepositoryDataTests extends ESTestCase {
             for (IndexId someIndex : someIndices) {
                 final int shardCount = randomIntBetween(1, 10);
                 for (int j = 0; j < shardCount; ++j) {
-                    builder.add(someIndex, 0, UUIDs.randomBase64UUID(random()));
+                    builder.put(someIndex, 0, UUIDs.randomBase64UUID(random()));
                 }
             }
             repositoryData = repositoryData.addSnapshot(snapshotId, randomFrom(SnapshotState.values()), builder.build());

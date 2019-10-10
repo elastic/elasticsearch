@@ -246,7 +246,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             int numIndices = inclIndices ? randomIntBetween(0, 20) : 0;
             final ShardGenerations.Builder builder = ShardGenerations.builder();
             for (int j = 0; j < numIndices; j++) {
-                builder.add(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), 0, "1");
+                builder.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), 0, "1");
             }
             repoData = repoData.addSnapshot(snapshotId,
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), builder.build());

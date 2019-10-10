@@ -583,7 +583,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         ShardGenerations.Builder builder = ShardGenerations.builder();
         final Map<String, IndexId> indexLookup = new HashMap<>();
         snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));
-        snapshot.shards().forEach(c -> builder.add(indexLookup.get(c.key.getIndexName()), c.key.id(), c.value.generation()));
+        snapshot.shards().forEach(c -> builder.put(indexLookup.get(c.key.getIndexName()), c.key.id(), c.value.generation()));
         return builder.build();
     }
 

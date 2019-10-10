@@ -453,7 +453,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             afterUpdateAllShards = ActionListener.wrap(res -> {
                 final ShardGenerations.Builder builder = ShardGenerations.builder();
                 for (ShardSnapshotMetaDeleteResult newGen : res) {
-                    builder.add(newGen.indexId, newGen.shardId, newGen.newGeneration);
+                    builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
                 }
                 writeNewRepoData.accept(builder.build());
                 afterUpdateAllMetadata.onResponse(res);

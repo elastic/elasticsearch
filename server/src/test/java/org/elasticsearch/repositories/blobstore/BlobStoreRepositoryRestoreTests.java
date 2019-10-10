@@ -171,7 +171,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 snapshot.getSnapshotId().getName(), "_uuid2"));
             final PlainActionFuture<SnapshotInfo> future = PlainActionFuture.newFuture();
             repository.finalizeSnapshot(snapshot.getSnapshotId(),
-                ShardGenerations.builder().add(indexId, 0, shardGen).build(),
+                ShardGenerations.builder().put(indexId, 0, shardGen).build(),
                 0L, null, 1, Collections.emptyList(), -1L, false,
                 MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(), Version.CURRENT,
                 future);

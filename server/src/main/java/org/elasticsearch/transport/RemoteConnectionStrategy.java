@@ -137,12 +137,12 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     }
 
     public static void validateSettings(String clusterAlias, Settings settings) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
+
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         if (mode.equals(ConnectionStrategy.SNIFF)) {
-            List<String> seeds = RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-            if (seeds.contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
-            }
         } else {
         }
     }

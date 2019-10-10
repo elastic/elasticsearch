@@ -283,20 +283,22 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    Settings cluster1Settings = createSettings(Collections.singletonList(cluster1Seed.getAddress().toString()));
+                    Settings cluster1Settings = createSettings("cluster_1",
+                        Collections.singletonList(cluster1Seed.getAddress().toString()));
                     service.validateAndUpdateRemoteCluster("cluster_1", cluster1Settings);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
-                    Settings cluster2Settings = createSettings(Collections.singletonList(cluster2Seed.getAddress().toString()));
+                    Settings cluster2Settings = createSettings("cluster_2",
+                        Collections.singletonList(cluster2Seed.getAddress().toString()));
                     service.validateAndUpdateRemoteCluster("cluster_2", cluster2Settings);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
-                    Settings cluster2SettingsDisabled = createSettings(Collections.emptyList());
+                    Settings cluster2SettingsDisabled = createSettings("cluster_2", Collections.emptyList());
                     service.validateAndUpdateRemoteCluster("cluster_2", cluster2SettingsDisabled);
                     assertFalse(service.isRemoteClusterRegistered("cluster_2"));
                     IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                        () -> service.validateAndUpdateRemoteCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, createSettings(Collections.emptyList())));
+                        () -> service.validateAndUpdateRemoteCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Settings.EMPTY));
                     assertEquals("remote clusters must not have the empty string as its key", iae.getMessage());
                 }
             }
@@ -326,7 +328,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
                     assertTrue(service.isCrossClusterSearchEnabled());
-                    service.validateAndUpdateRemoteCluster("cluster_1", createSettings(Collections.singletonList(seedNode.getAddress().toString())));
+                    service.validateAndUpdateRemoteCluster("cluster_1",
+                        createSettings("cluster_1", Collections.singletonList(seedNode.getAddress().toString())));
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
@@ -454,14 +457,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch firstLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_1",
-                            createSettings(Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
+                            createSettings("cluster_1", Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
                             connectionListener(firstLatch));
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_2",
-                            createSettings(Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
+                            createSettings("cluster_2", Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
                             connectionListener(secondLatch));
                     secondLatch.await();
 
@@ -519,14 +522,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch firstLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_1",
-                            createSettings(Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
+                            createSettings("cluster_1", Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
                             connectionListener(firstLatch));
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_2",
-                            createSettings(Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
+                            createSettings("cluster_2", Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
                             connectionListener(secondLatch));
                     secondLatch.await();
 
@@ -592,14 +595,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch firstLatch = new CountDownLatch(1);
 
                     service.updateRemoteCluster("cluster_1",
-                        createSettings(Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
+                        createSettings("cluster_1", Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
                         connectionListener(firstLatch));
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                         "cluster_2",
-                        createSettings(Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
+                        createSettings("cluster_2", Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
                         connectionListener(secondLatch));
                     secondLatch.await();
                     CountDownLatch latch = new CountDownLatch(1);
@@ -873,7 +876,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch firstLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                         "cluster_test",
-                        createSettings(Collections.singletonList(node0.getAddress().toString())),
+                        createSettings("cluster_test", Collections.singletonList(node0.getAddress().toString())),
                         connectionListener(firstLatch));
                     firstLatch.await();
 
@@ -894,7 +897,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                         "cluster_test",
-                        createSettings(newSeeds),
+                        createSettings("cluster_test", newSeeds),
                         connectionListener(secondLatch));
                     secondLatch.await();
 
@@ -974,9 +977,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    private static Settings createSettings(List<String> seeds) {
+    private static Settings createSettings(String clusterAlias, List<String> seeds) {
         Settings.Builder builder = Settings.builder();
-        builder.put(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getKey(), Strings.collectionToCommaDelimitedString(seeds));
+        builder.put(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+            Strings.collectionToCommaDelimitedString(seeds));
         return builder.build();
     }
 }

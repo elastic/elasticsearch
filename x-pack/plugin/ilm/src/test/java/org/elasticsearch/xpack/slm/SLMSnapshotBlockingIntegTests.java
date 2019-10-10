@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 @TestLogging(value = "org.elasticsearch.snapshots.mockstore:DEBUG",
              reason = "https://github.com/elastic/elasticsearch/issues/46508")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
     private static final String REPO = "repo-id";
@@ -167,7 +168,6 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47834")
     public void testRetentionWhileSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyId = "slm-policy";

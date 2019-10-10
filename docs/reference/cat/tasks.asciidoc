@@ -57,6 +57,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]

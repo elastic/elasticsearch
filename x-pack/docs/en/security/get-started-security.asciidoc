@@ -19,7 +19,7 @@ IMPORTANT: To complete this tutorial, you must install the default {es} and
 authentication {security-features}. When you install these products, they apply
 basic licenses with no expiration dates. All of the subsequent steps in this
 tutorial assume that you are using a basic license. For more information, see
-{subscriptions} and <<license-management>>.
+{subscriptions} and {stack-ov}/license-management.html[License management].
 
 --
 
@@ -54,8 +54,7 @@ postponing the configuration of TLS. For example, add the following setting:
 discovery.type: single-node
 ----
 
-For more information, see
-{ref}/bootstrap-checks.html#single-node-discovery[Single-node discovery].
+For more information, see <<single-node-discovery>>.
 --
 
 When you enable {es} {security-features}, basic authentication is enabled by
@@ -356,7 +355,7 @@ want to encrypt communications across the {stack}. To learn how, read
 
 For more detailed information about securing the {stack}, see:
 
-* {ref}/configuring-security.html[Configuring security in {es}]. Encrypt 
+* <<configuring-security,Configuring security in {es}>>. Encrypt 
 inter-node communications, set passwords for the built-in users, and manage your 
 users and roles.  
 

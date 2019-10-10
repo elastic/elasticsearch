@@ -55,7 +55,7 @@ public class DockerUtils {
             lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
 
             if (lastResult.isSuccess() == true) {
-                version = Version.fromString(lastResult.stdout.trim());
+                version = Version.fromString(lastResult.stdout.trim(), Version.Mode.RELAXED);
 
                 isVersionHighEnough = version.onOrAfter("17.05.0");
 

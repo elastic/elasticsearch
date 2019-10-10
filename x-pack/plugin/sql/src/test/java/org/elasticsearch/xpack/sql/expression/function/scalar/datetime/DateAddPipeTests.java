@@ -50,7 +50,7 @@ public class DateAddPipeTests extends AbstractNodeTestCase<DateAddPipe, Pipe> {
     @Override
     public void testTransform() {
         // test transforming only the properties (source, expression),
-        // skipping the children (the two parameters of the binary function) which are tested separately
+        // skipping the children (the three parameters of the function) which are tested separately
         DateAddPipe b1 = randomInstance();
 
         Expression newExpression = randomValueOtherThan(b1.expression(), this::randomDateAddPipeExpression);

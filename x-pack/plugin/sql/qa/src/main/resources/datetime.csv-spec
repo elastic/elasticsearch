@@ -138,10 +138,10 @@ DATE_ADD('mcs', -12345678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_m
 
 selectAddWithDate
 schema::dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts|dt_hours:ts|dt_min:ts|dt_sec:ts|dt_millis:s|dt_mcsec:s|dt_nsec:s
-SELECT DATE_ADD('year', 10, '2019-09-04'::date) as dt_year, DATE_ADD('quarter', -10, '2019-09-04'::date) as dt_quarter, DATE_ADD('month', 20, '2019-09-04'::date) as dt_month,
-DATE_ADD('week', -50, '2019-09-04'::date) as dt_week, DATE_ADD('day', 200, '2019-09-04'::date) as dt_day,
-DATE_ADD('hours', -3000, '2019-09-04'::date) as dt_hours, DATE_ADD('minutes', 5678, '2019-09-04'::date) as dt_min, DATE_ADD('second', 987654, '2019-09-04'::date) as dt_sec,
-DATE_ADD('milliseconds', 4314144, '2019-09-04'::date)::string as dt_millis, DATE_ADD('mcs', -12345678, '2019-09-04'::date)::string as dt_mcsec, DATE_ADD('nanosecond', 12345600, '2019-09-04'::date)::string as dt_nsec;
+SELECT DATEADD('year', 10, '2019-09-04'::date) as dt_year, DATEADD('quarter', -10, '2019-09-04'::date) as dt_quarter, DATEADD('month', 20, '2019-09-04'::date) as dt_month,
+DATEADD('week', -50, '2019-09-04'::date) as dt_week, DATEADD('day', 200, '2019-09-04'::date) as dt_day,
+DATEADD('hours', -3000, '2019-09-04'::date) as dt_hours, DATEADD('minutes', 5678, '2019-09-04'::date) as dt_min, DATEADD('second', 987654, '2019-09-04'::date) as dt_sec,
+DATEADD('milliseconds', 4314144, '2019-09-04'::date)::string as dt_millis, DATEADD('mcs', -12345678, '2019-09-04'::date)::string as dt_mcsec, DATEADD('nanosecond', 12345600, '2019-09-04'::date)::string as dt_nsec;
 
        dt_year           |      dt_quarter          |       dt_month           |        dt_week           |        dt_day            |       dt_hours           |        dt_min            |        dt_sec            |         dt_millis        |       dt_mcsec           |         dt_nsec
 -------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
@@ -150,9 +150,9 @@ DATE_ADD('milliseconds', 4314144, '2019-09-04'::date)::string as dt_millis, DATE
 
 selectDateAddWithField
 schema::emp_no:i|birth_date:ts|dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts|dt_min:ts|dt_sec:ts
-SELECT emp_no, birth_date, DATE_ADD('year', 10, birth_date) as dt_year, DATE_ADD('quarter', -10, birth_date) as dt_quarter,
-DATE_ADD('month', 20, birth_date) as dt_month, DATE_ADD('week', -20, birth_date) as dt_week, DATE_ADD('day', 300, birth_date) as dt_day,
-DATE_ADD('minutes', 10000, birth_date) as dt_min, DATE_ADD('second', 100000, birth_date) as dt_sec
+SELECT emp_no, birth_date, TIMESTAMP_ADD('year', 10, birth_date) as dt_year, TIMESTAMP_ADD('quarter', -10, birth_date) as dt_quarter,
+TIMESTAMP_ADD('month', 20, birth_date) as dt_month, TIMESTAMP_ADD('week', -20, birth_date) as dt_week, TIMESTAMP_ADD('day', 300, birth_date) as dt_day,
+TIMESTAMP_ADD('minutes', 10000, birth_date) as dt_min, TIMESTAMP_ADD('second', 100000, birth_date) as dt_sec
 FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
 
   emp_no  |     birth_date           |       dt_year            |     dt_quarter           |      dt_month            |       dt_week            |       dt_day             |       dt_min             |       dt_sec
@@ -171,7 +171,7 @@ FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
 ;
 
 selectAddWithComplexExpressions
-SELECT gender, birth_date, DATE_ADD('months', CASE WHEN gender = 'M' THEN 10 WHEN gender = 'F' THEN -10 ELSE 100 END,
+SELECT gender, birth_date, TIMESTAMPADD('months', CASE WHEN gender = 'M' THEN 10 WHEN gender = 'F' THEN -10 ELSE 100 END,
 birth_date + INTERVAL 10 month) AS dt FROM test_emp WHERE dt > '1954-07-01'::date ORDER BY emp_no LIMIT 10;
 
   gender:s  |   birth_date:ts          |    dt:ts

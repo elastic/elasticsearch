@@ -19,8 +19,8 @@ public class DateAddProcessor extends ThreeArgsDateTimeProcessor {
 
     public static final String NAME = "dtadd";
 
-    public DateAddProcessor(Processor source1, Processor source2, Processor source3, ZoneId zoneId) {
-        super(source1, source2, source3, zoneId);
+    public DateAddProcessor(Processor unit, Processor numberOfUnits, Processor timestamp, ZoneId zoneId) {
+        super(unit, numberOfUnits, timestamp, zoneId);
     }
 
     public DateAddProcessor(StreamInput in) throws IOException {

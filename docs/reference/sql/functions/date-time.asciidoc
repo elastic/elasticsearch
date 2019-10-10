@@ -249,12 +249,12 @@ Currently, using a _precision_ greater than 3 doesn't make any difference to the
 function as the maximum number of second fractional digits returned is 3 (milliseconds).
 
 [[sql-functions-datetime-add]]
-==== `DATE_ADD/DATE_ADD/TIMESTAMPADD/TIMESTAMP_ADD`
+==== `DATE_ADD/DATEADD/TIMESTAMPADD/TIMESTAMP_ADD`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DATE_PART(
+DATE_ADD(
     string_exp, <1>
     integer_exp, <2>
     datetime_exp) <3>
@@ -262,17 +262,17 @@ DATE_PART(
 
 *Input*:
 
-<1> string expression denoting the unit to add to the date/datetime
-<2> integer expression denoting how many times the above unit should be added/subtracted (if it's negative)
-to/from the date/datetime
+<1> string expression denoting the date/time unit to add to the date/datetime
+<2> integer expression denoting how many times the above unit should be added to/from the date/datetime,
+if a negative value is used it results to a subtraction from the date/datetime
 <3> date/datetime expression
 
 *Output*: datetime
 
 .Description:
 
-Add/Subtract the given number of units to/from a date/datetime. If any of the three arguments is `null`
-a `null` is returned.
+Add the given number of date/time units to a date/datetime. If the number of units is negative then it's subtracted from
+the date/datetime.If any of the three arguments is `null` a `null` is returned.
 
 [cols="^,^"]
 |===

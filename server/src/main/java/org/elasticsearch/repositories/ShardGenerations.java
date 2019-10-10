@@ -51,8 +51,9 @@ public final class ShardGenerations {
     }
 
     /**
-     * Computes the obsolete shard index generations that can be deleted if this instance was written to the repository.
-     * NOTE: Indices that are only found in {@code previous} but not in this instance are not included in the result.
+     * Computes the obsolete shard index generations that can be deleted once this instance was written to the repository.
+     * Note: This method should only be used when finalizing a snapshot and we can safely assume that data has only been added but not
+     *       removed from shard paths.
      *
      * @param previous Previous {@code ShardGenerations}
      * @return Map of obsolete shard index generations in indices that are still tracked by this instance

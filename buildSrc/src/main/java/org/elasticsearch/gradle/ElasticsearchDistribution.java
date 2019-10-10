@@ -124,8 +124,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                               Configuration extractedConfiguration) {
         this.name = name;
         this.configuration = fileConfiguration;
-        this.version = objectFactory.property(String.class);
-        this.version.convention(VersionProperties.getElasticsearch());
+        this.version = objectFactory.property(String.class).convention(VersionProperties.getElasticsearch());
         this.type = objectFactory.property(Type.class);
         this.type.convention(Type.ARCHIVE);
         this.platform = objectFactory.property(Platform.class);

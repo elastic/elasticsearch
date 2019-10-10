@@ -165,6 +165,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             ivyRepo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
             ivyRepo.content(content -> content.includeGroup(group));
         });
+        project.getRepositories().all(repo -> {
+            if (repo.getName().equals(name) == false) {
+                // all other repos should ignore the special group name
+                repo.content(content -> content.excludeGroup(group));
+            }
+        });
     }
 
     private static void setupDownloadServiceRepo(Project project) {
@@ -176,16 +182,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             // external, so add snapshot repo as well
             addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
         }
-        project.getRepositories().all(repo -> {
-            if (repo.getName().equals(DOWNLOAD_REPO_NAME) == false) {
-                // all other repos should ignore the special group name
-                repo.content(content -> content.excludeGroup(FAKE_IVY_GROUP));
-            }
-            if (repo.getName().equals(SNAPSHOT_REPO_NAME) == false) {
-                // all other repos should ignore the special group name
-                repo.content(content -> content.excludeGroup(FAKE_SNAPSHOT_IVY_GROUP));
-            }
-        });
     }
 
     /**

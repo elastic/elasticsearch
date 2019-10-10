@@ -39,17 +39,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
-    protected static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
+    private static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
 
     private static final int MAX_LISTENERS = 100;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
-    private final ThreadPool threadPool;
-    protected final RemoteConnectionManager connectionManager;
     private List<ActionListener<Void>> listeners = new ArrayList<>();
 
-    RemoteConnectionStrategy(ThreadPool threadPool, RemoteConnectionManager connectionManager) {
-        this.threadPool = threadPool;
+    protected final TransportService transportService;
+    protected final RemoteConnectionManager connectionManager;
+    protected final String clusterAlias;
+
+    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager) {
+        this.clusterAlias = clusterAlias;
+        this.transportService = transportService;
         this.connectionManager = connectionManager;
         connectionManager.getConnectionManager().addListener(this);
     }
@@ -61,7 +64,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     void connect(ActionListener<Void> connectListener) {
         boolean runConnect = false;
         final ActionListener<Void> listener =
-            ContextPreservingActionListener.wrapPreservingContext(connectListener, threadPool.getThreadContext());
+            ContextPreservingActionListener.wrapPreservingContext(connectListener, transportService.getThreadPool().getThreadContext());
         boolean closed;
         synchronized (mutex) {
             closed = this.closed.get();
@@ -83,7 +86,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             return;
         }
         if (runConnect) {
-            ExecutorService executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+            ExecutorService executor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
             executor.submit(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {

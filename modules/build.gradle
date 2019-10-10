@@ -26,11 +26,6 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
     // for local ES plugins, the name of the plugin is the same as the directory
     name project.name
   }
-  
-  run {
-    // these cannot be run with the normal distribution, since they are included in it!
-    distribution = 'integ-test-zip'
-  }
 
   if (project.file('src/main/packaging').exists()) {
     throw new InvalidModelException("Modules cannot contain packaging files") 

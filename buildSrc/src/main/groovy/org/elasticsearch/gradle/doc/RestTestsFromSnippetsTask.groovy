@@ -23,6 +23,7 @@ import groovy.transform.PackageScope
 import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 
 import java.nio.file.Files
@@ -58,6 +59,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
     @OutputDirectory
     File testRoot = project.file('build/rest')
 
+    @Internal
     Set<String> names = new HashSet<>()
 
     RestTestsFromSnippetsTask() {

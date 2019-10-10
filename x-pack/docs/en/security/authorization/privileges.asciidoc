@@ -160,8 +160,21 @@ action.
 +
 --
 NOTE: This privilege does not restrict the index operation to the creation
-of documents but instead restricts API use to the index API. The index API allows a user
-to overwrite a previously indexed document.
+of documents but instead restricts API use to the index API. The index API
+allows a user to overwrite a previously indexed document. See the `create_doc`
+privilege for an alternative.
+
+--
+
+`create_doc`::
+Privilege to index documents. Also grants access to the update mapping action.
+However, it does not enable a user to update existing documents.
++
+--
+NOTE: When indexing documents with an external `_id` either via the index API or
+the bulk API, the request must use `op_type` as `create`. If `_id`s are
+generated automatically, the authorization happens as if the `op_type` is set to
+`create`.
 
 --
 

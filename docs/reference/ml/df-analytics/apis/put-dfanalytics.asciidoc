@@ -128,7 +128,7 @@ and mappings.
   the cluster-wide `xpack.ml.max_lazy_ml_nodes` setting - see
   <<advanced-ml-settings>>.) If this option is set to `true` then
   the <<start-dfanalytics>> will not return an error, and the job will
-  wait in the `started` state until sufficient {ml} node capacity
+  wait in the `starting` state until sufficient {ml} node capacity
   is available.
 
 

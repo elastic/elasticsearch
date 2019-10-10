@@ -1,12 +1,9 @@
 package org.elasticsearch.gradle.tool;
 
-public class ClasspathUtils {
-    private static boolean isElasticsearchProject;
+import org.gradle.api.Project;
+import org.gradle.api.plugins.ExtraPropertiesExtension;
 
-    static {
-        // look for buildSrc marker file, if it exists then we are running in the context of the elastic/elasticsearch build
-        isElasticsearchProject = ClasspathUtils.class.getResource("/buildSrc.marker") != null;
-    }
+public class ClasspathUtils {
 
     private ClasspathUtils() {
     }
@@ -17,7 +14,8 @@ public class ClasspathUtils {
      *
      * @return if we are currently running in the `elastic/elasticsearch` project
      */
-    public static boolean isElasticsearchProject() {
-        return isElasticsearchProject;
+    public static boolean isElasticsearchProject(Project project) {
+        ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
+        return (boolean) ext.get("isInternal");
     }
 }

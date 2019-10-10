@@ -205,12 +205,15 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, String> fieldMapping = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
             InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
             String modelInfoField = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_INFO_FIELD, "_model_info");
+            if (modelInfoField != null && tag != null) {
+                modelInfoField += "." + tag;
+            }
             return new InferenceProcessor(client, tag, targetField, modelId, inferenceConfig, fieldMapping, modelInfoField);
         }
 
         // Package private for testing
         void setMaxIngestProcessors(int maxIngestProcessors) {
-            logger.debug("updating setting maxIngestProcessors from [{}] to [{}]", this.maxIngestProcessors, maxIngestProcessors);
+            logger.trace("updating setting maxIngestProcessors from [{}] to [{}]", this.maxIngestProcessors, maxIngestProcessors);
             this.maxIngestProcessors = maxIngestProcessors;
         }
 

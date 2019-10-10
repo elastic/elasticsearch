@@ -134,11 +134,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
         TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
 
+        final boolean dockerTestEnabled = shouldRunDockerTests();
+
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
-            TaskProvider<?> destructiveTask = configureDistroTest(project, distribution);
-            // Docker tests are not currently supported on Windows
-            if (shouldRunDockerTests()) {
+            if (distribution.getType() != Type.DOCKER || dockerTestEnabled == true) {
+                TaskProvider<?> destructiveTask = configureDistroTest(project, distribution);
                 destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
             }
         }

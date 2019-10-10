@@ -519,7 +519,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 newGen = Long.toString(tuple.v2() + 1);
                                 blobStoreIndexShardSnapshots = tuple.v1();
                             }
-                            allShardsListener.onResponse(deleteShardSnapshot(survivingSnapshots, indexId, shard, snapshotId,
+                            allShardsListener.onResponse(deleteFromShardSnapshotMeta(survivingSnapshots, indexId, shard, snapshotId,
                                 shardContainer, blobs, blobStoreIndexShardSnapshots, newGen));
                         }
 
@@ -1310,12 +1310,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Delete shard snapshot
+     * Delete snapshot from shard level metadata.
      */
-    private ShardSnapshotMetaDeleteResult deleteShardSnapshot(Set<SnapshotId> survivingSnapshots, IndexId indexId,
-                                                              ShardId snapshotShardId, SnapshotId snapshotId,
-                                                              BlobContainer shardContainer, Set<String> blobs,
-                                                              BlobStoreIndexShardSnapshots snapshots, String indexGeneration) {
+    private ShardSnapshotMetaDeleteResult deleteFromShardSnapshotMeta(Set<SnapshotId> survivingSnapshots, IndexId indexId,
+                                                                      ShardId snapshotShardId, SnapshotId snapshotId,
+                                                                      BlobContainer shardContainer, Set<String> blobs,
+                                                                      BlobStoreIndexShardSnapshots snapshots, String indexGeneration) {
         // Build a list of snapshots that should be preserved
         List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
         final Set<String> survivingSnapshotNames = survivingSnapshots.stream().map(SnapshotId::getName).collect(Collectors.toSet());

@@ -49,7 +49,7 @@ see <<security-privileges>>.
 ==== {api-description-title}
 
 This API deletes a configured collection of
-<<ccr-auto-follow,auto-follow patterns>>.
+{stack-ov}/ccr-auto-follow.html[auto-follow patterns].
 
 [[ccr-delete-auto-follow-pattern-path-parms]]
 ==== {api-path-parms-title}

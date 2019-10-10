@@ -19,8 +19,8 @@
 
 package org.elasticsearch.packaging.util;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +48,7 @@ import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -55,11 +56,11 @@ import static org.junit.Assert.assertTrue;
  */
 public class Archives {
 
-    private static final Log logger = LogFactory.getLog(Archives.class);
+    protected static final Logger logger =  LogManager.getLogger(Archives.class);
 
     // in the future we'll run as a role user on Windows
     public static final String ARCHIVE_OWNER = Platforms.WINDOWS
-        ? "vagrant"
+        ? System.getenv("username")
         : "elasticsearch";
 
     public static Installation installArchive(Distribution distribution) throws Exception {
@@ -107,7 +108,8 @@ public class Archives {
         assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
 
         Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
-        Platforms.onWindows(() -> setupArchiveUsersWindows(fullInstallPath));
+
+        sh.chown(fullInstallPath);
 
         return Installation.ofArchive(fullInstallPath);
     }
@@ -143,23 +145,6 @@ public class Archives {
                     "elasticsearch");
             }
         }
-        sh.run("chown -R elasticsearch:elasticsearch " + installPath);
-    }
-
-    private static void setupArchiveUsersWindows(Path installPath) {
-        // we want the installation to be owned as the vagrant user rather than the Administrators group
-
-        final Shell sh = new Shell();
-        sh.run(
-            "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-            "$install = Get-ChildItem -Path '" + installPath + "' -Recurse; " +
-            "$install += Get-Item -Path '" + installPath + "'; " +
-            "$install | ForEach-Object { " +
-                "$acl = Get-Acl $_.FullName; " +
-                "$acl.SetOwner($account); " +
-                "Set-Acl $_.FullName $acl " +
-            "}"
-        );
     }
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
@@ -280,6 +265,8 @@ public class Archives {
     public static Shell.Result startElasticsearch(Installation installation, Shell sh, String keystorePassword) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
+        assertFalse("Pid file doesn't exist when starting Elasticsearch", Files.exists(pidFile));
+
         final Installation.Executables bin = installation.executables();
 
         if (Platforms.WINDOWS == false) {
@@ -296,50 +283,84 @@ public class Archives {
         final Path stdout = installation.home.resolve("output.out");
         final Path stderr = installation.home.resolve("output.err");
 
+        Shell.Result result;
         // this starts the server in the background. the -d flag is unsupported on windows
-        // these tests run as Administrator. we don't want to run the server as Administrator, so we provide the current user's
-        // username and password to the process which has the effect of starting it not as Administrator.
-        Shell.Result result = sh.runIgnoreExitCode(
-            "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
-                "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
-                "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
-                "$processInfo.Arguments = '-p " + pidFile + "'; " +
-                "$processInfo.Username = 'vagrant'; " +
-                "$processInfo.Password = $password; " +
-                "$processInfo.RedirectStandardOutput = $true; " +
-                "$processInfo.RedirectStandardError = $true; " +
-                "$processInfo.RedirectStandardInput = $true; " +
-                sh.env.entrySet().stream()
-                    .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
-                    .collect(joining()) +
-                "$processInfo.UseShellExecute = $false; " +
-                "$process = New-Object System.Diagnostics.Process; " +
-                "$process.StartInfo = $processInfo; " +
+        if (System.getenv("username").equals("vagrant")) {
+            // these tests run as Administrator in vagrant.
+            // we don't want to run the server as Administrator, so we provide the current user's
+            // username and password to the process which has the effect of starting it not as Administrator.
+            result = sh.run(
+                "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
+                    "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
+                    "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
+                    "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
+                    "$processInfo.Username = 'vagrant'; " +
+                    "$processInfo.Password = $password; " +
+                    "$processInfo.RedirectStandardOutput = $true; " +
+                    "$processInfo.RedirectStandardError = $true; " +
+                    "$processInfo.RedirectStandardInput = $true; " +
+                    sh.env.entrySet().stream()
+                        .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
+                        .collect(joining()) +
+                    "$processInfo.UseShellExecute = $false; " +
+                    "$process = New-Object System.Diagnostics.Process; " +
+                    "$process.StartInfo = $processInfo; " +
 
-                // set up some asynchronous output handlers
-                "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stdout + "' }; " +
-                "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stderr + "' }; " +
-                "$stdOutEvent = Register-ObjectEvent -InputObject $process " +
+                    // set up some asynchronous output handlers
+                    "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stdout + "' }; " +
+                    "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stderr + "' }; " +
+                    "$stdOutEvent = Register-ObjectEvent -InputObject $process " +
                     "-Action $outScript -EventName 'OutputDataReceived'; " +
-                "$stdErrEvent = Register-ObjectEvent -InputObject $process " +
+                    "$stdErrEvent = Register-ObjectEvent -InputObject $process " +
                     "-Action $errScript -EventName 'ErrorDataReceived'; " +
 
-                "$process.Start() | Out-Null; " +
-                "$process.BeginOutputReadLine(); " +
-                "$process.BeginErrorReadLine(); " +
-                "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
-                "Wait-Process -Timeout 15 -Id $process.Id; " +
-                "$process.Id;"
-        );
+                    "$process.Start() | Out-Null; " +
+                    "$process.BeginOutputReadLine(); " +
+                    "$process.BeginErrorReadLine(); " +
+                    "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
+                    "Wait-Process -Timeout 15 -Id $process.Id; " +
+                    "$process.Id;"
+            );
+        } else {
+            result = sh.run(
+                    "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
+                    "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
+                    "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
+                    "$processInfo.RedirectStandardOutput = $true; " +
+                    "$processInfo.RedirectStandardError = $true; " +
+                    "$processInfo.RedirectStandardInput = $true; " +
+                    sh.env.entrySet().stream()
+                        .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
+                        .collect(joining()) +
+                    "$processInfo.UseShellExecute = $false; " +
+                    "$process = New-Object System.Diagnostics.Process; " +
+                    "$process.StartInfo = $processInfo; " +
+
+                    // set up some asynchronous output handlers
+                    "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stdout + "' }; " +
+                    "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stderr + "' }; " +
+                    "$stdOutEvent = Register-ObjectEvent -InputObject $process " +
+                        "-Action $outScript -EventName 'OutputDataReceived'; " +
+                    "$stdErrEvent = Register-ObjectEvent -InputObject $process " +
+                        "-Action $errScript -EventName 'ErrorDataReceived'; " +
+
+                    "$process.Start() | Out-Null; " +
+                    "$process.BeginOutputReadLine(); " +
+                    "$process.BeginErrorReadLine(); " +
+                    "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
+                    "Wait-Process -Timeout 15 -Id $process.Id; " +
+                    "$process.Id;"
+            );
+        }
 
         return result;
     }
 
     public static void assertElasticsearchStarted(Installation installation, Shell sh) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
-        ServerUtils.waitForElasticsearch();
+        ServerUtils.waitForElasticsearch(installation);
 
-        assertTrue("pid file should exist", Files.exists(pidFile));
+        assertTrue("Starting Elasticsearch produced a pid file at " + pidFile, Files.exists(pidFile));
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
     }
@@ -359,6 +380,9 @@ public class Archives {
                 "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |" +
                 "Unregister-EventSubscriber -Force");
         });
+        if (Files.exists(pidFile)) {
+            Files.delete(pidFile);
+        }
     }
 
 }

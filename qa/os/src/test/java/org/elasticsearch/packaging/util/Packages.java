@@ -19,8 +19,8 @@
 
 package org.elasticsearch.packaging.util;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ import static org.junit.Assert.assertTrue;
 
 public class Packages {
 
-    private static final Log logger = LogFactory.getLog(Packages.class);
+    protected static final Logger logger =  LogManager.getLogger(Packages.class);
 
     public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
     public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/elasticsearch.service");
@@ -277,8 +277,8 @@ public class Packages {
         return sh.runIgnoreExitCode("service elasticsearch start");
     }
 
-    public static void assertElasticsearchStarted(Shell sh) throws IOException {
-        waitForElasticsearch();
+    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws IOException {
+        waitForElasticsearch(installation);
 
         if (isSystemd()) {
             sh.run("systemctl is-active elasticsearch.service");

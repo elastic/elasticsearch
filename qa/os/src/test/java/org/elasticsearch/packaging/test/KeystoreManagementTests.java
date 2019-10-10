@@ -90,7 +90,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         verifyKeystorePermissions();
 
-        Shell.Result r = sh.run(bin.elasticsearchKeystore + " list");
+        String possibleSudo = distribution().isArchive() && Platforms.LINUX
+            ? "sudo -u " + ARCHIVE_OWNER + " "
+            : "";
+        Shell.Result r = sh.run(possibleSudo + bin.elasticsearchKeystore + " list");
         assertThat(r.stdout, containsString("keystore.seed"));
     }
 
@@ -104,8 +107,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
         verifyKeystorePermissions();
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result listing = sh.run(bin.elasticsearchKeystore + " list");
-        assertThat(listing.stdout, containsString("keystore.seed"));
+        String possibleSudo = distribution().isArchive() && Platforms.LINUX
+            ? "sudo -u " + ARCHIVE_OWNER + " "
+            : "";
+        Shell.Result r = sh.run(possibleSudo + bin.elasticsearchKeystore + " list");
+        assertThat(r.stdout, containsString("keystore.seed"));
     }
 
     public void test40KeystorePasswordOnStandardInput() throws Exception {

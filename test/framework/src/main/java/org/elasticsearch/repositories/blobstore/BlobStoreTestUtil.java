@@ -89,28 +89,24 @@ public final class BlobStoreTestUtil {
      */
     public static void assertConsistency(BlobStoreRepository repository, Executor executor) {
         final PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
-        executor.execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobContainer blobContainer = repository.blobContainer();
-                final long latestGen;
-                try (DataInputStream inputStream = new DataInputStream(blobContainer.readBlob("index.latest"))) {
-                    latestGen = inputStream.readLong();
-                } catch (NoSuchFileException e) {
-                    throw new AssertionError("Could not find index.latest blob for repo [" + repository + "]");
-                }
-                assertIndexGenerations(blobContainer, latestGen);
-                final RepositoryData repositoryData;
-                try (InputStream blob = blobContainer.readBlob("index-" + latestGen);
-                     XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                         LoggingDeprecationHandler.INSTANCE, blob)) {
-                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
-                }
-                assertIndexUUIDs(blobContainer, repositoryData);
-                assertSnapshotUUIDs(repository, repositoryData);
-                listener.onResponse(null);
+        executor.execute(ActionRunnable.run(listener, () -> {
+            final BlobContainer blobContainer = repository.blobContainer();
+            final long latestGen;
+            try (DataInputStream inputStream = new DataInputStream(blobContainer.readBlob("index.latest"))) {
+                latestGen = inputStream.readLong();
+            } catch (NoSuchFileException e) {
+                throw new AssertionError("Could not find index.latest blob for repo [" + repository + "]");
             }
-        });
+            assertIndexGenerations(blobContainer, latestGen);
+            final RepositoryData repositoryData;
+            try (InputStream blob = blobContainer.readBlob("index-" + latestGen);
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, blob)) {
+                repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
+            }
+            assertIndexUUIDs(blobContainer, repositoryData);
+            assertSnapshotUUIDs(repository, repositoryData);
+        }));
         listener.actionGet(TimeValue.timeValueMinutes(1L));
     }
 
@@ -186,60 +182,46 @@ public final class BlobStoreTestUtil {
             throws InterruptedException, ExecutionException {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final AtomicLong totalSize = new AtomicLong();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repository.blobStore();
-                BlobContainer container =
-                    blobStore.blobContainer(repository.basePath().add("indices").add(name));
-                for (String file : files) {
-                    int size = randomIntBetween(0, 10);
-                    totalSize.addAndGet(size);
-                    container.writeBlob(file, new ByteArrayInputStream(new byte[size]), size, false);
-                }
-                future.onResponse(null);
+        repository.threadPool().generic().execute(ActionRunnable.run(future, () -> {
+            final BlobStore blobStore = repository.blobStore();
+            BlobContainer container =
+                blobStore.blobContainer(repository.basePath().add("indices").add(name));
+            for (String file : files) {
+                int size = randomIntBetween(0, 10);
+                totalSize.addAndGet(size);
+                container.writeBlob(file, new ByteArrayInputStream(new byte[size]), size, false);
             }
-        });
+        }));
         future.get();
         return totalSize.get();
     }
 
     public static void assertCorruptionVisible(BlobStoreRepository repository, Map<String, Set<String>> indexToFiles) {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repository.blobStore();
-                for (String index : indexToFiles.keySet()) {
-                    if (blobStore.blobContainer(repository.basePath().add("indices"))
-                        .children().containsKey(index) == false) {
-                        future.onResponse(false);
-                        return;
-                    }
-                    for (String file : indexToFiles.get(index)) {
-                        try (InputStream ignored =
-                                     blobStore.blobContainer(repository.basePath().add("indices").add(index)).readBlob(file)) {
-                        } catch (NoSuchFileException e) {
-                            future.onResponse(false);
-                            return;
-                        }
+        repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
+            final BlobStore blobStore = repository.blobStore();
+            for (String index : indexToFiles.keySet()) {
+                if (blobStore.blobContainer(repository.basePath().add("indices"))
+                    .children().containsKey(index) == false) {
+                    return false;
+                }
+                for (String file : indexToFiles.get(index)) {
+                    try (InputStream ignored =
+                             blobStore.blobContainer(repository.basePath().add("indices").add(index)).readBlob(file)) {
+                    } catch (NoSuchFileException e) {
+                        return false;
                     }
                 }
-                future.onResponse(true);
             }
-        });
+            return true;
+        }));
         assertTrue(future.actionGet());
     }
 
     public static void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs) {
         final PlainActionFuture<Map<String, BlobMetaData>> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repository.blobStore();
-                future.onResponse(blobStore.blobContainer(path).listBlobsByPrefix(prefix));
-            }
-        });
+        repository.threadPool().generic().execute(
+            ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).listBlobsByPrefix(prefix)));
         Map<String, BlobMetaData> foundBlobs = future.actionGet();
         if (blobs.isEmpty()) {
             assertThat(foundBlobs.keySet(), empty());

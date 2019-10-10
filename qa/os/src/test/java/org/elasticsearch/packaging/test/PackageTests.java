@@ -119,18 +119,19 @@ public class PackageTests extends PackagingTestCase {
     public void test33RunsIfJavaNotOnPath() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
 
-        final Result readlink = sh.run("readlink /usr/bin/java");
-        boolean unlinked = false;
-        try {
-            sh.run("unlink /usr/bin/java");
-            unlinked = true;
+        // we don't require java be installed but some images have it
+        String backupPath = "/usr/bin/java." + getClass().getSimpleName() + ".bak";
+        if (Files.exists(Paths.get("/usr/bin/java"))) {
+            sh.run("sudo mv /usr/bin/java " + backupPath);
+        }
 
+        try {
             awaitElasticsearchStartup(startElasticsearch());
             runElasticsearchTests();
             stopElasticsearch();
         } finally {
-            if (unlinked) {
-                sh.run("ln -sf " + readlink.stdout.trim() + " /usr/bin/java");
+            if (Files.exists(Paths.get(backupPath))) {
+                sh.run("sudo mv " + backupPath + " /usr/bin/java");
             }
         }
     }

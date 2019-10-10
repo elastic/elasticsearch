@@ -19,6 +19,7 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
@@ -26,6 +27,7 @@ import org.hamcrest.Matcher;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +45,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.StringJoiner;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
@@ -179,6 +182,30 @@ public class FileUtils {
         }
     }
 
+    public static void logAllLogs(Path logsDir, Logger logger) {
+        if (Files.exists(logsDir) == false) {
+            logger.warn("Can't show logs from directory {} as it doesn't exists", logsDir);
+            return;
+        }
+        logger.info("Showing contents of directory: {} ({})", logsDir, logsDir.toAbsolutePath());
+        try (Stream<Path> fileStream = Files.list(logsDir)) {
+            fileStream
+                // gc logs are verbose and not useful in this context
+                .filter(file -> file.getFileName().toString().startsWith("gc.log") == false)
+                .forEach(file -> {
+                logger.info("=== Contents of `{}` ({}) ===", file, file.toAbsolutePath());
+                try (Stream<String> stream = Files.lines(file)) {
+                    stream.forEach(logger::info);
+                } catch (IOException e) {
+                    logger.error("Can't show contents", e);
+                }
+                logger.info("=== End of contents of `{}`===", file);
+            });
+        } catch (IOException e) {
+            logger.error("Can't list log files", e);
+        }
+    }
+
     /**
      * Gets the owner of a file in a way that should be supported by all filesystems that have a concept of file owner
      */
@@ -257,5 +284,15 @@ public class FileUtils {
 
     public static void assertPathsDontExist(Path... paths) {
         Arrays.stream(paths).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
+    }
+
+    public static void deleteIfExists(Path path) {
+        if (Files.exists(path)) {
+            try {
+                Files.delete(path);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
     }
 }

@@ -111,27 +111,23 @@ public class ArchiveTests extends PackagingTestCase {
         Archives.stopElasticsearch(installation, sh);
     }
 
-    public void assertRunsWithJavaHome() throws Exception {
+    public void test51JavaHomeOverride() throws Exception {
         Platforms.onLinux(() -> {
-            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
         });
         Platforms.onWindows(() -> {
-            final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
         });
 
         awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
         ServerUtils.runElasticsearchTests();
         Archives.stopElasticsearch(installation, sh);
 
-        String systemJavaHome = sh.getEnv().get("JAVA_HOME");
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "elasticsearch*.log.gz"),
-            containsString(systemJavaHome));
-    }
-
-    public void test51JavaHomeOverride() throws Exception {
-        assertRunsWithJavaHome();
+        String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+            containsString(systemJavaHome1));
     }
 
     public void test52BundledJdkRemoved() throws Exception {
@@ -140,7 +136,22 @@ public class ArchiveTests extends PackagingTestCase {
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
         try {
             mv(installation.bundledJdk, relocatedJdk);
-            assertRunsWithJavaHome();
+            Platforms.onLinux(() -> {
+                String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            });
+            Platforms.onWindows(() -> {
+                final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            });
+
+            awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
+            ServerUtils.runElasticsearchTests();
+            Archives.stopElasticsearch(installation, sh);
+
+            String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
+            assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+                containsString(systemJavaHome1));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
         }
@@ -148,10 +159,11 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test53JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
-            final Shell sh = newShell();
+            final Shell sh = new Shell();
+            String javaPath = "C:\\Program Files (x86)\\java";
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
-                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:SYSTEM_JAVA_HOME");
+                sh.run("cmd /c mklink /D '" + javaPath + "' $Env:SYSTEM_JAVA_HOME");
 
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
@@ -166,7 +178,9 @@ public class ArchiveTests extends PackagingTestCase {
 
             } finally {
                 //clean up sym link
-                sh.run("cmd /c rmdir 'C:\\Program Files (x86)\\java' ");
+                if (Files.exists(Paths.get(javaPath))) {
+                    sh.run("cmd /c rmdir '" + javaPath + "' ");
+                }
             }
         });
 
@@ -211,17 +225,8 @@ public class ArchiveTests extends PackagingTestCase {
                 "-Dlog4j2.disable.jmx=true\n";
             append(tempConf.resolve("jvm.options"), jvmOptions);
 
-            Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempConf));
-            Platforms.onWindows(() -> sh.run(
-                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                "$tempConf = Get-ChildItem '" + tempConf + "' -Recurse; " +
-                "$tempConf += Get-Item '" + tempConf + "'; " +
-                "$tempConf | ForEach-Object { " +
-                    "$acl = Get-Acl $_.FullName; " +
-                    "$acl.SetOwner($account); " +
-                    "Set-Acl $_.FullName $acl " +
-                "}"
-            ));
+            final Shell sh = newShell();
+            sh.chown(tempConf);
 
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
@@ -254,17 +259,8 @@ public class ArchiveTests extends PackagingTestCase {
 
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
 
-            Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + temp));
-            Platforms.onWindows(() -> sh.run(
-                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                "$tempConf = Get-ChildItem '" + temp + "' -Recurse; " +
-                "$tempConf += Get-Item '" + temp + "'; " +
-                "$tempConf | ForEach-Object { " +
-                    "$acl = Get-Acl $_.FullName; " +
-                    "$acl.SetOwner($account); " +
-                    "Set-Acl $_.FullName $acl " +
-                "}"
-            ));
+            final Shell sh = newShell();
+            sh.chown(temp);
 
             sh.setWorkingDirectory(temp);
             sh.getEnv().put("ES_PATH_CONF", "config");

@@ -23,8 +23,9 @@ import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import com.carrotsearch.randomizedtesting.annotations.Timeout;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
@@ -60,10 +61,11 @@ import static org.junit.Assume.assumeTrue;
 @TestMethodProviders({
     JUnit3MethodProvider.class
 })
+@Timeout(millis = 20 * 60 * 1000) // 20 min
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public abstract class PackagingTestCase extends Assert {
 
-    protected final Log logger = LogFactory.getLog(getClass());
+    protected final Logger logger =  LogManager.getLogger(getClass());
 
     // the distribution being tested
     protected static final Distribution distribution;
@@ -75,11 +77,11 @@ public abstract class PackagingTestCase extends Assert {
     protected static final String systemJavaHome;
     static {
         Shell sh = new Shell();
-        if (Platforms.LINUX) {
-            systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-        } else {
-            assert Platforms.WINDOWS;
+        if (Platforms.WINDOWS) {
             systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+        } else {
+            assert Platforms.LINUX || Platforms.DARWIN;
+            systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         }
     }
 
@@ -188,7 +190,7 @@ public abstract class PackagingTestCase extends Assert {
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
         assertThat("Startup command should succeed", result.exitCode, equalTo(0));
         distribution().packagingConditional()
-            .forPackage(() -> Packages.assertElasticsearchStarted(sh))
+            .forPackage(() -> Packages.assertElasticsearchStarted(sh, installation))
             .forArchive(() -> {
                 assertThat(distribution().isArchive(), equalTo(true));
                 Archives.assertElasticsearchStarted(installation, sh);

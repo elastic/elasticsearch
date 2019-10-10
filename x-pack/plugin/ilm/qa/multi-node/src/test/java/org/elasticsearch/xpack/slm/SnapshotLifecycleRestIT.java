@@ -243,6 +243,98 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         });
     }
 
+
+    @SuppressWarnings("unchecked")
+    public void testStartStopStatus() throws Exception {
+        final String indexName = "test";
+        final String policyName = "start-stop-policy";
+        final String repoId = "start-stop-repo";
+        int docCount = randomIntBetween(10, 50);
+        for (int i = 0; i < docCount; i++) {
+            index(client(), indexName, "" + i, "foo", "bar");
+        }
+
+        // Create a snapshot repo
+        initializeRepo(repoId);
+
+        // Stop SLM so nothing happens
+        client().performRequest(new Request("POST", "/_slm/stop"));
+
+        assertBusy(() -> {
+            logger.info("--> waiting for SLM to stop");
+            assertThat(EntityUtils.toString(client().performRequest(new Request("GET", "/_slm/status")).getEntity()),
+                containsString("STOPPED"));
+        });
+
+        try {
+            createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true,
+                new SnapshotRetentionConfiguration(TimeValue.ZERO, null, null));
+            long start = System.currentTimeMillis();
+            final String snapshotName = executePolicy(policyName);
+
+            // Check that the executed snapshot is created
+            assertBusy(() -> {
+                try {
+                    logger.info("--> checking for snapshot creation...");
+                    Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/" + snapshotName));
+                    Map<String, Object> snapshotResponseMap;
+                    try (InputStream is = response.getEntity().getContent()) {
+                        snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                    }
+                    assertThat(snapshotResponseMap.size(), greaterThan(0));
+                    final Map<String, Object> metadata = extractMetadata(snapshotResponseMap, snapshotName);
+                    assertNotNull(metadata);
+                    assertThat(metadata.get("policy"), equalTo(policyName));
+                    assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
+                } catch (ResponseException e) {
+                    fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
+                }
+            });
+
+            // Sleep for up to a second, but at least 1 second since we scheduled the policy so we can
+            // ensure it *would* have run if SLM were running
+            Thread.sleep(Math.min(0, TimeValue.timeValueSeconds(1).millis() - Math.min(0, System.currentTimeMillis() - start)));
+
+            client().performRequest(new Request("POST", "/_slm/_execute_retention"));
+
+            // Retention and the manually executed policy should still have run,
+            // but only the one we manually ran.
+            assertBusy(() -> {
+                logger.info("--> checking for stats updates...");
+                Map<String, Object> stats = getSLMStats();
+                Map<String, Object> policyStats = policyStatsAsMap(stats);
+                Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
+                int snapsTaken = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName());
+                int totalTaken = (int) stats.get(SnapshotLifecycleStats.TOTAL_TAKEN.getPreferredName());
+                int totalFailed = (int) stats.get(SnapshotLifecycleStats.TOTAL_FAILED.getPreferredName());
+                int totalDeleted = (int) stats.get(SnapshotLifecycleStats.TOTAL_DELETIONS.getPreferredName());
+                assertThat(snapsTaken, equalTo(1));
+                assertThat(totalTaken, equalTo(1));
+                assertThat(totalDeleted, equalTo(1));
+                assertThat(totalFailed, equalTo(0));
+            });
+
+            assertBusy(() -> {
+                try {
+                    Map<String, List<Map<?, ?>>> snaps = wipeSnapshots();
+                    logger.info("--> checking for wiped snapshots: {}", snaps);
+                    assertThat(snaps.size(), equalTo(0));
+                } catch (ResponseException e) {
+                    logger.error("got exception wiping snapshots", e);
+                    fail("got exception: " + EntityUtils.toString(e.getResponse().getEntity()));
+                }
+            });
+        } finally {
+            client().performRequest(new Request("POST", "/_slm/start"));
+
+            assertBusy(() -> {
+                logger.info("--> waiting for SLM to start");
+                assertThat(EntityUtils.toString(client().performRequest(new Request("GET", "/_slm/status")).getEntity()),
+                    containsString("RUNNING"));
+            });
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void testBasicTimeBasedRetenion() throws Exception {
         final String indexName = "test";

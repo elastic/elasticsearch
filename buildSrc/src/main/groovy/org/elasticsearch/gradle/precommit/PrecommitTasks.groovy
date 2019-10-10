@@ -47,7 +47,7 @@ class PrecommitTasks {
         }
 
         Configuration jarHellConfig = project.configurations.create("jarHell")
-        if (ClasspathUtils.isElasticsearchProject() && project.path.equals(":libs:elasticsearch-core") == false) {
+        if (ClasspathUtils.isElasticsearchProject(project) && project.path.equals(":libs:elasticsearch-core") == false) {
             // External plugins will depend on this already via transitive dependencies.
             // Internal projects are not all plugins, so make sure the check is available
             // we are not doing this for this project itself to avoid jar hell with itself
@@ -252,7 +252,7 @@ class PrecommitTasks {
     }
 
     private static TaskProvider configureLoggerUsage(Project project) {
-        Object dependency = ClasspathUtils.isElasticsearchProject() ? project.project(':test:logger-usage') :
+        Object dependency = ClasspathUtils.isElasticsearchProject(project) ? project.project(':test:logger-usage') :
                 "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}"
 
         project.configurations.create('loggerUsagePlugin')

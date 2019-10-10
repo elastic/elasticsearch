@@ -66,7 +66,7 @@ include::administering.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 
-include::security/index.asciidoc[]
+include::{xes-repo-dir}/security/index.asciidoc[]
 
 include::{xes-repo-dir}/watcher/index.asciidoc[]
 

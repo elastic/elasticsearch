@@ -56,7 +56,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     public void testVersionDefault() {
         ElasticsearchDistribution distro = checkDistro(createProject(null, true),
             "testdistro", null, Type.ARCHIVE, Platform.LINUX, Flavor.OSS, true);
-        assertEquals(distro.getVersion(), Version.fromString(VersionProperties.getElasticsearch()));
+        assertEquals(distro.getVersion(), VersionProperties.getElasticsearch());
     }
 
     public void testBadVersionFormat() {
@@ -234,6 +234,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
 
     private Project createProject(BwcVersions bwcVersions, boolean isInternal) {
         rootProject = ProjectBuilder.builder().build();
+        rootProject.getExtensions().getExtraProperties().set("isInternal", isInternal);
         Project distributionProject = ProjectBuilder.builder().withParent(rootProject).withName("distribution").build();
         archivesProject = ProjectBuilder.builder().withParent(distributionProject).withName("archives").build();
         packagesProject = ProjectBuilder.builder().withParent(distributionProject).withName("packages").build();

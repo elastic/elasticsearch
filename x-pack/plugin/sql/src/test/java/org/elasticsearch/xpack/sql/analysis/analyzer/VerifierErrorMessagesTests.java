@@ -256,6 +256,34 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT DATE_PART('ms', date) FROM test");
     }
 
+    public void testDateAddInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_ADD(int, int, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_ADD(int, int, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_ADD(keyword, keyword, date)] must be [integer], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_ADD(keyword, keyword, date) FROM test"));
+        assertEquals("1:8: third argument of [DATE_ADD(keyword, int, keyword)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_ADD(keyword, int, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_ADD('invalid', int, date)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
+                "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
+                "or their aliases; found value ['invalid']",
+            error("SELECT DATE_ADD('invalid', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['sacinds'] for first argument of [DATE_ADD('sacinds', int, date)]; " +
+                "did you mean [seconds, second]?",
+            error("SELECT DATE_ADD('sacinds', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_ADD('dz', int, date)]; " +
+                "did you mean [dd, dw, dy, d]?",
+            error("SELECT DATE_ADD('dz', int, date) FROM test"));
+    }
+
+    public void testDateAddValidArgs() {
+        accept("SELECT DATE_ADD('weekday', 0, date) FROM test");
+        accept("SELECT DATE_ADD('dw', 20, date) FROM test");
+        accept("SELECT DATE_ADD('years', -10, date) FROM test");
+        accept("SELECT DATE_ADD('dayofyear', 123, date) FROM test");
+        accept("SELECT DATE_ADD('dy', 30, date) FROM test");
+        accept("SELECT DATE_ADD('ms', 1, date::date) FROM test");
+    }
+
     public void testValidDateTimeFunctionsOnTime() {
         accept("SELECT HOUR_OF_DAY(CAST(date AS TIME)) FROM test");
         accept("SELECT MINUTE_OF_HOUR(CAST(date AS TIME)) FROM test");

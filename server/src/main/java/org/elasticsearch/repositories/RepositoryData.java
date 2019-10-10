@@ -269,11 +269,19 @@ public final class RepositoryData {
     }
 
     /**
-     * Resolve the index name to the index id specific to the repository or to {@code null} if the index is unknown in this
-     * repository state.
+     * Resolve the index name to the index id specific to the repository,
+     * throwing an exception if the index could not be resolved.
      */
     public IndexId resolveIndexId(final String indexName) {
-        return indices.get(indexName);
+        if (indices.containsKey(indexName)) {
+            return indices.get(indexName);
+        } else {
+            // on repositories created before 5.0, there was no indices information in the index
+            // blob, so if the repository hasn't been updated with new snapshots, no new index blob
+            // would have been written, so we only have old snapshots without the index information.
+            // in this case, the index id is just the index name
+            return new IndexId(indexName, indexName);
+        }
     }
 
     /**

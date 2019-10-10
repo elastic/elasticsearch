@@ -1426,7 +1426,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
         for (IndexId index : indices) {
             final String indexName = index.getName();
-            final boolean isNewIndex = repositoryData.resolveIndexId(indexName) == null;
+            final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
             IndexMetaData indexMetaData = metaData.index(indexName);
             if (indexMetaData == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.

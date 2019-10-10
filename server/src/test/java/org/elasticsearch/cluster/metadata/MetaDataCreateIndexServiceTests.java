@@ -248,16 +248,18 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         versions.sort(Comparator.comparingLong(l -> l.id));
         final Version version = versions.get(0);
         final Version upgraded = versions.get(1);
-        final Settings indexSettings =
+        final Settings.Builder indexSettingsBuilder =
                 Settings.builder()
                         .put("index.version.created", version)
                         .put("index.version.upgraded", upgraded)
                         .put("index.similarity.default.type", "BM25")
                         .put("index.analysis.analyzer.default.tokenizer", "keyword")
-                        .put("index.soft_deletes.enabled", "true")
-                        .build();
+                        .put("index.soft_deletes.enabled", "true");
+        if (randomBoolean()) {
+            indexSettingsBuilder.put("index.allocation.max_retries", randomIntBetween(1, 1000));
+        }
         runPrepareResizeIndexSettingsTest(
-                indexSettings,
+                indexSettingsBuilder.build(),
                 Settings.EMPTY,
                 Collections.emptyList(),
                 randomBoolean(),

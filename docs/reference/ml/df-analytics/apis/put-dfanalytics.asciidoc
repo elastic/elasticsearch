@@ -23,8 +23,7 @@ experimental[]
 * You must have `machine_learning_admin` built-in role to use this API. You must 
 also have `read` and `view_index_metadata` privileges on the source index and 
 `read`, `create_index`, and `index` privileges on the destination index. For 
-more information, see {stack-ov}/security-privileges.html[Security privileges] 
-and {stack-ov}/built-in-roles.html[Built-in roles].
+more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-put-dfanalytics-desc]]
@@ -62,19 +61,22 @@ and mappings.
 ==== {api-request-body-title}
 
 `analysis`::
-  (Required, object) Defines the type of {dfanalytics} you want to perform on your source 
-  index. For example: `outlier_detection`. See <<dfanalytics-types>>.
+  (Required, object) Defines the type of {dfanalytics} you want to perform on 
+  your source index. For example: `outlier_detection`. See 
+  <<dfanalytics-types>>.
   
 `analyzed_fields`::
   (Optional, object) You can specify both `includes` and/or `excludes` patterns. 
   If `analyzed_fields` is not set, only the relevant fields will be included. 
-  For example, all the numeric fields for {oldetection}.
+  For example, all the numeric fields for {oldetection}. For the potential field 
+  type limitations, see 
+  {stack-ov}/ml-dfa-limitations.html[{dfanalytics} limitations].
   
-  `analyzed_fields.includes`:::
+  `includes`:::
     (Optional, array) An array of strings that defines the fields that will be 
     included in the analysis.
     
-  `analyzed_fields.excludes`:::
+  `excludes`:::
     (Optional, array) An array of strings that defines the fields that will be 
     excluded from the analysis.
 
@@ -121,6 +123,9 @@ and mappings.
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
 
+[[ml-put-dfanalytics-example-od]]
+===== {oldetection-cap} example
+
 The following example creates the `loganalytics` {dfanalytics-job}, the analysis 
 type is `outlier_detection`:
 
@@ -137,6 +142,9 @@ PUT _ml/data_frame/analytics/loganalytics
   },
   "analysis": {
     "outlier_detection": {
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
     }
   }
 }
@@ -162,7 +170,11 @@ The API returns the following result:
         "results_field": "ml"
     },
     "analysis": {
-        "outlier_detection": {}
+        "outlier_detection": {
+            "compute_feature_influence": true,
+            "outlier_fraction": 0.05,
+            "standardization_enabled": true
+        }
     },
     "model_memory_limit": "1gb",
     "create_time" : 1562265491319,
@@ -171,3 +183,90 @@ The API returns the following result:
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
 // TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+
+
+[[ml-put-dfanalytics-example-r]]
+===== {regression-cap} examples
+
+The following example creates the `house_price_regression_analysis` 
+{dfanalytics-job}, the analysis type is `regression`:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/house_price_regression_analysis
+{
+  "source": {
+    "index": "houses_sold_last_10_yrs"
+  },
+  "dest": {
+    "index": "house_price_predictions"
+  },
+  "analysis": 
+    {
+      "regression": {
+        "dependent_variable": "price"
+      }
+    }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following result:
+
+[source,console-result]
+----
+{
+  "id" : "house_price_regression_analysis",
+  "source" : {
+    "index" : [
+      "houses_sold_last_10_yrs"
+    ],
+    "query" : {
+      "match_all" : { }
+    }
+  },
+  "dest" : {
+    "index" : "house_price_predictions",
+    "results_field" : "ml"
+  },
+  "analysis" : {
+    "regression" : {
+      "dependent_variable" : "price",
+      "training_percent" : 100
+    }
+  },
+  "model_memory_limit" : "1gb",
+  "create_time" : 1567168659127,
+  "version" : "8.0.0"
+}
+----
+// TESTRESPONSE[s/1567168659127/$body.$_path/]
+// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+
+
+The following example creates a job and specifies a training percent:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
+{
+ "source": {
+   "index": "student_performance_mathematics"
+ },
+ "dest": {
+   "index":"student_performance_mathematics_reg"
+ },
+ "analysis":
+   {
+     "regression": {
+       "dependent_variable": "G3",
+       "training_percent": 70  <1>
+     }
+   }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The `training_percent` defines the percentage of the data set that will be used 
+for training the model.

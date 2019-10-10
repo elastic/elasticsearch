@@ -56,21 +56,25 @@ public final class TransformField {
 
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";
-    public static final String REST_BASE_PATH = "/_data_frame/";
-    public static final String REST_BASE_PATH_TRANSFORMS = REST_BASE_PATH + "transforms/";
+    public static final String REST_BASE_PATH_TRANSFORMS = "/_transform/";
     public static final String REST_BASE_PATH_TRANSFORMS_BY_ID = REST_BASE_PATH_TRANSFORMS + "{id}/";
+
+    // deprecated REST API, to be removed for 8.0.0
+    public static final String REST_BASE_PATH_TRANSFORMS_DEPRECATED = "/_data_frame/transforms/";
+    public static final String REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED = REST_BASE_PATH_TRANSFORMS_DEPRECATED + "{id}/";
+
     public static final String TRANSFORM_ID = "transform_id";
 
     // note: this is used to match tasks
     public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "data_frame_";
 
     // strings for meta information
-    public static final String META_FIELDNAME = "_data_frame";
+    public static final String META_FIELDNAME = "_transform";
     public static final String CREATION_DATE_MILLIS = "creation_date_in_millis";
     public static final String CREATED = "created";
     public static final String CREATED_BY = "created_by";
     public static final String TRANSFORM = "transform";
-    public static final String DATA_FRAME_SIGNATURE = "data-frame-transform";
+    public static final String TRANSFORM_SIGNATURE = "transform";
 
     /**
      * Parameter to indicate whether we are serialising to X Content for internal storage. Default the field is invisible (e.g. for get

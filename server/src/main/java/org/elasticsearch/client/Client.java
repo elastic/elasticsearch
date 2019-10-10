@@ -231,9 +231,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     BulkRequestBuilder prepareBulk();
 
     /**
-     * Executes a bulk of index / delete operations with default index and/or type
+     * Executes a bulk of index / delete operations with default index
      */
-    BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType);
+    BulkRequestBuilder prepareBulk(@Nullable String globalIndex);
 
     /**
      * Gets the document that was indexed from an index with a type and id.
@@ -259,9 +259,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     GetRequestBuilder prepareGet();
 
     /**
-     * Gets the document that was indexed from an index with a type (optional) and id.
+     * Gets the document that was indexed from an index with an id.
      */
-    GetRequestBuilder prepareGet(String index, @Nullable String type, String id);
+    GetRequestBuilder prepareGet(String index, String id);
 
     /**
      * Multi get documents.
@@ -386,10 +386,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Computes a score explanation for the specified request.
      *
      * @param index The index this explain is targeted for
-     * @param type  The type this explain is targeted for
      * @param id    The document identifier this explain is targeted for
      */
-    ExplainRequestBuilder prepareExplain(String index, String type, String id);
+    ExplainRequestBuilder prepareExplain(String index, String id);
 
     /**
      * Computes a score explanation for the specified request.

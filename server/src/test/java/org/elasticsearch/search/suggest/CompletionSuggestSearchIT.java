@@ -406,7 +406,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startArray("input").value("sth").endArray()
                 .field("weight", 2.5)
                 .endObject().endObject()).get());
-        assertThat(e.toString(), containsString("2.5"));
+        assertThat(e.getCause().getMessage(), equalTo("weight must be an integer, but was [2.5]"));
     }
 
     public void testThatWeightCanBeAString() throws Exception {
@@ -446,7 +446,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .field("weight", "thisIsNotValid")
                 .endObject().endObject()
             ).get());
-        assertThat(e.toString(), containsString("thisIsNotValid"));
+        assertThat(e.getCause().toString(), containsString("thisIsNotValid"));
     }
 
     public void testThatWeightAsStringMustBeInt() throws Exception {
@@ -460,7 +460,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startArray("input").value("testing").endArray()
                 .field("weight", weight)
                 .endObject().endObject()).get());
-        assertThat(e.toString(), containsString(weight));
+        assertThat(e.getCause().toString(), containsString(weight));
     }
 
     public void testThatInputCanBeAStringInsteadOfAnArray() throws Exception {

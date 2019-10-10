@@ -165,10 +165,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         return node.getVersion().onOrAfter(job.getModelSnapshotMinVersion());
     }
 
-    private static boolean jobHasRules(Job job) {
-        return job.getAnalysisConfig().getDetectors().stream().anyMatch(d -> d.getRules().isEmpty() == false);
-    }
-
     public static String nodeFilter(DiscoveryNode node, Job job) {
 
         String jobId = job.getId();
@@ -240,7 +236,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         e = new ElasticsearchStatusException("Cannot open job [" + jobParams.getJobId() +
                                 "] because it has already been opened", RestStatus.CONFLICT, e);
                     }

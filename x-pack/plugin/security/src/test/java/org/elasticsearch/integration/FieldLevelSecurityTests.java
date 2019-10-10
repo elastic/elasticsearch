@@ -323,7 +323,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user1 is granted access to field1 only:
         GetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -333,7 +333,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user2 is granted access to field2 only:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -343,7 +343,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user3 is granted access to field1 and field2:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -354,7 +354,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user4 is granted access to no fields, so the get response does say the doc exist, but no fields are returned:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -363,7 +363,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user5 has no field level security configured, so all fields are returned:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -375,7 +375,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user6 has access to field*
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -387,7 +387,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user7 has roles with field level security and without field level security
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -399,7 +399,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user8 has roles with field level security with access to field1 and field2
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -420,7 +420,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         MultiGetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -432,7 +432,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user2 is granted access to field2 only:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -444,7 +444,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user3 is granted access to field1 and field2:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -457,7 +457,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user4 is granted access to no fields, so the get response does say the doc exist, but no fields are returned:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -468,7 +468,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user5 has no field level security configured, so all fields are returned:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -482,7 +482,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user6 has access to field*
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -496,7 +496,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user7 has roles with field level security and without field level security
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -510,7 +510,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user8 has roles with field level security with access to field1 and field2
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -1420,12 +1420,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(e.getMessage(), equalTo("Can't execute an update request if field or document level security is enabled"));
         }
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value1"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value1"));
 
         // With no field level security enabled the update is allowed:
         client().prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
                 .get();
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value2"));
 
         // With field level security enabled the update in bulk is not allowed:
         BulkResponse bulkResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue
@@ -1442,12 +1442,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(securityException.getMessage(),
                 equalTo("Can't execute a bulk item request with update requests embedded if field or document level security is enabled"));
 
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value2"));
 
         client().prepareBulk()
                 .add(new UpdateRequest("test", "type", "1").doc(Requests.INDEX_CONTENT_TYPE, "field2", "value3"))
                 .get();
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value3"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value3"));
     }
 
     public void testQuery_withRoleWithFieldWildcards() {

@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TransformProgressTests extends AbstractSerializingTransformTestCase<TransformProgress> {
 
-    public static TransformProgress randomDataFrameTransformProgress() {
+    public static TransformProgress randomTransformProgress() {
         return new TransformProgress(
             randomBoolean() ? null : randomLongBetween(0, 10000),
             randomBoolean() ? null : randomLongBetween(0, 10000),
@@ -35,7 +35,7 @@ public class TransformProgressTests extends AbstractSerializingTransformTestCase
 
     @Override
     protected TransformProgress createTestInstance() {
-        return randomDataFrameTransformProgress();
+        return randomTransformProgress();
     }
 
     @Override

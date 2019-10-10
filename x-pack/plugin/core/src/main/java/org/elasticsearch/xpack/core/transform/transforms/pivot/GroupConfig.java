@@ -115,9 +115,9 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
         if (source.isEmpty()) {
             if (lenient) {
-                logger.warn(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
+                logger.warn(TransformMessages.TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
             } else {
-                throw new IllegalArgumentException(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
+                throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
             }
         } else {
             try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
@@ -126,7 +126,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
                 groups = parseGroupConfig(sourceParser, lenient);
             } catch (Exception e) {
                 if (lenient) {
-                    logger.warn(TransformMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_GROUP_BY, e);
+                    logger.warn(TransformMessages.LOG_TRANSFORM_CONFIGURATION_BAD_GROUP_BY, e);
                 } else {
                     throw e;
                 }

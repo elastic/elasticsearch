@@ -42,7 +42,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 ////
 Hidden setup for example:
-[source,console]
+[source,console,id=cat-aliases-example]
 --------------------------------------------------
 PUT test1
 {

@@ -141,9 +141,9 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
+import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 /**
  * Service responsible for the creation, validation, and other management of {@link UserToken}
@@ -418,7 +418,7 @@ public final class TokenService {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
         } else {
-            final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME,
+            final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(),
                     getTokenDocumentId(userTokenId)).request();
             final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
@@ -653,7 +653,7 @@ public final class TokenService {
     }
 
     /**
-     * Invalidates access and/or refresh tokens associated to a user token (coexisting in the same token document) 
+     * Invalidates access and/or refresh tokens associated to a user token (coexisting in the same token document)
      */
     private void indexInvalidation(Collection<UserToken> userTokens, Iterator<TimeValue> backoff, String srcPrefix,
             @Nullable TokensInvalidationResult previousResult, ActionListener<TokensInvalidationResult> listener) {
@@ -1087,7 +1087,7 @@ public final class TokenService {
     }
 
     private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
-        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId).request();
+        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), tokenDocId).request();
         tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get));
@@ -1184,7 +1184,7 @@ public final class TokenService {
     /**
      * Checks if the token can be refreshed once more. If a token has previously been refreshed, it can only by refreshed again inside a
      * short span of time (30 s).
-     * 
+     *
      * @return An {@code Optional} containing the exception in case this refresh token cannot be reused, or an empty <b>Optional</b> if
      *         refreshing is allowed.
      */
@@ -1325,7 +1325,7 @@ public final class TokenService {
         }
         final SecurityIndexManager frozenMainIndex = securityMainIndex.freeze();
         if (frozenMainIndex.indexExists()) {
-            // main security index _might_ contain tokens if the tokens index has been created recently 
+            // main security index _might_ contain tokens if the tokens index has been created recently
             if (false == frozenTokensIndex.indexExists() || frozenTokensIndex.getCreationTime()
                     .isAfter(clock.instant().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
                 if (false == frozenMainIndex.isAvailable()) {
@@ -1479,7 +1479,7 @@ public final class TokenService {
             listener.onResponse(null);
         } else {
             final GetRequest getRequest = client
-                    .prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(userToken)).request();
+                    .prepareGet(tokensIndex.aliasName(), getTokenDocumentId(userToken)).request();
             Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
             tokensIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,

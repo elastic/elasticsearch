@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -14,17 +13,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -86,19 +83,16 @@ public class Regression implements Evaluation {
     }
 
     private static List<RegressionMetric> initMetrics(@Nullable List<RegressionMetric> parsedMetrics) {
-        List<RegressionMetric> metrics = parsedMetrics == null ? defaultMetrics() : parsedMetrics;
+        List<RegressionMetric> metrics = parsedMetrics == null ? defaultMetrics() : new ArrayList<>(parsedMetrics);
         if (metrics.isEmpty()) {
             throw ExceptionsHelper.badRequestException("[{}] must have one or more metrics", NAME.getPreferredName());
         }
-        Collections.sort(metrics, Comparator.comparing(RegressionMetric::getMetricName));
+        Collections.sort(metrics, Comparator.comparing(RegressionMetric::getName));
         return metrics;
     }
 
     private static List<RegressionMetric> defaultMetrics() {
-        List<RegressionMetric> defaultMetrics = new ArrayList<>(2);
-        defaultMetrics.add(new MeanSquaredError());
-        defaultMetrics.add(new RSquared());
-        return defaultMetrics;
+        return Arrays.asList(new MeanSquaredError(), new RSquared());
     }
 
     @Override
@@ -107,12 +101,14 @@ public class Regression implements Evaluation {
     }
 
     @Override
-    public SearchSourceBuilder buildSearch(QueryBuilder queryBuilder) {
-        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.existsQuery(actualField))
-            .filter(QueryBuilders.existsQuery(predictedField))
-            .filter(queryBuilder);
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(boolQuery);
+    public List<RegressionMetric> getMetrics() {
+        return metrics;
+    }
+
+    @Override
+    public SearchSourceBuilder buildSearch(QueryBuilder userProvidedQueryBuilder) {
+        ExceptionsHelper.requireNonNull(userProvidedQueryBuilder, "userProvidedQueryBuilder");
+        SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder(List.of(actualField, predictedField), userProvidedQueryBuilder);
         for (RegressionMetric metric : metrics) {
             List<AggregationBuilder> aggs = metric.aggs(actualField, predictedField);
             aggs.forEach(searchSourceBuilder::aggregation);
@@ -121,18 +117,14 @@ public class Regression implements Evaluation {
     }
 
     @Override
-    public void evaluate(SearchResponse searchResponse, ActionListener<List<EvaluationMetricResult>> listener) {
-        List<EvaluationMetricResult> results = new ArrayList<>(metrics.size());
+    public void process(SearchResponse searchResponse) {
+        ExceptionsHelper.requireNonNull(searchResponse, "searchResponse");
         if (searchResponse.getHits().getTotalHits().value == 0) {
-            listener.onFailure(ExceptionsHelper.badRequestException("No documents found containing both [{}, {}] fields",
-                actualField,
-                predictedField));
-            return;
+            throw ExceptionsHelper.badRequestException("No documents found containing both [{}, {}] fields", actualField, predictedField);
         }
         for (RegressionMetric metric : metrics) {
-            results.add(metric.evaluate(searchResponse.getAggregations()));
+            metric.process(searchResponse.getAggregations());
         }
-        listener.onResponse(results);
     }
 
     @Override

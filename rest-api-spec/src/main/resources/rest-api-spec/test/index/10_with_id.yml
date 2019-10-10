@@ -20,7 +20,6 @@
           id:     1
 
  - match:   { _index:   test-weird-index-中文 }
- - match:   { _type: _doc }
  - match:   { _id:      "1"}
  - match:   { _version: 1}
  - match:   { _source: { foo: bar }}

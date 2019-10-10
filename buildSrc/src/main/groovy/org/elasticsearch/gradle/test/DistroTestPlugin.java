@@ -467,8 +467,20 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                     try {
                         for (String line : Files.readAllLines(osRelease)) {
+                            final String trimmed = line.trim();
+
+                            // ignore empty and comment lines
+                            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                                continue;
+                            }
+
                             final String[] parts = line.split("=", 2);
-                            values.put(parts[0], parts[1]);
+                            final String key = parts[0];
+                            // remove optional leading and trailing quotes
+                            final String value = parts[1]
+                                .replaceAll("^['\"]", "")
+                                .replaceAll("['\"]$", "");
+                            values.put(key, value);
                         }
                     } catch (IOException e) {
                         throw new GradleException("Failed to read /etc/os-release", e);

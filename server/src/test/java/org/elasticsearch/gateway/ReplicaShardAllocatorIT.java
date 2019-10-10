@@ -227,11 +227,11 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareClose(indexName));
         }
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build()));
+            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build()));
         internalCluster().fullRestart();
         ensureYellow(indexName);
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build()));
+            .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build()));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
     }

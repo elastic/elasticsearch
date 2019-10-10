@@ -56,6 +56,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         assertThat("Expect no shards skipped", searchResponse.getSkippedShards(), equalTo(0));
         assertThat("Expect subset of shards successful", searchResponse.getSuccessfulShards(), lessThan(numShards));
         assertThat("Expected total shards", searchResponse.getTotalShards(), equalTo(numShards));
+        assertThat(searchResponse.isPartial(), equalTo(true));        
     }
 
     public void testClusterAllowPartialsWithRedState() throws Exception {
@@ -70,6 +71,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         assertThat("Expect no shards skipped", searchResponse.getSkippedShards(), equalTo(0));
         assertThat("Expect subset of shards successful", searchResponse.getSuccessfulShards(), lessThan(numShards));
         assertThat("Expected total shards", searchResponse.getTotalShards(), equalTo(numShards));
+        assertThat(searchResponse.isPartial(), equalTo(true));        
     }
     
     

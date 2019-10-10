@@ -311,11 +311,13 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertFailures(searchResponse);
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
+        assertThat(searchResponse.isPartial(), equalTo(true));                    
 
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo").field("field").lenient(true)).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
+        assertThat(searchResponse.isPartial(), equalTo(false));                    
     }
 
     // Issue #7967

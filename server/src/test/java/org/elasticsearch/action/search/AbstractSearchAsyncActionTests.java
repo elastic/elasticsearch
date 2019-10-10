@@ -185,6 +185,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
         assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
         assertSame(searchResponse.getHits(), internalSearchResponse.hits());
+        assertThat(searchResponse.isPartial(), equalTo(true));
     }
 
     public void testSendSearchResponseDisallowPartialFailures() {

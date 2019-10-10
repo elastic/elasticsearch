@@ -305,6 +305,7 @@ public class ElasticsearchAssertions {
         //we can either run into partial or total failures depending on the current number of shards
         try {
             SearchResponse searchResponse = searchRequestBuilder.get();
+            assertThat(searchResponse.isPartial(), equalTo(true));
             assertThat("Expected shard failures, got none", searchResponse.getShardFailures().length, greaterThan(0));
             for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
                 assertThat(shardSearchFailure.status(), equalTo(restStatus));
@@ -336,6 +337,8 @@ public class ElasticsearchAssertions {
         assertNoFailures(response);
         assertThat("Expected all shards successful",
                 response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+        // Is this a valid assumption for all tests? Do some test assume "success" when there's timeouts or red state?
+        assertThat(response.isPartial(), equalTo(false));
     }
 
     public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<String> matcher) {

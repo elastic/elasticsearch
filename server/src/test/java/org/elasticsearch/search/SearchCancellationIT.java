@@ -132,6 +132,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
             SearchResponse response = searchResponse.actionGet();
             logger.info("Search response {}", response);
             assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
+            assertThat(response.isPartial(), equalTo(true));                    
             return response;
         } catch (SearchPhaseExecutionException ex) {
             logger.info("All shards failed with", ex);

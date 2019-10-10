@@ -63,6 +63,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField TOOK = new ParseField("took");
     private static final ParseField TIMED_OUT = new ParseField("timed_out");
+    private static final ParseField PARTIAL = new ParseField("partial_results");
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
@@ -133,6 +134,15 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public boolean isTimedOut() {
         return internalResponse.timedOut();
+    }
+    
+    /**
+     * Are the search results potentially missing some data?
+     */
+    public boolean isPartial() {
+        int unavailableOrFailedShards = getTotalShards() - (getSuccessfulShards() + getSkippedShards());
+        return isTimedOut() || unavailableOrFailedShards > 0 || 
+                (isTerminatedEarly() != null && isTerminatedEarly()) ;
     }
 
     /**
@@ -237,6 +247,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
+        builder.field(PARTIAL.getPreferredName(), isPartial());
         if (isTerminatedEarly() != null) {
             builder.field(TERMINATED_EARLY.getPreferredName(), isTerminatedEarly());
         }

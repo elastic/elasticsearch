@@ -65,6 +65,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                 .setAllowPartialSearchResults(true)
                 .get();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
+        assertThat(searchResponse.isPartial(), equalTo(true));
     }
 
     public void testPartialResultsIntolerantTimeout() throws Exception {

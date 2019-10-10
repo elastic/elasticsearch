@@ -154,7 +154,7 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         e = new ElasticsearchStatusException("Cannot start data frame analytics [" + request.getId() +
                             "] because it has already been started", RestStatus.CONFLICT, e);
                     }
@@ -342,7 +342,7 @@ public class TransportStartDataFrameAnalyticsAction
                     }
                 },
                 e -> {
-                    if (e instanceof IndexNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         listener.onResponse(startContext);
                     } else {
                         listener.onFailure(e);

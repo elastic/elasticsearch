@@ -162,7 +162,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         }
         // There is a chance that the task is finished by the time we cancel it in which case we'll get
         // a ResourceNotFoundException which we can ignore.
-        if (firstError != null && firstError instanceof ResourceNotFoundException == false) {
+        if (firstError != null && ExceptionsHelper.unwrapCause(firstError) instanceof ResourceNotFoundException == false) {
             throw ExceptionsHelper.serverError("[" + taskParams.getId() + "] Error cancelling reindex task", firstError);
         } else {
             LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());
@@ -215,7 +215,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 listener.onResponse(progress);
             },
             error -> {
-                if (error instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                     // The task is not present which means either it has not started yet or it finished.
                     // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
                     listener.onResponse(isReindexingFinished ? 100 : 0);

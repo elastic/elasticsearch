@@ -20,7 +20,7 @@ Previews a {dfeed}.
 
 * If {es} {security-features} are enabled, you must have `monitor_ml`, `monitor`,
 `manage_ml`, or `manage` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 [[ml-preview-datafeed-desc]]
 ==== {api-description-title}

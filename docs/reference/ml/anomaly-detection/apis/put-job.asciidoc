@@ -85,7 +85,7 @@ a job directly to the `.ml-config` index using the {es} index API. If {es}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-put-job-example]]
 ==== {api-examples-title}

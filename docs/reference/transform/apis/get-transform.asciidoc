@@ -31,8 +31,7 @@ beta[]
 * If the {es} {security-features} are enabled, you must have
 `monitor_data_frame_transforms` cluster privileges to use this API. The built-in
 `data_frame_transforms_user` role has these privileges. For more information,
-see {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+see <<security-privileges>> and <<built-in-roles>>.
 
 [[get-transform-desc]]
 ==== {api-description-title}

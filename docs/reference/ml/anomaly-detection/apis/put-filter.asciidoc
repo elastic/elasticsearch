@@ -43,7 +43,7 @@ the `custom_rules` property of <<ml-detectorconfig,detector configuration object
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-put-filter-example]]
 ==== {api-examples-title}

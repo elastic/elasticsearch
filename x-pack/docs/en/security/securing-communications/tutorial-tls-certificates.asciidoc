@@ -33,7 +33,7 @@ remember its location and password. Ideally you should store the file securely,
 since it holds the key to your cluster.
 
 For more information about this command, see
-{ref}/certutil.html[elasticsearch-certutil].
+<<certutil,elasticsearch-certutil>>.
 --
 
 . Create a folder to contain certificates in the configuration directory of your

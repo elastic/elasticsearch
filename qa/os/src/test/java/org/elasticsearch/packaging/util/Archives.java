@@ -63,6 +63,10 @@ public class Archives {
         ? System.getenv("username")
         : "elasticsearch";
 
+    /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
+     *  errors to the console if they occur before the logging framework is initialized. */
+    private static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
+
     public static Installation installArchive(Distribution distribution) throws Exception {
         return installArchive(distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
     }
@@ -276,6 +280,9 @@ public class Archives {
             if (Files.exists(Paths.get("/usr/share/java/jayatanaag.jar"))) {
                 sh.getEnv().put("JAVA_TOOL_OPTIONS", "-javaagent:/usr/share/java/jayatanaag.jar");
             }
+
+            // We need to give Elasticsearch enough time to print failures to stdout before exiting
+            sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
             return sh.runIgnoreExitCode("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile +
                 " <<<'" + keystorePassword + "'");
         }
@@ -318,7 +325,7 @@ public class Archives {
                     "$process.BeginOutputReadLine(); " +
                     "$process.BeginErrorReadLine(); " +
                     "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
-                    "Wait-Process -Timeout 15 -Id $process.Id; " +
+                    "Wait-Process -Timeout " + ES_STARTUP_SLEEP_TIME_SECONDS + " -Id $process.Id; " +
                     "$process.Id;"
             );
         } else {

@@ -143,12 +143,14 @@ public final class MlTasks {
 
     public static DataFrameAnalyticsState getDataFrameAnalyticsState(String analyticsId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = getDataFrameAnalyticsTask(analyticsId, tasks);
-        if (task != null && task.getState() != null) {
+        if (task != null) {
             DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) task.getState();
+            if (taskState == null) {
+                return DataFrameAnalyticsState.STARTING;
+            }
             return taskState.getState();
-        } else {
-            return DataFrameAnalyticsState.STOPPED;
         }
+        return DataFrameAnalyticsState.STOPPED;
     }
 
     /**

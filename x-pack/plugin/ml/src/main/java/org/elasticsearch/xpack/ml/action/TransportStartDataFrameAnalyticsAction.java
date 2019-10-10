@@ -433,6 +433,7 @@ public class TransportStartDataFrameAnalyticsAction
                 case STOPPING:
                     exception = ExceptionsHelper.conflictStatusException("the task has been stopped while waiting to be started");
                     return true;
+                case STARTING:
                 case STOPPED:
                     return false;
                 case FAILED:

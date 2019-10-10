@@ -93,6 +93,8 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
@@ -718,4 +720,9 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Get a script from the cluster state
      */
     ActionFuture<GetStoredScriptResponse> getStoredScript(GetStoredScriptRequest request);
+
+    /**
+     * Get a script from the cluster state
+     */
+    void getScriptContext(GetScriptContextRequest request, ActionListener<GetScriptContextResponse> listener);
 }

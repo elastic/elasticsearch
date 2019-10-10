@@ -108,7 +108,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
     }
 
     public void testPartialsDeletedIfExpired() {
-        assertUnsuccessfulDeletedIfExpired(true);
+        assertUnsuccessfulDeletedIfExpired(false);
     }
 
     private void assertUnsuccessfulDeletedIfExpired(boolean failure) {

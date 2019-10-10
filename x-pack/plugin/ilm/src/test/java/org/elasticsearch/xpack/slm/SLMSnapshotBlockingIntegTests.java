@@ -284,9 +284,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                     assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
                 30, TimeUnit.SECONDS);
 
-            final String masterNode;
-            masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
-
+            final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
 
             logger.info("-->  start snapshot");
             ActionFuture<ExecuteSnapshotLifecycleAction.Response> snapshotFuture = client()

@@ -56,6 +56,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -117,6 +118,32 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         setNodes(nodes);
+    }
+
+    /**
+     * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     * Creates a new builder instance and sets the nodes that the client will send requests to.
+     *
+     * @param cloudId a valid elastic cloud cloudId that will route to a cluster
+     */
+    public static RestClientBuilder builder(String cloudId) {
+        // there is an optional first portion of the cloudId that is a human readable string, but it is not used.
+        if (cloudId.contains(":")) {
+            if (cloudId.indexOf(":") == cloudId.length() - 1) {
+                throw new IllegalStateException("cloudId " + cloudId + " is invalid");
+            }
+            cloudId = cloudId.substring(cloudId.indexOf(":") + 1);
+        }
+
+        String decoded = new String(Base64.getDecoder().decode(cloudId));
+        // once decoded the parts are separated by a $ character
+        String[] decodedParts = decoded.split("\\$");
+        if (decodedParts.length != 3) {
+            throw new IllegalStateException("cloudId " + cloudId + " did not contain the correct number of parts");
+        }
+
+        String url = decodedParts[1]  + "." + decodedParts[0];
+        return builder(new HttpHost(url, 443, "https"));
     }
 
     /**

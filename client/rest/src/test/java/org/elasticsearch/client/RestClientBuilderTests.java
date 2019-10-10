@@ -26,8 +26,10 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
 
 import java.io.IOException;
+import java.util.Base64;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
@@ -157,6 +159,37 @@ public class RestClientBuilderTests extends RestClientTestCase {
         try (RestClient restClient = builder.build()) {
             assertNotNull(restClient);
         }
+    }
+
+    public void testBuildCloudId() {
+        String host = "us-east-1.aws.found.io";
+        String esId = "elasticsearch";
+        String kibanaId = "kibana";
+        String toEncode = host + "$" + esId + "$" + kibanaId;
+        String encodedId = Base64.getEncoder().encodeToString(toEncode.getBytes());
+        assertNotNull(RestClient.builder(encodedId));
+        assertNotNull(RestClient.builder("humanReadable:" + encodedId));
+
+        String badId = Base64.getEncoder().encodeToString("foo$bar".getBytes());
+        try {
+            RestClient.builder(badId);
+            fail("should hae failed");
+        } catch (IllegalStateException e) {
+            assertEquals("cloudId " + badId + " did not contain the correct number of parts", e.getMessage());
+        }
+
+        try {
+            RestClient.builder(badId + ":");
+            fail("should hae failed");
+        } catch (IllegalStateException e) {
+            assertEquals("cloudId " + badId + ":" + " is invalid", e.getMessage());
+        }
+
+        RestClient client = RestClient.builder(encodedId).build();
+        assertThat(client.getNodes().size(), equalTo(1));
+        assertThat(client.getNodes().get(0).getHost().getHostName(), equalTo(esId + "." + host));
+        assertThat(client.getNodes().get(0).getHost().getPort(), equalTo(443));
+        assertThat(client.getNodes().get(0).getHost().getSchemeName(), equalTo("https"));
     }
 
     public void testSetPathPrefixNull() {

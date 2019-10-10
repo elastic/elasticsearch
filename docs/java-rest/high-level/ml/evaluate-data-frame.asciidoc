@@ -37,8 +37,8 @@ include-tagged::{doc-tests-file}[{api}-evaluation-softclassification]
 <2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) label for an example. Must be either true or false.
 <3> Name of the field in the index. Its value denotes the probability (as per some ML algorithm) of the example being classified as positive.
 <4> The remaining parameters are the metrics to be calculated based on the two fields described above
-<5> https://en.wikipedia.org/wiki/Precision_and_recall[Precision] calculated at thresholds: 0.4, 0.5 and 0.6
-<6> https://en.wikipedia.org/wiki/Precision_and_recall[Recall] calculated at thresholds: 0.5 and 0.7
+<5> https://en.wikipedia.org/wiki/Precision_and_recall#Precision[Precision] calculated at thresholds: 0.4, 0.5 and 0.6
+<6> https://en.wikipedia.org/wiki/Precision_and_recall#Recall[Recall] calculated at thresholds: 0.5 and 0.7
 <7> https://en.wikipedia.org/wiki/Confusion_matrix[Confusion matrix] calculated at threshold 0.5
 <8> https://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated and the curve points returned
 

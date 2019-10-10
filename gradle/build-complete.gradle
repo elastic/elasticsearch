@@ -1,3 +1,5 @@
+import java.nio.file.Files
+
 String buildNumber = System.getenv('BUILD_NUMBER')
 
 if (buildNumber) {
@@ -7,15 +9,37 @@ if (buildNumber) {
         if (uploadFile.exists()) {
             project.delete(uploadFile)
         }
+
+        project.exec {
+            ignoreExitValue = true
+            workingDir projectDir
+            commandLine 'bash', '-c', 'journalctl --since "1 hour ago" 2>&1 > journalctl.log'
+        }
+
         ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
             fileset(dir: projectDir, followsymlinks: false) {
                 include(name: "**/*.hprof")
                 include(name: "**/reaper.log")
+                include(name: "**/journalctl.log")
                 include(name: "**/build/testclusters/**")
                 exclude(name: "**/build/testclusters/**/data/**")
                 exclude(name: "**/build/testclusters/**/distro/**")
                 exclude(name: "**/build/testclusters/**/repo/**")
                 exclude(name: "**/build/testclusters/**/extract/**")
+            }
+
+            fileset(dir: "${gradle.gradleUserHomeDir}/daemon", followsymlinks: false) {
+                include(name: "**/*.log")
+            }
+
+            if (Files.isReadable(file("/var/log/").toPath())) {
+                Files.list(file("/var/log/").toPath())
+                        .filter { it.fileName.endsWith(".log") }
+                        .filter { Files.isReadable(it) }
+                        .filter { Files.isRegularFile(it) }
+                        .forEach {
+                            fileset(file: it)
+                        }
             }
         }
     }

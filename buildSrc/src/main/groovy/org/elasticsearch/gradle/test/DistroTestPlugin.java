@@ -28,18 +28,19 @@ import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.JdkDownloadPlugin;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.vagrant.BatsProgressLogger;
 import org.elasticsearch.gradle.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.vagrant.VagrantExtension;
+import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.Directory;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
@@ -47,12 +48,12 @@ import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskInputs;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
-import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -66,13 +67,13 @@ import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 public class DistroTestPlugin implements Plugin<Project> {
-    private final Logger logger = Logging.getLogger(getClass());
-
     /**
-     * The Docker distribution is tested on all OS platforms, apart
-     * from those listed here.
+     * This plugin generates test tasks for the various VMs in :qa:os. The
+     * Docker packaging tests are run on all of them, apart from those
+     * listed here. These values correspond to the sub-project names, which
+     * correspond to the directory names.
      */
-    private static final List<String> DOCKER_EXCLUDE_LIST = List.of(
+    private static final List<String> DOCKER_VM_EXCLUDE_LIST = List.of(
         "centos-6",
         "debian-8",
         "oel-6",
@@ -81,6 +82,23 @@ public class DistroTestPlugin implements Plugin<Project> {
         "sles-12",
         "windows-2012r2",
         "windows-2016"
+    );
+
+    /**
+     * This plugin generates a number of test tasks, some of which are
+     * Docker packaging tests. When running on the host OS i.e. not in a
+     * VM, only certain operating systems are supported. This list
+     * specifies the Linux OS variants that are tested. The actual question
+     * of whether to run the Docker tests is answered by {@link
+     * #shouldRunDockerTests()}.
+     */
+    private static final List<String> DOCKER_LINUX_INCLUDE_LIST = List.of(
+        "centos-7",
+        "debian-9",
+        "fedora-28",
+        "fedora-29",
+        "ubuntu-16.04",
+        "ubuntu-18.04"
     );
 
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
@@ -119,7 +137,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
             TaskProvider<?> destructiveTask = configureDistroTest(project, distribution);
-            destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
+            // Docker tests are not currently supported on Windows
+            if (shouldRunDockerTests()) {
+                destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
+            }
         }
         Map<String, TaskProvider<?>> batsTests = new HashMap<>();
         batsTests.put("bats oss", configureBatsTest(project, "oss", distributionsDir, copyDistributionsTask));
@@ -138,7 +159,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
             for (ElasticsearchDistribution distribution : distributions) {
-                if (distribution.getType() == Type.DOCKER && DOCKER_EXCLUDE_LIST.contains(vmProject.getName())) {
+                if (distribution.getType() == Type.DOCKER && DOCKER_VM_EXCLUDE_LIST.contains(vmProject.getName())) {
                     continue;
                 }
 
@@ -419,5 +440,49 @@ public class DistroTestPlugin implements Plugin<Project> {
             distro.getPlatform(),
             distro.getFlavor(),
             distro.getBundledJdk());
+    }
+
+    /**
+     * The {@link DistroTestPlugin} generates a number of test tasks, some
+     * of which are Docker packaging tests. When running on the host OS
+     * i.e. not in a VM, only certain operating systems are supported. This
+     * method determines whether the Docker tests should be run on the host
+     * OS.
+     */
+    private static boolean shouldRunDockerTests() {
+        switch (OS.current()) {
+            case WINDOWS:
+                // Not currently supported.
+                return false;
+
+            case MAC:
+                // Assume that Docker for Mac is installed
+                return true;
+
+            case LINUX:
+                final Path osRelease = Paths.get("/etc/os-release");
+
+                if (Files.exists(osRelease)) {
+                    Map<String, String> values = new HashMap<>();
+
+                    try {
+                        for (String line : Files.readAllLines(osRelease)) {
+                            final String[] parts = line.split("=", 2);
+                            values.put(parts[0], parts[1]);
+                        }
+                    } catch (IOException e) {
+                        throw new GradleException("Failed to read /etc/os-release", e);
+                    }
+
+                    final String id = values.get("ID") + "-" + values.get("VERSION");
+
+                    return DOCKER_LINUX_INCLUDE_LIST.contains(id);
+                }
+
+                return false;
+
+            default:
+                return false;
+        }
     }
 }

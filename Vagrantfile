@@ -126,7 +126,7 @@ Vagrant.configure(2) do |config|
   end
   'fedora-29'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-28-x86_64'
+      config.vm.box = 'elastic/fedora-29-x86_64'
       dnf_common config, box
       dnf_docker config
     end

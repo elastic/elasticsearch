@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -32,12 +33,14 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
@@ -489,6 +492,60 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
             "Estimated memory usage for this analytics to be");
+    }
+
+    public void testLazyAssignmentWithModelMemoryLimitTooHighForAssignment() throws Exception {
+        String sourceIndex = "test-lazy-assign-model-memory-limit-too-high";
+
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", "col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexRequest indexRequest = new IndexRequest(sourceIndex)
+            .id("doc_1")
+            .source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
+        bulkRequestBuilder.add(indexRequest);
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_lazy_assign_model_memory_limit_too_high";
+        // Assuming a 1TB job will never fit on the test machine - increase this when machines get really big!
+        ByteSizeValue modelMemoryLimit = new ByteSizeValue(1, ByteSizeUnit.TB);
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId(id)
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null))
+            .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
+            .setAnalysis(new OutlierDetection.Builder().build())
+            .setModelMemoryLimit(modelMemoryLimit)
+            .setAllowLazyStart(true)
+            .build();
+
+        registerAnalytics(config);
+        putAnalytics(config);
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+
+        // Due to lazy start being allowed, this should succeed even though no node currently in the cluster is big enough
+        startAnalytics(id);
+
+        // Wait until state is STARTING, there is no node but there is an assignment explanation.
+        assertBusy(() -> {
+            GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id).get(0);
+            assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STARTING));
+            assertThat(stats.getNode(), is(nullValue()));
+            assertThat(stats.getAssignmentExplanation(), containsString("persistent task is awaiting node assignment"));
+        });
+        stopAnalytics(id);
+        waitUntilAnalyticsIsStopped(id);
+
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "No node found to start analytics. Reasons [persistent task is awaiting node assignment.]",
+            "Started analytics",
+            "Stopped analytics");
     }
 
     public void testOutlierDetectionStopAndRestart() throws Exception {

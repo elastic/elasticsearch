@@ -29,6 +29,7 @@ public class RestExecuteEnrichPolicyAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
         final ExecuteEnrichPolicyAction.Request request = new ExecuteEnrichPolicyAction.Request(restRequest.param("name"));
+        request.setWaitForCompletion(restRequest.paramAsBoolean("wait_for_completion", true));
         return channel -> client.execute(ExecuteEnrichPolicyAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

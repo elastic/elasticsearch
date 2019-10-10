@@ -41,8 +41,10 @@ CURRENT_DATE     |SCALAR
 CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
+DATEADD          |SCALAR
 DATEPART         |SCALAR
 DATETRUNC        |SCALAR
+DATE_ADD         |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
@@ -79,8 +81,10 @@ NOW              |SCALAR
 QUARTER          |SCALAR         
 SECOND           |SCALAR         
 SECOND_OF_MINUTE |SCALAR
+TIMESTAMPADD     |SCALAR
+TIMESTAMP_ADD    |SCALAR
 TODAY            |SCALAR
-WEEK             |SCALAR         
+WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
 ABS              |SCALAR         

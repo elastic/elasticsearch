@@ -30,7 +30,11 @@ public final class TransformInternalIndexConstants {
 
     // audit index
     public static final String AUDIT_TEMPLATE_VERSION = "1";
-    public static final String AUDIT_INDEX_PREFIX = ".data-frame-notifications-";
+    public static final String AUDIT_INDEX_PREFIX = ".transform-notifications-";
+    public static final String AUDIT_INDEX_PATTERN = AUDIT_INDEX_PREFIX + "*";
+    public static final String AUDIT_INDEX_PATTERN_DEPRECATED = ".data-frame-notifications-*";
+
+    public static final String AUDIT_INDEX_READ_ALIAS = ".transform-notifications-read";
     public static final String AUDIT_INDEX = AUDIT_INDEX_PREFIX + AUDIT_TEMPLATE_VERSION;
 
     private TransformInternalIndexConstants() {

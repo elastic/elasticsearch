@@ -352,7 +352,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    private ShardSearchFailure[] buildShardFailures() {
+    ShardSearchFailure[] buildShardFailures() {
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
@@ -510,20 +510,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return request;
     }
 
-    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
-        ShardSearchFailure[] failures = buildShardFailures();
-        Boolean allowPartialResults = request.allowPartialSearchResults();
-        assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (allowPartialResults == false && failures.length > 0){
-            raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
-        }
+    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse,
+                                                       String scrollId,
+                                                       ShardSearchFailure[] failures) {
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
             skippedOps.get(), buildTookInMillis(), failures, clusters);
     }
 
     @Override
     public void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
-        listener.onResponse(buildSearchResponse(internalSearchResponse, scrollId));
+        ShardSearchFailure[] failures = buildShardFailures();
+        Boolean allowPartialResults = request.allowPartialSearchResults();
+        assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
+        if (allowPartialResults == false && failures.length > 0){
+            raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
+        } else {
+            listener.onResponse(buildSearchResponse(internalSearchResponse, scrollId, failures));
+        }
     }
 
     @Override

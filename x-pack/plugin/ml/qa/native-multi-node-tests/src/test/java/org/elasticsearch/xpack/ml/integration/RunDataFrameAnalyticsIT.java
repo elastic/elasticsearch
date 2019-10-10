@@ -485,6 +485,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Estimated memory usage for this analytics to be");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47612")
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 

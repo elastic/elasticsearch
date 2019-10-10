@@ -221,6 +221,7 @@ public class SearchResponseTests extends ESTestCase {
             {
                 expectedString.append("\"took\":0,");
                 expectedString.append("\"timed_out\":false,");
+                expectedString.append("\"partial_results\":false,");
                 expectedString.append("\"_shards\":");
                 {
                     expectedString.append("{\"total\":0,");
@@ -250,6 +251,7 @@ public class SearchResponseTests extends ESTestCase {
             {
                 expectedString.append("\"took\":0,");
                 expectedString.append("\"timed_out\":false,");
+                expectedString.append("\"partial_results\":false,");
                 expectedString.append("\"_shards\":");
                 {
                     expectedString.append("{\"total\":0,");

@@ -69,7 +69,7 @@ import static org.mockito.Mockito.when;
 public class DatafeedJobTests extends ESTestCase {
 
     private static final String jobId = "_job_id";
-    
+
     private AnomalyDetectionAuditor auditor;
     private DataExtractorFactory dataExtractorFactory;
     private DataExtractor dataExtractor;
@@ -115,7 +115,7 @@ public class DatafeedJobTests extends ESTestCase {
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
-        DataCounts dataCounts = new DataCounts(jobId, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0), 
+        DataCounts dataCounts = new DataCounts(jobId, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0),
                 new Date(0), new Date(0), new Date(0));
 
         PostDataAction.Request expectedRequest = new PostDataAction.Request(jobId);
@@ -128,7 +128,7 @@ public class DatafeedJobTests extends ESTestCase {
         when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
 
-        when(indexFuture.actionGet()).thenReturn(new IndexResponse(new ShardId("index", "uuid", 0), "doc", annotationDocId, 0, 0, 0, true));
+        when(indexFuture.actionGet()).thenReturn(new IndexResponse(new ShardId("index", "uuid", 0), annotationDocId, 0, 0, 0, true));
         when(client.index(any())).thenReturn(indexFuture);
     }
 

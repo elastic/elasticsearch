@@ -79,7 +79,7 @@ the cluster.
 GET /_cat/count?v
 --------------------------------------------------
 // TEST[setup:big_twitter]
-// TEST[s/^/POST test\/test\?refresh\n{"test": "test"}\n/]
+// TEST[s/^/POST test\/_doc\?refresh\n{"test": "test"}\n/]
 
 The API returns the following response:
 

@@ -222,7 +222,7 @@ public class IndexActionTests extends ESTestCase {
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
         PlainActionFuture<IndexResponse> listener = PlainActionFuture.newFuture();
-        listener.onResponse(new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", "whatever", 1, 1, 1, true));
+        listener.onResponse(new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true));
         when(client.index(captor.capture())).thenReturn(listener);
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
 
@@ -230,7 +230,6 @@ public class IndexActionTests extends ESTestCase {
         assertThat(captor.getAllValues(), hasSize(1));
 
         assertThat(captor.getValue().index(), is(configureIndexDynamically ? "my_dynamic_index" : "my_index"));
-        assertThat(captor.getValue().type(), is(configureTypeDynamically ? "my_dynamic_type" : "my_type"));
         assertThat(captor.getValue().id(), is(configureIdDynamically ? "my_dynamic_id" : "my_id"));
     }
 
@@ -246,7 +245,7 @@ public class IndexActionTests extends ESTestCase {
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
-        IndexResponse indexResponse = new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", "whatever", 1, 1, 1, true);
+        IndexResponse indexResponse = new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true);
         BulkItemResponse response = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, indexResponse);
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{response}, 1);
         listener.onResponse(bulkResponse);
@@ -256,16 +255,13 @@ public class IndexActionTests extends ESTestCase {
         assertThat(result.status(), is(Status.SUCCESS));
         assertThat(captor.getAllValues(), hasSize(1));
         assertThat(captor.getValue().requests(), hasSize(2));
-        assertThat(captor.getValue().requests().get(0).type(), is("my-type"));
         assertThat(captor.getValue().requests().get(0).index(), is("my-index"));
-        assertThat(captor.getValue().requests().get(1).type(), is("my-type"));
         assertThat(captor.getValue().requests().get(1).index(), is("my-other-index"));
     }
 
     public void testConfigureIndexInMapAndAction() {
-        String fieldName = randomFrom("_index", "_type");
-        final IndexAction action = new IndexAction(fieldName.equals("_index") ? "my_index" : null,
-                fieldName.equals("_type") ? "my_type" : null,
+        String fieldName = "_index";
+        final IndexAction action = new IndexAction("my_index",
                 null,null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
@@ -303,7 +299,7 @@ public class IndexActionTests extends ESTestCase {
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
         PlainActionFuture<IndexResponse> listener = PlainActionFuture.newFuture();
-        listener.onResponse(new IndexResponse(new ShardId(new Index("test-index", "uuid"), 0), "test-type", docId, 1, 1, 1, true));
+        listener.onResponse(new IndexResponse(new ShardId(new Index("test-index", "uuid"), 0), docId, 1, 1, 1, true));
         when(client.index(captor.capture())).thenReturn(listener);
 
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
@@ -314,7 +310,6 @@ public class IndexActionTests extends ESTestCase {
         XContentSource response = successResult.response();
         assertThat(response.getValue("created"), equalTo((Object)Boolean.TRUE));
         assertThat(response.getValue("version"), equalTo((Object) 1));
-        assertThat(response.getValue("type").toString(), equalTo("test-type"));
         assertThat(response.getValue("index").toString(), equalTo("test-index"));
 
         assertThat(captor.getAllValues(), hasSize(1));
@@ -358,7 +353,7 @@ public class IndexActionTests extends ESTestCase {
         BulkItemResponse secondResponse;
         if (isPartialFailure) {
             ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
-            IndexResponse indexResponse = new IndexResponse(shardId, "whatever", "whatever", 1, 1, 1, true);
+            IndexResponse indexResponse = new IndexResponse(shardId, "whatever", 1, 1, 1, true);
             secondResponse = new BulkItemResponse(1, DocWriteRequest.OpType.INDEX, indexResponse);
         } else {
             secondResponse = new BulkItemResponse(1, DocWriteRequest.OpType.INDEX, failure);

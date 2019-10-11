@@ -244,6 +244,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47937")
     public void testBasicFailureRetention() throws Exception {
         final String indexName = "test-idx";
         final String policyId = "test-policy";

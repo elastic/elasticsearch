@@ -10,11 +10,14 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class RunTask extends DefaultTestClustersTask {
 
     private static final Logger logger = Logging.getLogger(RunTask.class);
+    public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
 
     private Boolean debug = false;
 
@@ -36,12 +39,19 @@ public class RunTask extends DefaultTestClustersTask {
         int debugPort = 8000;
         int httpPort = 9200;
         int transportPort = 9300;
+        Map<String, String> additionalSettings = System.getProperties().entrySet().stream()
+            .filter(entry -> entry.getKey().toString().startsWith(CUSTOM_SETTINGS_PREFIX))
+            .collect(Collectors.toMap(
+                entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
+                entry -> entry.getValue().toString()
+            ));
         for (ElasticsearchCluster cluster : getClusters()) {
             cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
             httpPort++;
             cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
             transportPort++;
             for (ElasticsearchNode node : cluster.getNodes()) {
+                additionalSettings.forEach(node::setting);
                 if (debug) {
                     logger.lifecycle(
                         "Running elasticsearch in debug mode, {} suspending until connected on debugPort {}",

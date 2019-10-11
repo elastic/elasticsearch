@@ -128,7 +128,7 @@ SETUP_OK
 
 @test "[$GROUP] test elasticsearch-sql-cli" {
     password=$(grep "PASSWORD elastic = " /tmp/setup-passwords-output-with-bootstrap | sed "s/PASSWORD elastic = //")
-    curl -s -u "elastic:$password" -H "Content-Type: application/json" -XPUT 'localhost:9200/library/book/1?refresh&pretty' -d'{
+    curl -s -u "elastic:$password" -H "Content-Type: application/json" -XPUT 'localhost:9200/library/_doc/1?refresh&pretty' -d'{
             "name": "Ender'"'"'s Game",
             "author": "Orson Scott Card",
             "release_date": "1985-06-01",

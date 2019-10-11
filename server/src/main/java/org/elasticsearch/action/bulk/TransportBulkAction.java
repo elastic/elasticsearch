@@ -787,7 +787,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 new BulkItemResponse(slot, indexRequest.opType(),
                     new UpdateResponse(
                         new ShardId(indexRequest.index(), IndexMetaData.INDEX_UUID_NA_VALUE, 0),
-                        indexRequest.type(), id, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                        id, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                         indexRequest.version(), DocWriteResponse.Result.NOOP
                     )
                 )
@@ -796,8 +796,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-            LOGGER.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
-                indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), e);
+            LOGGER.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                indexRequest.getPipeline(), indexRequest.index(), indexRequest.id()), e);
 
             // We hit a error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed

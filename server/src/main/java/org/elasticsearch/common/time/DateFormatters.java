@@ -1893,7 +1893,7 @@ public class DateFormatters {
      * when YearOfEra was used instead of Year.
      * This is to make it compatible with Joda behaviour
      */
-    static final TemporalQuery<LocalDate> LOCAL_DATE_QUERY = new TemporalQuery<>() {
+    static final TemporalQuery<LocalDate> LOCAL_DATE_QUERY = new TemporalQuery<LocalDate>() {
         @Override
         public LocalDate queryFrom(TemporalAccessor temporal) {
             if (temporal.isSupported(ChronoField.EPOCH_DAY)) {

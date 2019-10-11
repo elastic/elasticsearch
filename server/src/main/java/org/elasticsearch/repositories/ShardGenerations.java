@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,7 +36,17 @@ public final class ShardGenerations {
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
 
+    /**
+     * Special generation that signifies that a shard is new and the repository does not yet contain a valid
+     * {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for it.
+     */
     public static final String NEW_SHARD_GEN = "_new";
+
+    /**
+     * Special generation that signifies that the shard has been deleted from the repository.
+     * This generation is only used during computations. It should never be written to disk.
+     */
+    public static final String DELETED_SHARD_GEN = "_deleted";
 
     private final Map<IndexId, List<String>> shardGenerations;
 
@@ -82,6 +93,15 @@ public final class ShardGenerations {
     /**
      * Get the generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for a given index
      * and shard.
+     * There are three special kinds of generations that can be returned here.
+     * <ul>
+     *     <li>{@link #DELETED_SHARD_GEN} a deleted shard that isn't referenced by any snapshot in the repository any longer</li>
+     *     <li>{@link #NEW_SHARD_GEN} a new shard that we know doesn't hold any valid data yet in the repository</li>
+     *     <li>{@code null} unknown state. The shard either does not exist at all or it was created by a node older than
+     *     {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}. If a caller expects a shard to exist in the
+     *     repository but sees a {@code null} return, it should try to recover the generation by falling back to listing the contents
+     *     of the respective shard directory.</li>
+     * </ul>
      *
      * @param indexId IndexId
      * @param shardId Shard Id
@@ -131,8 +151,29 @@ public final class ShardGenerations {
 
         private final Map<IndexId, Map<Integer, String>> generations = new HashMap<>();
 
-        public Builder retainIndices(Set<IndexId> indices) {
+        /**
+         * Filters out all generations that don't belong to any of the supplied {@code indices} and prunes all {@link #DELETED_SHARD_GEN}
+         * entries from the builder.
+         *
+         * @param indices indices to filter for
+         * @return builder that contains only the given {@code indices} and no {@link #DELETED_SHARD_GEN} entries
+         */
+        public Builder retainIndicesAndPruneDeletes(Set<IndexId> indices) {
             generations.keySet().retainAll(indices);
+            for (IndexId index : indices) {
+                final Map<Integer, String> shards = generations.getOrDefault(index, Collections.emptyMap());
+                final Iterator<Map.Entry<Integer, String>> iterator = shards.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    Map.Entry<Integer, String> entry = iterator.next();
+                    final String generation = entry.getValue();
+                    if (generation.equals(DELETED_SHARD_GEN)) {
+                        iterator.remove();
+                    }
+                }
+                if (shards.isEmpty()) {
+                    generations.remove(index);
+                }
+            }
             return this;
         }
 

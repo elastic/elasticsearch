@@ -1622,6 +1622,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotWithMissingShardLevelIndexFile() throws Exception {
+        disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
+
         Path repo = randomRepoPath();
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
@@ -3826,6 +3828,27 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify doc counts");
         assertHitCount(client().prepareSearch("restored-1").setSize(0).get(), docCount);
         assertHitCount(client().prepareSearch("restored-2").setSize(0).get(), newDocCount);
+
+        final String snapshotToDelete;
+        final String snapshotToRestore;
+        final int expectedCount;
+        if (randomBoolean()) {
+            snapshotToDelete = "snap-1";
+            snapshotToRestore = "snap-2";
+            expectedCount = newDocCount;
+        } else {
+            snapshotToDelete = "snap-2";
+            snapshotToRestore = "snap-1";
+            expectedCount = docCount;
+        }
+        logger.info("--> deleting snapshot [{}]", snapshotToDelete);
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToDelete).get());
+        logger.info("--> restoring snapshot [{}]", snapshotToRestore);
+        client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotToRestore).setIndices(indexName).setRenamePattern(indexName)
+            .setRenameReplacement("restored-3").setWaitForCompletion(true).get();
+
+        logger.info("--> verify doc counts");
+        assertHitCount(client().prepareSearch("restored-3").setSize(0).get(), expectedCount);
     }
 
     private void verifySnapshotInfo(final String repo, final GetSnapshotsResponse response,

@@ -232,7 +232,7 @@ public final class RepositoryData {
 
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots,
             ShardGenerations.builder().putAll(shardGenerations).putAll(updatedShardGenerations)
-                .retainIndices(indexSnapshots.keySet()).build()
+                .retainIndicesAndPruneDeletes(indexSnapshots.keySet()).build()
         );
     }
 

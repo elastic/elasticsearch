@@ -236,9 +236,11 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         assertThat(executeResponse.getStatus(), is(nullValue()));
         assertThat(executeResponse.getTaskId(), is(not(nullValue())));
         GetTaskRequest getPolicyTaskRequest = new GetTaskRequest().setTaskId(executeResponse.getTaskId()).setWaitForCompletion(true);
-        GetTaskResponse taskResponse = client().execute(GetTaskAction.INSTANCE, getPolicyTaskRequest).actionGet();
-        assertThat(((ExecuteEnrichPolicyStatus) taskResponse.getTask().getTask().getStatus()).getPhase(),
-            is(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE));
+        assertBusy(() -> {
+            GetTaskResponse taskResponse = client().execute(GetTaskAction.INSTANCE, getPolicyTaskRequest).actionGet();
+            assertThat(((ExecuteEnrichPolicyStatus) taskResponse.getTask().getTask().getStatus()).getPhase(),
+                is(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE));
+        });
 
         String pipelineName = "test-pipeline";
         String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +

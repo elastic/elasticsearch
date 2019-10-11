@@ -3363,9 +3363,22 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 confusionMatrix,
                 equalTo(
                     new HashMap<String, Map<String, Long>>() {{
-                        put("cat", new HashMap<String, Long>() {{ put("cat", 3L); put("dog", 1L); put("ant", 0L); put("_other_", 1L); }});
-                        put("dog", new HashMap<String, Long>() {{ put("cat", 1L); put("dog", 3L); put("ant", 0L); }});
-                        put("ant", new HashMap<String, Long>() {{ put("cat", 1L); put("dog", 0L); put("ant", 0L); }});
+                        put("cat", new HashMap<String, Long>() {{
+                            put("cat", 3L);
+                            put("dog", 1L);
+                            put("ant", 0L);
+                            put("_other_", 1L);
+                        }});
+                        put("dog", new HashMap<String, Long>() {{
+                            put("cat", 1L);
+                            put("dog", 3L);
+                            put("ant", 0L);
+                        }});
+                        put("ant", new HashMap<String, Long>() {{
+                            put("cat", 1L);
+                            put("dog", 0L);
+                            put("ant", 0L);
+                        }});
                     }}));
             assertThat(otherClassesCount, equalTo(0L));
         }

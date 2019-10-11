@@ -187,7 +187,8 @@ public class InternalEngine extends Engine {
         super(engineConfig);
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
                 engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
-                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
+                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
+                engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
         );
         store.incRef();
         IndexWriter writer = null;
@@ -797,7 +798,8 @@ public class InternalEngine extends Engine {
     }
 
     protected boolean assertPrimaryCanOptimizeAddDocument(final Index index) {
-        assert (index.version() == Versions.MATCH_ANY && index.versionType() == VersionType.INTERNAL)
+        assert (index.version() == Versions.MATCH_DELETED || index.version() == Versions.MATCH_ANY) &&
+            index.versionType() == VersionType.INTERNAL
             : "version: " + index.version() + " type: " + index.versionType();
         return true;
     }
@@ -998,13 +1000,9 @@ public class InternalEngine extends Engine {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
         final IndexingStrategy plan;
         // resolve an external operation into an internal one which is safe to replay
-        if (canOptimizeAddDocument(index)) {
-            if (mayHaveBeenIndexedBefore(index)) {
-                plan = IndexingStrategy.overrideExistingAsIfNotThere();
-                versionMap.enforceSafeAccess();
-            } else {
-                plan = IndexingStrategy.optimizedAppendOnly(1L);
-            }
+        final boolean canOptimizeAddDocument = canOptimizeAddDocument(index);
+        if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
+            plan = IndexingStrategy.optimizedAppendOnly(1L);
         } else {
             versionMap.enforceSafeAccess();
             // resolves incoming version
@@ -1037,7 +1035,7 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
             } else {
                 plan = IndexingStrategy.processNormally(currentNotFoundOrDeleted,
-                    index.versionType().updateVersion(currentVersion, index.version())
+                    canOptimizeAddDocument ? 1L : index.versionType().updateVersion(currentVersion, index.version())
                 );
             }
         }
@@ -1187,11 +1185,6 @@ public class InternalEngine extends Engine {
                                                 long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, currentNotFoundOrDeleted == false,
                 true, false, versionForIndexing, null);
-        }
-
-        static IndexingStrategy overrideExistingAsIfNotThere() {
-            return new IndexingStrategy(true, true, true,
-                false, 1L, null);
         }
 
         public static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long versionForIndexing) {

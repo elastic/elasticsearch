@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
@@ -57,7 +58,7 @@ final class ECast extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 

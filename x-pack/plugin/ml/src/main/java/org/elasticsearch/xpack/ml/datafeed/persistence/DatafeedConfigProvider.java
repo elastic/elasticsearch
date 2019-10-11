@@ -127,7 +127,7 @@ public class DatafeedConfigProvider {
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                     listener::onResponse,
                     e -> {
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             // the dafafeed already exists
                             listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
                         } else {

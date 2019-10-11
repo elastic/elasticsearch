@@ -29,6 +29,11 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     List<RequiredField> getRequiredFields();
 
     /**
+     * @return {@link Map} containing cardinality limits for the selected (analysis-specific) fields
+     */
+    Map<String, Long> getFieldCardinalityLimits();
+
+    /**
      * @return {@code true} if this analysis supports data frame rows with missing values
      */
     boolean supportsMissingValues();
@@ -37,4 +42,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      * @return {@code true} if this analysis persists state that can later be used to restore from a given point
      */
     boolean persistsState();
+
+    /**
+     * Returns the document id for the analysis state
+     */
+    String getStateDocId(String jobId);
 }

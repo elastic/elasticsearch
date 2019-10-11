@@ -1841,12 +1841,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return storeRecovery.recoverFromStore(this);
     }
 
-    public boolean restoreFromRepository(Repository repository) {
-        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: " +
-            recoveryState.getRecoverySource();
-        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-        return storeRecovery.recoverFromRepository(this, repository);
+    public void restoreFromRepository(Repository repository, ActionListener<Boolean> listener) {
+        try {
+            assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: " +
+                recoveryState.getRecoverySource();
+            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+            listener.onResponse(storeRecovery.recoverFromRepository(this, repository));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -2529,17 +2533,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case SNAPSHOT:
                 markAsRecovering("from snapshot", recoveryState); // mark the shard as recovering on the cluster state thread
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) recoveryState.getRecoverySource();
-                threadPool.generic().execute(() -> {
-                    try {
-                        final Repository repository = repositoriesService.repository(recoverySource.snapshot().getRepository());
-                        if (restoreFromRepository(repository)) {
-                            recoveryListener.onRecoveryDone(recoveryState);
-                        }
-                    } catch (Exception e) {
-                        recoveryListener.onRecoveryFailure(recoveryState,
-                            new RecoveryFailedException(recoveryState, null, e), true);
-                    }
-                });
+                threadPool.generic().execute(() -> restoreFromRepository(
+                    repositoriesService.repository(recoverySource.snapshot().getRepository()),
+                    ActionListener.wrap(r -> {
+                            if (r) {
+                                recoveryListener.onRecoveryDone(recoveryState);
+                            }
+                        },
+                        e -> recoveryListener.onRecoveryFailure(recoveryState,
+                            new RecoveryFailedException(recoveryState, null, e), true))));
                 break;
             case LOCAL_SHARDS:
                 final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();

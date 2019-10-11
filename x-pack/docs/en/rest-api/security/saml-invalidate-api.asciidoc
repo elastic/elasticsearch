@@ -70,7 +70,7 @@ The client application must not attempt to parse or process the string in any wa
 The following example invalidates all the tokens for realm `saml1` pertaining to
 the user that is identified in the SAML Logout Request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/saml/invalidate
 {
@@ -78,7 +78,6 @@ POST /_security/saml/invalidate
   "realm" : "saml1"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:handled in IT]
 
 [source,js]

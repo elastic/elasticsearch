@@ -893,17 +893,15 @@ cluster privilege will be necessary after the authentication takes place, so tha
 the service account user can maintain access in order refresh access tokens on
 behalf of the authenticated users or to subsequently log them out.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/saml-service-role
 {
   "cluster" : ["manage_saml", "manage_token"]
 }
 --------------------------------------------------
-// CONSOLE
 
-
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/user/saml-service-user
 {
@@ -911,7 +909,6 @@ POST /_security/user/saml-service-user
   "roles"    : ["saml-service-role"]
 }
 --------------------------------------------------
-// CONSOLE
 
 [[saml-no-kibana-sp-init-sso]]
 ==== Handling the SP-initiated authentication flow
@@ -924,14 +921,13 @@ the `saml-service-user` user. Use either the name of the SAML realm in the {es} 
 the Assertion Consumer Service URL in the request body.
 See the <<security-api-saml-prepare-authentication,SAML prepare authentication API>> for more details.
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/saml/prepare
 {
   "realm" : "saml1"
 }
 --------------------------------------------------
-// CONSOLE
 
 . Handle the response from `/_security/saml/prepare`. The response from {es} will contain 3 parameters:
   `redirect`, `realm' and `id`. The custom web application would need to store the value for `id`
@@ -948,7 +944,7 @@ the Base64 encoded SAML Response that was sent as the body of the request. It mu
 +
 See <<security-api-saml-authenticate,SAML authenticate API>> for more details.
 +
-[source,js]
+[source,console]
 -----------------------------------------------------------------------
 POST /_security/saml/authenticate
 {
@@ -956,7 +952,6 @@ POST /_security/saml/authenticate
   "ids" : ["4fee3b046395c4e751011e97f8900b5273d56685"]
 }
 -----------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:handled in IT]
 +
 Elasticsearch will validate this and if all is correct will respond with an access token that can be used
@@ -978,7 +973,7 @@ for the user already, and it will not have any stored values for the `id` parame
 `_security/saml/authenticate` API will look like the one below in this case:
 
 
-[source,js]
+[source,console]
 -----------------------------------------------------------------------
 POST /_security/saml/authenticate
 {
@@ -986,7 +981,6 @@ POST /_security/saml/authenticate
   "ids" : []
 }
 -----------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:handled in IT]
 
 [[saml-no-kibana-slo]]
@@ -994,7 +988,7 @@ POST /_security/saml/authenticate
 . At some point, if necessary, the custom web application can log the user out by using the
   <<security-api-saml-logout,SAML logout API>> and passing the access token and refresh token as parameters. For example:
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/saml/logout
 {
@@ -1002,7 +996,6 @@ POST /_security/saml/logout
   "refresh_token": "mJdXLtmvTUSpoLwMvdBt_w"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:handled in IT]
 +
 If the SAML realm is configured accordingly and the IdP supports it (see <<saml-logout>>), this request will trigger a SAML
@@ -1013,7 +1006,7 @@ the Logout URL (`sp.logout`) needs to be handled by the custom web app. The quer
 user will be redirected to will contain a SAML Logout request and this query part needs to be relayed to {es}
 using the <<security-api-saml-invalidate,SAML invalidate API>> 
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/saml/invalidate
 {
@@ -1021,7 +1014,6 @@ POST /_security/saml/invalidate
   "realm" : "saml1"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:handled in IT]
 +
 The custom web application will then need to also handle the response, which will include a `redirect`

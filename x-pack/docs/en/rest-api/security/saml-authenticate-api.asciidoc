@@ -69,7 +69,7 @@ The following example exchanges a SAML Response indicating a successful
 authentication at the SAML IdP for an {es} access token and refresh token to be
 used in subsequent requests:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/saml/authenticate
 {
@@ -77,7 +77,6 @@ POST /_security/saml/authenticate
   "ids" : ["4fee3b046395c4e751011e97f8900b5273d56685"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:handled in IT]
 
 The API returns the following response:

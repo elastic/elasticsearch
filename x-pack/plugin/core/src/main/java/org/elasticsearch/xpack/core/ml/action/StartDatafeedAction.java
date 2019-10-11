@@ -147,7 +147,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareString(DatafeedParams::setJobId, Job.ID);
             PARSER.declareStringArray(DatafeedParams::setDatafeedIndices, INDICES);
-            PARSER.declareInt(DatafeedParams::setStopAfterEmptySearchResponses, DatafeedConfig.STOP_AFTER_EMPTY_SEARCH_RESPONSES);
+            PARSER.declareInt(DatafeedParams::setMaxEmptySearches, DatafeedConfig.MAX_EMPTY_SEARCHES);
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
@@ -191,7 +191,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             datafeedIndices = in.readStringList();
             // TODO: change version in backport
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                stopAfterEmptySearchResponses = in.readOptionalVInt();
+                maxEmptySearches = in.readOptionalVInt();
             }
         }
 
@@ -204,7 +204,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
         private List<String> datafeedIndices = Collections.emptyList();
         private String jobId;
-        private Integer stopAfterEmptySearchResponses;
+        private Integer maxEmptySearches;
 
         public String getDatafeedId() {
             return datafeedId;
@@ -261,12 +261,12 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Nullable
-        public Integer getStopAfterEmptySearchResponses() {
-            return stopAfterEmptySearchResponses;
+        public Integer getMaxEmptySearches() {
+            return maxEmptySearches;
         }
 
-        public void setStopAfterEmptySearchResponses(int stopAfterEmptySearchResponses) {
-            this.stopAfterEmptySearchResponses = stopAfterEmptySearchResponses;
+        public void setMaxEmptySearches(int maxEmptySearches) {
+            this.maxEmptySearches = maxEmptySearches;
         }
 
         @Override
@@ -279,7 +279,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             out.writeStringCollection(datafeedIndices);
             // TODO: change version in backport
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalVInt(stopAfterEmptySearchResponses);
+                out.writeOptionalVInt(maxEmptySearches);
             }
         }
 
@@ -298,8 +298,8 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             if (datafeedIndices.isEmpty() == false) {
                 builder.field(INDICES.getPreferredName(), datafeedIndices);
             }
-            if (stopAfterEmptySearchResponses != null) {
-                builder.field(DatafeedConfig.STOP_AFTER_EMPTY_SEARCH_RESPONSES.getPreferredName(), stopAfterEmptySearchResponses);
+            if (maxEmptySearches != null) {
+                builder.field(DatafeedConfig.MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
             }
             builder.endObject();
             return builder;
@@ -307,7 +307,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, startTime, endTime, timeout, jobId, datafeedIndices, stopAfterEmptySearchResponses);
+            return Objects.hash(datafeedId, startTime, endTime, timeout, jobId, datafeedIndices, maxEmptySearches);
         }
 
         @Override
@@ -325,7 +325,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                     Objects.equals(timeout, other.timeout) &&
                     Objects.equals(jobId, other.jobId) &&
                     Objects.equals(datafeedIndices, other.datafeedIndices) &&
-                    Objects.equals(stopAfterEmptySearchResponses, other.stopAfterEmptySearchResponses);
+                    Objects.equals(maxEmptySearches, other.maxEmptySearches);
         }
     }
 

@@ -152,7 +152,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(bucketSpanMillis));
         }
         if (randomBoolean()) {
-            builder.setStopAfterEmptySearchResponses(randomIntBetween(10, 100));
+            builder.setMaxEmptySearches(randomIntBetween(10, 100));
         }
         return builder;
     }
@@ -386,7 +386,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertThat(defaultFeed.getScrollSize(), equalTo(1000));
         assertThat(defaultFeed.getQueryDelay().seconds(), greaterThanOrEqualTo(60L));
         assertThat(defaultFeed.getQueryDelay().seconds(), lessThan(120L));
-        assertThat(defaultFeed.getStopAfterEmptySearchResponses(), is(nullValue()));
+        assertThat(defaultFeed.getMaxEmptySearches(), is(nullValue()));
     }
 
     public void testDefaultQueryDelay() {
@@ -411,18 +411,18 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         expectThrows(IllegalArgumentException.class, () -> conf.setIndices(null));
     }
 
-    public void testCheckValid_GivenNonPositiveStopAfterEmptySearchResponses() {
+    public void testCheckValid_GivenInvalidMaxEmptySearches() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         ElasticsearchStatusException e =
-            expectThrows(ElasticsearchStatusException.class, () -> conf.setStopAfterEmptySearchResponses(randomFrom(-2, 0)));
-        assertThat(e.getMessage(), containsString("Invalid stop_after_empty_search_responses value"));
+            expectThrows(ElasticsearchStatusException.class, () -> conf.setMaxEmptySearches(randomFrom(-2, 0)));
+        assertThat(e.getMessage(), containsString("Invalid max_empty_searches value"));
     }
 
-    public void testCheckValid_GivenStopAfterEmptySearchResponsesMinusOne() {
+    public void testCheckValid_GivenMaxEmptySearchesMinusOne() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         conf.setIndices(Collections.singletonList("whatever"));
-        conf.setStopAfterEmptySearchResponses(-1);
-        assertThat(conf.build().getStopAfterEmptySearchResponses(), is(nullValue()));
+        conf.setMaxEmptySearches(-1);
+        assertThat(conf.build().getMaxEmptySearches(), is(nullValue()));
     }
 
     public void testCheckValid_GivenEmptyIndices() {
@@ -906,10 +906,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             }
             break;
         case 10:
-            if (instance.getStopAfterEmptySearchResponses() == null) {
-                builder.setStopAfterEmptySearchResponses(randomIntBetween(10, 100));
+            if (instance.getMaxEmptySearches() == null) {
+                builder.setMaxEmptySearches(randomIntBetween(10, 100));
             } else {
-                builder.setStopAfterEmptySearchResponses(instance.getStopAfterEmptySearchResponses() + 1);
+                builder.setMaxEmptySearches(instance.getMaxEmptySearches() + 1);
             }
             break;
         default:

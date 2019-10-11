@@ -417,7 +417,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final String datafeedId;
         private final long startTime;
         private final Long endTime;
-        private final Integer stopAfterEmptySearchResponses;
+        private final Integer maxEmptySearches;
 
         /* only pck protected for testing */
         volatile DatafeedManager datafeedManager;
@@ -428,7 +428,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             this.datafeedId = params.getDatafeedId();
             this.startTime = params.getStartTime();
             this.endTime = params.getEndTime();
-            this.stopAfterEmptySearchResponses = params.getStopAfterEmptySearchResponses();
+            this.maxEmptySearches = params.getMaxEmptySearches();
         }
 
         public String getDatafeedId() {
@@ -445,8 +445,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Nullable
-        public Integer getStopAfterEmptySearchResponses() {
-            return stopAfterEmptySearchResponses;
+        public Integer getMaxEmptySearches() {
+            return maxEmptySearches;
         }
 
         public boolean isLookbackOnly() {

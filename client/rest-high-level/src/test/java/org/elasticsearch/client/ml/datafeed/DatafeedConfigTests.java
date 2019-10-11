@@ -107,7 +107,7 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig());
         }
         if (randomBoolean()) {
-            builder.setStopAfterEmptySearchResponses(randomIntBetween(10, 100));
+            builder.setMaxEmptySearches(randomIntBetween(10, 100));
         }
         return builder;
     }

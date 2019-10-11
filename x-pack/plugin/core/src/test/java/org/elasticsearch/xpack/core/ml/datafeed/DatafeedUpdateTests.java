@@ -121,7 +121,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(randomLongBetween(300_001, 400_000)));
         }
         if (randomBoolean()) {
-            builder.setStopAfterEmptySearchResponses(randomBoolean() ? -1 : randomIntBetween(10, 100));
+            builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
         }
         return builder.build();
     }
@@ -430,10 +430,10 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             }
             break;
         case 10:
-            if (instance.getStopAfterEmptySearchResponses() == null) {
-                builder.setStopAfterEmptySearchResponses(randomFrom(-1, 10));
+            if (instance.getMaxEmptySearches() == null) {
+                builder.setMaxEmptySearches(randomFrom(-1, 10));
             } else {
-                builder.setStopAfterEmptySearchResponses(instance.getStopAfterEmptySearchResponses() + 100);
+                builder.setMaxEmptySearches(instance.getMaxEmptySearches() + 100);
             }
             break;
         default:

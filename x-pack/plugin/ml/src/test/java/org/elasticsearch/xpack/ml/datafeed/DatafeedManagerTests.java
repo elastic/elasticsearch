@@ -434,7 +434,7 @@ public class DatafeedManagerTests extends ESTestCase {
         when(task.getDatafeedId()).thenReturn(datafeedId);
         when(task.getDatafeedStartTime()).thenReturn(startTime);
         when(task.getEndTime()).thenReturn(endTime);
-        when(task.getStopAfterEmptySearchResponses()).thenReturn(null);
+        when(task.getMaxEmptySearches()).thenReturn(null);
         doAnswer(invocationOnMock -> {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(mock(PersistentTask.class));

@@ -101,7 +101,7 @@ parallel and close one when you are satisfied with the results of the other job.
   (Optional, unsigned integer) The `size` parameter that is used in {es}
   searches. The default value is `1000`.
 
-`stop_after_empty_search_responses`::
+`max_empty_searches`::
   (Optional, integer) If a real-time {dfeed} has never seen any data (including
   during any initial training period) then it will automatically stop itself
   and close its associated job after this many real-time searches that return

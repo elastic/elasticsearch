@@ -327,7 +327,7 @@ public class DatafeedManager {
         }
 
         boolean shouldStopAfterEmptyData(int emptyDataCount) {
-            Integer emptyDataCountToStopAt = task.getStopAfterEmptySearchResponses();
+            Integer emptyDataCountToStopAt = task.getMaxEmptySearches();
             return emptyDataCountToStopAt != null && emptyDataCount >= emptyDataCountToStopAt;
         }
 

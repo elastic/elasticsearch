@@ -259,7 +259,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getAllHeaderValues(name);
-            if (headerValues != null) {
+            if (headerValues != null && headerValues.isEmpty() == false) {
                 final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
                     channel.sendResponse(

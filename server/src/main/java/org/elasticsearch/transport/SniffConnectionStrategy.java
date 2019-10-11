@@ -54,6 +54,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -88,7 +89,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.proxyAddress = proxyAddress;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
-        this.seedNodes = new ArrayList<>();
+        this.seedNodes = seedNodes.stream().map(Tuple::v1).collect(Collectors.toList());
     }
 
     private SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,

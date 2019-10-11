@@ -74,9 +74,9 @@ public final class ShardGenerations {
                     obsoleteShardIndices.put(i, oldGeneration);
                 }
             }
-            result.put(indexId, obsoleteShardIndices);
+            result.put(indexId, Collections.unmodifiableMap(obsoleteShardIndices));
         }));
-        return result;
+        return Collections.unmodifiableMap(result);
     }
 
     /**

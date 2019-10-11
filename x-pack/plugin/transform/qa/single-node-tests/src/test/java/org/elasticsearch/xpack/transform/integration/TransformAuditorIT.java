@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.Before;
 
@@ -67,6 +69,7 @@ public class TransformAuditorIT extends TransformRestTestCase {
         request.setJsonEntity("{\"query\":{\"term\":{\"transform_id\":\"simple_pivot_for_audit\"}}}");
         assertBusy(() -> {
             assertTrue(indexExists(TransformInternalIndexConstants.AUDIT_INDEX));
+            assertTrue(aliasExists(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS));
         });
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short DF job), all without the audit being fully written.
@@ -84,5 +87,17 @@ public class TransformAuditorIT extends TransformRestTestCase {
             assertThat(source.get("timestamp"), is(notNullValue()));
         });
 
+    }
+
+    public void testAliasCreatedforBWCIndexes() throws Exception {
+        Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+
+        createIndex(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED, settings.build());
+        assertBusy(() -> {
+            assertTrue(aliasExists(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED,
+                    TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS));
+        });
     }
 }

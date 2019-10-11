@@ -25,7 +25,7 @@ operations, but you can still explore and navigate results.
 ==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 [[ml-close-job-desc]]
 ==== {api-description-title}

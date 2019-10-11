@@ -15,7 +15,7 @@ Posts scheduled events in a calendar.
 
 ==== Description
 
-This API accepts a list of {xpack-ref}/ml-calendars.html[scheduled events], each
+This API accepts a list of {stack-ov}/ml-calendars.html[scheduled events], each
 of which must have a start time, end time, and description.
 
 ==== Path Parameters
@@ -36,8 +36,7 @@ of which must have a start time, end time, and description.
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-
+<<security-privileges>>.
 
 ==== Examples
 
@@ -87,4 +86,4 @@ The API returns the following results:
 // TESTRESPONSE
 
 For more information about these properties, see
-<<ml-event-resource,Scheduled Event Resources>>.
+<<ml-event-resource>>.

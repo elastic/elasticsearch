@@ -31,7 +31,7 @@ There is no request body for the Start Job API.
 
 You must have `manage` or `manage_rollup` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
 ==== Examples
 

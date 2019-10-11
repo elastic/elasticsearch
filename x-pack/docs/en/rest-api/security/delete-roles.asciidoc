@@ -16,7 +16,7 @@ Removes roles in the native realm.
 
 The Roles API is generally the preferred way to manage roles, rather than using
 file-based role management. For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+<<realms>> and <<configuring-native-realm>>. 
 
 
 ==== Path Parameters

@@ -773,7 +773,7 @@ creates the required number of replicas at this moment cluster switches to the `
 are created, the cluster switches to the `green` states.
 
 The cluster health operation provides only a high level status of the restore process. It's possible to get more
-detailed insight into the current state of the recovery process by using <<indices-recovery, indices recovery>> and
+detailed insight into the current state of the recovery process by using <<indices-recovery, index recovery>> and
 <<cat-recovery, cat recovery>> APIs.
 
 [float]

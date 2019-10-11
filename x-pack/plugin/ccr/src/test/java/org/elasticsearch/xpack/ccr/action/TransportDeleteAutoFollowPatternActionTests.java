@@ -32,8 +32,8 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
-            existingAutoFollowPatterns.put("name1",
-                new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
+            existingAutoFollowPatterns.put("name1", new AutoFollowPattern("eu_cluster", existingPatterns, null, true, null, null, null,
+                null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -43,8 +43,8 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("logs-*");
-            existingAutoFollowPatterns.put("name2",
-                new AutoFollowPattern("asia_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
+            existingAutoFollowPatterns.put("name2", new AutoFollowPattern("asia_cluster", existingPatterns, null, true, null, null, null,
+                null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -76,8 +76,8 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
-            existingAutoFollowPatterns.put("name1",
-                new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
+            existingAutoFollowPatterns.put("name1", new AutoFollowPattern("eu_cluster", existingPatterns, null, true, null, null, null,
+                null, null, null, null, null, null, null));
             existingHeaders.put("key", Collections.singletonMap("key", "val"));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))

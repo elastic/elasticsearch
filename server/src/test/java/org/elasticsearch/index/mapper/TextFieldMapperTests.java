@@ -771,6 +771,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47777")
     public void testFastPhraseMapping() throws IOException {
 
         QueryShardContext queryShardContext = indexService.newQueryShardContext(

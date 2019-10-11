@@ -115,7 +115,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 // Deletes should be replicated to the follower
                 List<String> deleteDocIds = randomSubsetOf(indexedDocIds);
                 for (String deleteId : deleteDocIds) {
-                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest(index.getName(), "type", deleteId));
+                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest(index.getName(), deleteId));
                     assertThat(resp.getResponse().getResult(), equalTo(DocWriteResponse.Result.DELETED));
                 }
                 leaderGroup.syncGlobalCheckpoint();
@@ -278,7 +278,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     }
                 }
                 for (String deleteId : randomSubsetOf(IndexShardTestCase.getShardDocUIDs(leaderGroup.getPrimary()))) {
-                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", "type", deleteId));
+                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", deleteId));
                     assertThat(resp.getFailure(), nullValue());
                 }
                 leaderGroup.syncGlobalCheckpoint();

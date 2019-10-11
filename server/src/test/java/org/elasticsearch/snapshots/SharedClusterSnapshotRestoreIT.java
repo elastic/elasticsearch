@@ -1641,15 +1641,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         try (Stream<Path> files = Files.list(repo.resolve("indices"))) {
             files.forEach(indexPath -> {
                 try {
-                    final String shardGen;
+                    final Path shardGen;
                     try (Stream<Path> shardFiles = Files.list(indexPath.resolve("0"))) {
                         shardGen = shardFiles
                             .filter(file -> file.getFileName().toString().startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Failed to find shard index blob"))
-                            .getFileName().toString().substring(BlobStoreRepository.INDEX_FILE_PREFIX.length());
+                            .findFirst().orElseThrow(() -> new AssertionError("Failed to find shard index blob"));
                     }
-                    Files.delete(indexPath.resolve("0").resolve("index-" + shardGen));
+                    Files.delete(shardGen);
                 } catch (IOException e) {
                     throw new RuntimeException("Failed to delete expected file", e);
                 }

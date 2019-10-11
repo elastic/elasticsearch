@@ -50,7 +50,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     public void tearDown() throws Exception {
         super.tearDown();
         assertEquals(0, PooledByteBufAllocator.DEFAULT.metric().usedHeapMemory());
-        assertEquals(-1, PooledByteBufAllocator.DEFAULT.metric().usedDirectMemory());
+        assertEquals(0, PooledByteBufAllocator.DEFAULT.metric().usedDirectMemory());
     }
 
     @Override

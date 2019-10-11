@@ -62,6 +62,6 @@ public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         assertEquals(0, PooledByteBufAllocator.DEFAULT.metric().usedHeapMemory());
-        assertEquals(-1, PooledByteBufAllocator.DEFAULT.metric().usedDirectMemory());
+        assertEquals(0, PooledByteBufAllocator.DEFAULT.metric().usedDirectMemory());
     }
 }

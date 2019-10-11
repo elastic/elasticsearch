@@ -2596,7 +2596,7 @@ You must set `xpack.security.authc.accept_default_password` to `false` in your
 {stack-ov}/setting-up-authentication.html[User authentication].
 * A new configuration setting is available to disable support for the default
 password (_"changeme"_). For more information, see
-{stack-ov}/built-in-users.html#disabling-default-password[Disable default password functionality].
+{ref}/built-in-users.html#disabling-default-password[Disable default password functionality].
 
 Sequence IDs::
 * Change certain replica failures not to fail the replica shard {pull}22874[#22874] (issue: {issue}10708[#10708])

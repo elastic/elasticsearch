@@ -353,11 +353,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
                 new ByteSizeValue(190 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
-        client().prepareIndex("test", "test", "0")
+        client().prepareIndex("test", "_doc", "0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            new SourceToParse("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
+            new SourceToParse("test", "_doc", "1", new BytesArray("{}"), XContentType.JSON),
             SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = getTranslog(shard);

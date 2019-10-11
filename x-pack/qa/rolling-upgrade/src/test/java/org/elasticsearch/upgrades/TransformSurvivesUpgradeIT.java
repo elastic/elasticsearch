@@ -25,6 +25,7 @@ import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -35,20 +36,25 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX;
+import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED;
+import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX;
+import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -71,10 +77,33 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         .map(TimeValue::timeValueMinutes)
         .collect(Collectors.toList());
 
-    @Override
-    protected Collection<String> templatesToWaitFor() {
-        return Stream.concat(XPackRestTestConstants.DATA_FRAME_TEMPLATES.stream(),
-            super.templatesToWaitFor().stream()).collect(Collectors.toSet());
+    @Before
+    public void waitForTemplates() throws Exception {
+        assertBusy(() -> {
+            final Request catRequest = new Request("GET", "_cat/templates?h=n&s=n");
+            final Response catResponse = adminClient().performRequest(catRequest);
+
+            final SortedSet<String> templates = new TreeSet<>(Streams.readAllLines(catResponse.getEntity().getContent()));
+
+            // match templates, independent of the version, at least 2 should exist
+            SortedSet<String> internalDeprecated = templates.tailSet(TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED);
+            SortedSet<String> internal = templates.tailSet(TRANSFORM_INTERNAL_INDEX_PREFIX);
+            SortedSet<String> notificationsDeprecated = templates
+                    .tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED);
+            SortedSet<String> notifications = templates.tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX);
+
+            int foundTemplates = 0;
+            foundTemplates += internalDeprecated.isEmpty() ? 0
+                    : internalDeprecated.first().startsWith(TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED) ? 1 : 0;
+            foundTemplates += internal.isEmpty() ? 0 : internal.first().startsWith(TRANSFORM_INTERNAL_INDEX_PREFIX) ? 1 : 0;
+            foundTemplates += notificationsDeprecated.isEmpty() ? 0
+                    : notificationsDeprecated.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED) ? 1 : 0;
+            foundTemplates += notifications.isEmpty() ? 0 : notifications.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX) ? 1 : 0;
+
+            if (foundTemplates < 2) {
+                fail("Transform index templates not found. The templates that exist are: " + templates);
+            }
+        });
     }
 
     protected static void waitForPendingDataFrameTasks() throws Exception {

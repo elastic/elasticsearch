@@ -237,8 +237,10 @@ CURRENT_DATE     |SCALAR
 CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
+DATEADD          |SCALAR
 DATEPART         |SCALAR
 DATETRUNC        |SCALAR
+DATE_ADD         |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
@@ -275,8 +277,10 @@ NOW              |SCALAR
 QUARTER          |SCALAR         
 SECOND           |SCALAR         
 SECOND_OF_MINUTE |SCALAR
+TIMESTAMPADD     |SCALAR
+TIMESTAMP_ADD    |SCALAR
 TODAY            |SCALAR
-WEEK             |SCALAR         
+WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
 ABS              |SCALAR         
@@ -2416,6 +2420,56 @@ SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
 ---------------
 19
 // end::dayOfMonth
+;
+
+dateAddDateTimeYears
+// tag::dateAddDateTimeYears
+SELECT DATE_ADD('years', 10, '2019-09-04T11:22:33.000Z'::datetime) AS "+10 years";
+
+      +10 years
+------------------------
+2029-09-04T11:22:33.000Z
+// end::dateAddDateTimeYears
+;
+
+dateAddDateTimeWeeks
+// tag::dateAddDateTimeWeeks
+SELECT DATE_ADD('week', 10, '2019-09-04T11:22:33.000Z'::datetime) AS "+10 weeks";
+
+      +10 weeks
+------------------------
+2019-11-13T11:22:33.000Z
+// end::dateAddDateTimeWeeks
+;
+
+dateAddDateTimeSeconds
+// tag::dateAddDateTimeSeconds
+SELECT DATE_ADD('seconds', -1234, '2019-09-04T11:22:33.000Z'::datetime) AS "-1234 seconds";
+
+      -1234 seconds
+------------------------
+2019-09-04T11:01:59.000Z
+// end::dateAddDateTimeSeconds
+;
+
+dateAddDateQuarters
+// tag::dateAddDateQuarters
+SELECT DATE_ADD('qq', -417, '2019-09-04'::date) AS "-417 quarters";
+
+      -417 quarters
+------------------------
+1915-06-04T00:00:00.000Z
+// end::dateAddDateQuarters
+;
+
+dateAddDateMinutes
+// tag::dateAddDateMinutes
+SELECT DATE_ADD('minutes', 9235, '2019-09-04'::date) AS "+9235 minutes";
+
+      +9235 minutes
+------------------------
+2019-09-10T09:55:00.000Z
+// end::dateAddDateMinutes
 ;
 
 datePartDateTimeYears

@@ -250,7 +250,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         @Override
                         public void onResponse(GetSnapshotsResponse resp) {
                             final Set<SnapshotState> retainableStates =
-                                new HashSet<>(Arrays.asList(SnapshotState.SUCCESS, SnapshotState.FAILED));
+                                new HashSet<>(Arrays.asList(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL));
                             try {
                                 snapshots.compute(repository, (k, previousSnaps) -> {
                                     if (previousSnaps != null) {

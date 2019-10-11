@@ -28,6 +28,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
 
@@ -306,6 +307,7 @@ public class DependencyLicensesTask extends DefaultTask {
         return new File(licensesDir, jarName + SHA_EXTENSION);
     }
 
+    @Internal
     Set<File> getShaFiles() {
         File[] array = licensesDir.listFiles();
         if (array == null) {

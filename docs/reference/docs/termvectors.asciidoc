@@ -1,10 +1,10 @@
 [[docs-termvectors]]
-=== Term Vectors
+=== Term vectors API
+++++
+<titleabbrev>Term vectors</titleabbrev>
+++++
 
-Returns information and statistics on terms in the fields of a particular
-document. The document could be stored in the index or artificially provided
-by the user. Term vectors are <<realtime,realtime>> by default, not near
-realtime. This can be changed by setting `realtime` parameter to `false`.
+Retrieves information and statistics for terms in the fields of a particular document. 
 
 [source,console]
 --------------------------------------------------
@@ -12,8 +12,19 @@ GET /twitter/_termvectors/1
 --------------------------------------------------
 // TEST[setup:twitter]
 
-Optionally, you can specify the fields for which the information is
-retrieved either with a parameter in the url
+[[docs-termvectors-api-request]]
+==== {api-request-title}
+
+`GET /<index>/_termvectors/<_id>`
+
+[[docs-termvectors-api-desc]]
+==== {api-description-title}
+
+You can retrieve term vectors for documents stored in the index or 
+for _artificial_ documents passed in the body of the request. 
+
+You can specify the fields you are interested in through the `fields` parameter,
+or by adding the fields to the request body. 
 
 [source,console]
 --------------------------------------------------
@@ -21,18 +32,16 @@ GET /twitter/_termvectors/1?fields=message
 --------------------------------------------------
 // TEST[setup:twitter]
 
-or by adding the requested fields in the request body (see
-example below). Fields can also be specified with wildcards
-in similar way to the <<query-dsl-multi-match-query,multi match query>>
+Fields can be specified using wildcards, similar to the <<query-dsl-multi-match-query,multi match query>>.
 
-[float]
-==== Return values
+Term vectors are <<realtime,real-time>> by default, not near real-time. 
+This can be changed by setting `realtime` parameter to `false`.
 
-Three types of values can be requested: _term information_, _term statistics_
+You can request three types of values: _term information_, _term statistics_
 and _field statistics_. By default, all term information and field
-statistics are returned for all fields but no term statistics.
+statistics are returned for all fields but term statistics are excluded.
 
-[float]
+[[docs-termvectors-api-term-info]]
 ===== Term information
 
  * term frequency in the field (always returned)
@@ -52,7 +61,7 @@ should make sure that the string you are taking a sub-string of is also encoded
 using UTF-16.
 ======
 
-[float]
+[[docs-termvectors-api-term-stats]]
 ===== Term statistics
 
 Setting `term_statistics` to `true` (default is `false`) will
@@ -65,7 +74,7 @@ return
 By default these values are not returned since term statistics can
 have a serious performance impact.
 
-[float]
+[[docs-termvectors-api-field-stats]]
 ===== Field statistics
 
 Setting `field_statistics` to `false` (default is `true`) will
@@ -77,8 +86,8 @@ omit :
  * sum of total term frequencies (the sum of total term frequencies of
    each term in this field)
 
-[float]
-===== Terms Filtering
+[[docs-termvectors-api-terms-filtering]]
+===== Terms filtering
 
 With the parameter `filter`, the terms returned could also be filtered based
 on their tf-idf scores. This could be useful in order find out a good
@@ -105,7 +114,7 @@ The following sub-parameters are supported:
 `max_word_length`::
   The maximum word length above which words will be ignored. Defaults to unbounded (`0`).
 
-[float]
+[[docs-termvectors-api-behavior]]
 ==== Behaviour
 
 The term and field statistics are not accurate. Deleted documents
@@ -116,8 +125,45 @@ whereas the absolute numbers have no meaning in this context. By default,
 when requesting term vectors of artificial documents, a shard to get the statistics
 from is randomly selected. Use `routing` only to hit a particular shard.
 
-[float]
-===== Example: Returning stored term vectors
+[[docs-termvectors-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string) Name of the index that contains the document.
+
+`<_id>`::
+(Optional, string) Unique identifier of the document.
+
+[[docs-termvectors-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=fields]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=field_statistics]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=offsets]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=payloads]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=positions]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=term_statistics]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=version]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
+
+[[docs-termvectors-api-example]]
+==== {api-examples-title}
+
+[[docs-termvectors-api-stored-termvectors]]
+===== Returning stored term vectors
 
 First, we create an index that stores term vectors, payloads etc. :
 
@@ -259,8 +305,8 @@ Response:
 // TEST[continued]
 // TESTRESPONSE[s/"took": 6/"took": "$body.took"/]
 
-[float]
-===== Example: Generating term vectors on the fly
+[[docs-termvectors-api-generate-termvectors]]
+===== Generating term vectors on the fly
 
 Term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the
@@ -281,8 +327,7 @@ GET /twitter/_termvectors/1
 // TEST[continued]
 
 [[docs-termvectors-artificial-doc]]
-[float]
-===== Example: Artificial documents
+===== Artificial documents
 
 Term vectors can also be generated for artificial documents,
 that is for documents not present in the index.  For example, the following request would
@@ -304,7 +349,6 @@ GET /twitter/_termvectors
 // TEST[continued]
 
 [[docs-termvectors-per-field-analyzer]]
-[float]
 ====== Per-field analyzer
 
 Additionally, a different analyzer than the one at the field may be provided
@@ -369,8 +413,7 @@ Response:
 
 
 [[docs-termvectors-terms-filtering]]
-[float]
-===== Example: Terms filtering
+===== Terms filtering
 
 Finally, the terms returned could be filtered based on their tf-idf scores. In
 the example below we obtain the three most "interesting" keywords from the

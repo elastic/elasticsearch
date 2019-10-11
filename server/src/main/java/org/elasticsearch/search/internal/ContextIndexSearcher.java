@@ -23,7 +23,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -244,15 +243,15 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     @Override
-    public TermStatistics termStatistics(Term term, TermStates context) throws IOException {
+    public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
-            return super.termStatistics(term, context);
+            return super.termStatistics(term, docFreq, totalTermFreq);
         }
         TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
         if (termStatistics == null) {
             // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
-            return super.termStatistics(term, context);
+            return super.termStatistics(term, docFreq, totalTermFreq);
         }
         return termStatistics;
     }

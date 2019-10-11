@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -78,16 +79,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.request().source(source);
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
-        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
 
-        assertThat(p.getValueFor("message"), equalTo("[foo][0]"));
-        assertThat(p.getValueFor("took"), equalTo("10nanos"));
-        assertThat(p.getValueFor("took_millis"), equalTo("0"));
-        assertThat(p.getValueFor("total_hits"), equalTo("-1"));
-        assertThat(p.getValueFor("stats"), equalTo("[]"));
-        assertThat(p.getValueFor("search_type"), Matchers.nullValue());
-        assertThat(p.getValueFor("total_shards"), equalTo("1"));
-        assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
+        assertThat(p.get("message"), equalTo("[foo][0]"));
+        assertThat(p.get("took"), equalTo("10nanos"));
+        assertThat(p.get("took_millis"), equalTo("0"));
+        assertThat(p.get("total_hits"), equalTo("-1"));
+        assertThat(p.get("stats"), equalTo("[]"));
+        assertThat(p.get("search_type"), Matchers.nullValue());
+        assertThat(p.get("total_shards"), equalTo("1"));
+        assertThat(p.get("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
     }
 
     public void testSlowLogsWithStats() throws IOException {
@@ -98,16 +99,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
 
-        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
-        assertThat(p.getValueFor("stats"), equalTo("[\\\"group1\\\"]"));
+        ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
+        assertThat(p.get("stats"), equalTo("[\\\"group1\\\"]"));
 
         searchContext = createSearchContext(index, "group1", "group2");
         source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
-        p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
-        assertThat(p.getValueFor("stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
+        p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
+        assertThat(p.get("stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
     }
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
@@ -117,7 +118,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.request().source(source);
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
-        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
         assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.getFormattedMessage(), not(containsString("\n")));

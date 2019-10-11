@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -380,5 +381,55 @@ public class RolloverIT extends ESIntegTestCase {
             () -> client().admin().indices().prepareRolloverIndex("logs-write").addMaxIndexSizeCondition(new ByteSizeValue(1)).get());
         assertThat(error.getMessage(), equalTo(
             "Rollover alias [logs-write] can point to multiple indices, found duplicated alias [[logs-write]] in index template [logs]"));
+    }
+
+    public void testRolloverWithClosedIndexInAlias() throws Exception {
+        final String aliasName = "alias";
+        final String openNonwriteIndex = "open-index-nonwrite";
+        final String closedIndex = "closed-index-nonwrite";
+        final String writeIndexPrefix = "write-index-";
+        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+
+        index(closedIndex, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        refresh(aliasName);
+
+        assertAcked(client().admin().indices().prepareClose(closedIndex).get());
+
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
+            .addMaxIndexDocsCondition(1)
+            .get();
+        assertTrue(rolloverResponse.isRolledOver());
+        assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
+        assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
+    }
+
+    public void testRolloverWithClosedWriteIndex() throws Exception {
+        final String aliasName = "alias";
+        final String openNonwriteIndex = "open-index-nonwrite";
+        final String closedIndex = "closed-index-nonwrite";
+        final String writeIndexPrefix = "write-index-";
+        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+
+        index(closedIndex, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        refresh(aliasName);
+
+        assertAcked(client().admin().indices().prepareClose(closedIndex).get());
+        assertAcked(client().admin().indices().prepareClose(writeIndexPrefix + "000001").get());
+        ensureGreen(aliasName);
+
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
+            .addMaxIndexDocsCondition(1)
+            .get();
+        assertTrue(rolloverResponse.isRolledOver());
+        assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
+        assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
     }
 }

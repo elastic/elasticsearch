@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -68,6 +69,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedConfig> {
 
@@ -148,6 +150,9 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         }
         if (randomBoolean()) {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(bucketSpanMillis));
+        }
+        if (randomBoolean()) {
+            builder.setStopAfterEmptySearchResponses(randomIntBetween(10, 100));
         }
         return builder;
     }
@@ -378,10 +383,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         defaultFeedBuilder.setIndices(Collections.singletonList("index"));
         DatafeedConfig defaultFeed = defaultFeedBuilder.build();
 
-
         assertThat(defaultFeed.getScrollSize(), equalTo(1000));
         assertThat(defaultFeed.getQueryDelay().seconds(), greaterThanOrEqualTo(60L));
         assertThat(defaultFeed.getQueryDelay().seconds(), lessThan(120L));
+        assertThat(defaultFeed.getStopAfterEmptySearchResponses(), is(nullValue()));
     }
 
     public void testDefaultQueryDelay() {
@@ -404,6 +409,20 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testCheckValid_GivenNullIndices() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         expectThrows(IllegalArgumentException.class, () -> conf.setIndices(null));
+    }
+
+    public void testCheckValid_GivenNonPositiveStopAfterEmptySearchResponses() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        ElasticsearchStatusException e =
+            expectThrows(ElasticsearchStatusException.class, () -> conf.setStopAfterEmptySearchResponses(randomFrom(-2, 0)));
+        assertThat(e.getMessage(), containsString("Invalid stop_after_empty_search_responses value"));
+    }
+
+    public void testCheckValid_GivenStopAfterEmptySearchResponsesMinusOne() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        conf.setIndices(Collections.singletonList("whatever"));
+        conf.setStopAfterEmptySearchResponses(-1);
+        assertThat(conf.build().getStopAfterEmptySearchResponses(), is(nullValue()));
     }
 
     public void testCheckValid_GivenEmptyIndices() {
@@ -824,7 +843,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) throws IOException {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 9)) {
+        switch (between(0, 10)) {
         case 0:
             builder.setId(instance.getId() + randomValidDatafeedId());
             break;
@@ -884,6 +903,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 builder.setChunkingConfig(newChunkingConfig);
             } else {
                 builder.setChunkingConfig(ChunkingConfig.newAuto());
+            }
+            break;
+        case 10:
+            if (instance.getStopAfterEmptySearchResponses() == null) {
+                builder.setStopAfterEmptySearchResponses(randomIntBetween(10, 100));
+            } else {
+                builder.setStopAfterEmptySearchResponses(instance.getStopAfterEmptySearchResponses() + 1);
             }
             break;
         default:

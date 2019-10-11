@@ -62,6 +62,7 @@ public class DatafeedConfig implements ToXContentObject {
     public static final ParseField SCRIPT_FIELDS = new ParseField("script_fields");
     public static final ParseField CHUNKING_CONFIG = new ParseField("chunking_config");
     public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
+    public static final ParseField STOP_AFTER_EMPTY_SEARCH_RESPONSES = new ParseField("stop_after_empty_search_responses");
 
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
         "datafeed_config", true, a -> new Builder((String)a[0], (String)a[1]));
@@ -88,6 +89,7 @@ public class DatafeedConfig implements ToXContentObject {
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
         PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSER, CHUNKING_CONFIG);
         PARSER.declareObject(Builder::setDelayedDataCheckConfig, DelayedDataCheckConfig.PARSER, DELAYED_DATA_CHECK_CONFIG);
+        PARSER.declareInt(Builder::setStopAfterEmptySearchResponses, STOP_AFTER_EMPTY_SEARCH_RESPONSES);
     }
 
     private static BytesReference parseBytes(XContentParser parser) throws IOException {
@@ -107,11 +109,12 @@ public class DatafeedConfig implements ToXContentObject {
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
-
+    private final Integer stopAfterEmptySearchResponses;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, BytesReference query,
                            BytesReference aggregations, List<SearchSourceBuilder.ScriptField> scriptFields, Integer scrollSize,
-                           ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
+                           ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig,
+                           Integer stopAfterEmptySearchResponses) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -123,6 +126,7 @@ public class DatafeedConfig implements ToXContentObject {
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
         this.delayedDataCheckConfig = delayedDataCheckConfig;
+        this.stopAfterEmptySearchResponses = stopAfterEmptySearchResponses;
     }
 
     public String getId() {
@@ -169,6 +173,10 @@ public class DatafeedConfig implements ToXContentObject {
         return delayedDataCheckConfig;
     }
 
+    public Integer getStopAfterEmptySearchResponses() {
+        return stopAfterEmptySearchResponses;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -204,6 +212,9 @@ public class DatafeedConfig implements ToXContentObject {
         }
         if (delayedDataCheckConfig != null) {
             builder.field(DELAYED_DATA_CHECK_CONFIG.getPreferredName(), delayedDataCheckConfig);
+        }
+        if (stopAfterEmptySearchResponses != null) {
+            builder.field(STOP_AFTER_EMPTY_SEARCH_RESPONSES.getPreferredName(), stopAfterEmptySearchResponses);
         }
 
         builder.endObject();
@@ -245,7 +256,8 @@ public class DatafeedConfig implements ToXContentObject {
             && Objects.equals(asMap(this.aggregations), asMap(that.aggregations))
             && Objects.equals(this.scriptFields, that.scriptFields)
             && Objects.equals(this.chunkingConfig, that.chunkingConfig)
-            && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig);
+            && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
+            && Objects.equals(this.stopAfterEmptySearchResponses, that.stopAfterEmptySearchResponses);
     }
 
     /**
@@ -256,7 +268,7 @@ public class DatafeedConfig implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, asMap(query), scrollSize, asMap(aggregations), scriptFields,
-            chunkingConfig, delayedDataCheckConfig);
+            chunkingConfig, delayedDataCheckConfig, stopAfterEmptySearchResponses);
     }
 
     public static Builder builder(String id, String jobId) {
@@ -276,6 +288,7 @@ public class DatafeedConfig implements ToXContentObject {
         private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
         private DelayedDataCheckConfig delayedDataCheckConfig;
+        private Integer stopAfterEmptySearchResponses;
 
         public Builder(String id, String jobId) {
             this.id = Objects.requireNonNull(id, ID.getPreferredName());
@@ -294,6 +307,7 @@ public class DatafeedConfig implements ToXContentObject {
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
+            this.stopAfterEmptySearchResponses = config.getStopAfterEmptySearchResponses();
         }
 
         public Builder setIndices(List<String> indices) {
@@ -376,9 +390,14 @@ public class DatafeedConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setStopAfterEmptySearchResponses(int setStopAfterEmptySearchResponses) {
+            this.stopAfterEmptySearchResponses = stopAfterEmptySearchResponses;
+            return this;
+        }
+
         public DatafeedConfig build() {
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, query, aggregations, scriptFields, scrollSize,
-                chunkingConfig, delayedDataCheckConfig);
+                chunkingConfig, delayedDataCheckConfig, stopAfterEmptySearchResponses);
         }
 
         private static BytesReference xContentToBytes(ToXContentObject object) throws IOException {

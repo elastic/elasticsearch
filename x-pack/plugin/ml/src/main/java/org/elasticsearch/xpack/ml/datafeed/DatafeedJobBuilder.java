@@ -93,7 +93,8 @@ public class DatafeedJobBuilder {
                     currentTimeSupplier,
                     delayedDataDetector,
                     context.latestFinalBucketEndMs,
-                    context.latestRecordTimeMs);
+                    context.latestRecordTimeMs,
+                    context.haveSeenDataPreviously);
 
             listener.onResponse(datafeedJob);
         };
@@ -128,6 +129,7 @@ public class DatafeedJobBuilder {
             if (dataCounts.getLatestRecordTimeStamp() != null) {
                 context.latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
             }
+            context.haveSeenDataPreviously = (dataCounts.getInputRecordCount() > 0);
             jobResultsProvider.datafeedTimingStats(jobHolder.get().getId(), datafeedTimingStatsHandler, listener::onFailure);
         };
 
@@ -223,6 +225,7 @@ public class DatafeedJobBuilder {
     private static class Context {
         volatile long latestFinalBucketEndMs = -1L;
         volatile long latestRecordTimeMs = -1L;
+        volatile boolean haveSeenDataPreviously;
         volatile DataExtractorFactory dataExtractorFactory;
         volatile DatafeedTimingStatsReporter timingStatsReporter;
     }

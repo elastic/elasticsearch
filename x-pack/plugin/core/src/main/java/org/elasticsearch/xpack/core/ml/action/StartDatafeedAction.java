@@ -14,6 +14,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -146,6 +147,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareString(DatafeedParams::setJobId, Job.ID);
             PARSER.declareStringArray(DatafeedParams::setDatafeedIndices, INDICES);
+            PARSER.declareInt(DatafeedParams::setStopAfterEmptySearchResponses, DatafeedConfig.STOP_AFTER_EMPTY_SEARCH_RESPONSES);
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
@@ -187,6 +189,10 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
             datafeedIndices = in.readStringList();
+            // TODO: change version in backport
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                stopAfterEmptySearchResponses = in.readOptionalVInt();
+            }
         }
 
         DatafeedParams() {
@@ -198,7 +204,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
         private List<String> datafeedIndices = Collections.emptyList();
         private String jobId;
-
+        private Integer stopAfterEmptySearchResponses;
 
         public String getDatafeedId() {
             return datafeedId;
@@ -254,6 +260,15 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             return Version.CURRENT.minimumCompatibilityVersion();
         }
 
+        @Nullable
+        public Integer getStopAfterEmptySearchResponses() {
+            return stopAfterEmptySearchResponses;
+        }
+
+        public void setStopAfterEmptySearchResponses(int stopAfterEmptySearchResponses) {
+            this.stopAfterEmptySearchResponses = stopAfterEmptySearchResponses;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(datafeedId);
@@ -262,6 +277,10 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             out.writeVLong(timeout.millis());
             out.writeOptionalString(jobId);
             out.writeStringCollection(datafeedIndices);
+            // TODO: change version in backport
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeOptionalVInt(stopAfterEmptySearchResponses);
+            }
         }
 
         @Override
@@ -279,13 +298,16 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             if (datafeedIndices.isEmpty() == false) {
                 builder.field(INDICES.getPreferredName(), datafeedIndices);
             }
+            if (stopAfterEmptySearchResponses != null) {
+                builder.field(DatafeedConfig.STOP_AFTER_EMPTY_SEARCH_RESPONSES.getPreferredName(), stopAfterEmptySearchResponses);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, startTime, endTime, timeout, jobId, datafeedIndices);
+            return Objects.hash(datafeedId, startTime, endTime, timeout, jobId, datafeedIndices, stopAfterEmptySearchResponses);
         }
 
         @Override
@@ -302,7 +324,8 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                     Objects.equals(endTime, other.endTime) &&
                     Objects.equals(timeout, other.timeout) &&
                     Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(datafeedIndices, other.datafeedIndices);
+                    Objects.equals(datafeedIndices, other.datafeedIndices) &&
+                    Objects.equals(stopAfterEmptySearchResponses, other.stopAfterEmptySearchResponses);
         }
     }
 

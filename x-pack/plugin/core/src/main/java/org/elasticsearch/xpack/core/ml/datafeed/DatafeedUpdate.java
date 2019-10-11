@@ -78,6 +78,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         PARSER.declareObject(Builder::setDelayedDataCheckConfig,
             DelayedDataCheckConfig.STRICT_PARSER,
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG);
+        PARSER.declareInt(Builder::setStopAfterEmptySearchResponses, DatafeedConfig.STOP_AFTER_EMPTY_SEARCH_RESPONSES);
     }
 
     private final String id;
@@ -91,11 +92,13 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
+    private final Integer stopAfterEmptySearchResponses;
 
     private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices,
                            QueryProvider queryProvider, AggProvider aggProvider,
                            List<SearchSourceBuilder.ScriptField> scriptFields,
-                           Integer scrollSize, ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
+                           Integer scrollSize, ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig,
+                           Integer stopAfterEmptySearchResponses) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -107,6 +110,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
         this.delayedDataCheckConfig = delayedDataCheckConfig;
+        this.stopAfterEmptySearchResponses = stopAfterEmptySearchResponses;
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {
@@ -140,6 +144,12 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
+        // TODO: change version in backport
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            stopAfterEmptySearchResponses = in.readOptionalInt();
+        } else {
+            stopAfterEmptySearchResponses = null;
+        }
     }
 
     /**
@@ -183,6 +193,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
         out.writeOptionalWriteable(delayedDataCheckConfig);
+        // TODO: change version in backport
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalInt(stopAfterEmptySearchResponses);
+        }
     }
 
     @Override
@@ -213,6 +227,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         addOptionalField(builder, DatafeedConfig.SCROLL_SIZE, scrollSize);
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
         addOptionalField(builder, DatafeedConfig.DELAYED_DATA_CHECK_CONFIG, delayedDataCheckConfig);
+        addOptionalField(builder, DatafeedConfig.STOP_AFTER_EMPTY_SEARCH_RESPONSES, stopAfterEmptySearchResponses);
+
         builder.endObject();
         return builder;
     }
@@ -281,6 +297,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return delayedDataCheckConfig;
     }
 
+    public Integer getStopAfterEmptySearchResponses() {
+        return stopAfterEmptySearchResponses;
+    }
+
     /**
      * Applies the update to the given {@link DatafeedConfig}
      * @return a new {@link DatafeedConfig} that contains the update
@@ -325,6 +345,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (delayedDataCheckConfig != null) {
             builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
         }
+        if (stopAfterEmptySearchResponses != null) {
+            builder.setStopAfterEmptySearchResponses(stopAfterEmptySearchResponses);
+        }
 
         if (headers.isEmpty() == false) {
             // Adjust the request, adding security headers from the current thread context
@@ -364,13 +387,14 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.aggProvider, that.aggProvider)
                 && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
                 && Objects.equals(this.scriptFields, that.scriptFields)
-                && Objects.equals(this.chunkingConfig, that.chunkingConfig);
+                && Objects.equals(this.chunkingConfig, that.chunkingConfig)
+                && Objects.equals(this.stopAfterEmptySearchResponses, that.stopAfterEmptySearchResponses);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, queryProvider, scrollSize, aggProvider, scriptFields, chunkingConfig,
-                delayedDataCheckConfig);
+                delayedDataCheckConfig, stopAfterEmptySearchResponses);
     }
 
     @Override
@@ -403,6 +427,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
         private DelayedDataCheckConfig delayedDataCheckConfig;
+        private Integer stopAfterEmptySearchResponses;
 
         public Builder() {
         }
@@ -423,6 +448,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
             this.delayedDataCheckConfig = config.delayedDataCheckConfig;
+            this.stopAfterEmptySearchResponses = config.stopAfterEmptySearchResponses;
         }
 
         public Builder setId(String datafeedId) {
@@ -490,9 +516,19 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setStopAfterEmptySearchResponses(int stopAfterEmptySearchResponses) {
+            if (stopAfterEmptySearchResponses < -1 || stopAfterEmptySearchResponses == 0) {
+                String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
+                    DatafeedConfig.STOP_AFTER_EMPTY_SEARCH_RESPONSES.getPreferredName(), stopAfterEmptySearchResponses);
+                throw ExceptionsHelper.badRequestException(msg);
+            }
+            this.stopAfterEmptySearchResponses = stopAfterEmptySearchResponses;
+            return this;
+        }
+
         public DatafeedUpdate build() {
             return new DatafeedUpdate(id, jobId, queryDelay, frequency, indices, queryProvider, aggProvider, scriptFields, scrollSize,
-                    chunkingConfig, delayedDataCheckConfig);
+                    chunkingConfig, delayedDataCheckConfig, stopAfterEmptySearchResponses);
         }
     }
 }

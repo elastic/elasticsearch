@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DataFrameDataExtractorFactory {
 
@@ -179,47 +180,72 @@ public class DataFrameDataExtractorFactory {
                                                       boolean isTaskRestarting,
                                                       ActionListener<ExtractedFields> listener) {
         AtomicInteger docValueFieldsLimitHolder = new AtomicInteger();
+        AtomicReference<ExtractedFields> extractedFieldsHolder = new AtomicReference<>();
 
-        // Step 4. Extract fields (if possible) and notify listener
-        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
-            fieldCapabilitiesResponse -> listener.onResponse(
-                new ExtractedFieldsDetector(
-                        index, config, resultsField, isTaskRestarting, docValueFieldsLimitHolder.get(), fieldCapabilitiesResponse)
-                    .detect()),
-            listener::onFailure
-        );
-
-        // Step 3. Get field capabilities necessary to build the information of how to extract fields
+        // Step 4. Check fields cardinality vs limits and notify listener
         ActionListener<SearchResponse> checkCardinalityHandler = ActionListener.wrap(
             searchResponse -> {
-                Map<String, Long> fieldCardinalityLimits = config.getAnalysis().getFieldCardinalityLimits();
-                if (fieldCardinalityLimits.isEmpty() == false) {
-                    if (searchResponse == null) {
-                        listener.onFailure(ExceptionsHelper.badRequestException("searchResponse == null"));
-                        return;
-                    }
+                if (searchResponse != null) {
                     Aggregations aggs = searchResponse.getAggregations();
                     if (aggs == null) {
-                        listener.onFailure(ExceptionsHelper.badRequestException("aggs == null"));
+                        listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
                         return;
                     }
-                    for (Map.Entry<String, Long> entry : fieldCardinalityLimits.entrySet()) {
+                    for (Map.Entry<String, Long> entry : config.getAnalysis().getFieldCardinalityLimits().entrySet()) {
                         String fieldName = entry.getKey();
                         Long limit = entry.getValue();
                         Cardinality cardinality = aggs.get(fieldName);
                         if (cardinality == null) {
-                            listener.onFailure(ExceptionsHelper.badRequestException("cardinality == null"));
+                            listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
                             return;
                         }
                         if (cardinality.getValue() > limit) {
                             listener.onFailure(
                                 ExceptionsHelper.badRequestException(
-                                    "Field [{}] must have at most [{}] distinct values but there were [{}]",
+                                    "Field [{}] must have at most [{}] distinct values but there were at least [{}]",
                                     fieldName, limit, cardinality.getValue()));
                             return;
                         }
                     }
                 }
+                listener.onResponse(extractedFieldsHolder.get());
+            },
+            listener::onFailure
+        );
+
+        // Step 3. Extract fields (if possible)
+        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
+            fieldCapabilitiesResponse -> {
+                extractedFieldsHolder.set(
+                    new ExtractedFieldsDetector(
+                            index, config, resultsField, isTaskRestarting, docValueFieldsLimitHolder.get(), fieldCapabilitiesResponse)
+                        .detect());
+
+                Map<String, Long> fieldCardinalityLimits = config.getAnalysis().getFieldCardinalityLimits();
+                if (fieldCardinalityLimits.isEmpty()) {
+                    checkCardinalityHandler.onResponse(null);
+                } else {
+                    SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
+                    for (Map.Entry<String, Long> entry : fieldCardinalityLimits.entrySet()) {
+                        String fieldName = entry.getKey();
+                        Long limit = entry.getValue();
+                        searchSourceBuilder.aggregation(
+                            AggregationBuilders.cardinality(fieldName)
+                                .field(fieldName)
+                                .precisionThreshold(limit + 1));
+                    }
+                    SearchRequest searchRequest = new SearchRequest(config.getSource().getIndex()).source(searchSourceBuilder);
+                    ClientHelper.executeWithHeadersAsync(
+                        config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, checkCardinalityHandler);
+                }
+            },
+            listener::onFailure
+        );
+
+        // Step 2. Get field capabilities necessary to build the information of how to extract fields
+        ActionListener<Integer> docValueFieldsLimitListener = ActionListener.wrap(
+            docValueFieldsLimit -> {
+                docValueFieldsLimitHolder.set(docValueFieldsLimit);
 
                 FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
                 fieldCapabilitiesRequest.indices(index);
@@ -230,27 +256,6 @@ public class DataFrameDataExtractorFactory {
                     // This response gets discarded - the listener handles the real response
                     return null;
                 });
-            },
-            listener::onFailure
-        );
-
-        // Step 2. Get cardinality of dependent variable in case of classification analysis.
-        ActionListener<Integer> docValueFieldsLimitListener = ActionListener.wrap(
-            docValueFieldsLimit -> {
-                docValueFieldsLimitHolder.set(docValueFieldsLimit);
-
-                Map<String, Long> fieldCardinalityLimits = config.getAnalysis().getFieldCardinalityLimits();
-                if (fieldCardinalityLimits.isEmpty()) {
-                    checkCardinalityHandler.onResponse(null);
-                } else {
-                    SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
-                    for (String fieldName : fieldCardinalityLimits.keySet()) {
-                        searchSourceBuilder.aggregation(AggregationBuilders.cardinality(fieldName).field(fieldName));
-                    }
-                    SearchRequest searchRequest = new SearchRequest(config.getSource().getIndex()).source(searchSourceBuilder);
-                    ClientHelper.executeWithHeadersAsync(
-                        config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, checkCardinalityHandler);
-                }
             },
             listener::onFailure
         );

@@ -186,6 +186,6 @@
           }
 
   - do:
-      catch: /Field \[keyword_field\] must have at most \[2\] distinct values but there were \[3\]/
+      catch: /Field \[keyword_field\] must have at most \[2\] distinct values but there were at least \[3\]/
       ml.start_data_frame_analytics:
         id: "too-high-card"

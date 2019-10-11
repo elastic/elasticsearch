@@ -1,6 +1,6 @@
 [role="xpack"]
 [[node-certificates]]
-==== Generating Node Certificates
+==== Generating node certificates
 
 TLS requires X.509 certificates to perform encryption and authentication of the
 application that is being communicated with. In order for the communication
@@ -13,7 +13,7 @@ Additionally, it is recommended that the certificates contain subject alternativ
 names (SAN) that correspond to the node's IP address and DNS name so that
 hostname verification can be performed.
 
-The {ref}/certutil.html[`elasticsearch-certutil`] command simplifies the process
+The <<certutil,`elasticsearch-certutil`>> command simplifies the process
 of generating certificates for the {stack}. It takes care of generating a CA and
 signing certificates with the CA. It can be used interactively or in a silent
 mode through the use of an input file. It also supports generation of

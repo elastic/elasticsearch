@@ -55,7 +55,7 @@ discovery.type: single-node
 ----
 
 For more information, see
-{ref}/bootstrap-checks.html#single-node-discovery[Single-node discovery].
+<<single-node-discovery>>.
 --
 
 When you enable {es} {security-features}, basic authentication is enabled by
@@ -359,7 +359,7 @@ up an production environment, you'll want to encrypt communications across the
 
 For more detailed information about securing the {stack}, see:
 
-* {ref}/configuring-security.html[Configuring security in {es}]. Encrypt 
+* <<configuring-security,Configuring security in {es}>>. Encrypt 
 inter-node communications, set passwords for the built-in users, and manage your 
 users and roles.  
 

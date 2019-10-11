@@ -5,7 +5,7 @@
 When you enable {es} {security-features}, unless you have a trial license, you
 must use Transport Layer Security (TLS) to encrypt internode communication. In
 this tutorial, you learn how to meet the minimum requirements to pass the 
-{ref}/bootstrap-checks-xpack.html#bootstrap-checks-tls[TLS bootstrap check].
+<<bootstrap-checks-tls,TLS bootstrap check>>.
 
 NOTE: Single-node clusters that use a loopback interface do not have this
 requirement.
@@ -49,7 +49,7 @@ line. See {kibana-ref}/start-stop.html[Starting and stopping {kib}].
 
 . Stop {es}. For example, if you installed {es} from an archive distribution, 
 enter `Ctrl-C` on the command line. See 
-{ref}/stopping-elasticsearch.html[Stopping {es}].
+<<stopping-elasticsearch>>.
 
 include::tutorial-tls-addnodes.asciidoc[]
 include::tutorial-tls-certificates.asciidoc[]

@@ -1040,9 +1040,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 : new IndexShardSnapshotFailedException(store.shardId(), e));
         });
         try {
-            logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
-
             final String generation = snapshotStatus.generation();
+            logger.debug("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
             final Set<String> blobs;
             if (generation == null) {

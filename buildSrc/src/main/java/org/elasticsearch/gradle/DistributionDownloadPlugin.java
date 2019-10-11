@@ -75,9 +75,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         setupDownloadServiceRepo(project);
 
-        ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-        this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
-        // TODO: setup snapshot dependency instead of pointing to bwc distribution projects for external projects
+        if (ClasspathUtils.isElasticsearchProject(project)) {
+            ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
+            this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+        }
 
         project.afterEvaluate(this::setupDistributions);
     }
@@ -202,7 +203,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
             if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
                 return projectDependency(project, distributionProjectPath(distribution), "default");
-                // TODO: snapshot dep when not in ES repo
             }
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {

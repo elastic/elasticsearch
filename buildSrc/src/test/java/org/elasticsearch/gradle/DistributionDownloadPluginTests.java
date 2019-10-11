@@ -54,58 +54,58 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         new BwcVersions(new TreeSet<>(Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_STAGED_VERSION, BWC_MINOR_VERSION)), BWC_MINOR_VERSION);
 
     public void testVersionDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null, true),
+        ElasticsearchDistribution distro = checkDistro(createProject(null, false),
             "testdistro", null, Type.ARCHIVE, Platform.LINUX, Flavor.OSS, true);
         assertEquals(distro.getVersion(), VersionProperties.getElasticsearch());
     }
 
     public void testBadVersionFormat() {
-        assertDistroError(createProject(null, true), "testdistro", "badversion", Type.ARCHIVE, Platform.LINUX, Flavor.OSS, true,
+        assertDistroError(createProject(null, false), "testdistro", "badversion", Type.ARCHIVE, Platform.LINUX, Flavor.OSS, true,
             "Invalid version format: 'badversion'");
     }
 
     public void testTypeDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null, true),
+        ElasticsearchDistribution distro = checkDistro(createProject(null, false),
             "testdistro", "5.0.0", null, Platform.LINUX, Flavor.OSS, true);
         assertEquals(distro.getType(), Type.ARCHIVE);
     }
 
     public void testPlatformDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null, true),
+        ElasticsearchDistribution distro = checkDistro(createProject(null, false),
             "testdistro", "5.0.0", Type.ARCHIVE, null, Flavor.OSS, true);
         assertEquals(distro.getPlatform(), ElasticsearchDistribution.CURRENT_PLATFORM);
     }
 
     public void testPlatformForIntegTest() {
-        assertDistroError(createProject(null, true), "testdistro", "5.0.0", Type.INTEG_TEST_ZIP, Platform.LINUX, null, null,
+        assertDistroError(createProject(null, false), "testdistro", "5.0.0", Type.INTEG_TEST_ZIP, Platform.LINUX, null, null,
             "platform not allowed for elasticsearch distribution [testdistro]");
     }
 
     public void testFlavorDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null, true),
+        ElasticsearchDistribution distro = checkDistro(createProject(null, false),
             "testdistro", "5.0.0", Type.ARCHIVE, Platform.LINUX, null, true);
         assertEquals(distro.getFlavor(), Flavor.DEFAULT);
     }
 
     public void testFlavorForIntegTest() {
-        assertDistroError(createProject(null, true),
+        assertDistroError(createProject(null, false),
             "testdistro", "5.0.0", Type.INTEG_TEST_ZIP, null, Flavor.OSS, null,
             "flavor [oss] not allowed for elasticsearch distribution [testdistro] of type [integ_test_zip]");
     }
 
     public void testBundledJdkDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null, true),
+        ElasticsearchDistribution distro = checkDistro(createProject(null, false),
             "testdistro", "5.0.0", Type.ARCHIVE, Platform.LINUX, null, true);
         assertTrue(distro.getBundledJdk());
     }
 
     public void testBundledJdkForIntegTest() {
-        assertDistroError(createProject(null, true), "testdistro", "5.0.0", Type.INTEG_TEST_ZIP, null, null, true,
+        assertDistroError(createProject(null, false), "testdistro", "5.0.0", Type.INTEG_TEST_ZIP, null, null, true,
             "bundledJdk not allowed for elasticsearch distribution [testdistro]");
     }
 
     public void testLocalCurrentVersionIntegTestZip() {
-        Project project = createProject(null, true);
+        Project project = createProject(BWC_MINOR, true);
         Project archiveProject = ProjectBuilder.builder().withParent(archivesProject).withName("integ-test-zip").build();
         archiveProject.getConfigurations().create("default");
         archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
@@ -119,7 +119,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : new boolean[] { true, false}) {
                     // create a new project in each iteration, so that we know we are resolving the only additional project being created
-                    Project project = createProject(null, true);
+                    Project project = createProject(BWC_MINOR, true);
                     String projectName = projectName(platform.toString(), flavor, bundledJdk);
                     projectName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
                     Project archiveProject = ProjectBuilder.builder().withParent(archivesProject).withName(projectName).build();
@@ -137,7 +137,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         for (Type packageType : new Type[] { Type.RPM, Type.DEB }) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : new boolean[] { true, false}) {
-                    Project project = createProject(null, true);
+                    Project project = createProject(BWC_MINOR, true);
                     String projectName = projectName(packageType.toString(), flavor, bundledJdk);
                     Project packageProject = ProjectBuilder.builder().withParent(packagesProject).withName(projectName).build();
                     packageProject.getConfigurations().create("default");
@@ -240,7 +240,9 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         packagesProject = ProjectBuilder.builder().withParent(distributionProject).withName("packages").build();
         bwcProject = ProjectBuilder.builder().withParent(distributionProject).withName("bwc").build();
         Project project = ProjectBuilder.builder().withParent(rootProject).build();
-        project.getExtensions().getExtraProperties().set("bwcVersions", bwcVersions);
+        if (bwcVersions != null) {
+            project.getExtensions().getExtraProperties().set("bwcVersions", bwcVersions);
+        }
         project.getExtensions().getExtraProperties().set("isInternal", isInternal);
         project.getPlugins().apply("elasticsearch.distribution-download");
         return project;

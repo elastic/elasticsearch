@@ -55,6 +55,7 @@ import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED;
+import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_TASK_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -64,8 +65,8 @@ import static org.hamcrest.Matchers.oneOf;
 public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
-    private static final String DATAFRAME_ENDPOINT = "/_transform/";
-    private static final String DATAFRAME_ENDPOINT_DEPRECATED = "/_data_frame/transforms/";
+    private static final String TRANSFORM_ENDPOINT = "/_transform/";
+    private static final String TRANSFORM_ENDPOINT_DEPRECATED = "/_data_frame/transforms/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";
     private static final String CONTINUOUS_TRANSFORM_SOURCE = "transform-upgrade-continuous-source";
     private static final List<String> ENTITIES = Stream.iterate(1, n -> n + 1)
@@ -111,8 +112,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         });
     }
 
-    protected static void waitForPendingDataFrameTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("data_frame/transforms") == false);
+    protected static void waitForPendingTransformTasks() throws Exception {
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TRANSFORM_TASK_NAME) == false);
     }
 
     @Override
@@ -127,8 +128,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
-    public void testDataFramesRollingUpgrade() throws Exception {
-        assumeTrue("Continuous data frames time sync not fixed until 7.4", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_4_0));
+    public void testTransformRollingUpgrade() throws Exception {
+        assumeTrue("Continuous transform time sync not fixed until 7.4", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_4_0));
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
             "{\"transient\": {" +
@@ -143,7 +144,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         switch (CLUSTER_TYPE) {
             case OLD:
                 client().performRequest(waitForYellow);
-                createAndStartContinuousDataFrame();
+                createAndStartContinuousTransform();
                 break;
             case MIXED:
                 client().performRequest(waitForYellow);
@@ -151,11 +152,11 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 if (Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
                     lastCheckpoint = 2;
                 }
-                verifyContinuousDataFrameHandlesData(lastCheckpoint);
+                verifyContinuousTransformHandlesData(lastCheckpoint);
                 break;
             case UPGRADED:
                 client().performRequest(waitForYellow);
-                verifyContinuousDataFrameHandlesData(3);
+                verifyContinuousTransformHandlesData(3);
                 cleanUpTransforms();
                 break;
             default:
@@ -166,10 +167,10 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     private void cleanUpTransforms() throws Exception {
         stopTransform(CONTINUOUS_TRANSFORM_ID);
         deleteTransform(CONTINUOUS_TRANSFORM_ID);
-        waitForPendingDataFrameTasks();
+        waitForPendingTransformTasks();
     }
 
-    private void createAndStartContinuousDataFrame() throws Exception {
+    private void createAndStartContinuousTransform() throws Exception {
         createIndex(CONTINUOUS_TRANSFORM_SOURCE);
         long totalDocsWrittenSum = 0;
         for (TimeValue bucket : BUCKETS) {
@@ -209,9 +210,9 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void verifyContinuousDataFrameHandlesData(long expectedLastCheckpoint) throws Exception {
+    private void verifyContinuousTransformHandlesData(long expectedLastCheckpoint) throws Exception {
 
-        // A continuous data frame should automatically become started when it gets assigned to a node
+        // A continuous transform should automatically become started when it gets assigned to a node
         // if it was assigned to the node that was removed from the cluster
         assertBusy(() -> {
             TransformStats stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
@@ -255,7 +256,11 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void awaitWrittenIndexerState(String id, Consumer<Map<?, ?>> responseAssertion) throws Exception {
-        Request getStatsDocsRequest = new Request("GET", ".data-frame-internal-*/_search");
+        Request getStatsDocsRequest = new Request("GET",
+            TRANSFORM_INTERNAL_INDEX_PREFIX + "*," +
+            TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED + "*" +
+            "/_search");
+
         getStatsDocsRequest.setJsonEntity("{\n" +
             "  \"query\": {\n" +
             "    \"bool\": {\n" +
@@ -276,7 +281,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             "}");
         assertBusy(() -> {
             // Want to make sure we get the latest docs
-            client().performRequest(new Request("POST", ".data-frame-internal-*/_refresh"));
+            client().performRequest(new Request("POST", TRANSFORM_INTERNAL_INDEX_PREFIX + "*/_refresh"));
+            client().performRequest(new Request("POST", TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED + "*/_refresh"));
             Response response = client().performRequest(getStatsDocsRequest);
             assertEquals(200, response.getStatusLine().getStatusCode());
             Map<String, Object> responseBody = entityAsMap(response);
@@ -295,7 +301,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private String getTransformEndpoint() {
-        return CLUSTER_TYPE == ClusterType.UPGRADED ? DATAFRAME_ENDPOINT : DATAFRAME_ENDPOINT_DEPRECATED;
+        return CLUSTER_TYPE == ClusterType.UPGRADED ? TRANSFORM_ENDPOINT : TRANSFORM_ENDPOINT_DEPRECATED;
     }
 
     private void putTransform(String id, TransformConfig config) throws IOException {

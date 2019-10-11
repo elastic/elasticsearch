@@ -47,9 +47,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.startsWith;
 
 public class SniffConnectionStrategyTests extends ESTestCase {
 

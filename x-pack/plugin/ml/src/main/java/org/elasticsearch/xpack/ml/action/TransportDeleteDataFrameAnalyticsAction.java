@@ -176,7 +176,7 @@ public class TransportDeleteDataFrameAnalyticsAction
             ids.add(config.getAnalysis().getStateDocId(config.getId()));
         }
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
-        request.setQuery(QueryBuilders.idsQuery().addIds(ids.toArray(String[]::new)));
+        request.setQuery(QueryBuilders.idsQuery().addIds(ids.toArray(new String[0])));
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setAbortOnVersionConflict(false);

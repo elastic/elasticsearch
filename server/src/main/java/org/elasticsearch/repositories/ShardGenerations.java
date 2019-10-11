@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 
 public final class ShardGenerations {
 
-    public static final ShardGenerations EMPTY = ShardGenerations.builder().build();
+    public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
 
     public static final String NEW_SHARD_GEN = "_new";
 

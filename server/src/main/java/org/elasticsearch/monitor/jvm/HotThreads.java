@@ -264,13 +264,15 @@ public class HotThreads {
                     if (count == 1) {
                         sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
                         for (int l = 0; l < show.length; l++) {
-                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                            String tag = StackTraceElementTagger.tag(show[l]);
+                            sb.append(String.format(Locale.ROOT, "    %s%s%n", show[l], tag == null ? "" : "\t" + tag));
                         }
                     } else {
                         sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n",
                             count, threadElementsSnapshotCount, maxSim));
                         for (int l = show.length - maxSim; l < show.length; l++) {
-                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                            String tag = StackTraceElementTagger.tag(show[l]);
+                            sb.append(String.format(Locale.ROOT, "    %s%s%n", show[l], tag == null ? "" : "\t" + tag));
                         }
                     }
                 }

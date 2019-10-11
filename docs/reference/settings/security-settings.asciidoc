@@ -1309,7 +1309,7 @@ SSL enabled server.
 [[pkcs12-truststore-note]]
 [NOTE]
 Storing trusted certificates in a PKCS#12 file, although supported, is
-uncommon in practice. The {ref}/certutil.html[`elasticsearch-certutil`] tool,
+uncommon in practice. The <<certutil,`elasticsearch-certutil`>> tool,
 as well as Java's `keytool`, are designed to generate PKCS#12 files that
 can be used both as a keystore and as a truststore, but this may not be the
 case for container files that are created using other tools. Usually,

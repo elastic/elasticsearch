@@ -492,7 +492,7 @@ You should consult the documentation for your IdP to determine what formats they
 support. Since PEM format is the most commonly supported format, the examples
 below will generate certificates in that format.
 
-Using the {ref}/certutil.html[`elasticsearch-certutil`] tool, you can generate a
+Using the <<certutil,`elasticsearch-certutil`>> tool, you can generate a
 signing certificate with the following command:
 
 [source, sh]

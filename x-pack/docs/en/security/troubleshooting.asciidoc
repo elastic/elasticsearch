@@ -2,7 +2,7 @@
 [[security-troubleshooting]]
 == Troubleshooting security
 ++++
-<titleabbrev>Security</titleabbrev>
+<titleabbrev>Troubleshooting</titleabbrev>
 ++++
 
 Use the information in this section to troubleshoot common problems and find
@@ -22,14 +22,18 @@ answers for frequently asked questions.
 * <<trb-security-path>>
 
 
-To get help, see <<help>>.
+For issues that you cannot fix yourself … we’re here to help.
+If you are an existing Elastic customer with a support contract, please create
+a ticket in the
+https://support.elastic.co/customers/s/login/[Elastic Support portal].
+Or post in the https://discuss.elastic.co/[Elastic forum].
 
 [[security-trb-settings]]
 === Some settings are not returned via the nodes settings API
 
 *Symptoms:*
 
-* When you use the {ref}/cluster-nodes-info.html[nodes info API] to retrieve
+* When you use the <<cluster-nodes-info,nodes info API>> to retrieve
 settings for a node, some information is missing.
 
 *Resolution:*
@@ -76,7 +80,7 @@ jacknich       : monitoring,unknown_role* <1>
 <1> `unknown_role` was not found in `roles.yml`
 
 For more information about this command, see the 
-{ref}/users-command.html[`elasticsearch-users` command].
+<<users-command,`elasticsearch-users` command>>.
 --
 
 . If you are authenticating to LDAP, a number of configuration options can cause
@@ -95,7 +99,7 @@ scenarios.
 | _group to role mapping_|
 
 Either the `role_mapping.yml` file or the location for this file could be
-misconfigured. For more information, see {ref}/security-files.html[Security files].
+misconfigured. For more information, see <<security-files>>.
 
 |_role definition_|
 
@@ -135,7 +139,7 @@ recognizes `role1` as an expected parameter. The solution here is to quote the
 parameter: `-r "role1,role2"`.
 
 For more information about this command, see
-{ref}/users-command.html[`elasticsearch-users` command].
+<<users-command,`elasticsearch-users` command>>.
 
 [[trouble-shoot-active-directory]]
 === Users are frequently locked out of Active Directory
@@ -275,7 +279,7 @@ verify that all nodes are using the same setting for
 `xpack.security.transport.ssl.enabled`.
 
 For more information about this setting, see
-{ref}/security-settings.html[Security Settings in {es}].
+<<security-settings>>.
 --
 
 `java.io.StreamCorruptedException: invalid internal transport message format, got`::
@@ -287,7 +291,7 @@ connects to a node that has encrypted communication disabled. Please verify that
 all nodes are using the same setting for `xpack.security.transport.ssl.enabled`.
 
 For more information about this setting, see
-{ref}/security-settings.html[Security Settings in {es}].
+<<security-settings>>.
 --
 
 `java.lang.IllegalArgumentException: empty text`::
@@ -303,7 +307,7 @@ xpack.security.http.ssl.enabled: true
 ----------------
 
 For more information about this setting, see
-{ref}/security-settings.html[Security Settings in {es}].
+<<security-settings>>.
 --
 
 `ERROR: unsupported ciphers [...] were requested but cannot be used in this JVM`::
@@ -406,7 +410,7 @@ module use following Kerberos realm setting:
 xpack.security.authc.realms.<realm-name>.krb.debug: true
 ----------------
 
-For detailed information, see {ref}/security-settings.html#ref-kerberos-settings[Kerberos realm settings].
+For detailed information, see <<ref-kerberos-settings>>.
 
 Sometimes you may need to go deeper to understand the problem during SPNEGO 
 GSS context negotiation or look at the Kerberos message exchange. To enable 
@@ -416,7 +420,7 @@ Kerberos/SPNEGO debug logging on JVM, add following JVM system properties:
 
 `-Dsun.security.spnego.debug=true`
 
-For more information about JVM system properties, see {ref}/jvm-options.html[configuring JVM options].
+For more information about JVM system properties, see <<jvm-options>>.
 
 [[trb-security-saml]]
 === Common SAML issues
@@ -680,7 +684,7 @@ Otherwise, {kib} cannot connect to {es}.
 [[trb-security-setup]]
 === Setup-passwords command fails due to connection failure
 
-The {ref}/setup-passwords.html[elasticsearch-setup-passwords command] sets
+The <<setup-passwords,elasticsearch-setup-passwords command>> sets
 passwords for the built-in users by sending user management API requests. If
 your cluster uses SSL/TLS for the HTTP (REST) interface, the command attempts to
 establish a connection with the HTTPS protocol. If the connection attempt fails,
@@ -757,7 +761,7 @@ Alternatively, set the `xpack.security.http.ssl.enabled` setting to `true`.
 `xpack.security.http.ssl.verification_mode` to `certificate`.
 
 For more information about these settings, see
-{ref}/security-settings.html[Security Settings in {es}].
+<<security-settings>>.
 
 [[trb-security-path]]
 === Failures due to relocation of the configuration files
@@ -773,7 +777,7 @@ log that indicate a config file is in a deprecated location.
 By default, in 6.2 and earlier releases, the security configuration files are
 located in the `ES_PATH_CONF/x-pack` directory, where `ES_PATH_CONF` is an
 environment variable that defines the location of the 
-{ref}/settings.html#config-files-location[config directory]. 
+<<config-files-location,config directory>>. 
 
 In 6.3 and later releases, the config directory no longer contains an `x-pack` 
 directory. The files that were stored in this folder, such as the 
@@ -787,5 +791,5 @@ deprecated, however, and you should move your files out of that folder.
 In 6.3 and later releases, settings such as `files.role_mapping` default to 
 `ES_PATH_CONF/role_mapping.yml`. If you do not want to use the default locations, 
 you must update the settings appropriately. See 
-{ref}/security-settings.html[Security settings in {es}]. 
+<<security-settings>>. 
 

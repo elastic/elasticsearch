@@ -262,16 +262,16 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * This method updates the list of remote clusters. It's intended to be used as an update consumer on the settings infrastructure
      *
      * @param clusterAlias a cluster alias to discovery node mapping representing the remote clusters seeds nodes
-     * @param settings the settings for the remote connection
+     * @param newSettings the updated settings for the remote connection
      * @param listener a listener invoked once every configured cluster has been connected to
      */
-    synchronized void updateRemoteCluster(String clusterAlias, Settings settings, ActionListener<Void> listener) {
+    synchronized void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<Void> listener) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
 
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
-        if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings) == false) {
+        if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, newSettings) == false) {
             try {
                 IOUtils.close(remote);
             } catch (IOException e) {
@@ -284,10 +284,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
         // this is a new cluster we have to add a new representation
         if (remote == null) {
-            Settings finalSettings = Settings.builder().put(this.settings).put(settings).build();
+            Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
             remoteClusters.put(clusterAlias, remote);
-        } else if (remote.shouldRebuildConnection(settings)) {
+        } else if (remote.shouldRebuildConnection(newSettings)) {
             // New ConnectionProfile. Must tear down existing connection
             try {
                 IOUtils.close(remote);
@@ -295,7 +295,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
             }
             remoteClusters.remove(clusterAlias);
-            Settings finalSettings = Settings.builder().put(this.settings).put(settings).build();
+            Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
             remoteClusters.put(clusterAlias, remote);
         }
@@ -333,7 +333,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         };
 
         for (Map.Entry<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> entry : seeds.entrySet()) {
-            updateRemoteCluster(entry.getKey(), settings, countedListener);
+            updateRemoteCluster(entry.getKey(), Settings.EMPTY, countedListener);
         }
 
         if (seeds.isEmpty()) {
@@ -358,29 +358,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public Stream<RemoteConnectionInfo> getRemoteConnectionInfos() {
         return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
-    }
-
-    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
-        return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
-            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
-    }
-
-    private boolean seedsChanged(final List<Tuple<String, Supplier<DiscoveryNode>>> oldSeedNodes,
-                                 final List<Tuple<String, Supplier<DiscoveryNode>>> newSeedNodes) {
-        if (oldSeedNodes.size() != newSeedNodes.size()) {
-            return true;
-        }
-        Set<String> oldSeeds = oldSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
-        Set<String> newSeeds = newSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
-        return oldSeeds.equals(newSeeds) == false;
-    }
-
-    private boolean proxyChanged(String oldProxy, String newProxy) {
-        if (oldProxy == null || oldProxy.isEmpty()) {
-            return (newProxy == null || newProxy.isEmpty()) == false;
-        }
-
-        return Objects.equals(oldProxy, newProxy) == false;
     }
 
     /**

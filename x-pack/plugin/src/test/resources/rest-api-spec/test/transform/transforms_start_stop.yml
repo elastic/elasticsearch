@@ -324,7 +324,7 @@ teardown:
   - do:
       transform.get_transform_stats:
         transform_id: "*"
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { transforms.0.state: "stopped" }
   - match: { transforms.1.state: "stopped" }
 

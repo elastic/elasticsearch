@@ -140,7 +140,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * Are the search results potentially missing some data?
      */
     public boolean isPartial() {
-        int unavailableOrFailedShards = getTotalShards() - (getSuccessfulShards() + getSkippedShards());
+        int unavailableOrFailedShards = getTotalShards() - getSuccessfulShards();
         return isTimedOut() || unavailableOrFailedShards > 0 || 
                 (isTerminatedEarly() != null && isTerminatedEarly()) ;
     }

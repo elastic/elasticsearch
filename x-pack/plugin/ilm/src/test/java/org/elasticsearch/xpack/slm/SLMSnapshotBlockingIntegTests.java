@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -63,23 +62,6 @@ import static org.hamcrest.Matchers.greaterThan;
 public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
     static final String REPO = "my-repo";
-
-    @After
-    public void resetSLMSettings() throws Exception {
-        // Cancel/delete all snapshots
-        assertBusy(() -> {
-            logger.info("--> wiping all snapshots after test");
-            client().admin().cluster().prepareGetSnapshots(REPO).get().getSnapshots(REPO)
-                .forEach(snapshotInfo -> {
-                    try {
-                        client().admin().cluster().prepareDeleteSnapshot(REPO, snapshotInfo.snapshotId().getName()).get();
-                    } catch (Exception e) {
-                        logger.warn("exception cleaning up snapshot " + snapshotInfo.snapshotId().getName(), e);
-                        fail("exception cleanup up snapshot");
-                    }
-                });
-        });
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

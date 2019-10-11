@@ -21,15 +21,15 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
     public static final String NAME = "q";
     private static final DateTimeFormatter QUARTER_FORMAT = DateTimeFormatter.ofPattern("q", Locale.ROOT);
 
-    
+
     public QuarterProcessor(ZoneId zoneId) {
         super(zoneId);
     }
-    
+
     public QuarterProcessor(StreamInput in) throws IOException {
         super(in);
     }
-    
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {}
 
@@ -42,7 +42,7 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
     public Object doProcess(ZonedDateTime zdt) {
         return quarter(zdt);
     }
-    
+
     public static Integer quarter(ZonedDateTime dateTime, String tzId) {
         return quarter(dateTime.withZoneSameInstant(ZoneId.of(tzId)));
     }

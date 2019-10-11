@@ -7,6 +7,9 @@ setup:
         timeout: 70s
 ---
 "Get start, stop, and delete old and mixed cluster batch data frame transforms":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/47943"
   # Simple and complex OLD transforms
   - do:
       transform.get_transform:
@@ -160,6 +163,9 @@ setup:
 
 ---
 "Test GET, stop, delete, old and mixed continuous transforms":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/47943"
   - do:
       transform.get_transform:
         transform_id: "old-simple-continuous-transform"
@@ -251,6 +257,9 @@ setup:
         transform_id: "mixed-simple-continuous-transform"
 ---
 "Test index mappings for latest internal index":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/47943"
   - do:
       transform.put_transform:
         transform_id: "upgraded-simple-transform"

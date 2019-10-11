@@ -215,20 +215,48 @@ PUT /_slm/policy/daily-snapshots
 
 
 [[slm-api-get]]
-=== Get Snapshot Lifecycle Policy API
+=== Get snapshot lifecycle policy API
+++++
+<titleabbrev>Get snapshot lifecycle policy</titleabbrev>
+++++
 
-Once a policy is in place, you can retrieve one or more of the policies using
-the get snapshot lifecycle policy API. This also includes information about the
-latest successful and failed invocation that the automatic snapshots have taken.
+Returns information
+about one or more snapshot lifecycle policies.
 
-==== Path Parameters
 
-`policy_ids` (optional)::
-  (string) Comma-separated ids of policies to retrieve.
+[[slm-api-get-request]]
+==== {api-request-title}
 
-==== Examples
+`GET /_slm/policy/<snapshot-lifecycle-policy-id>`
 
-To retrieve a policy, perform a `GET` with the policy's id
+`GET /_slm/policy/`
+
+
+[[slm-api-get-desc]]
+==== {api-description-title}
+
+Use the snapshot lifecycle policy API
+to retrieve information
+about one or more snapshot lifecycle policies.
+The API response also includes information
+about the latest successful and failed attempts
+to create automatic snapshots.
+
+[[slm-api-get-path-params]]
+==== {api-path-parms-title}
+
+`<snapshot-lifecycle-policy-id>`::
+(Optional, string)
+Comma-separated list of snapshot lifecycle policy IDs
+to retrieve.
+
+
+[[slm-api-get-example]]
+==== {api-examples-title}
+
+
+[[slm-api-get-specific-ex]]
+===== Get a specific policy
 
 [source,console]
 --------------------------------------------------
@@ -236,7 +264,7 @@ GET /_slm/policy/daily-snapshots?human
 --------------------------------------------------
 // TEST[continued]
 
-The output looks similar to the following:
+The API returns the following response:
 
 [source,console-result]
 --------------------------------------------------
@@ -274,16 +302,19 @@ The output looks similar to the following:
 --------------------------------------------------
 // TESTRESPONSE[s/"modified_date": "2019-04-23T01:30:00.000Z"/"modified_date": $body.daily-snapshots.modified_date/ s/"modified_date_millis": 1556048137314/"modified_date_millis": $body.daily-snapshots.modified_date_millis/ s/"next_execution": "2019-04-24T01:30:00.000Z"/"next_execution": $body.daily-snapshots.next_execution/ s/"next_execution_millis": 1556048160000/"next_execution_millis": $body.daily-snapshots.next_execution_millis/]
 <1> The version of the snapshot policy, only the latest verison is stored and incremented when the policy is updated
-<2> The last time this policy was modified
-<3> The next time this policy will be executed
+<2> The last time this policy was modified.
+<3> The next time this policy will be executed.
 
-Or, to retrieve all policies:
+
+[[slm-api-get-all-ex]]
+===== Get all policies
 
 [source,console]
 --------------------------------------------------
 GET /_slm/policy
 --------------------------------------------------
 // TEST[continued]
+
 
 [[slm-api-execute]]
 === Execute Snapshot Lifecycle Policy API

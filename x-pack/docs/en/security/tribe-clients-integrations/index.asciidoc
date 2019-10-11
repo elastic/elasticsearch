@@ -5,14 +5,14 @@ When using {ref}/modules-cross-cluster-search.html[Cross Cluster Search] or
 {ref}/modules-tribe.html[Tribe Nodes] you need to take extra steps to secure
 communications with the connected clusters.
 
-* <<cross-cluster-configuring, Cross Cluster Search and Security>>
-* <<tribe-node-configuring, Tribe Nodes and Security>>
+* <<cross-cluster-configuring,{ccs-cap}>>
+* <<tribe-node-configuring,Tribe nodes and security>>
 
 You will need to update the configuration for several clients to work with a
 secured cluster:
 
-* <<java-clients, Java Clients>>
-* <<http-clients, HTTP Clients>>
+* <<java-clients,Java clients>>
+* <<http-clients,HTTP clients>>
 
 
 The {es} {security-features} enable you to secure your {es} cluster. But
@@ -32,16 +32,10 @@ be secured as well, or at least communicate with the cluster in a secured way:
 * {kibana-ref}/secure-reporting.html[Reporting]
 * {winlogbeat-ref}/securing-beats.html[Winlogbeat]
 
-include::tribe-clients-integrations/cross-cluster.asciidoc[]
-
-include::tribe-clients-integrations/tribe.asciidoc[]
-
-include::tribe-clients-integrations/java.asciidoc[]
-
-include::tribe-clients-integrations/http.asciidoc[]
-
-include::tribe-clients-integrations/hadoop.asciidoc[]
-
-include::tribe-clients-integrations/beats.asciidoc[]
-
-include::tribe-clients-integrations/monitoring.asciidoc[]
+include::cross-cluster.asciidoc[]
+include::tribe.asciidoc[]
+include::java.asciidoc[]
+include::http.asciidoc[]
+include::hadoop.asciidoc[]
+include::beats.asciidoc[]
+include::monitoring.asciidoc[]

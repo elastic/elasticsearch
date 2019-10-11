@@ -48,7 +48,7 @@ same IP address and hostname. In general, clusters are more resilient when they
 contain nodes from multiple servers and this list would reflect that diversity.
 
 For information about all of the possible fields in this file, see 
-{ref}/certutil.html#certutil-silent[Using elasticsearch-certutil in silent mode].
+<<certutil-silent>>.
 
 Then run the following command:
 
@@ -120,7 +120,7 @@ node's `node.name` value in its `elasticsearch.yml` file.
 <3> A comma-separated list of DNS names for the new node.
 <4> A comma-separated list of IP addresses for the new node.
 
-TIP: The {ref}/certutil.html[elasticsearch-certutil] command has a lot more
+TIP: The <<certutil,elasticsearch-certutil>> command has a lot more
 options. For example, it can generate Privacy Enhanced Mail (PEM) formatted
 certificates and keys. It can also generate certificate signing requests (CSRs)
 that you can use to obtain signed certificates from a commercial or

@@ -157,7 +157,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 synchronized (shardSnapshots) {
                     cancelRemoved(currentSnapshots);
                     if (currentSnapshots != null) {
-                        startNewSnapshots(currentSnapshots, event.state().nodes().getMinNodeVersion());
+                        startNewSnapshots(currentSnapshots);
                     }
                 }
             }
@@ -223,13 +223,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void startNewSnapshots(SnapshotsInProgress snapshotsInProgress, Version version) {
+    private void startNewSnapshots(SnapshotsInProgress snapshotsInProgress) {
         // For now we will be mostly dealing with a single snapshot at a time but might have multiple simultaneously running
         // snapshots in the future
         // Now go through all snapshots and update existing or create missing
         final String localNodeId = clusterService.localNode().getId();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
             final State entryState = entry.state();
+            final Version version = SnapshotsService.compatibleVersion(entry);
             if (entryState == State.STARTED) {
                 Map<ShardId, IndexShardSnapshotStatus> startedShards = null;
                 final Snapshot snapshot = entry.snapshot();
@@ -282,6 +283,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
                 final IndexId indexId = indicesMap.get(shardId.getIndexName());
                 assert indexId != null;
+                assert version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION) || snapshotStatus.generation() == null :
+                    "Found non-null shard generation [" + snapshotStatus.generation()
+                        + "] for snapshot with old-format compatibility version [" + version + "]";
                 snapshot(shardId, snapshot, indexId, snapshotStatus, version, new ActionListener<>() {
                     @Override
                     public void onResponse(String newGeneration) {

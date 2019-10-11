@@ -286,15 +286,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                         request.indicesOptions(), request.indices()));
                     logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
                     List<IndexId> snapshotIndices = repositoryData.resolveNewIndices(indices);
-                    newSnapshot = new SnapshotsInProgress.Entry(new Snapshot(repositoryName, snapshotId),
-                                                                request.includeGlobalState(),
-                                                                request.partial(),
-                                                                State.INIT,
-                                                                snapshotIndices,
-                                                                threadPool.absoluteTimeInMillis(),
-                                                                repositoryData.getGenId(),
-                                                                null,
-                                                                request.userMetadata());
+                    newSnapshot = new SnapshotsInProgress.Entry(
+                        new Snapshot(repositoryName, snapshotId),
+                        request.includeGlobalState(), request.partial(),
+                        State.INIT,
+                        snapshotIndices,
+                        threadPool.absoluteTimeInMillis(),
+                        repositoryData.getGenId(),
+                        null,
+                        request.userMetadata(),
+                        clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION));
                     initializingSnapshots.add(newSnapshot.snapshot());
                     snapshots = new SnapshotsInProgress(newSnapshot);
                 } else {
@@ -444,8 +445,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 hadAbortedInitializations = true;
                             } else {
                                 // Replace the snapshot that was just initialized
-                                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
-                                    shards(currentState, entry.indices(), repositoryData);
+                                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = shards(currentState, entry, repositoryData);
                                 if (!partial) {
                                     Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards,
                                         currentState.metaData());
@@ -565,7 +565,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             snapshot.getRepositoryStateId(),
                             snapshot.includeGlobalState(),
                             metaDataForSnapshot(snapshot, clusterService.state().metaData()),
-                            snapshot.userMetadata(), clusterService.state().nodes().getMinNodeVersion(),
+                            snapshot.userMetadata(),
+                            compatibleVersion(snapshot),
                             ActionListener.runAfter(ActionListener.wrap(ignored -> {
                             }, inner -> {
                                 inner.addSuppressed(exception);
@@ -1030,7 +1031,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.includeGlobalState(),
                     metaDataForSnapshot(entry, metaData),
                     entry.userMetadata(),
-                    clusterService.state().nodes().getMinNodeVersion(),
+                    compatibleVersion(entry),
                     ActionListener.wrap(snapshotInfo -> {
                         removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
@@ -1044,6 +1045,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 removeSnapshotFromClusterState(snapshot, null, e);
             }
         });
+    }
+
+    /**
+     * Determine the oldest {@link Version} of a node that must be able to read the snapshot that is written to the repository.
+     *
+     * @param entry SnapshotsInProgress Entry
+     * @return Oldest node version that the snapshot in the repository must be readable by
+     */
+    static Version compatibleVersion(SnapshotsInProgress.Entry entry) {
+        return entry.newFormat() ? Version.CURRENT : SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion();
     }
 
     /**
@@ -1415,16 +1426,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Calculates the list of shards that should be included into the current snapshot
      *
      * @param clusterState cluster state
-     * @param indices      list of indices to be snapshotted
+     * @param snapshot     SnapshotsInProgress Entry
      * @return list of shard to be included into current snapshot
      */
     private static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(ClusterState clusterState,
-                                                                                             List<IndexId> indices,
+                                                                                             SnapshotsInProgress.Entry snapshot,
                                                                                              RepositoryData repositoryData) {
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         MetaData metaData = clusterState.metaData();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
-        for (IndexId index : indices) {
+        final boolean newFormat = compatibleVersion(snapshot).onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
+        for (IndexId index : snapshot.indices()) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
             IndexMetaData indexMetaData = metaData.index(indexName);
@@ -1437,12 +1449,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
                     ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                     final String shardRepoGeneration;
-                    if (isNewIndex) {
-                        assert shardGenerations.getShardGen(index, shardId.getId()) == null
-                            : "Found shard generation for new index [" + index + "]";
-                        shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
+                    if (newFormat) {
+                        if (isNewIndex) {
+                            assert shardGenerations.getShardGen(index, shardId.getId()) == null
+                                : "Found shard generation for new index [" + index + "]";
+                            shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
+                        } else {
+                            shardRepoGeneration = shardGenerations.getShardGen(index, shardId.getId());
+                        }
                     } else {
-                        shardRepoGeneration = shardGenerations.getShardGen(index, shardId.getId());
+                        shardRepoGeneration = null;
                     }
                     if (indexRoutingTable != null) {
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
@@ -1458,8 +1474,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
                                     "primary shard hasn't been started yet", shardRepoGeneration));
                         } else {
-                            builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(
-                                primary.currentNodeId(), shardGenerations.getShardGen(index, shardId.getId())));
+                            builder.put(shardId,
+                                new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration));
                         }
                     } else {
                         builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING,

@@ -92,7 +92,7 @@ public class CancelTests extends ReindexTestCase {
 
         logger.debug("setting up [{}] docs", numDocs);
         indexRandom(true, false, true, IntStream.range(0, numDocs)
-                .mapToObj(i -> client().prepareIndex(INDEX, "_doc", String.valueOf(i)).setSource("n", i))
+                .mapToObj(i -> client().prepareIndex().setIndex(INDEX).setId(String.valueOf(i)).setSource("n", i))
                 .collect(Collectors.toList()));
 
         // Checks that the all documents have been indexed and correctly counted
@@ -208,12 +208,12 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testReindexCancel() throws Exception {
-        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest", "_doc"), (response, total, modified) -> {
+        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest"), (response, total, modified) -> {
             assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
 
             refresh("dest");
             assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
-        }, equalTo("reindex from [" + INDEX + "] to [dest][_doc]"));
+        }, equalTo("reindex from [" + INDEX + "] to [dest]"));
     }
 
     public void testUpdateByQueryCancel() throws Exception {
@@ -243,13 +243,13 @@ public class CancelTests extends ReindexTestCase {
 
     public void testReindexCancelWithWorkers() throws Exception {
         testCancel(ReindexAction.NAME,
-                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", "_doc").setSlices(5),
+                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest").setSlices(5),
                 (response, total, modified) -> {
                     assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     refresh("dest");
                     assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
                 },
-                equalTo("reindex from [" + INDEX + "] to [dest][" + "_doc" + "]"));
+                equalTo("reindex from [" + INDEX + "] to [dest]"));
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {

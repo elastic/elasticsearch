@@ -106,7 +106,7 @@ Contains information about whether high compression was enabled.
 --------------------------------------------------
 GET /test/_segments
 --------------------------------------------------
-// TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/test\?refresh\n{"test": "test"}\n/]
+// TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/_doc\?refresh\n{"test": "test"}\n/]
 
 
 ===== Get segment information for several indices
@@ -124,7 +124,7 @@ GET /test1,test2/_segments
 --------------------------------------------------
 GET /_segments
 --------------------------------------------------
-// TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/test\?refresh\n{"test": "test"}\n/]
+// TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/_doc\?refresh\n{"test": "test"}\n/]
 
 The API returns the following response:
 

@@ -33,7 +33,7 @@ particular, this tutorial provides instructions that work with the `zip` and
 By default, when you install {stack} products, they apply basic licenses with no
 expiration dates. To complete this tutorial, you must have a basic or trial
 license at a minimum. For more information, see {subscriptions} and
-<<license-management>>.
+{stack-ov}/license-management.html[License management].
 --
 
 . <<get-started-enable-security,Enable the {es} {security-features}>>.

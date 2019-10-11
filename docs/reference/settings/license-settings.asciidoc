@@ -7,7 +7,7 @@
 
 You can configure this licensing setting in the `elasticsearch.yml` file.
 For more information, see
-{xpack-ref}/license-management.html[{xpack} License Management].
+{stack-ov}/license-management.html[License management].
 
 `xpack.license.self_generated.type`::
 Set to `basic` (default) to enable basic {xpack} features. +

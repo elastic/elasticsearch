@@ -431,7 +431,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             //
             // Note: If we fail updating any of the individual shard paths, none of them are changed since the newly created
             //       index-${gen_uuid} will not be referenced by the existing RepositoryData and new RepositoryData is only
-            //       written if all shard paths have been successfully updated.;
+            //       written if all shard paths have been successfully updated.
             writeUpdatedShardMetaDataAndComputeDeletes(snapshotId, repositoryData, true, ActionListener.wrap(res -> {
                 final ShardGenerations.Builder builder = ShardGenerations.builder();
                 for (ShardSnapshotMetaDeleteResult newGen : res) {
@@ -443,7 +443,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             // Writing the new repository data first, without tracking any shard generations in the BwC path
             writeNewRepoData.accept(ShardGenerations.EMPTY);
-            // We've already written the new RepositoryData so updating all shard-level medata will mean that all metadata is updated
+            // We've already written the new RepositoryData so updating all shard-level metadata will mean that all metadata is updated
             writeUpdatedShardMetaDataAndComputeDeletes(snapshotId, repositoryData, false, afterUpdateAllMetadata);
         }
     }

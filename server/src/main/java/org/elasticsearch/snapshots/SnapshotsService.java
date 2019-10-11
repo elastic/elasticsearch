@@ -1054,7 +1054,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @return Oldest node version that the snapshot in the repository must be readable by
      */
     static Version compatibleVersion(SnapshotsInProgress.Entry entry) {
-        return entry.newFormat() ? Version.CURRENT : SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion();
+        return entry.useShardGenerations()
+            ? Version.CURRENT : SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion();
     }
 
     /**

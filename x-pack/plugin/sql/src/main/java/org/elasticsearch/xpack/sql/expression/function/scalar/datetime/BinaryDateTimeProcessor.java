@@ -15,15 +15,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.BinaryDateTimeProcessor.BinaryDateOperation.TRUNC;
-
 public abstract class BinaryDateTimeProcessor extends BinaryProcessor {
-
-    // TODO: Remove and in favour of inheritance (subclasses which implement abstract methods)
-    public enum BinaryDateOperation {
-        TRUNC,
-        PART;
-    }
 
     private final ZoneId zoneId;
 
@@ -48,28 +40,24 @@ public abstract class BinaryDateTimeProcessor extends BinaryProcessor {
     @Override
     protected abstract Object doProcess(Object left, Object right);
 
-    public static BinaryDateTimeProcessor asProcessor(BinaryDateOperation operation, Processor left, Processor right, ZoneId zoneId) {
-        if (operation == TRUNC) {
-            return new DateTruncProcessor(left, right, zoneId);
-        } else {
-            return new DatePartProcessor(left, right, zoneId);
-        }
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(zoneId);
+        return Objects.hash(left(), right(), zoneId);
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
+    public boolean equals(Object obj) {
+        if (this == obj) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        BinaryDateTimeProcessor that = (BinaryDateTimeProcessor) o;
-        return zoneId.equals(that.zoneId);
+
+        BinaryDateTimeProcessor other = (BinaryDateTimeProcessor) obj;
+        return Objects.equals(left(), other.left())
+            && Objects.equals(right(), other.right())
+            && Objects.equals(zoneId(), other.zoneId());
     }
 }

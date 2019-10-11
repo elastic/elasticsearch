@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.User;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTime;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
@@ -195,6 +196,7 @@ public class FunctionRegistry {
                 def(DayOfMonth.class, DayOfMonth::new, "DAY_OF_MONTH", "DAYOFMONTH", "DAY", "DOM"),
                 def(DayOfWeek.class, DayOfWeek::new, "DAY_OF_WEEK", "DAYOFWEEK", "DOW"),
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
+                def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
@@ -377,7 +379,7 @@ public class FunctionRegistry {
         };
         return def(function, builder, false, names);
     }
-    
+
     interface ConfigurationAwareFunctionBuilder<T> {
         T build(Source source, Configuration configuration);
     }
@@ -446,7 +448,7 @@ public class FunctionRegistry {
     interface MultiFunctionBuilder<T> {
         T build(Source source, List<Expression> children);
     }
-    
+
     /**
      * Build a {@linkplain FunctionDefinition} for a unary function that is not
      * aware of time zone but does support {@code DISTINCT}.
@@ -510,6 +512,28 @@ public class FunctionRegistry {
 
     interface DatetimeBinaryFunctionBuilder<T> {
         T build(Source source, Expression lhs, Expression rhs, ZoneId zi);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a three-args function that
+     * requires a timezone.
+     */
+    @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            if (children.size() != 3) {
+                throw new SqlIllegalArgumentException("expects three arguments");
+            }
+            if (distinct) {
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.get(2), cfg.zoneId());
+        };
+        return def(function, builder, false, names);
+    }
+
+    interface DatetimeThreeArgsFunctionBuilder<T> {
+        T build(Source source, Expression first, Expression second, Expression third, ZoneId zi);
     }
 
     /**

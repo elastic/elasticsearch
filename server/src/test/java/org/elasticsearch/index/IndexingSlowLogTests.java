@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -56,19 +57,19 @@ public class IndexingSlowLogTests extends ESTestCase {
             "test", "routingValue", null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        IndexingSlowLogMessage p = new IndexingSlowLogMessage(index, pd, 10, true, 0);
+        ESLogMessage p =  IndexingSlowLogMessage.of(index, pd, 10, true, 0);
 
-        assertThat(p.getValueFor("message"),equalTo("[foo/123]"));
-        assertThat(p.getValueFor("took"),equalTo("10nanos"));
-        assertThat(p.getValueFor("took_millis"),equalTo("0"));
-        assertThat(p.getValueFor("doc_type"),equalTo("test"));
-        assertThat(p.getValueFor("id"),equalTo("id"));
-        assertThat(p.getValueFor("routing"),equalTo("routingValue"));
-        assertThat(p.getValueFor("source"), is(emptyOrNullString()));
+        assertThat(p.get("message"),equalTo("[foo/123]"));
+        assertThat(p.get("took"),equalTo("10nanos"));
+        assertThat(p.get("took_millis"),equalTo("0"));
+        assertThat(p.get("doc_type"),equalTo("test"));
+        assertThat(p.get("id"),equalTo("id"));
+        assertThat(p.get("routing"),equalTo("routingValue"));
+        assertThat(p.get("source"), is(emptyOrNullString()));
 
         // Turning on document logging logs the whole thing
-        p = new IndexingSlowLogMessage(index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.getValueFor("source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
+        p =  IndexingSlowLogMessage.of(index, pd, 10, true, Integer.MAX_VALUE);
+        assertThat(p.get("source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
     }
 
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
@@ -79,19 +80,19 @@ public class IndexingSlowLogTests extends ESTestCase {
                 "test", null, null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        IndexingSlowLogMessage p = new IndexingSlowLogMessage(index, pd, 10, true, 0);
+        ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
         assertThat(p.getFormattedMessage(), not(containsString("source[")));
 
         // Turning on document logging logs the whole thing
-        p = new IndexingSlowLogMessage(index, pd, 10, true, Integer.MAX_VALUE);
+        p = IndexingSlowLogMessage.of(index, pd, 10, true, Integer.MAX_VALUE);
         assertThat(p.getFormattedMessage(), containsString("source[{\"foo\":\"bar\"}]"));
 
         // And you can truncate the source
-        p = new IndexingSlowLogMessage(index, pd, 10, true, 3);
+        p = IndexingSlowLogMessage.of(index, pd, 10, true, 3);
         assertThat(p.getFormattedMessage(), containsString("source[{\"f]"));
 
         // And you can truncate the source
-        p = new IndexingSlowLogMessage(index, pd, 10, true, 3);
+        p = IndexingSlowLogMessage.of(index, pd, 10, true, 3);
         assertThat(p.getFormattedMessage(), containsString("source[{\"f]"));
         assertThat(p.getFormattedMessage(), startsWith("[foo/123] took"));
 
@@ -102,7 +103,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             "test", null, null, source, XContentType.JSON, null);
 
         final UncheckedIOException e = expectThrows(UncheckedIOException.class,
-            ()->new IndexingSlowLogMessage(index, doc, 10, true, 3));
+            () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3));
         assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
             + " was expecting ('true', 'false' or 'null')\\n"
             + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));

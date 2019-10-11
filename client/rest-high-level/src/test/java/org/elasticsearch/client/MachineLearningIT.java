@@ -1746,7 +1746,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new EvaluateDataFrameRequest(
                 regressionIndex,
                 null,
-                new Regression(actualRegression, probabilityRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
+                new Regression(actualRegression, predictedRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
 
         EvaluateDataFrameResponse evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -1892,7 +1892,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     private static final String actualRegression = "regression_actual";
-    private static final String probabilityRegression = "regression_prob";
+    private static final String predictedRegression = "regression_predicted";
 
     private static XContentBuilder mappingForRegression() throws IOException {
         return XContentFactory.jsonBuilder().startObject()
@@ -1900,17 +1900,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .startObject(actualRegression)
                     .field("type", "double")
                 .endObject()
-                .startObject(probabilityRegression)
+                .startObject(predictedRegression)
                     .field("type", "double")
                 .endObject()
             .endObject()
         .endObject();
     }
 
-    private static IndexRequest docForRegression(String indexName, double act, double p) {
+    private static IndexRequest docForRegression(String indexName, double actualValue, double predictedValue) {
         return new IndexRequest()
             .index(indexName)
-            .source(XContentType.JSON, actualRegression, act, probabilityRegression, p);
+            .source(XContentType.JSON, actualRegression, actualValue, predictedRegression, predictedValue);
     }
 
     private void createIndex(String indexName, XContentBuilder mapping) throws IOException {

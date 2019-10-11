@@ -59,6 +59,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 @TestLogging(value = "org.elasticsearch.xpack.slm:TRACE,org.elasticsearch.xpack.core.slm:TRACE",
     reason = "https://github.com/elastic/elasticsearch/issues/46508")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
     static final String REPO = "my-repo";
@@ -85,6 +86,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         return Arrays.asList(MockRepository.Plugin.class, LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47689")
     public void testSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";

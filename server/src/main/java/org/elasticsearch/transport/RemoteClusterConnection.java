@@ -99,7 +99,8 @@ final class RemoteClusterConnection implements Closeable {
     }
 
     RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
-        ConnectionManager connectionManager = createConnectionManager(buildConnectionProfileFromSettings(settings, clusterAlias), transportService);
+        ConnectionManager connectionManager = createConnectionManager(buildConnectionProfileFromSettings(settings, clusterAlias),
+            transportService);
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
         this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);

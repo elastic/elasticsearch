@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
@@ -225,7 +226,7 @@ public class FetchPhase implements SearchPhase {
                                                        int subDocId,
                                                        Map<String, Set<String>> storedToRequestedFields,
                                                        LeafReaderContext subReaderContext) {
-        loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
+        loadStoredFields(context.shardTarget(), subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
 
         if (fieldsVisitor.fields().isEmpty()) {
@@ -262,7 +263,7 @@ public class FetchPhase implements SearchPhase {
         final boolean needSource = context.sourceRequested() || context.highlight() != null;
         if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context, subReaderContext, rootFieldsVisitor, rootSubDocId);
+            loadStoredFields(context.shardTarget(), subReaderContext, rootFieldsVisitor, rootSubDocId);
             rootFieldsVisitor.postProcess(context.mapperService());
             uid = rootFieldsVisitor.uid();
             source = rootFieldsVisitor.source();
@@ -402,12 +403,12 @@ public class FetchPhase implements SearchPhase {
         return nestedIdentity;
     }
 
-    private void loadStoredFields(SearchContext searchContext, LeafReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
+    private void loadStoredFields(SearchShardTarget shardTarget, LeafReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
         fieldVisitor.reset();
         try {
             readerContext.reader().document(docId, fieldVisitor);
         } catch (IOException e) {
-            throw new FetchPhaseExecutionException(searchContext, "Failed to fetch doc id [" + docId + "]", e);
+            throw new FetchPhaseExecutionException(shardTarget, "Failed to fetch doc id [" + docId + "]", e);
         }
     }
 }

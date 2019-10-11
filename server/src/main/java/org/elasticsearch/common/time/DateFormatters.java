@@ -40,8 +40,6 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.time.temporal.WeekFields;
-import java.util.ArrayList;
-import java.util.List;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.DAY_OF_WEEK;
@@ -60,10 +58,14 @@ public class DateFormatters {
 
     private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .optionalStart()
         .appendLiteral("-")
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalEnd()
+        .optionalEnd()
         .toFormatter(IsoLocale.ROOT);
 
     private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_FORMATTER = new DateTimeFormatterBuilder()
@@ -924,11 +926,13 @@ public class DateFormatters {
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 1, 5, SignStyle.NORMAL)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(MONTH_OF_YEAR, 1, 2, SignStyle.NOT_NEGATIVE)
         .optionalStart()
         .appendLiteral('-')
         .appendValue(DAY_OF_MONTH, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalEnd()
         .optionalEnd()
         .toFormatter(IsoLocale.ROOT);
 
@@ -1045,7 +1049,7 @@ public class DateFormatters {
         new DateTimeFormatterBuilder().appendValue(WeekFields.ISO.weekBasedYear()).toFormatter(IsoLocale.ROOT));
 
     /*
-     * Returns a formatter for a four digit weekyear. (uuuu)
+     * Returns a formatter for a four digit year. (uuuu)
      */
     private static final DateFormatter YEAR = new JavaDateFormatter("year",
         new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR).toFormatter(IsoLocale.ROOT));
@@ -1440,7 +1444,7 @@ public class DateFormatters {
             .appendValue(WeekFields.ISO.dayOfWeek())
             .toFormatter(IsoLocale.ROOT)
     );
-    
+
 
     /////////////////////////////////////////
     //
@@ -1628,26 +1632,7 @@ public class DateFormatters {
         }
     }
 
-    static JavaDateFormatter merge(String pattern, List<DateFormatter> formatters) {
-        assert formatters.size() > 0;
 
-        List<DateTimeFormatter> dateTimeFormatters = new ArrayList<>(formatters.size());
-        DateTimeFormatterBuilder roundupBuilder = new DateTimeFormatterBuilder();
-        DateTimeFormatter printer = null;
-        for (DateFormatter formatter : formatters) {
-            assert formatter instanceof JavaDateFormatter;
-            JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
-            if (printer == null) {
-                printer = javaDateFormatter.getPrinter();
-            }
-            dateTimeFormatters.addAll(javaDateFormatter.getParsers());
-            roundupBuilder.appendOptional(javaDateFormatter.getRoundupParser());
-        }
-        DateTimeFormatter roundUpParser = roundupBuilder.toFormatter(IsoLocale.ROOT);
-
-        return new JavaDateFormatter(pattern, printer, builder -> builder.append(roundUpParser),
-            dateTimeFormatters.toArray(new DateTimeFormatter[0]));
-    }
 
     private static final LocalDate LOCALDATE_EPOCH = LocalDate.of(1970, 1, 1);
 

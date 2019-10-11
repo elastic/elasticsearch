@@ -232,7 +232,7 @@ public class RetryTests extends ESTestCase {
         }
 
         private BulkItemResponse failedResponse() {
-            return new BulkItemResponse(1, OpType.INDEX, new BulkItemResponse.Failure("test", "test", "1",
+            return new BulkItemResponse(1, OpType.INDEX, new BulkItemResponse.Failure("test", "1",
                 new EsRejectedExecutionException("pool full")));
         }
     }

@@ -50,7 +50,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
     }
 
     @Override
-    public String getMetricName() {
+    public String getName() {
         return NAME.getPreferredName();
     }
 
@@ -132,7 +132,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
         }
 
         @Override
-        public String getName() {
+        public String getMetricName() {
             return NAME.getPreferredName();
         }
 

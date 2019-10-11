@@ -54,6 +54,7 @@ public final class TransformInternalIndex {
      *                  progress::docs_processed, progress::docs_indexed,
      *                  stats::exponential_avg_checkpoint_duration_ms, stats::exponential_avg_documents_indexed,
      *                  stats::exponential_avg_documents_processed
+     * version 3 (7.6): state::should_stop_at_checkpoint
      */
 
     // constants for mappings
@@ -71,6 +72,7 @@ public final class TransformInternalIndex {
     public static final String DOUBLE = "double";
     public static final String LONG = "long";
     public static final String KEYWORD = "keyword";
+    public static final String BOOLEAN = "boolean";
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
@@ -174,6 +176,9 @@ public final class TransformInternalIndex {
                     .endObject()
                     .startObject(TransformState.INDEXER_STATE.getPreferredName())
                         .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(TransformState.SHOULD_STOP_AT_NEXT_CHECKPOINT.getPreferredName())
+                        .field(TYPE, BOOLEAN)
                     .endObject()
                     .startObject(TransformState.CURRENT_POSITION.getPreferredName())
                         .field(ENABLED, false)

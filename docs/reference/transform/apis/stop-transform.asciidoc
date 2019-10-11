@@ -90,6 +90,10 @@ are no matches or only partial matches.
   state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
+`wait_for_checkpoint`::
+  (Optional, boolean) If set to `true`, the transform will not completely stop
+  until the current checkpoint is completed. If set to `false`, the transform
+  stops as soon as possible. Defaults to `false`.
 
 [[stop-transform-response-codes]]
 ==== {api-response-codes-title}

@@ -82,6 +82,8 @@ public final class TransformInternalIndex {
                         .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                 // todo: remove type
                 .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
+                // BWC: for mixed clusters with nodes < 7.5, we need the alias to make new docs visible for them
+                .putAlias(AliasMetaData.builder(".data-frame-internal-3"))
                 .build();
         return transformTemplate;
     }

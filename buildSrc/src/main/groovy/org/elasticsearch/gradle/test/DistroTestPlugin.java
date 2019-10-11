@@ -41,6 +41,8 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.Directory;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
@@ -67,6 +69,7 @@ import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 public class DistroTestPlugin implements Plugin<Project> {
+    private static final Logger logger = Logging.getLogger(DistroTestPlugin.class);
     /**
      * This plugin generates test tasks for the various VMs in :qa:os. The
      * Docker packaging tests are run on all of them, apart from those
@@ -477,10 +480,10 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                             final String[] parts = line.split("=", 2);
                             final String key = parts[0];
-                            // remove optional leading and trailing quotes
+                            // remove optional leading and trailing quotes and whitespace
                             final String value = parts[1]
-                                .replaceAll("^['\"]", "")
-                                .replaceAll("['\"]$", "");
+                                .replaceAll("^['\"]\\s*", "")
+                                .replaceAll("\\s*['\"]$", "");
                             values.put(key, value);
                         }
                     } catch (IOException e) {
@@ -488,6 +491,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                     }
 
                     final String id = values.get("ID") + "-" + values.get("VERSION");
+
+                    logger.info("Linux OS id is [" + id + "], is it in the list? -> " + DOCKER_LINUX_INCLUDE_LIST.contains(id));
 
                     return DOCKER_LINUX_INCLUDE_LIST.contains(id);
                 }

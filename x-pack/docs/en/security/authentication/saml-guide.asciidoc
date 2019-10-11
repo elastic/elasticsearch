@@ -856,6 +856,7 @@ documentation above but in case you encounter issues while configuring a SAML re
 look through our <<trb-security-saml,SAML troubleshooting documentation>> that has
 suggestions and resolutions for common issues.
 
+[[saml-no-kibana]]
 === SAML without {kib}
 
 The SAML realm in {es} is designed to allow users to authenticate to {kib} and as
@@ -872,11 +873,13 @@ an {es} access token and a refresh token. The access token is used as credential
 for subsequent calls to {es}. The refresh token enables the user to get new {es}
 access tokens after the current one expires.
 
+[[saml-no-kibana-realm]]]
 ==== SAML realm
 
 You must create a SAML realm and configure it accordingly
 in {es}. See <<saml-guide-authentication>>
 
+[[saml-no-kibana-user]]
 ==== Service Account user for accessing the APIs
 
 The realm is designed with the assumption that there needs to be a privileged entity
@@ -910,7 +913,7 @@ POST /_security/user/saml-service-user
 --------------------------------------------------
 // CONSOLE
 
-[[saml-sp-init-sso]]
+[[saml-no-kibana-sp-init-sso]]
 ==== Handling the SP-initiated authentication flow
 
 On a high level, the custom web application would need to perform the
@@ -919,7 +922,7 @@ following steps in order to authenticate a user with SAML against {es}:
 . Make an HTTP POST request to `_security/saml/prepare`, authenticating as
 the `saml-service-user` user. Use either the name of the SAML realm in the {es} configuration or the value for
 the Assertion Consumer Service URL in the request body.
-See the {ref}/security-api-saml-prepare-authentication.html[SAML prepare authentication API] for more details.
+See the <<security-api-saml-prepare-authentication,SAML prepare authentication API>> for more details.
 +
 [source,js]
 --------------------------------------------------
@@ -943,7 +946,7 @@ custom web application must parse it and make an HTTP POST request itself to the
 `_security/saml/authenticate` API. It must authenticate as the `saml-service-user` user and pass
 the Base64 encoded SAML Response that was sent as the body of the request. It must also pass the value for `id` that it had saved in the user's session previously.
 +
-See {ref}/security-api-saml-authenticate.html[SAML authenticate API] for more details.
+See <<security-api-saml-authenticate,SAML authenticate API>> for more details.
 +
 [source,js]
 -----------------------------------------------------------------------
@@ -958,13 +961,13 @@ POST /_security/saml/authenticate
 +
 Elasticsearch will validate this and if all is correct will respond with an access token that can be used
 as a `Bearer` token for subsequent requests. It also supplies a refresh token that can be later used to refresh the given
-access token as described in {ref}/security-api-get-token.html[get token API].
+access token as described in <<security-api-get-token,get token API>>.
 . The response to calling `/_security/saml/authenticate` will contain only the username of the authenticated
 user. If you need to get the values for the SAML Attributes that were contained in the SAML
 Response for that user, you can call the Authenticate API `/_security/_authenticate/` using the access token as a `Bearer` token
 and the SAML attribute values will be contained in the response as part of the <<saml-user-metadata>>.
 
-
+[[saml-no-kibana-idp-init-sso]]
 ==== Handling the IdP-initiated authentication flow
 
 {es} can also handle the IdP-initiated Single Sign On flow of the SAML 2 Web Browser SSO profile. In this
@@ -986,9 +989,10 @@ POST /_security/saml/authenticate
 // CONSOLE
 // TEST[skip:handled in IT]
 
+[[saml-no-kibana-slo]]
 ==== Handling the logout flow
 . At some point, if necessary, the custom web application can log the user out by using the
-  {ref}/security-api-saml-logout.html[SAML logout API] and passing the access token and refresh token as parameters. For example:
+  <<security-api-saml-logout,SAML logout API>> and passing the access token and refresh token as parameters. For example:
 +
 [source,js]
 --------------------------------------------------
@@ -1007,7 +1011,7 @@ parameter indicating where the user needs to be redirected at the IdP in order t
 . Alternatively, the IdP might initiate the Single Logout flow at some point. In order to handle this, 
 the Logout URL (`sp.logout`) needs to be handled by the custom web app. The query part of the URL that the
 user will be redirected to will contain a SAML Logout request and this query part needs to be relayed to {es}
-using the {ref}/security-api-saml-invalidate.html[SAML invalidate API] 
+using the <<security-api-saml-invalidate,SAML invalidate API>> 
 +
 [source,js]
 --------------------------------------------------

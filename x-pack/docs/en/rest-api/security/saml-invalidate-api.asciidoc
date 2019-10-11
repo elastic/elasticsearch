@@ -5,7 +5,7 @@
 Submits a SAML LogoutRequest message to {es} for consumption.
 
 NOTE: This API is intended for use by custom web applications other than {kib}.
-If you are using {kib}, see the {stack-ov}/saml-guide.html[SAML guide].
+If you are using {kib}, see the <<saml-guide>>.
 
 [[security-api-saml-invalidate-request]]
 ==== {api-request-title}

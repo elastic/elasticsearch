@@ -21,36 +21,166 @@ by a different enable setting. To disable SLM's functionality, set the cluster
 setting `xpack.slm.enabled` to `false` in elasticsearch.yml.
 
 [[slm-api-put]]
-=== Put Snapshot Lifecycle Policy API
+=== Put snapshot lifecycle policy API
+++++
+<titleabbrev>Put snapshot lifecycle policy</titleabbrev>
+++++
 
-Creates or updates a snapshot policy. If the policy already exists, the version
-is incremented. Only the latest version of a policy is stored.
+Creates or updates a snapshot lifecycle policy.
 
-When a policy is created it is immediately scheduled based on the schedule of
-the policy, when a policy is updated its schedule changes are immediately
-applied.
 
-==== Path Parameters
+[[slm-api-put-request]]
+==== {api-request-title}
 
-`policy_id` (required)::
-  (string) Identifier (id) for the policy.
+`PUT /_slm/policy/<snapshot-lifecycle-policy-id>`
 
-==== Request Parameters
+
+[[slm-api-put-prereqs]]
+==== {api-prereq-title}
+
+If you use {es} {security-features},
+you must have:
+
+* `manage_slm` <<privileges-list-cluster,cluster privileges>>
+* `manage` <<privileges-list-indices,index privileges>> for any included indices
+
+{slm-cap} operations are executed
+as the user that last created or updated the policy.
+
+For more information,
+see <<security-privileges>>.
+
+
+[[slm-api-put-desc]]
+==== {api-description-title}
+
+Use the put snapshot lifecycle policy API
+to create or update a snapshot lifecycle policy.
+
+If the policy already exists,
+this request increments the policy's version.
+Only the latest version of the policy is stored.
+
+
+
+[[slm-api-put-path-params]]
+==== {api-path-parms-title}
+
+`<snapshot-lifecycle-policy-id>`::
+(Required, string)
+ID for the snapshot lifecycle policy
+you want to create or update.
+
+
+[[slm-api-put-query-params]]
+==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
 
-You must have the `manage_slm` cluster privilege to use this API. You must also
-have the `manage` index privilege on all indices being managed by `policy`. All
-operations executed by {slm} for a policy are executed as the user that put the
-latest version of a policy. For more information, see
-<<security-privileges>>.
+[[slm-api-put-request-body]]
+==== {api-request-body-title}
 
-==== Example
+`schedule`::
+(Required, <<schedule-cron,Cron scheduler configuration>>)
+Periodic or absolute schedule
+at which the policy creates snapshots
+and deletes expired snapshots.
++
+Schedule changes to existing policies
+are applied immediately.
 
-The following creates a snapshot lifecycle policy with an id of
-`daily-snapshots`:
+`name`::
++
+--
+(Required, string)
+Name automatically assigned to each snapshot
+created by the policy.
+
+This value supports the same <<date-math-index-names,date math>>
+supported in index names.
+
+To prevent conflicting snapshot names,
+a UUID is automatically appended to each snapshot name.
+--
+
+`repository`::
++
+--
+(Required, string)
+Repository used to store snapshots
+created by this policy.
+
+This repository must exist prior to the policy's creation.
+You can create a repository
+using the <<modules-snapshots,snapshot repository API>>.
+--
+
+`config`::
++
+--
+(Required, object)
+Configuration for each snapshot
+created by the policy.
+
+Parameters include:
+
+`indices`::
+(Optional, array of strings)
+Array of index names or wildcard pattern of index names
+included in snapshots.
+
+`ignore_unavailable`::
+(Optional, boolean)
+If `true`,
+missing indices do *not* cause snapshot creation to fail
+and return an error.
+Defaults to `false`.
+
+`include_global_state`::
+(Optional, boolean)
+If `true`,
+cluster states are included in snapshots.
+Defaults to `false`.
+--
+
+`retention`::
++
+--
+(Optional, object)
+Retention rules used to retain
+and delete snapshots
+created by the policy.
+
+Parameters include:
+
+`expire_after`::
+(Optional, <<time-units, time units>>)
+Time period after which
+a snapshot is considered expired
+and eligible for deletion.
+
+`max_count`::
+(Optional, integer)
+Maximum number of snapshots to retain,
+even if the snapshots have not yet expired.
++
+If the number of snapshots in the repository exceeds this limit,
+the policy retains the most recent snapshots
+and deletes older snapshots.
+
+`min_count`::
+(Optional, integer)
+Minimum number of snapshots to retain,
+even if the snapshots have expired.
+--
+
+
+[[slm-api-put-example]]
+==== {api-examples-title}
+
+The following request creates a snapshot lifecycle policy
+with an ID of `daily-snapshots`:
 
 [source,console]
 --------------------------------------------------
@@ -83,31 +213,6 @@ PUT /_slm/policy/daily-snapshots
 <8> Always keep at least 5 successful snapshots, even if they're more than 30 days old
 <9> Keep no more than 50 successful snapshots, even if they're less than 30 days old
 
-The top-level keys that the policy supports are described below:
-
-|==================
-| Key | Description
-
-| `schedule` | A periodic or absolute time schedule. Supports all values
-  supported by the cron scheduler:
-  <<schedule-cron,Cron scheduler configuration>>
-
-| `name` | A name automatically given to each snapshot performed by this policy.
-  Supports the same <<date-math-index-names,date math>> supported in index
-  names. A UUID is automatically appended to the end of the name to prevent
-  conflicting snapshot names.
-
-| `repository` | The snapshot repository that will contain snapshots created by
-  this policy. The repository must exist prior to the policy's creation and can
-  be created with the <<modules-snapshots,snapshot repository API>>.
-
-| `config` | Configuration for each snapshot that will be created by this
-  policy. Any configuration is included with <<modules-snapshots,create snapshot
-  requests>> issued by this policy.
-|==================
-
-To update an existing policy, simply use the put snapshot lifecycle policy API
-with the same policy id as an existing policy.
 
 [[slm-api-get]]
 === Get Snapshot Lifecycle Policy API

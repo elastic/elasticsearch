@@ -967,7 +967,7 @@ and the SAML attribute values will be contained in the response as part of the <
 
 {es} can also handle the IdP-initiated Single Sign On flow of the SAML 2 Web Browser SSO profile. In this
 case the authentication starts with an unsolicited authentication response from the SAML Identity
-Provider. The difference with the <<saml-sp-init-sso, SP initiated SSO>> is that the web application needs to handle
+Provider. The difference with the <<saml-no-kibana-sp-init-sso, SP initiated SSO>> is that the web application needs to handle
 requests to the `sp.acs` that will not come as responses to previous redirections. As such, it will not have a session
 for the user already, and it will not have any stored values for the `id` parameter. The request to the
 `_security/saml/authenticate` API will look like the one below in this case:

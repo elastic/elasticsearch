@@ -17,6 +17,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -123,6 +125,15 @@ public class StackTraceElementTaggerTests extends ESTestCase {
             return new TagCollectingIndexOutput(super.createTempOutput(prefix, suffix, context), tags);
         }
 
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            return new TagCollectingIndexInput(super.openInput(name, context), tags);
+        }
+
+        @Override
+        public ChecksumIndexInput openChecksumInput(String name, IOContext context) throws IOException {
+            return new BufferedChecksumIndexInput(openInput(name, context));
+        }
     }
 
     private static class TagCollectingAnalyzer extends Analyzer {

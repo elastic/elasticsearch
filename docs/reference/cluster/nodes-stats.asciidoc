@@ -490,7 +490,7 @@ parameter to `ingest` and use the
 
 [source,console]
 --------------------------------------------------
-GET /_nodes/stats/metric?filter_path=nodes.*.ingest
+GET /_nodes/stats/ingest?filter_path=nodes.*.ingest
 --------------------------------------------------
 
 You can use the `metric` and `filter_path` query parameters to get the same

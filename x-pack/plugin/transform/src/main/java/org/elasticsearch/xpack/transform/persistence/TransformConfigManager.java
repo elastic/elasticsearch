@@ -73,8 +73,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  *
  * Versioned Index:
  *
- * We wrap several indexes under 1 pattern: ".data-frame-internal-1", ".data-frame-internal-2", ".transform-internal-n" while
- * n is the _current_ version of the index.
+ * We wrap several indexes under 1 pattern: ".transform-internal-001", ".transform-internal-002", ".transform-internal-n" while
+ * n is the _current_ version of the index. For BWC we also search in ".data-frame-internal-1", ".data-frame-internal-2"
  *
  * - all gets/reads and dbq as well are searches on all indexes, while last-one-wins, so the result with the highest version is uses
  * - all puts and updates go into the _current_ version of the index, in case of updates this can leave dups behind

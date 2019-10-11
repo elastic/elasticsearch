@@ -1847,7 +1847,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: " +
                 recoveryState.getRecoverySource();
             StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-            listener.onResponse(storeRecovery.recoverFromRepository(this, repository));
+            storeRecovery.recoverFromRepository(this, repository, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -32,6 +32,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -267,17 +268,19 @@ final class StoreRecovery {
      * @return <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
      * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      */
-    boolean recoverFromRepository(final IndexShard indexShard, Repository repository) {
-        if (canRecover(indexShard)) {
-            RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
-            assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
-            SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
-            return executeRecovery(indexShard, () -> {
-                logger.debug("restoring from {} ...", indexShard.recoveryState().getRecoverySource());
-                restore(indexShard, repository, recoverySource);
-            });
-        }
-        return false;
+    void recoverFromRepository(final IndexShard indexShard, Repository repository, ActionListener<Boolean> listener) {
+        ActionListener.completeWith(listener, () -> {
+            if (canRecover(indexShard)) {
+                RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
+                assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
+                SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
+                return executeRecovery(indexShard, () -> {
+                    logger.debug("restoring from {} ...", indexShard.recoveryState().getRecoverySource());
+                    restore(indexShard, repository, recoverySource);
+                });
+            }
+            return false;
+        });
 
     }
 

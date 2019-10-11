@@ -631,6 +631,7 @@ public class OptimizerTests extends ESTestCase {
         assertNullLiteral(foldNull.rule(new DateAdd(EMPTY, ONE, NULL, THREE, UTC)));
         assertNullLiteral(foldNull.rule(new DateAdd(EMPTY, ONE, TWO, NULL, UTC)));
         assertNullLiteral(foldNull.rule(new DateAdd(EMPTY, NULL, NULL, NULL, UTC)));
+        assertTrue(foldNull.rule(new DateAdd(EMPTY, ONE, TWO, THREE, UTC)) instanceof DateAdd);
     }
 
     public void testFoldNullDatePart() {
@@ -638,6 +639,7 @@ public class OptimizerTests extends ESTestCase {
         assertNullLiteral(foldNull.rule(new DatePart(EMPTY, NULL, TWO, UTC)));
         assertNullLiteral(foldNull.rule(new DatePart(EMPTY, ONE, NULL, UTC)));
         assertNullLiteral(foldNull.rule(new DatePart(EMPTY, NULL, NULL, UTC)));
+        assertTrue(foldNull.rule(new DatePart(EMPTY, ONE, TWO, UTC)) instanceof DatePart);
     }
 
     public void testFoldNullDateTrunc() {
@@ -645,6 +647,7 @@ public class OptimizerTests extends ESTestCase {
         assertNullLiteral(foldNull.rule(new DateTrunc(EMPTY, NULL, TWO, UTC)));
         assertNullLiteral(foldNull.rule(new DateTrunc(EMPTY, ONE, NULL, UTC)));
         assertNullLiteral(foldNull.rule(new DateTrunc(EMPTY, NULL, NULL, UTC)));
+        assertTrue(foldNull.rule(new DateTrunc(EMPTY, ONE, TWO, UTC)) instanceof DateTrunc);
     }
 
     public void testSimplifyCaseConditionsFoldWhenFalse() {

@@ -58,12 +58,11 @@ import java.util.Set;
  * Taken from JsonThrowablePatternConverter</li>
  * </ul>
  * <p>
- * It is possible to add more field by extending ESLogMessage which expects a map of fields
- * or override them with <code>overrideFields</code>
- * <code>appender.logger.layout.overrideFields=message</code>
- * Each of these will be expanded into a json field with a value taken {@link ESLogMessage} field. In the example above
- * <code>... "message":  %ESMessageField{message} ...</code>
- * the message passed to a logger will be overriden with a value from %ESMessageField{message}
+ * It is possible to add more field by  using {@link ESLogMessage#with} method which allow adding key value pairs
+ * or override field with <code>overrideFields</code>
+ * <code>appender.logger.layout.overrideFields=message</code>.
+ * In the example above the pattern will be <code>... "message":  %OverrideField{message} ...</code>
+ * the message passed to a logger will be overridden with a value from %OverrideField{message}
  * Once an appender is defined to be overriding a field, all the log events should contain this field.
  * <p>
  * The value taken from ESLogMessage has to be a simple escaped JSON value.
@@ -96,8 +95,10 @@ public class ESJsonLayout extends AbstractStringLayout {
         map.put("node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
+
+        // overridden fields are expected to be present in a log message
         for (String key : overrideFields) {
-            map.put(key, inQuotes("%ESMessageField{" + key + "}"));
+            map.remove(key);
         }
 
         return createPattern(map, Set.of(overrideFields));

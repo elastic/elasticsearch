@@ -133,14 +133,16 @@ public final class GetApiKeyRequest extends ActionRequest {
         return new GetApiKeyRequest(null, null, null, null, true);
     }
 
+    /**
+     * Creates get api key request to retrieve api key information for all api keys if the authenticated user is authorized to do so.
+     */
+    public static GetApiKeyRequest forAllApiKeys() {
+        return new GetApiKeyRequest();
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
-                && Strings.hasText(apiKeyName) == false && ownedByAuthenticatedUser == false) {
-            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified if " +
-                    "[owner] flag is false", validationException);
-        }
         if (Strings.hasText(apiKeyId) || Strings.hasText(apiKeyName)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(

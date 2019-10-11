@@ -70,6 +70,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -109,6 +110,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
@@ -202,7 +204,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
@@ -229,7 +231,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
@@ -406,7 +408,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         pauseFollow("index2");
 
         MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
-            .get("index2").get("doc");
+            .get("index2").get("_doc");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
     }
@@ -500,7 +502,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                     throw new AssertionError(e);
                 }
                 final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
-                IndexRequest indexRequest = new IndexRequest("index1", "doc")
+                IndexRequest indexRequest = new IndexRequest("index1")
                     .source(source, XContentType.JSON)
                     .timeout(TimeValue.timeValueSeconds(1));
                 bulkProcessor.add(indexRequest);
@@ -561,7 +563,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int value = i;
             assertBusy(() -> {
-                final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(value)).get();
+                final GetResponse getResponse = followerClient().prepareGet("index2", Integer.toString(value)).get();
                 assertTrue(getResponse.isExists());
                 assertTrue((getResponse.getSource().containsKey("field")));
                 assertThat(XContentMapValues.extractValue("objects.field", getResponse.getSource()),
@@ -741,6 +743,47 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         });
         pauseFollow("index2");
         ensureNoCcrTasks();
+    }
+
+    public void testFollowClosedIndex() {
+        final String leaderIndex = "test-index";
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .build()));
+        assertAcked(leaderClient().admin().indices().prepareClose(leaderIndex));
+
+        final String followerIndex = "follow-test-index";
+        expectThrows(IndexClosedException.class,
+            () -> followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).actionGet());
+        assertFalse(ESIntegTestCase.indexExists(followerIndex, followerClient()));
+    }
+
+    public void testResumeFollowOnClosedIndex() throws Exception {
+        final String leaderIndex = "test-index";
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+        ensureLeaderGreen(leaderIndex);
+
+        final int nbDocs = randomIntBetween(10, 100);
+        IntStream.of(nbDocs).forEach(i -> leaderClient().prepareIndex().setIndex(leaderIndex).setSource("field", i).get());
+
+        final String followerIndex = "follow-test-index";
+        PutFollowAction.Response response =
+            followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).actionGet();
+        assertTrue(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexShardsAcked());
+        assertTrue(response.isIndexFollowingStarted());
+
+        pauseFollow(followerIndex);
+        assertAcked(leaderClient().admin().indices().prepareClose(leaderIndex));
+
+        expectThrows(IndexClosedException.class, () ->
+            followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow(followerIndex)).actionGet());
     }
 
     public void testDeleteFollowerIndex() throws Exception {
@@ -1315,7 +1358,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
@@ -1453,7 +1496,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int key, final int value) {
         return () -> {
-            final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(key)).get();
+            final GetResponse getResponse = followerClient().prepareGet("index2", Integer.toString(key)).get();
             assertTrue("Doc with id [" + key + "] is missing", getResponse.isExists());
             assertTrue((getResponse.getSource().containsKey("f")));
             assertThat(getResponse.getSource().get("f"), equalTo(value));

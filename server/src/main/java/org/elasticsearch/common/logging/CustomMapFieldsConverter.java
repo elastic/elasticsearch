@@ -25,10 +25,7 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.logging.log4j.util.StringBuilders;
-import org.elasticsearch.common.Strings;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -63,23 +60,9 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (event.getMessage() instanceof ESLogMessage) {
+        if(event.getMessage() instanceof ESLogMessage) {
             ESLogMessage logMessage = (ESLogMessage) event.getMessage();
-
-            String separator = "";
-            Map<String, Object> fields = logMessage.getFields();
-            for (String key : fields.keySet()) {
-                if (overridenFields.contains(key) == false) {
-                    String value = logMessage.getValueFor(key);
-                    if (Strings.isNullOrEmpty(value) == false) {
-                        StringBuilders.appendValue(toAppendTo, separator);
-                        StringBuilders.appendValue(toAppendTo, ESLogMessage.inQuotes(key));
-                        StringBuilders.appendValue(toAppendTo, ":");
-                        StringBuilders.appendValue(toAppendTo, ESLogMessage.inQuotes(value));
-                        separator = ", ";
-                    }
-                }
-            }
+            logMessage.asJson(toAppendTo);
         }
     }
 }

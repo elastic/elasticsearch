@@ -165,7 +165,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             equalTo(test.totalNumShards));
 
         logger.info("--> trying to get the indexed document on the first index");
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> closing test index...");
@@ -204,7 +204,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             equalTo(test.totalNumShards));
 
         logger.info("--> trying to get the indexed document on the first round (before close and shutdown)");
-        getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+        getResponse = client().prepareGet("test", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> indexing a simple document");

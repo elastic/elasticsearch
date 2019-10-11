@@ -47,9 +47,6 @@ dependencies {
     compile "org.antlr:antlr4-runtime:4.5.3"
     testCompile project(':test:framework')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile project(path: ':modules:reindex', configuration: 'runtime')
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')

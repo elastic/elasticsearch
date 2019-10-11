@@ -7,7 +7,6 @@ setup:
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -38,7 +37,6 @@ setup:
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -70,7 +68,6 @@ setup:
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -102,7 +99,6 @@ setup:
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -120,7 +116,6 @@ setup:
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -138,13 +133,11 @@ setup:
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    _doc
         id:      2
         body:    { "text": "test", "hidden": true }
   - do:
@@ -192,7 +185,6 @@ setup:
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test", "foo": "z", "bar": "z" }
   - do:
@@ -210,7 +202,6 @@ setup:
   - do:
       get:
         index: source
-        type: _doc
         id: 1
   # These were visible to the user running the update_by_query so they stayed.
   - match: { _source.foo: z }

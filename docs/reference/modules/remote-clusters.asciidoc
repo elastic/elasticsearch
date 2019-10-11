@@ -9,7 +9,7 @@ endif::[]
 ifdef::include-xpack[]
 The _remote clusters_ module enables you to establish uni-directional
 connections to a remote cluster. This functionality is used in
-{stack-ov}/xpack-ccr.html[{ccr}] and
+<<xpack-ccr,{ccr}>> and
 <<modules-cross-cluster-search,{ccs}>>.
 endif::[]
 
@@ -244,14 +244,6 @@ PUT _cluster/settings
   sent to the remote cluster. If the inbound request is compressed,
   Elasticsearch compresses the response. If unset, the global
   `transport.compress` is used as the fallback setting.
-
-`cluster.remote.${cluster_alias}.proxy`::
-
-  Sets a proxy address for the specified remote cluster. By default this is not
-  set, meaning that Elasticsearch will connect directly to the nodes in the
-  remote cluster using their <<advanced-network-settings,publish addresses>>.
-  If this setting is set to an IP address or hostname then Elasticsearch will
-  connect to the nodes in the remote cluster using this address instead.
 
 [float]
 [[retrieve-remote-clusters-info]]

@@ -80,7 +80,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     private LogicalPlan incompatibleAccept(String sql) {
         return accept(incompatible(), sql);
     }
-    
+
     public void testMissingIndex() {
         assertEquals("1:17: Unknown index [missing]", error(IndexResolution.notFound("missing"), "SELECT foo FROM missing"));
     }
@@ -96,11 +96,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testMissingColumnWithWildcard() {
         assertEquals("1:8: Unknown column [xxx]", error("SELECT xxx.* FROM test"));
     }
-    
+
     public void testMisspelledColumnWithWildcard() {
         assertEquals("1:8: Unknown column [tex], did you mean [text]?", error("SELECT tex.* FROM test"));
     }
-    
+
     public void testColumnWithNoSubFields() {
         assertEquals("1:8: Cannot determine columns for [text.*]", error("SELECT text.* FROM test"));
     }
@@ -131,14 +131,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 "line 1:22: Unknown column [c]\n" +
                 "line 1:25: Unknown column [tex], did you mean [text]?", error("SELECT bool, a, b.*, c, tex.* FROM test"));
     }
-    
+
     public void testMultipleColumnsWithWildcard2() {
         assertEquals("1:8: Unknown column [tex], did you mean [text]?\n" +
                 "line 1:21: Unknown column [a]\n" +
                 "line 1:24: Unknown column [dat], did you mean [date]?\n" +
                 "line 1:31: Unknown column [c]", error("SELECT tex.*, bool, a, dat.*, c FROM test"));
     }
-    
+
     public void testMultipleColumnsWithWildcard3() {
         assertEquals("1:8: Unknown column [ate], did you mean [date]?\n" +
                 "line 1:21: Unknown column [keyw], did you mean [keyword]?\n" +
@@ -210,7 +210,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 "type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
         assertEquals("1:8: first argument of [DATE_TRUNC('invalid', keyword)] must be one of [MILLENNIUM, CENTURY, DECADE, " + "" +
                 "YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
-                "or their aliases, found value ['invalid']",
+                "or their aliases; found value ['invalid']",
             error("SELECT DATE_TRUNC('invalid', keyword) FROM test"));
         assertEquals("1:8: Unknown value ['millenioum'] for first argument of [DATE_TRUNC('millenioum', keyword)]; " +
                 "did you mean [millennium, millennia]?",
@@ -227,6 +227,61 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT DATE_TRUNC('days', date) FROM test");
         accept("SELECT DATE_TRUNC('dd', date) FROM test");
         accept("SELECT DATE_TRUNC('d', date) FROM test");
+
+    }
+
+    public void testDatePartInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_PART(int, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_PART(keyword, keyword)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_PART(keyword, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_PART('invalid', keyword)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
+            "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, TZOFFSET] " +
+                "or their aliases; found value ['invalid']",
+            error("SELECT DATE_PART('invalid', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['tzofset'] for first argument of [DATE_PART('tzofset', keyword)]; " +
+                "did you mean [tzoffset]?",
+            error("SELECT DATE_PART('tzofset', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_PART('dz', keyword)]; " +
+                "did you mean [dd, tz, dw, dy, d]?",
+            error("SELECT DATE_PART('dz', keyword) FROM test"));
+    }
+
+    public void testDatePartValidArgs() {
+        accept("SELECT DATE_PART('weekday', date) FROM test");
+        accept("SELECT DATE_PART('dw', date) FROM test");
+        accept("SELECT DATE_PART('tz', date) FROM test");
+        accept("SELECT DATE_PART('dayofyear', date) FROM test");
+        accept("SELECT DATE_PART('dy', date) FROM test");
+        accept("SELECT DATE_PART('ms', date) FROM test");
+    }
+
+    public void testDateAddInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_ADD(int, int, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_ADD(int, int, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_ADD(keyword, keyword, date)] must be [integer], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_ADD(keyword, keyword, date) FROM test"));
+        assertEquals("1:8: third argument of [DATE_ADD(keyword, int, keyword)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_ADD(keyword, int, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_ADD('invalid', int, date)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
+                "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
+                "or their aliases; found value ['invalid']",
+            error("SELECT DATE_ADD('invalid', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['sacinds'] for first argument of [DATE_ADD('sacinds', int, date)]; " +
+                "did you mean [seconds, second]?",
+            error("SELECT DATE_ADD('sacinds', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_ADD('dz', int, date)]; " +
+                "did you mean [dd, dw, dy, d]?",
+            error("SELECT DATE_ADD('dz', int, date) FROM test"));
+    }
+
+    public void testDateAddValidArgs() {
+        accept("SELECT DATE_ADD('weekday', 0, date) FROM test");
+        accept("SELECT DATE_ADD('dw', 20, date) FROM test");
+        accept("SELECT DATE_ADD('years', -10, date) FROM test");
+        accept("SELECT DATE_ADD('dayofyear', 123, date) FROM test");
+        accept("SELECT DATE_ADD('dy', 30, date) FROM test");
+        accept("SELECT DATE_ADD('ms', 1, date::date) FROM test");
     }
 
     public void testValidDateTimeFunctionsOnTime() {
@@ -589,13 +644,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text LIKE 'foo'"));
     }
-    
+
     public void testInvalidTypeForRLikeMatch() {
         assertEquals("1:26: [text RLIKE 'foo'] cannot operate on field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text RLIKE 'foo'"));
     }
-    
+
     public void testAllowCorrectFieldsInIncompatibleMappings() {
         assertNotNull(incompatibleAccept("SELECT languages FROM \"*\""));
     }
@@ -719,32 +774,32 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
     }
-    
+
     public void testHistogramNotInGroupingWithCount() {
         assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, COUNT(*) FROM test"));
     }
-    
+
     public void testHistogramNotInGroupingWithMaxFirst() {
         assertEquals("1:19: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT MAX(date), HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
     }
-    
+
     public void testHistogramWithoutAliasNotInGrouping() {
         assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test"));
     }
-    
+
     public void testTwoHistogramsNotInGrouping() {
         assertEquals("1:48: [HISTOGRAM(date, INTERVAL 1 DAY)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, HISTOGRAM(date, INTERVAL 1 DAY) FROM test GROUP BY h"));
     }
-    
+
     public void testHistogramNotInGrouping_WithGroupByField() {
         assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test GROUP BY date"));
     }
-    
+
     public void testScalarOfHistogramNotInGrouping() {
         assertEquals("1:14: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) FROM test"));
@@ -844,4 +899,57 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT ST_X(shape) FROM test");
     }
 
+    //
+    // Pivot verifications
+    //
+    public void testPivotNonExactColumn() {
+        assertEquals("1:72: Field [text] of data type [text] cannot be used for grouping;"
+                + " No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+                error("SELECT * FROM (SELECT int, text, keyword FROM test) " + "PIVOT(AVG(int) FOR text IN ('bla'))"));
+    }
+
+    public void testPivotColumnUsedInsteadOfAgg() {
+        assertEquals("1:59: No aggregate function found in PIVOT at [int]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(int FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotScalarUsedInsteadOfAgg() {
+        assertEquals("1:59: No aggregate function found in PIVOT at [ROUND(int)]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(ROUND(int) FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotScalarUsedAlongSideAgg() {
+        assertEquals("1:59: Non-aggregate function found in PIVOT at [AVG(int) + ROUND(int)]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) + ROUND(int) FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotValueNotFoldable() {
+        assertEquals("1:91: Non-literal [bool] found inside PIVOT values",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR keyword IN ('bla', bool))"));
+    }
+
+    public void testPivotWithFunctionInput() {
+        assertEquals("1:37: No functions allowed (yet); encountered [YEAR(date)]",
+                error("SELECT * FROM (SELECT int, keyword, YEAR(date) FROM test) " + "PIVOT(AVG(int) FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotWithFoldableFunctionInValues() {
+        assertEquals("1:85: Non-literal [UCASE('bla')] found inside PIVOT values",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR keyword IN ( UCASE('bla') ))"));
+    }
+
+    public void testPivotWithNull() {
+        assertEquals("1:85: Null not allowed as a PIVOT value",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR keyword IN ( null ))"));
+    }
+
+    public void testPivotValuesHaveDifferentTypeThanColumn() {
+        assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla'))"));
+    }
+
+    public void testPivotValuesWithMultipleDifferencesThanColumn() {
+        assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla', true))"));
+    }
 }

@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.RankFeatureQueryBuilder.ScoreFunction;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -91,7 +90,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     @Override
-    protected void doAssertLuceneQuery(RankFeatureQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(RankFeatureQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Class<?> expectedClass = FeatureField.newSaturationQuery("", "", 1, 1).getClass();
         assertThat(query, either(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(expectedClass)));
     }

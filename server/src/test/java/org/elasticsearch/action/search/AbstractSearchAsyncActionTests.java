@@ -33,7 +33,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
@@ -58,7 +58,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private final Set<Long> releasedContexts = new CopyOnWriteArraySet<>();
 
     private AbstractSearchAsyncAction<SearchPhaseResult> createAction(SearchRequest request,
-                                                                      InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results,
+                                                                      ArraySearchPhaseResults<SearchPhaseResult> results,
                                                                       ActionListener<SearchResponse> listener,
                                                                       final boolean controlled,
                                                                       final AtomicLong expected) {
@@ -127,7 +127,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private void runTestTook(final boolean controlled) {
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(new SearchRequest(),
-            new InitialSearchPhase.ArraySearchPhaseResults<>(10), null, controlled, expected);
+            new ArraySearchPhaseResults<>(10), null, controlled, expected);
         final long actual = action.buildTookInMillis();
         if (controlled) {
             // with a controlled clock, we can assert the exact took time
@@ -142,11 +142,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean()).preference("_shards:1,3");
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            new InitialSearchPhase.ArraySearchPhaseResults<>(10), null, false, expected);
+            new ArraySearchPhaseResults<>(10), null, false, expected);
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
-        ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
+        ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
@@ -160,10 +160,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     public void testBuildSearchResponse() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            new InitialSearchPhase.ArraySearchPhaseResults<>(10), null, false, new AtomicLong());
+            new ArraySearchPhaseResults<>(10), null, false, new AtomicLong());
         String scrollId = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId);
+        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId, action.buildShardFailures());
         assertEquals(scrollId, searchResponse.getScrollId());
         assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
         assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
@@ -174,12 +174,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     public void testBuildSearchResponseAllowPartialFailures() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            new InitialSearchPhase.ArraySearchPhaseResults<>(10), null, false, new AtomicLong());
+            new ArraySearchPhaseResults<>(10), null, false, new AtomicLong());
         action.onShardFailure(0, new SearchShardTarget("node", new ShardId("index", "index-uuid", 0), null, OriginalIndices.NONE),
             new IllegalArgumentException());
         String scrollId = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId);
+        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId, action.buildShardFailures());
         assertEquals(scrollId, searchResponse.getScrollId());
         assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
         assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
@@ -187,14 +187,14 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertSame(searchResponse.getHits(), internalSearchResponse.hits());
     }
 
-    public void testBuildSearchResponseDisallowPartialFailures() {
+    public void testSendSearchResponseDisallowPartialFailures() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
         Set<Long> requestIds = new HashSet<>();
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         int numFailures = randomIntBetween(1, 5);
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, numFailures);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, numFailures);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
         for (int i = 0; i < numFailures; i++) {
             ShardId failureShardId = new ShardId("index", "index-uuid", i);
@@ -203,7 +203,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             action.onShardFailure(i, new SearchShardTarget(failureNodeId, failureShardId, failureClusterAlias, OriginalIndices.NONE),
                 new IllegalArgumentException());
         }
-        action.buildSearchResponse(InternalSearchResponse.empty(), randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10));
+        action.sendSearchResponse(InternalSearchResponse.empty(), randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10));
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException)exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
@@ -221,7 +221,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
         Set<Long> requestIds = new HashSet<>();
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, 0);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, 0);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
         action.onPhaseFailure(new SearchPhase("test") {
             @Override
@@ -244,8 +244,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
         int numShards = randomIntBetween(2, 10);
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults =
-            new InitialSearchPhase.ArraySearchPhaseResults<>(numShards);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults =
+            new ArraySearchPhaseResults<>(numShards);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
         // skip one to avoid the "all shards failed" failure.
         SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
@@ -262,12 +262,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
-    private static InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults(Set<Long> requestIds,
+    private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(Set<Long> requestIds,
                                                                                               List<Tuple<String, String>> nodeLookups,
                                                                                               int numFailures) {
         int numResults = randomIntBetween(1, 10);
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults =
-            new InitialSearchPhase.ArraySearchPhaseResults<>(numResults + numFailures);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numResults + numFailures);
 
         for (int i = 0; i < numResults; i++) {
             long requestId = randomLong();

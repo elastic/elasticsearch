@@ -248,4 +248,3 @@ The API returns the following response:
   }	
 }	
 --------------------------------------------------	
-// TESTRESPONSE

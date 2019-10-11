@@ -30,6 +30,7 @@ import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
+import com.microsoft.azure.storage.blob.BlobRequestOptions;
 import com.microsoft.azure.storage.blob.CloudBlob;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
@@ -328,7 +329,7 @@ public class AzureStorageService {
             final AccessCondition accessCondition =
                 failIfAlreadyExists ? AccessCondition.generateIfNotExistsCondition() : AccessCondition.generateEmptyCondition();
             SocketAccess.doPrivilegedVoidException(() ->
-                blob.upload(inputStream, blobSize, accessCondition, null, client.v2().get()));
+                blob.upload(inputStream, blobSize, accessCondition, getBlobRequestOptionsForWriteBlob(), client.v2().get()));
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
                 StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
@@ -337,6 +338,11 @@ public class AzureStorageService {
             throw se;
         }
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
+    }
+
+    // package private for testing
+    BlobRequestOptions getBlobRequestOptionsForWriteBlob() {
+        return null;
     }
 
     static InputStream giveSocketPermissionsToStream(final InputStream stream) {

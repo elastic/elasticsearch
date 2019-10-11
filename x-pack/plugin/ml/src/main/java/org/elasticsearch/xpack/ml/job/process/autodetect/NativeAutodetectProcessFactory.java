@@ -17,7 +17,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectStateProcessor;
+import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.process.NativeController;
@@ -77,7 +77,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         // The extra 1 is the control field
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
-        AutodetectStateProcessor stateProcessor = new AutodetectStateProcessor(client, job.getId());
+        IndexingStateProcessor stateProcessor = new IndexingStateProcessor(client, job.getId());
         ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),

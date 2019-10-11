@@ -190,9 +190,7 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private Path getIndexPath(String nodeName, ShardId shardId) {
-        final Set<Path> indexDirs = RemoveCorruptedShardDataCommandIT.getDirs(nodeName, shardId, ShardPath.INDEX_FOLDER_NAME);
-        assertThat(indexDirs, hasSize(1));
-        return indexDirs.iterator().next();
+        return RemoveCorruptedShardDataCommandIT.getPathToShardData(nodeName, shardId, ShardPath.INDEX_FOLDER_NAME);
     }
 
     private Set<String> getAllocationIds(String indexName) {

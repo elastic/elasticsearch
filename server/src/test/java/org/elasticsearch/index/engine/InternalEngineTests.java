@@ -6110,6 +6110,7 @@ public class InternalEngineTests extends EngineTestCase {
             public void beforeRefresh() {
 
             }
+
             @Override
             public void afterRefresh(boolean didRefresh) {
                 if (didRefresh) {

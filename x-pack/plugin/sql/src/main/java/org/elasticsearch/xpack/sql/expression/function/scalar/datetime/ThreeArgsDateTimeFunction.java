@@ -70,11 +70,6 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
     protected abstract Pipe createPipe(Pipe first, Pipe second, Pipe third, ZoneId zoneId);
 
     @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
-    }
-
-    @Override
     public boolean foldable() {
         return first().foldable() && second().foldable() && third().foldable();
     }

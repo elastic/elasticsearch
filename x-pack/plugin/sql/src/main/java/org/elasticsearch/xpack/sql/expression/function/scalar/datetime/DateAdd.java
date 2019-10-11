@@ -135,11 +135,6 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
     }
 
     @Override
-    public Nullability nullable() {
-        return Nullability.UNKNOWN;
-    }
-
-    @Override
     protected Pipe createPipe(Pipe first, Pipe second, Pipe third, ZoneId zoneId) {
         return new DateAddPipe(source(), this, first, second, third, zoneId);
     }

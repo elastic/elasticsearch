@@ -80,11 +80,6 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     protected abstract Pipe createPipe(Pipe left, Pipe right, ZoneId zoneId);
 
     @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
-    }
-
-    @Override
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
         return new ScriptTemplate(
             formatTemplate("{sql}." + scriptMethodName() +

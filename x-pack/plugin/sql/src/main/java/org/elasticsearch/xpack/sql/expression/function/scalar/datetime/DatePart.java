@@ -96,11 +96,6 @@ public class DatePart extends BinaryDateTimeFunction {
     }
 
     @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
-    }
-
-    @Override
     protected String scriptMethodName() {
         return "datePart";
     }

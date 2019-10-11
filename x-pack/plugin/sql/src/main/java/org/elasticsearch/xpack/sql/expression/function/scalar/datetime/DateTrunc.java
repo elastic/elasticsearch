@@ -151,11 +151,6 @@ public class DateTrunc extends BinaryDateTimeFunction {
     }
 
     @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
-    }
-
-    @Override
     protected String scriptMethodName() {
         return "dateTrunc";
     }

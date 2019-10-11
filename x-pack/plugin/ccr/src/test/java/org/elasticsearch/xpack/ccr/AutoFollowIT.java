@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
@@ -15,26 +16,34 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
+import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
+import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -382,6 +391,161 @@ public class AutoFollowIT extends CcrIntegTestCase {
         });
     }
 
+    public void testPauseAndResumeAutoFollowPattern() throws Exception {
+        final Settings leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        // index created in the remote cluster before the auto follow pattern exists won't be auto followed
+        createLeaderIndex("test-existing-index-is-ignored", leaderIndexSettings);
+
+        // create the auto follow pattern
+        putAutoFollowPatterns("test-pattern", new String[]{"test-*", "tests-*"});
+        assertBusy(() -> {
+            final AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(1));
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
+        });
+
+        // index created in the remote cluster are auto followed
+        createLeaderIndex("test-new-index-is-auto-followed", leaderIndexSettings);
+        assertBusy(() -> {
+            final AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(1));
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertTrue(ESIntegTestCase.indexExists("copy-test-new-index-is-auto-followed", followerClient()));
+        });
+        ensureFollowerGreen("copy-test-new-index-is-auto-followed");
+
+        // pause the auto follow pattern
+        pauseAutoFollowPattern("test-pattern");
+        assertBusy(() -> assertThat(getAutoFollowStats().getAutoFollowedClusters().size(), equalTo(0)));
+
+        // indices created in the remote cluster are not auto followed because the pattern is paused
+        final int nbIndicesCreatedWhilePaused = randomIntBetween(1, 5);
+        for (int i = 0; i < nbIndicesCreatedWhilePaused; i++) {
+            createLeaderIndex("test-index-created-while-pattern-is-paused-" + i, leaderIndexSettings);
+        }
+
+        // sometimes create another index in the remote cluster and close (or delete) it right away
+        // it should not be auto followed when the pattern is resumed
+        if (randomBoolean()) {
+            final String indexName = "test-index-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+            createLeaderIndex(indexName, leaderIndexSettings);
+            if (randomBoolean()) {
+                assertAcked(leaderClient().admin().indices().prepareClose(indexName));
+            } else {
+                assertAcked(leaderClient().admin().indices().prepareDelete(indexName));
+            }
+        }
+
+        if (randomBoolean()) {
+            createLeaderIndex("logs-20200101", leaderIndexSettings);
+        }
+
+        // pattern is paused, none of the newly created indices has been followed yet
+        assertThat(followerClient().admin().indices().prepareStats("copy-*").get().getIndices().size(), equalTo(1));
+        ensureLeaderGreen("test-index-created-while-pattern-is-paused-*");
+
+        // resume the auto follow pattern, indices created while the pattern was paused are picked up for auto-following
+        resumeAutoFollowPattern("test-pattern");
+        assertBusy(() -> {
+            final Client client = followerClient();
+            assertThat(getAutoFollowStats().getAutoFollowedClusters().size(), equalTo(1));
+            assertThat(client.admin().indices().prepareStats("copy-*").get().getIndices().size(), equalTo(1 + nbIndicesCreatedWhilePaused));
+            for (int i = 0; i < nbIndicesCreatedWhilePaused; i++) {
+                assertTrue(ESIntegTestCase.indexExists("copy-test-index-created-while-pattern-is-paused-" + i, client));
+            }
+        });
+    }
+
+    public void testPauseAndResumeWithMultipleAutoFollowPatterns() throws Exception {
+        final Settings leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        final String[] prefixes = {"logs-", "users-", "docs-", "monitoring-", "data-", "system-", "events-", "files-"};
+        if (randomBoolean()) {
+            // sometimes create indices in the remote cluster that match the future auto follow patterns
+            Arrays.stream(prefixes).forEach(prefix -> createLeaderIndex(prefix + "ignored", leaderIndexSettings));
+        }
+
+        // create auto follow patterns
+        final List<String> autoFollowPatterns = new ArrayList<>(prefixes.length);
+        for (String prefix : prefixes) {
+            String name = prefix + "pattern";
+            putAutoFollowPatterns(name, new String[]{prefix + "*"});
+            autoFollowPatterns.add(name);
+            assertBusy(() -> assertThat(getAutoFollowStats().getAutoFollowedClusters().size(), equalTo(1)));
+            assertTrue(getAutoFollowPattern(name).isActive());
+        }
+
+        // no following indices are created yet
+        assertThat(followerClient().admin().indices().prepareStats("copy-*").get().getIndices().size(), equalTo(0));
+
+        // create random indices in the remote cluster that match the patterns
+        final AtomicBoolean running = new AtomicBoolean(true);
+        final Set<String> leaderIndices = ConcurrentCollections.newConcurrentSet();
+        final Thread createNewLeaderIndicesThread = new Thread(() -> {
+            while (running.get()) {
+                try {
+                    String indexName = randomFrom(prefixes) + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+                    createLeaderIndex(indexName, leaderIndexSettings);
+                    leaderIndices.add(indexName);
+                    Thread.sleep(randomIntBetween(100, 500));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+        createNewLeaderIndicesThread.start();
+
+        // wait for some leader indices to be auto-followed
+        assertBusy(() ->
+            assertThat(getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), greaterThanOrEqualTo((long) prefixes.length)));
+
+        final int nbLeaderIndices = leaderIndices.size();
+
+        // pause some random patterns
+        final List<String> pausedAutoFollowerPatterns = randomSubsetOf(autoFollowPatterns);
+        pausedAutoFollowerPatterns.forEach(this::pauseAutoFollowPattern);
+        assertBusy(() -> pausedAutoFollowerPatterns.forEach(pattern -> assertFalse(getAutoFollowPattern(pattern).isActive())));
+
+        assertBusy(() -> {
+            final int expectedAutoFollowedClusters = pausedAutoFollowerPatterns.size() != autoFollowPatterns.size() ? 1 : 0;
+            assertThat(getAutoFollowStats().getAutoFollowedClusters().size(), equalTo(expectedAutoFollowedClusters));
+            if (expectedAutoFollowedClusters > 0) {
+                // wait for  more indices to be created in the remote cluster while some patterns are paused
+                assertThat(leaderIndices.size(), greaterThan(nbLeaderIndices + 3));
+            }
+        });
+        ensureFollowerGreen(true, "copy-*");
+
+        // resume auto follow patterns
+        pausedAutoFollowerPatterns.forEach(this::resumeAutoFollowPattern);
+        assertBusy(() -> pausedAutoFollowerPatterns.forEach(pattern -> assertTrue(getAutoFollowPattern(pattern).isActive())));
+
+        // stop creating indices in the remote cluster
+        running.set(false);
+        createNewLeaderIndicesThread.join();
+
+        ensureLeaderGreen(leaderIndices.toArray(new String[0]));
+
+        // check that all leader indices have been correctly auto followed
+        assertBusy(() -> {
+            final Client client = followerClient();
+            assertThat(client.admin().indices().prepareStats("copy-*").get().getIndices().size(), equalTo(leaderIndices.size()));
+            leaderIndices.stream()
+                .map(leaderIndex -> "copy-" + leaderIndex)
+                .forEach(followerIndex ->
+                    assertTrue("following index must exist: " + followerIndex, ESIntegTestCase.indexExists(followerIndex, client)));
+        });
+    }
+
     private void putAutoFollowPatterns(String name, String[] patterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName(name);
@@ -408,4 +572,21 @@ public class AutoFollowIT extends CcrIntegTestCase {
         leaderClient().admin().indices().create(request).actionGet();
     }
 
+    private void pauseAutoFollowPattern(final String name) {
+        ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(name, false);
+        assertAcked(followerClient().execute(ActivateAutoFollowPatternAction.INSTANCE, request).actionGet());
+    }
+
+    private void resumeAutoFollowPattern(final String name) {
+        ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(name, true);
+        assertAcked(followerClient().execute(ActivateAutoFollowPatternAction.INSTANCE, request).actionGet());
+    }
+
+    private AutoFollowMetadata.AutoFollowPattern getAutoFollowPattern(final String name) {
+        GetAutoFollowPatternAction.Request request = new GetAutoFollowPatternAction.Request();
+        request.setName(name);
+        GetAutoFollowPatternAction.Response response = followerClient().execute(GetAutoFollowPatternAction.INSTANCE, request).actionGet();
+        assertTrue(response.getAutoFollowPatterns().containsKey(name));
+        return response.getAutoFollowPatterns().get(name);
+    }
 }

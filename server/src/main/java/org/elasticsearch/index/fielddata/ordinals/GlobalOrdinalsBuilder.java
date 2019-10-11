@@ -75,12 +75,12 @@ public enum GlobalOrdinalsBuilder {
             );
         }
         return new GlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
-                atomicFD, ordinalMap, memorySizeInBytes, scriptFunction
+                atomicFD, ordinalMap, memorySizeInBytes, scriptFunction, breakerService
         );
     }
 
     public static IndexOrdinalsFieldData buildEmpty(IndexSettings indexSettings, final IndexReader indexReader,
-            IndexOrdinalsFieldData indexFieldData) throws IOException {
+            IndexOrdinalsFieldData indexFieldData, CircuitBreakerService breakerService) throws IOException {
         assert indexReader.leaves().size() > 1;
 
         final AtomicOrdinalsFieldData[] atomicFD = new AtomicOrdinalsFieldData[indexReader.leaves().size()];
@@ -110,7 +110,7 @@ public enum GlobalOrdinalsBuilder {
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
         return new GlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
-                atomicFD, ordinalMap, 0, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+                atomicFD, ordinalMap, 0, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION, breakerService
         );
     }
 

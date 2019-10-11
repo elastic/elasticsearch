@@ -26,6 +26,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -58,19 +60,22 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     private final OrdinalMap ordinalMap;
     private final AtomicOrdinalsFieldData[] segmentAfd;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+    private final CircuitBreakerService breakerService;
 
     protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings,
                                            String fieldName,
                                            AtomicOrdinalsFieldData[] segmentAfd,
                                            OrdinalMap ordinalMap,
                                            long memorySizeInBytes,
-                                           Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
+                                           Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction,
+                                           CircuitBreakerService breakerService) {
         super(indexSettings);
         this.fieldName = fieldName;
         this.memorySizeInBytes = memorySizeInBytes;
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
         this.scriptFunction = scriptFunction;
+        this.breakerService = breakerService;
     }
 
     public IndexOrdinalsFieldData newConsumer(DirectoryReader source) {
@@ -138,6 +143,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     public class Consumer extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
         private final DirectoryReader source;
         private TermsEnum[] lookups;
+        private long termsEnumBytesUsed = 0;
 
         Consumer(DirectoryReader source, IndexSettings settings) {
             super(settings);
@@ -153,6 +159,11 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
                 for (int i = 0; i < lookups.length; i++) {
                     try {
                         lookups[i] = segmentAfd[i].getOrdinalsValues().termsEnum();
+                        long bytes = lookups[i].term().bytes.length;
+                        breakerService
+                            .getBreaker(CircuitBreaker.FIELDDATA)
+                            .addEstimateBytesAndMaybeBreak(bytes, "GlobalOrdinalsIndexFieldData [TermsEnum Allocation]");
+                        termsEnumBytesUsed += bytes;
                     } catch (IOException e) {
                         throw new UncheckedIOException("Failed to load terms enum", e);
                     }
@@ -216,7 +227,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
 
                 @Override
                 public long ramBytesUsed() {
-                    return segmentAfd[context.ord].ramBytesUsed();
+                    return segmentAfd[context.ord].ramBytesUsed() + termsEnumBytesUsed;
                 }
 
 
@@ -226,7 +237,11 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
                 }
 
                 @Override
-                public void close() {}
+                public void close() {
+                    breakerService
+                        .getBreaker(CircuitBreaker.FIELDDATA)
+                        .addEstimateBytesAndMaybeBreak(-termsEnumBytesUsed, "GlobalOrdinalsIndexFieldData [TermsEnum Deallocation]");
+                }
             };
         }
 

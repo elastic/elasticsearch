@@ -121,7 +121,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
             try {
-                return GlobalOrdinalsBuilder.buildEmpty(indexSettings, indexReader, this);
+                return GlobalOrdinalsBuilder.buildEmpty(indexSettings, indexReader, this, breakerService);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

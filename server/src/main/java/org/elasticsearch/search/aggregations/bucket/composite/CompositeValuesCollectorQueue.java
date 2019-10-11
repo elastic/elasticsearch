@@ -288,6 +288,7 @@ final class CompositeValuesCollectorQueue extends BreakingPriorityQueueWrapper<I
 
     @Override
     public void close() {
+        super.close();
         Releasables.close(docCounts);
     }
 }

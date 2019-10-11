@@ -9,6 +9,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
@@ -235,7 +236,7 @@ public final class InternalSqlScriptUtils {
     public static Double atan(Number value) {
         return MathOperation.ATAN.apply(value);
     }
-    
+
     public static Number atan2(Number left, Number right) {
         return BinaryMathOperation.ATAN2.apply(left, right);
     }
@@ -291,7 +292,7 @@ public final class InternalSqlScriptUtils {
     public static Double pi(Number value) {
         return MathOperation.PI.apply(value);
     }
-    
+
     public static Number power(Number left, Number right) {
         return BinaryMathOperation.POWER.apply(left, right);
     }
@@ -350,7 +351,7 @@ public final class InternalSqlScriptUtils {
         }
         return NonIsoDateTimeExtractor.DAY_OF_WEEK.extract(asDateTime(dateTime), tzId);
     }
-    
+
     public static String monthName(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
@@ -364,12 +365,16 @@ public final class InternalSqlScriptUtils {
         }
         return QuarterProcessor.quarter(asDateTime(dateTime), tzId);
     }
-    
+
     public static Integer weekOfYear(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
         }
         return NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(asDateTime(dateTime), tzId);
+    }
+
+    public static ZonedDateTime dateAdd(String dateField, Integer numberOfUnits, Object dateTime, String tzId) {
+        return (ZonedDateTime) DateAddProcessor.process(dateField, numberOfUnits, asDateTime(dateTime) , ZoneId.of(tzId));
     }
 
     public static ZonedDateTime dateTrunc(String truncateTo, Object dateTime, String tzId) {

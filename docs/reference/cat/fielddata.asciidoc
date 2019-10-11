@@ -13,6 +13,8 @@ in the cluster.
 
 `GET /_cat/fielddata/<field>`
 
+`GET /_cat/fielddata`
+
 
 [[cat-fielddata-api-path-params]]
 ==== {api-path-parms-title}

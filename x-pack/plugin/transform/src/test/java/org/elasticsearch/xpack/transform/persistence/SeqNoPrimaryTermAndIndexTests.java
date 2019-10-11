@@ -43,7 +43,6 @@ public class SeqNoPrimaryTermAndIndexTests extends ESTestCase {
         long primaryTerm = randomLongBetween(-2, 10_000);
         String index = randomAlphaOfLength(10);
         IndexResponse indexResponse = new IndexResponse(new ShardId(index, randomAlphaOfLength(10), 1),
-            "_doc",
             "asdf",
             seqNo,
             primaryTerm,

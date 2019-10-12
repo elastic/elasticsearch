@@ -172,7 +172,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Updates a document based on a script.
      */
-    UpdateRequestBuilder prepareUpdate(String index, String type, String id);
+    UpdateRequestBuilder prepareUpdate(String index, String id);
 
     /**
      * Deletes a document from the index based on the index, type and id.

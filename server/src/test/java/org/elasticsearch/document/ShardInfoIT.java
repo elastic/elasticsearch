@@ -54,7 +54,7 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     public void testUpdate() throws Exception {
         prepareIndex(1);
-        UpdateResponse updateResponse = client().prepareUpdate("idx", "type", "1").setDoc("{}", XContentType.JSON).setDocAsUpsert(true)
+        UpdateResponse updateResponse = client().prepareUpdate("idx", "1").setDoc("{}", XContentType.JSON).setDocAsUpsert(true)
             .get();
         assertShardInfo(updateResponse);
     }
@@ -85,7 +85,7 @@ public class ShardInfoIT extends ESIntegTestCase {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareUpdate("idx", "type", Integer.toString(i)).setDoc("{}", XContentType.JSON)
+            bulkRequestBuilder.add(client().prepareUpdate("idx", Integer.toString(i)).setDoc("{}", XContentType.JSON)
                 .setDocAsUpsert(true));
         }
 

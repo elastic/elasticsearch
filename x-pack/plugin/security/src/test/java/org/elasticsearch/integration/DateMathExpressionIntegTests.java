@@ -86,7 +86,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
                 .get();
         assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
 
-        UpdateResponse updateResponse = client.prepareUpdate(expression, "type", response.getId())
+        UpdateResponse updateResponse = client.prepareUpdate(expression, response.getId())
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")
                 .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
                 .get();

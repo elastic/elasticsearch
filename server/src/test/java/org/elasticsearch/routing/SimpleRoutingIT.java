@@ -393,7 +393,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareUpdate(indexOrAlias(), "type1", "1")
+            client().prepareUpdate(indexOrAlias(), "1")
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
                     .execute()
                     .actionGet();
@@ -402,7 +402,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
 
-        client().prepareUpdate(indexOrAlias(), "type1", "1")
+        client().prepareUpdate(indexOrAlias(), "1")
                 .setRouting(routingValue)
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
                 .get();
@@ -595,13 +595,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
         }
 
-        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setRouting(routingValue)
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1").setRouting(routingValue)
                                                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1").get();
         assertThat(updateResponse.getId(), equalTo("1"));
         assertThat(updateResponse.getVersion(), equalTo(2L));
 
         try {
-            client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1").get();
+            client().prepareUpdate(indexOrAlias(), "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1").get();
             fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));

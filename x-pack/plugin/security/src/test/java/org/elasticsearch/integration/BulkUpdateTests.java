@@ -50,7 +50,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         // update with a new field
-        assertEquals(DocWriteResponse.Result.UPDATED, client().prepareUpdate("index1", "type", "1")
+        assertEquals(DocWriteResponse.Result.UPDATED, client().prepareUpdate("index1", "1")
                 .setDoc("{\"not test\": \"not test\"}", XContentType.JSON).get().getResult());
         getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
@@ -61,7 +61,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         flushAndRefresh();
 
         // do it in a bulk
-        BulkResponse response = client().prepareBulk().add(client().prepareUpdate("index1", "type", "1")
+        BulkResponse response = client().prepareBulk().add(client().prepareUpdate("index1", "1")
                 .setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON)).get();
         assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
         getResponse = client().prepareGet("index1", "1").get();

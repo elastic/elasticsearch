@@ -215,10 +215,10 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getSeqNo(), equalTo(2L));
 
         bulkResponse = client().prepareBulk()
-                .add(client().prepareUpdate("test", "type", "1").setIfSeqNo(40L).setIfPrimaryTerm(20)
+                .add(client().prepareUpdate("test", "1").setIfSeqNo(40L).setIfPrimaryTerm(20)
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
-                .add(client().prepareUpdate("test", "type", "2").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
-                .add(client().prepareUpdate("test", "type", "1").setIfSeqNo(2L).setIfPrimaryTerm(1)
+                .add(client().prepareUpdate("test", "2").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
+                .add(client().prepareUpdate("test", "1").setIfSeqNo(2L).setIfPrimaryTerm(1)
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3")).get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
@@ -242,9 +242,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(12L));
 
         bulkResponse = client().prepareBulk()
-                .add(client().prepareUpdate("test", "type", "e1")
+                .add(client().prepareUpdate("test", "e1")
                         .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2").setIfSeqNo(10L).setIfPrimaryTerm(1))
-                .add(client().prepareUpdate("test", "type", "e1")
+                .add(client().prepareUpdate("test", "e1")
                         .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3").setIfSeqNo(20L).setIfPrimaryTerm(1))
                 .get();
 
@@ -472,7 +472,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                     return;
                 }
                 BulkRequestBuilder requestBuilder = client().prepareBulk();
-                requestBuilder.add(client().prepareUpdate("test", "type", "1").setIfSeqNo(0L).setIfPrimaryTerm(1)
+                requestBuilder.add(client().prepareUpdate("test", "1").setIfSeqNo(0L).setIfPrimaryTerm(1)
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "field", threadID));
                 responses[threadID] = requestBuilder.get();
 

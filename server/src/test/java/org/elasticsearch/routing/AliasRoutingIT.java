@@ -65,7 +65,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> updating with id [1] and routing through alias");
-        client().prepareUpdate("alias0", "type1", "1")
+        client().prepareUpdate("alias0", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
                 .execute().actionGet();

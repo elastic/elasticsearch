@@ -62,7 +62,6 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertThat(p.get("message"),equalTo("[foo/123]"));
         assertThat(p.get("took"),equalTo("10nanos"));
         assertThat(p.get("took_millis"),equalTo("0"));
-        assertThat(p.get("doc_type"),equalTo("test"));
         assertThat(p.get("id"),equalTo("id"));
         assertThat(p.get("routing"),equalTo("routingValue"));
         assertThat(p.get("source"), is(emptyOrNullString()));

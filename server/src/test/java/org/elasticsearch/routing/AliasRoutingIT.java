@@ -81,7 +81,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
 
 
         logger.info("--> deleting with no routing, should not delete anything");
-        client().prepareDelete("test", "type1", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareDelete("test", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
             assertThat(client().prepareGet("test", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
@@ -89,7 +89,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> deleting with routing alias, should delete");
-        client().prepareDelete("alias0", "type1", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareDelete("alias0", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
             assertThat(client().prepareGet("test", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));

@@ -354,7 +354,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final long nbNoOps = randomIntBetween(1, 10);
         for (long i = 0; i < nbNoOps; i++) {
-            final DeleteResponse deleteResponse = client().prepareDelete(indexName, "_doc", Long.toString(i)).get();
+            final DeleteResponse deleteResponse = client().prepareDelete(indexName, Long.toString(i)).get();
             assertThat(deleteResponse.status(), is(RestStatus.NOT_FOUND));
         }
 

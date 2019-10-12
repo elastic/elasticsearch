@@ -187,7 +187,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1_2"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_2"));
 
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").get();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
         response = client().prepareGet(indexOrAlias(), "1").get();

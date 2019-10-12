@@ -97,7 +97,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> deleting with no routing, should not delete anything");
-        client().prepareDelete("test", "type1", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareDelete("test", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
             assertThat(client().prepareGet("test", "1")
@@ -108,7 +108,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> deleting with routing, should delete");
-        client().prepareDelete("test", "type1", "1").setRouting(routingValue).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareDelete("test", "1").setRouting(routingValue).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
             assertThat(client().prepareGet("test", "1")
@@ -370,7 +370,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> deleting with no routing, should fail");
         try {
-            client().prepareDelete(indexOrAlias(), "type1", "1").get();
+            client().prepareDelete(indexOrAlias(), "1").get();
             fail("delete with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
@@ -421,7 +421,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(getResponse.getSourceAsMap().get("field"), equalTo("value2"));
         }
 
-        client().prepareDelete(indexOrAlias(), "type1", "1").setRouting(routingValue).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareDelete(indexOrAlias(), "1").setRouting(routingValue).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         for (int i = 0; i < 5; i++) {
             try {

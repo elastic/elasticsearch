@@ -1265,7 +1265,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i * 2);
             leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
-        leaderClient().prepareDelete("index1", "doc", "1").get();
+        leaderClient().prepareDelete("index1", "1").get();
         leaderClient().admin().indices().refresh(new RefreshRequest("index1")).actionGet();
         leaderClient().admin().indices().flush(new FlushRequest("index1").force(true)).actionGet();
         assertBusy(() -> {

@@ -82,7 +82,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
         // Now delete with blockUntilRefresh
-        DeleteResponse delete = client().prepareDelete("test", "test", "1").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
+        DeleteResponse delete = client().prepareDelete("test", "1").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(DocWriteResponse.Result.DELETED, delete.getResult());
         assertFalse("request shouldn't have forced a refresh", delete.forcedRefresh());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
@@ -132,13 +132,13 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
         // Delete by bulk with RefreshPolicy.WAIT_UNTIL
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        bulk.add(client().prepareDelete("test", "test", "1"));
+        bulk.add(client().prepareDelete("test", "1"));
         assertBulkSuccess(bulk.get());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
 
         // Update makes a noop
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        bulk.add(client().prepareDelete("test", "test", "1"));
+        bulk.add(client().prepareDelete("test", "1"));
         assertBulkSuccess(bulk.get());
     }
 

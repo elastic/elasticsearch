@@ -725,7 +725,7 @@ public class UpdateIT extends ESIntegTestCase {
 
                             try {
                                 deleteRequestsOutstanding.acquire();
-                                DeleteRequest dr = client().prepareDelete("test", "type1", Integer.toString(j)).request();
+                                DeleteRequest dr = client().prepareDelete("test", Integer.toString(j)).request();
                                 client().delete(dr, new DeleteListener(j));
                             } catch (NoNodeAvailableException nne) {
                                 deleteRequestsOutstanding.release();

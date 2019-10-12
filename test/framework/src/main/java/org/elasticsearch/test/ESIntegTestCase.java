@@ -1360,7 +1360,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             for (List<String> doc : bogusIds) {
                 assertEquals("failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
                     DocWriteResponse.Result.DELETED,
-                    client().prepareDelete(doc.get(0), null, doc.get(1)).setRouting(doc.get(1)).get().getResult());
+                    client().prepareDelete(doc.get(0), doc.get(1)).setRouting(doc.get(1)).get().getResult());
             }
         }
         if (forceRefresh) {

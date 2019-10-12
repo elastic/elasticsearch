@@ -48,7 +48,7 @@ public class ShardInfoIT extends ESIntegTestCase {
         prepareIndex(1);
         IndexResponse indexResponse = client().prepareIndex("idx").setSource("{}", XContentType.JSON).get();
         assertShardInfo(indexResponse);
-        DeleteResponse deleteResponse = client().prepareDelete("idx", "type", indexResponse.getId()).get();
+        DeleteResponse deleteResponse = client().prepareDelete("idx", indexResponse.getId()).get();
         assertShardInfo(deleteResponse);
     }
 
@@ -71,7 +71,7 @@ public class ShardInfoIT extends ESIntegTestCase {
         for (BulkItemResponse item : bulkResponse) {
             assertThat(item.isFailed(), equalTo(false));
             assertShardInfo(item.getResponse());
-            bulkRequestBuilder.add(client().prepareDelete("idx", "type", item.getId()));
+            bulkRequestBuilder.add(client().prepareDelete("idx", item.getId()));
         }
 
         bulkResponse = bulkRequestBuilder.get();

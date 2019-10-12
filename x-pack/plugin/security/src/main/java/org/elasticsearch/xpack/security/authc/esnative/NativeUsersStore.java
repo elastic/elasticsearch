@@ -479,7 +479,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client
-                        .prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username()))
+                        .prepareDelete(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username()))
                         .request();
                 request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,

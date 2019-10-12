@@ -114,7 +114,7 @@ public class IndexActionIT extends ESIntegTestCase {
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
 
-        client().prepareDelete("test", "type", "1").execute().actionGet();
+        client().prepareDelete("test", "1").execute().actionGet();
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
@@ -128,7 +128,7 @@ public class IndexActionIT extends ESIntegTestCase {
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        client().prepareDelete("test", "type", "1").execute().actionGet();
+        client().prepareDelete("test", "1").execute().actionGet();
 
         flush();
 

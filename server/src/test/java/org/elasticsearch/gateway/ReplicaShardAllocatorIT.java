@@ -45,14 +45,17 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -90,7 +93,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(0, 80))
                 .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
         }
-        ensurePeerRecoveryRetentionLeasesAdvanced(indexName);
+        ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
         if (randomBoolean()) {
             client().admin().indices().prepareForceMerge(indexName).setFlush(true).get();
@@ -222,7 +225,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         if (randomBoolean()) {
             client().admin().indices().prepareForceMerge(indexName).get();
         }
-        ensurePeerRecoveryRetentionLeasesAdvanced(indexName);
+        ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         if (randomBoolean()) {
             assertAcked(client().admin().indices().prepareClose(indexName));
         }
@@ -236,16 +239,64 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertNoOpRecoveries(indexName);
     }
 
-    private void ensurePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {
+    public void testPreferCopyWithHighestMatchingOperations() throws Exception {
+        String indexName = "test";
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(3);
+        assertAcked(
+            client().admin().indices().prepareCreate(indexName)
+                .setSettings(Settings.builder()
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), randomIntBetween(10, 100) + "kb")
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 3.0)
+                    .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                    .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0ms")
+                    .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")));
+        ensureGreen(indexName);
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(200, 500))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+        client().admin().indices().prepareFlush(indexName).get();
+        String nodeWithLowerMatching = randomFrom(internalCluster().nodesInclude(indexName));
+        Settings nodeWithLowerMatchingSettings = internalCluster().dataPathSettings(nodeWithLowerMatching);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithLowerMatching));
+        ensureGreen(indexName);
+
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(1, 100))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+        ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
+        String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
+        Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithHigherMatching));
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(0, 100))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build()));
+        nodeWithLowerMatching = internalCluster().startNode(nodeWithLowerMatchingSettings);
+        nodeWithHigherMatching = internalCluster().startNode(nodeWithHigherMatchingSettings);
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build()));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), allOf(hasItem(nodeWithHigherMatching), not(hasItem(nodeWithLowerMatching))));
+    }
+
+    private void ensureActivePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {
         assertBusy(() -> {
             Index index = resolveIndex(indexName);
+            Set<String> activeRetentionLeaseIds = clusterService().state().routingTable().index(index).shard(0).shards().stream()
+                .map(shardRouting -> ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRouting.currentNodeId()))
+                .collect(Collectors.toSet());
             for (String node : internalCluster().nodesInclude(indexName)) {
-                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                final IndexService indexService = indicesService.indexService(index);
+                IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexService(index);
                 if (indexService != null) {
                     for (IndexShard shard : indexService) {
                         assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
-                        for (RetentionLease lease : shard.getPeerRecoveryRetentionLeases()) {
+                        Set<RetentionLease> activeRetentionLeases = shard.getPeerRecoveryRetentionLeases().stream()
+                            .filter(lease -> activeRetentionLeaseIds.contains(lease.id())).collect(Collectors.toSet());
+                        assertThat(activeRetentionLeases, hasSize(activeRetentionLeaseIds.size()));
+                        for (RetentionLease lease : activeRetentionLeases) {
                             assertThat(lease.retainingSequenceNumber(), equalTo(shard.getLastSyncedGlobalCheckpoint() + 1));
                         }
                     }

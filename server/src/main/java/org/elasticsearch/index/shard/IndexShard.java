@@ -2540,8 +2540,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 recoveryListener.onRecoveryDone(recoveryState);
                             }
                         },
-                        e -> recoveryListener.onRecoveryFailure(recoveryState,
-                            new RecoveryFailedException(recoveryState, null, e), true))));
+                        e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)))
+                );
                 break;
             case LOCAL_SHARDS:
                 final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();

@@ -993,7 +993,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testLimitNumberOfRetainingTranslogFiles() throws Exception {
+    public void testLimitNumberOfRetainedTranslogFiles() throws Exception {
         String indexName = "test";
         int translogRetentionTotalFiles = randomIntBetween(0, 50);
         Settings.Builder settings = Settings.builder()
@@ -1026,7 +1026,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 shard.rollTranslogGeneration();
             }
         }
-        client().admin().indices().prepareFlush(indexName).get();
+        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
         checkTranslog.run();
     }
 

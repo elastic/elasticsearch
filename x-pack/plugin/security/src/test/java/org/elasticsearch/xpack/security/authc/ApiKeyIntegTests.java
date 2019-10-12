@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authc;
 
 import com.google.common.collect.Sets;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -168,6 +167,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 .get());
         assertThat(e.getMessage(), containsString("unauthorized"));
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
+    }
+
+    public void testMultipleApiKeysCanHaveSameName() {
+        String keyName = randomAlphaOfLength(5);
+        int noOfApiKeys = randomIntBetween(2, 5);
+        List<CreateApiKeyResponse> responses = new ArrayList<>();
+        for (int i = 0; i < noOfApiKeys; i++) {
+            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[]{"monitor"}, null, null);
+            Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(keyName).setExpiration(null)
+                .setRoleDescriptors(Collections.singletonList(descriptor)).get();
+            assertNotNull(response.getId());
+            assertNotNull(response.getKey());
+            responses.add(response);
+        }
+        assertThat(responses.size(), is(noOfApiKeys));
+        for (int i = 0; i < noOfApiKeys; i++) {
+            assertThat(responses.get(i).getName(), is(keyName));
+        }
     }
 
     public void testInvalidateApiKeysForRealm() throws InterruptedException, ExecutionException {

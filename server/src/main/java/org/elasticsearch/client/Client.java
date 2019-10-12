@@ -100,7 +100,7 @@ public interface Client extends ElasticsearchClient, Releasable {
 
 
     /**
-     * Index a JSON source associated with a given index and type.
+     * Index a JSON source associated with a given index.
      * <p>
      * The id is optional, if it is not provided, one will be generated automatically.
      *
@@ -111,7 +111,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     ActionFuture<IndexResponse> index(IndexRequest request);
 
     /**
-     * Index a document associated with a given index and type.
+     * Index a document associated with a given index.
      * <p>
      * The id is optional, if it is not provided, one will be generated automatically.
      *
@@ -122,7 +122,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     void index(IndexRequest request, ActionListener<IndexResponse> listener);
 
     /**
-     * Index a document associated with a given index and type.
+     * Index a document associated with a given index.
      * <p>
      * The id is optional, if it is not provided, one will be generated automatically.
      */

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -62,6 +63,14 @@ import static org.hamcrest.Matchers.greaterThan;
 public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
     static final String REPO = "my-repo";
+
+    @Before
+    public void ensureClusterNodes() {
+        logger.info("--> starting enough nodes to ensure we have enough to safely stop for tests");
+        internalCluster().startMasterOnlyNodes(2);
+        internalCluster().startDataOnlyNodes(2);
+        ensureGreen();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

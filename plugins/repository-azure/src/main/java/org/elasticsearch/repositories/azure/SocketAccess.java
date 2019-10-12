@@ -44,20 +44,28 @@ public final class SocketAccess {
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException) {
+                throw (IOException) e.getCause();
+            } else {
+                throw new IOException(cause);
+            }
         }
     }
 
-    public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) throws StorageException {
+    public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation)
+            throws StorageException, IOException, URISyntaxException {
         SpecialPermission.check();
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
-            throw (StorageException) e.getCause();
+            safeRethrowCause(e);
+            assert false : "always throws";
+            return null;
         }
     }
 
-    public static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException {
+    public static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException, IOException {
         SpecialPermission.check();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
@@ -65,12 +73,22 @@ public final class SocketAccess {
                 return null;
             });
         } catch (PrivilegedActionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof StorageException) {
-                throw (StorageException) cause;
-            } else {
-                throw (URISyntaxException) cause;
-            }
+            safeRethrowCause(e);
+        }
+    }
+
+    private static void safeRethrowCause(PrivilegedActionException e) throws IOException, URISyntaxException, StorageException {
+        Throwable cause = e.getCause();
+        if (cause instanceof StorageException) {
+            throw (StorageException) cause;
+        } else if (cause instanceof URISyntaxException) {
+            throw (URISyntaxException) cause;
+        } else if (cause instanceof IOException) {
+            throw (IOException) cause;
+        } else if (cause instanceof RuntimeException) {
+            throw (RuntimeException) cause;
+        } else {
+            throw new IOException(cause);
         }
     }
 

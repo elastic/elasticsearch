@@ -16,15 +16,15 @@ beta[]
 [[get-transform-stats-request]]
 ==== {api-request-title}
 
-`GET _data_frame/transforms/<transform_id>/_stats`
+`GET _transform/<transform_id>/_stats`
 
-`GET _data_frame/transforms/<transform_id>,<transform_id>/_stats` +
+`GET _transform/<transform_id>,<transform_id>/_stats` +
 
-`GET _data_frame/transforms/_stats` +
+`GET _transform/_stats` +
 
-`GET _data_frame/transforms/_all/_stats` +
+`GET _transform/_all/_stats` +
 
-`GET _data_frame/transforms/*/_stats` +
+`GET _transform/*/_stats` +
 
 
 [[get-transform-stats-prereqs]]
@@ -102,7 +102,7 @@ gets usage information for a maximum of ten results:
 
 [source,console]
 --------------------------------------------------
-GET _data_frame/transforms/_stats?from=5&size=10
+GET _transform/_stats?from=5&size=10
 --------------------------------------------------
 // TEST[skip:todo]
 
@@ -111,7 +111,7 @@ The following example gets usage information for the `ecommerce_transform`
 
 [source,console]
 --------------------------------------------------
-GET _data_frame/transforms/ecommerce_transform/_stats
+GET _transform/ecommerce_transform/_stats
 --------------------------------------------------
 // TEST[skip:todo]
 

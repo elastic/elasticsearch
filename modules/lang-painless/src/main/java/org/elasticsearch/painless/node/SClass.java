@@ -28,9 +28,9 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
@@ -82,7 +82,8 @@ public final class SClass extends AStatement {
     private final ScriptClassInfo scriptClassInfo;
     private final String name;
     private final Printer debugStream;
-    private final List<SFunction> functions;
+    private final List<SFunction> functions = new ArrayList<>();
+    private final List<SField> fields = new ArrayList<>();
     private final Globals globals;
     private final List<AStatement> statements;
 
@@ -100,12 +101,20 @@ public final class SClass extends AStatement {
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.name = Objects.requireNonNull(name);
         this.debugStream = debugStream;
-        this.functions = Collections.unmodifiableList(functions);
+        this.functions.addAll(Objects.requireNonNull(functions));
         this.statements = Collections.unmodifiableList(statements);
         this.globals = new Globals(new BitSet(sourceText.length()));
 
         this.extractedVariables = new HashSet<>();
         this.getMethods = new ArrayList<>();
+    }
+
+    void addFunction(SFunction function) {
+        functions.add(function);
+    }
+
+    void addField(SField field) {
+        fields.add(field);
     }
 
     @Override
@@ -155,7 +164,11 @@ public final class SClass extends AStatement {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Locals program) {
-        for (SFunction function : this.functions) {
+        // copy protection is required because synthetic functions are
+        // added for lambdas/method references and analysis here is
+        // only for user-defined functions
+        List<SFunction> functions = new ArrayList<>(this.functions);
+        for (SFunction function : functions) {
             Locals functionLocals =
                 Locals.newFunctionScope(program, function.returnType, function.parameters, settings.getMaxLoopCounter());
             function.analyze(scriptRoot, functionLocals);
@@ -281,13 +294,9 @@ public final class SClass extends AStatement {
             function.write(classWriter, globals);
         }
 
-        // Write all synthetic functions. Note that this process may add more :)
-        while (!globals.getSyntheticMethods().isEmpty()) {
-            List<SFunction> current = new ArrayList<>(globals.getSyntheticMethods().values());
-            globals.getSyntheticMethods().clear();
-            for (SFunction function : current) {
-                function.write(classWriter, globals);
-            }
+        // Write all fields:
+        for (SField field : fields) {
+            field.write(classWriter);
         }
 
         // Write the constants
@@ -316,20 +325,6 @@ public final class SClass extends AStatement {
             clinit.endMethod();
         }
 
-        // Write class binding variables
-        for (Map.Entry<String, Class<?>> classBinding : globals.getClassBindings().entrySet()) {
-            String name = classBinding.getKey();
-            String descriptor = Type.getType(classBinding.getValue()).getDescriptor();
-            classVisitor.visitField(Opcodes.ACC_PRIVATE, name, descriptor, null, null).visitEnd();
-        }
-
-        // Write instance binding variables
-        for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
-            String name = instanceBinding.getValue();
-            String descriptor = Type.getType(instanceBinding.getKey().getClass()).getDescriptor();
-            classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, name, descriptor, null, null).visitEnd();
-        }
-
         // Write any needsVarName methods for used variables
         for (org.objectweb.asm.commons.Method needsMethod : scriptClassInfo.getNeedsMethods()) {
             String name = needsMethod.getName();
@@ -350,8 +345,10 @@ public final class SClass extends AStatement {
         Map<String, Object> statics = new HashMap<>();
         statics.put("$FUNCTIONS", table.getFunctionTable());
 
-        for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
-            statics.put(instanceBinding.getValue(), instanceBinding.getKey());
+        for (SField field : fields) {
+            if (field.getInstance() != null) {
+                statics.put(field.getName(), field.getInstance());
+            }
         }
 
         return statics;

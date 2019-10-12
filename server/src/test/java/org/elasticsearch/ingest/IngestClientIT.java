@@ -120,7 +120,7 @@ public class IngestClientIT extends ESIntegTestCase {
         source.put("foo", "bar");
         source.put("fail", false);
         source.put("processed", true);
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, source);
+        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, source);
         assertThat(simulateDocumentBaseResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
 
@@ -147,7 +147,7 @@ public class IngestClientIT extends ESIntegTestCase {
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i)).setPipeline("_id");
+            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", i % 2 == 0);
             bulkRequest.add(indexRequest);
         }
@@ -191,10 +191,10 @@ public class IngestClientIT extends ESIntegTestCase {
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest = new IndexRequest("index", "type", "1").setPipeline("_id");
+        IndexRequest indexRequest = new IndexRequest("index").id("1").setPipeline("_id");
         indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "val1");
         bulkRequest.add(indexRequest);
-        UpdateRequest updateRequest = new UpdateRequest("index", "type", "2");
+        UpdateRequest updateRequest = new UpdateRequest("index", "2");
         updateRequest.doc("{}", Requests.INDEX_CONTENT_TYPE);
         updateRequest.upsert("{\"field1\":\"upserted_val\"}", XContentType.JSON).upsertRequest().setPipeline("_id");
         bulkRequest.add(updateRequest);

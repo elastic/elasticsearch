@@ -106,7 +106,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public double infer(Map<String, Object> fields) {
-        List<Double> features = featureNames.stream().map(f -> (Double) fields.get(f)).collect(Collectors.toList());
+        List<Double> features = featureNames.stream().map(f ->
+            fields.get(f) instanceof Number ? ((Number)fields.get(f)).doubleValue() : null
+        ).collect(Collectors.toList());
         return infer(features);
     }
 
@@ -146,7 +148,11 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             throw new UnsupportedOperationException(
                 "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
         }
-        return classificationProbability(featureNames.stream().map(f -> (Double) fields.get(f)).collect(Collectors.toList()));
+        List<Double> features = featureNames.stream().map(f ->
+            fields.get(f) instanceof Number ? ((Number)fields.get(f)).doubleValue() : null)
+            .collect(Collectors.toList());
+
+        return classificationProbability(features);
     }
 
     @Override

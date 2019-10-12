@@ -198,7 +198,6 @@ Results in nothing indexed since the conditional evaluated to `true`.
 --------------------------------------------------
 {
   "_index": "test",
-  "_type": "_doc",
   "_id": "1",
   "_version": -3,
   "result": "noop",

@@ -1131,8 +1131,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             assert format >= FORMAT_NO_PARENT : "format was: " + format;
             id = in.readString();
             if (format < FORMAT_NO_DOC_TYPE) {
-                String type = in.readString();
-                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got [" + type + "]";
+                in.readString();
+                // can't assert that this is _doc because pre-8.0 indexes can have any name for a type
             }
             source = in.readBytesReference();
             routing = in.readOptionalString();
@@ -1308,8 +1308,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             final int format = in.readVInt();// SERIALIZATION_FORMAT
             assert format >= FORMAT_6_0 : "format was: " + format;
             if (format < FORMAT_NO_DOC_TYPE) {
-                String type = in.readString();
-                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got type [" + type + "]";
+                in.readString();
+                // Can't assert that this is _doc because pre-8.0 indexes can have any name for a type
             }
             id = in.readString();
             uid = new Term(in.readString(), in.readBytesRef());

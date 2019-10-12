@@ -12,7 +12,7 @@ API Key can be created using this API.
 [id="{upid}-{api}-request"]
 ==== Create API Key Request
 
-A +{request}+ contains optional name for the API key,
+A +{request}+ contains an optional name for the API key,
 optional list of role descriptors to define permissions and
 optional expiration for the generated API key.
 If expiration is not provided then by default the API

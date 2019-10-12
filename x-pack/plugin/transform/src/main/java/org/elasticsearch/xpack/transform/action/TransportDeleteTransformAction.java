@@ -24,8 +24,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
-import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
@@ -36,18 +36,25 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportDeleteTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
-    private final TransformConfigManager transformsConfigManager;
+    private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
     private final Client client;
 
     @Inject
     public TransportDeleteTransformAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
-                                                   ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   TransformConfigManager transformsConfigManager, TransformAuditor auditor,
-                                                   Client client) {
-        super(DeleteTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
-        this.transformsConfigManager = transformsConfigManager;
+                                          ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
+                                          TransformConfigManager transformsConfigManager, TransformAuditor auditor,
+                                          Client client) {
+        this(DeleteTransformAction.NAME, transportService, actionFilters, threadPool, clusterService, indexNameExpressionResolver,
+             transformsConfigManager, auditor, client);
+    }
+
+    protected TransportDeleteTransformAction(String name, TransportService transportService, ActionFilters actionFilters,
+                                             ThreadPool threadPool, ClusterService clusterService,
+                                             IndexNameExpressionResolver indexNameExpressionResolver,
+                                             TransformConfigManager transformConfigManager, TransformAuditor auditor, Client client) {
+        super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
+        this.transformConfigManager = transformConfigManager;
         this.auditor = auditor;
         this.client = client;
     }
@@ -71,7 +78,7 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
                     "] as the task is running. Stop the task first", RestStatus.CONFLICT));
         } else {
             ActionListener<Void> stopTransformActionListener = ActionListener.wrap(
-                stopResponse -> transformsConfigManager.deleteTransform(request.getId(),
+                stopResponse -> transformConfigManager.deleteTransform(request.getId(),
                     ActionListener.wrap(
                         r -> {
                             auditor.info(request.getId(), "Deleted transform.");

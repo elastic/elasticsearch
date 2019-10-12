@@ -803,9 +803,6 @@ public abstract class EngineTestCase extends ESTestCase {
                 case EXTERNAL_GTE:
                     version = randomBoolean() ? Math.max(i - 1, 0) : i;
                     break;
-                case FORCE:
-                    version = randomNonNegativeLong();
-                    break;
                 default:
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
             }

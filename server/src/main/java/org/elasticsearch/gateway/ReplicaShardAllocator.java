@@ -377,7 +377,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         }
         final long retainingSeqNoForPrimary = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(primaryNode);
         final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(replicaNode);
-        final boolean isNoopRecovery = (retainingSeqNoForReplica >= 0 && retainingSeqNoForReplica >= retainingSeqNoForPrimary)
+        final boolean isNoopRecovery = (retainingSeqNoForReplica >= retainingSeqNoForPrimary && retainingSeqNoForPrimary >= 0)
             || hasMatchingSyncId(primaryStore, replicaStore);
         final long matchingBytes = computeMatchingBytes(primaryStore, replicaStore);
         return new MatchingNode(matchingBytes, retainingSeqNoForReplica, isNoopRecovery);

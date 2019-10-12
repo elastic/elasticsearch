@@ -212,6 +212,17 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
     }
 
+    public void testNotCancelIfPrimaryDoesNotHaveValidRetentionLease() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
+        testAllocator.addData(node1, Collections.singletonList(newRetentionLease(node3, randomNonNegativeLong())),
+            "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.addData(node2, "NOT_MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.addData(node3, "NOT_MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.processExistingRecoveries(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(false));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+    }
+
     public void testIgnoreRetentionLeaseIfCopyIsEmpty() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         long retainingSeqNo = randomLongBetween(1, Long.MAX_VALUE);

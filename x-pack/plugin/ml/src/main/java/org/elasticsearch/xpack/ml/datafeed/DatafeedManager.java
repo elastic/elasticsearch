@@ -247,7 +247,7 @@ public class DatafeedManager {
                         int emptyDataCount = holder.problemTracker.reportEmptyDataCount();
                         if (e.haveEverSeenData == false && holder.shouldStopAfterEmptyData(emptyDataCount)) {
                             logger.warn("Datafeed for [" + jobId + "] has seen no data in [" + emptyDataCount
-                                + "] attempts, and never seen any data previously, so stopping...", e);
+                                + "] attempts, and never seen any data previously, so stopping...");
                             // In this case we auto-close the job, as though a lookback-only datafeed stopped
                             holder.stop("no_data", TimeValue.timeValueSeconds(20), e, true);
                             return;
@@ -327,7 +327,7 @@ public class DatafeedManager {
         }
 
         boolean shouldStopAfterEmptyData(int emptyDataCount) {
-            Integer emptyDataCountToStopAt = task.getMaxEmptySearches();
+            Integer emptyDataCountToStopAt = datafeedJob.getMaxEmptySearches();
             return emptyDataCountToStopAt != null && emptyDataCount >= emptyDataCountToStopAt;
         }
 

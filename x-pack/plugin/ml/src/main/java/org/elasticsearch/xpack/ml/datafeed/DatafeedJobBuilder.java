@@ -92,6 +92,7 @@ public class DatafeedJobBuilder {
                     auditor,
                     currentTimeSupplier,
                     delayedDataDetector,
+                    datafeedConfigHolder.get().getMaxEmptySearches(),
                     context.latestFinalBucketEndMs,
                     context.latestRecordTimeMs,
                     context.haveSeenDataPreviously);

@@ -455,10 +455,10 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     private DatafeedJob createDatafeedJob(long frequencyMs, long queryDelayMs, long latestFinalBucketEndTimeMs,
-                                            long latestRecordTimeMs, boolean haveSeenDataPreviously) {
+                                          long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
-            client, auditor, currentTimeSupplier, delayedDataDetector, latestFinalBucketEndTimeMs, latestRecordTimeMs,
+            client, auditor, currentTimeSupplier, delayedDataDetector, null, latestFinalBucketEndTimeMs, latestRecordTimeMs,
             haveSeenDataPreviously);
     }
 }

@@ -14,7 +14,6 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -147,7 +146,6 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareString(DatafeedParams::setJobId, Job.ID);
             PARSER.declareStringArray(DatafeedParams::setDatafeedIndices, INDICES);
-            PARSER.declareInt(DatafeedParams::setMaxEmptySearches, DatafeedConfig.MAX_EMPTY_SEARCHES);
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
@@ -189,10 +187,6 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
             datafeedIndices = in.readStringList();
-            // TODO: change version in backport
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                maxEmptySearches = in.readOptionalVInt();
-            }
         }
 
         DatafeedParams() {
@@ -204,7 +198,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
         private List<String> datafeedIndices = Collections.emptyList();
         private String jobId;
-        private Integer maxEmptySearches;
+
 
         public String getDatafeedId() {
             return datafeedId;
@@ -260,15 +254,6 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             return Version.CURRENT.minimumCompatibilityVersion();
         }
 
-        @Nullable
-        public Integer getMaxEmptySearches() {
-            return maxEmptySearches;
-        }
-
-        public void setMaxEmptySearches(int maxEmptySearches) {
-            this.maxEmptySearches = maxEmptySearches;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(datafeedId);
@@ -277,10 +262,6 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             out.writeVLong(timeout.millis());
             out.writeOptionalString(jobId);
             out.writeStringCollection(datafeedIndices);
-            // TODO: change version in backport
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalVInt(maxEmptySearches);
-            }
         }
 
         @Override
@@ -298,16 +279,13 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             if (datafeedIndices.isEmpty() == false) {
                 builder.field(INDICES.getPreferredName(), datafeedIndices);
             }
-            if (maxEmptySearches != null) {
-                builder.field(DatafeedConfig.MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
-            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, startTime, endTime, timeout, jobId, datafeedIndices, maxEmptySearches);
+            return Objects.hash(datafeedId, startTime, endTime, timeout, jobId, datafeedIndices);
         }
 
         @Override
@@ -324,8 +302,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                     Objects.equals(endTime, other.endTime) &&
                     Objects.equals(timeout, other.timeout) &&
                     Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(datafeedIndices, other.datafeedIndices) &&
-                    Objects.equals(maxEmptySearches, other.maxEmptySearches);
+                    Objects.equals(datafeedIndices, other.datafeedIndices);
         }
     }
 

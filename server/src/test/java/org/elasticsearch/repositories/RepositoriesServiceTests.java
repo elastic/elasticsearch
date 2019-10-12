@@ -203,8 +203,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void restoreShard(Store store, SnapshotId snapshotId,
-                                 Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        public void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+                                 RecoveryState recoveryState, ActionListener<Void> listener) {
 
         }
 

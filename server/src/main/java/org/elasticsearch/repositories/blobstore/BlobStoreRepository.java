@@ -1143,28 +1143,31 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                             RecoveryState recoveryState) {
-        ShardId shardId = store.shardId();
-        try {
-            final BlobContainer container = shardContainer(indexId, snapshotShardId);
-            BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
-            SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-            new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE) {
-                @Override
-                protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-                    final InputStream dataBlobCompositeStream = new SlicedInputStream(fileInfo.numberOfParts()) {
-                        @Override
-                        protected InputStream openSlice(long slice) throws IOException {
-                            return container.readBlob(fileInfo.partName(slice));
-                        }
-                    };
-                    return restoreRateLimiter == null ? dataBlobCompositeStream
-                        : new RateLimitingInputStream(dataBlobCompositeStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
-                }
-            }.restore(snapshotFiles, store);
-        } catch (Exception e) {
-            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
-        }
+                             RecoveryState recoveryState, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            ShardId shardId = store.shardId();
+            try {
+                final BlobContainer container = shardContainer(indexId, snapshotShardId);
+                BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
+                SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
+                new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE) {
+                    @Override
+                    protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
+                        final InputStream dataBlobCompositeStream = new SlicedInputStream(fileInfo.numberOfParts()) {
+                            @Override
+                            protected InputStream openSlice(long slice) throws IOException {
+                                return container.readBlob(fileInfo.partName(slice));
+                            }
+                        };
+                        return restoreRateLimiter == null ? dataBlobCompositeStream :
+                            new RateLimitingInputStream(dataBlobCompositeStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
+                    }
+                }.restore(snapshotFiles, store);
+                return null;
+            } catch (Exception e) {
+                throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
+            }
+        });
     }
 
     @Override

@@ -454,21 +454,24 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
                 primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
-                    public void restoreShard(Store store, SnapshotId snapshotId,
-                                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-                        try {
-                            IndexShard leader = leaderGroup.getPrimary();
-                            Lucene.cleanLuceneIndex(primary.store().directory());
-                            try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
-                                Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
-                                for (StoreFileMetaData md : sourceSnapshot) {
-                                    primary.store().directory().copyFrom(
-                                        leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
+                    public void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+                                             RecoveryState recoveryState, ActionListener<Void> listener) {
+                        ActionListener.completeWith(listener, () -> {
+                            try {
+                                IndexShard leader = leaderGroup.getPrimary();
+                                Lucene.cleanLuceneIndex(primary.store().directory());
+                                try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
+                                    Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
+                                    for (StoreFileMetaData md : sourceSnapshot) {
+                                        primary.store().directory().copyFrom(
+                                            leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
+                                    }
                                 }
+                                return null;
+                            } catch (Exception ex) {
+                                throw new AssertionError(ex);
                             }
-                        } catch (Exception ex) {
-                            throw new AssertionError(ex);
-                        }
+                        });
                     }
                 }, future);
                 future.actionGet();

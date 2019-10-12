@@ -297,27 +297,28 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId,
-                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-        // TODO: Add timeouts to network calls / the restore process.
-        createEmptyStore(store);
-        ShardId shardId = store.shardId();
+    public void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+                             RecoveryState recoveryState, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            // TODO: Add timeouts to network calls / the restore process.
+            createEmptyStore(store);
+            ShardId shardId = store.shardId();
 
-        final Map<String, String> ccrMetaData = store.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
-        final String leaderIndexName = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
-        final String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
-        final Index leaderIndex = new Index(leaderIndexName, leaderUUID);
-        final ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
+            final Map<String, String> ccrMetaData = store.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+            final String leaderIndexName = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
+            final String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+            final Index leaderIndex = new Index(leaderIndexName, leaderUUID);
+            final ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
 
-        final Client remoteClient = getRemoteClusterClient();
+            final Client remoteClient = getRemoteClusterClient();
 
-        final String retentionLeaseId =
+            final String retentionLeaseId =
                 retentionLeaseId(localClusterName, shardId.getIndex(), remoteClusterAlias, leaderIndex);
 
-        acquireRetentionLeaseOnLeader(shardId, retentionLeaseId, leaderShardId, remoteClient);
+            acquireRetentionLeaseOnLeader(shardId, retentionLeaseId, leaderShardId, remoteClient);
 
-        // schedule renewals to run during the restore
-        final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(
+            // schedule renewals to run during the restore
+            final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(
                 () -> {
                     logger.trace("{} background renewal of retention lease [{}] during restore", shardId, retentionLeaseId);
                     final ThreadContext threadContext = threadPool.getThreadContext();
@@ -325,38 +326,40 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         // we have to execute under the system context so that if security is enabled the renewal is authorized
                         threadContext.markAsSystemContext();
                         CcrRetentionLeases.asyncRenewRetentionLease(
-                                leaderShardId,
-                                retentionLeaseId,
-                                RETAIN_ALL,
-                                remoteClient,
-                                ActionListener.wrap(
-                                        r -> {},
-                                        e -> {
-                                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                                            assert cause instanceof ElasticsearchSecurityException == false : cause;
-                                            if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
-                                                logger.warn(new ParameterizedMessage(
-                                                    "{} background renewal of retention lease [{}] failed during restore", shardId,
-                                                    retentionLeaseId), cause);
-                                            }
-                                        }));
+                            leaderShardId,
+                            retentionLeaseId,
+                            RETAIN_ALL,
+                            remoteClient,
+                            ActionListener.wrap(
+                                r -> {},
+                                e -> {
+                                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                    assert cause instanceof ElasticsearchSecurityException == false : cause;
+                                    if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
+                                        logger.warn(new ParameterizedMessage(
+                                            "{} background renewal of retention lease [{}] failed during restore", shardId,
+                                            retentionLeaseId), cause);
+                                    }
+                                }));
                     }
                 },
                 CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(store.indexSettings().getNodeSettings()),
                 Ccr.CCR_THREAD_POOL_NAME);
 
-        // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
-        //  response, we should be able to retry by creating a new session.
-        try (RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, shardId, recoveryState)) {
-            restoreSession.restoreFiles(store);
-            updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
-        } catch (Exception e) {
-            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
-        } finally {
-            logger.trace("{} canceling background renewal of retention lease [{}] at the end of restore", shardId,
-                retentionLeaseId);
-            renewable.cancel();
-        }
+            // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
+            //  response, we should be able to retry by creating a new session.
+            try (RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, shardId, recoveryState)) {
+                restoreSession.restoreFiles(store);
+                updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
+                return null;
+            } catch (Exception e) {
+                throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
+            } finally {
+                logger.trace("{} canceling background renewal of retention lease [{}] at the end of restore", shardId,
+                    retentionLeaseId);
+                renewable.cancel();
+            }
+        });
     }
 
     private void createEmptyStore(Store store) {

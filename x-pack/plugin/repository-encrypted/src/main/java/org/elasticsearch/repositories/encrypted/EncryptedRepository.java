@@ -33,7 +33,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
@@ -57,8 +57,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     private static final String ENCRYPTION_MODE = "AES/GCM/NoPadding";
     private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata-";
     // always the same IV because the key is randomly generated anew (Key-IV pair is never repeated)
-    //private static final GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, new byte[] {0,1,2,3,4,5,6,7,8,9,10,11 });
-    private static final IvParameterSpec ivParameterSpec = new IvParameterSpec(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 });
+    private static final GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, new byte[] {0,1,2,3,4,5,6,7,8,9,10,11 });
     // given the mode, the IV and the tag length, the maximum "chunk" size is ~64GB, we set it to 32GB to err on the safe side
     public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.GB);
 
@@ -215,6 +214,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 }
                 Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_FIPS_PROV);
                 cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey, ivParameterSpec);
+                cipher.update()
                 this.delegatedBlobContainer.writeBlob(blobName, new CipherInputStream(inputStream, cipher), blobSize + GCM_TAG_BYTES_LENGTH,
                         failIfAlreadyExists);
             } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException

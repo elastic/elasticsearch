@@ -249,7 +249,7 @@ Currently, using a _precision_ greater than 3 doesn't make any difference to the
 function as the maximum number of second fractional digits returned is 3 (milliseconds).
 
 [[sql-functions-datetime-add]]
-==== `DATE_ADD/DATEADD/TIMESTAMPADD/TIMESTAMP_ADD`
+==== `DATE_ADD/DATEADD/TIMESTAMP_ADD/TIMESTAMPADD`
 
 .Synopsis:
 [source, sql]
@@ -323,7 +323,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateMinutes]
 --------------------------------------------------
 
 [[sql-functions-datetime-diff]]
-==== `DATE_DIFF/DATEDIFF/TIMESTAMPDIFF/TIMESTAMP_DIFF`
+==== `DATE_DIFF/DATEDIFF/TIMESTAMP_DIFF/TIMESTAMPDIFF`
 
 .Synopsis:
 [source, sql]

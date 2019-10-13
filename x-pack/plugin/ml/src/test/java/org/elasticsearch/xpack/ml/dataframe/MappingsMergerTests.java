@@ -29,14 +29,9 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
         MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("_doc", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("_doc", index2MappingMetaData);
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingsMap.build());
-        mappings.put("index_2", index2MappingsMap.build());
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetaData);
+        mappings.put("index_2", index2MappingMetaData);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
@@ -54,14 +49,9 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings"));
         MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("type_1", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("type_2", index2MappingMetaData);
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingsMap.build());
-        mappings.put("index_2", index2MappingsMap.build());
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetaData);
+        mappings.put("index_2", index2MappingMetaData);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
@@ -80,14 +70,9 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "different_field_1_mappings"));
         MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("_doc", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("_doc", index2MappingMetaData);
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingsMap.build());
-        mappings.put("index_2", index2MappingsMap.build());
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetaData);
+        mappings.put("index_2", index2MappingMetaData);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
@@ -106,14 +91,9 @@ public class MappingsMergerTests extends ESTestCase {
             Map.of("field_1", "field_1_mappings", "field_3", "field_3_mappings"));
         MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("_doc", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("_doc", index2MappingMetaData);
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingsMap.build());
-        mappings.put("index_2", index2MappingsMap.build());
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetaData);
+        mappings.put("index_2", index2MappingMetaData);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 

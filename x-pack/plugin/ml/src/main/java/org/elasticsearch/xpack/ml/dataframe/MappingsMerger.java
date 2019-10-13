@@ -45,26 +45,16 @@ public final class MappingsMerger {
     }
 
     static ImmutableOpenMap<String, MappingMetaData> mergeMappings(GetMappingsResponse getMappingsResponse) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> indexToMappings = getMappingsResponse.getMappings();
+        ImmutableOpenMap<String, MappingMetaData> indexToMappings = getMappingsResponse.getMappings();
 
         String type = null;
         Map<String, Object> mergedMappings = new HashMap<>();
 
-        Iterator<ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>>> iterator = indexToMappings.iterator();
+        Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = indexToMappings.iterator();
         while (iterator.hasNext()) {
-            ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings = iterator.next();
-            Iterator<ObjectObjectCursor<String, MappingMetaData>> typeIterator = indexMappings.value.iterator();
-            while (typeIterator.hasNext()) {
-                ObjectObjectCursor<String, MappingMetaData> typeMapping = typeIterator.next();
-                if (type == null) {
-                    type = typeMapping.key;
-                } else {
-                    if (type.equals(typeMapping.key) == false) {
-                        throw ExceptionsHelper.badRequestException("source indices contain mappings for different types: [{}, {}]",
-                            type, typeMapping.key);
-                    }
-                }
-                Map<String, Object> currentMappings = typeMapping.value.getSourceAsMap();
+            MappingMetaData mapping = iterator.next().value;
+            if (mapping != null) {
+                Map<String, Object> currentMappings = mapping.getSourceAsMap();
                 if (currentMappings.containsKey("properties")) {
 
                     @SuppressWarnings("unchecked")

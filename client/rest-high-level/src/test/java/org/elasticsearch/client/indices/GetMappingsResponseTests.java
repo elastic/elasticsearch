@@ -102,12 +102,10 @@ public class GetMappingsResponseTests extends ESTestCase {
     private static void toXContent(GetMappingsResponse response, XContentBuilder builder) throws IOException {
         Params params = new ToXContent.MapParams(
             Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetaData> allMappings = ImmutableOpenMap.builder();
 
         for (Map.Entry<String, MappingMetaData> indexEntry : response.mappings().entrySet()) {
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-            mappings.put(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue());
-            allMappings.put(indexEntry.getKey(), mappings.build());
+            allMappings.put(indexEntry.getKey(), indexEntry.getValue());
         }
 
         org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse serverResponse =

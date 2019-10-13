@@ -162,7 +162,7 @@ public class GetIndexResponseTests extends ESTestCase {
 
     private static void toXContent(GetIndexResponse response, XContentBuilder builder) throws IOException {
         // first we need to repackage from GetIndexResponse to org.elasticsearch.action.admin.indices.get.GetIndexResponse
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetaData> allMappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
@@ -170,11 +170,7 @@ public class GetIndexResponseTests extends ESTestCase {
         Map<String, MappingMetaData> indexMappings = response.getMappings();
         for (String index : response.getIndices()) {
             MappingMetaData mmd = indexMappings.get(index);
-            ImmutableOpenMap.Builder<String, MappingMetaData> typedMappings = ImmutableOpenMap.builder();
-            if (mmd != null) {
-                typedMappings.put(MapperService.SINGLE_MAPPING_NAME, mmd);
-            }
-            allMappings.put(index, typedMappings.build());
+            allMappings.put(index, mmd);
             aliases.put(index, response.getAliases().get(index));
             settings.put(index, response.getSettings().get(index));
             defaultSettings.put(index, response.getDefaultSettings().get(index));

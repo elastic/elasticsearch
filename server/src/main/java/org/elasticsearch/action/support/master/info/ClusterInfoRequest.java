@@ -62,12 +62,6 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     }
 
     @SuppressWarnings("unchecked")
-    public Request types(String... types) {
-        this.types = types;
-        return (Request) this;
-    }
-
-    @SuppressWarnings("unchecked")
     public Request indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return (Request) this;
@@ -76,10 +70,6 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     @Override
     public String[] indices() {
         return indices;
-    }
-
-    public String[] types() {
-        return types;
     }
 
     @Override

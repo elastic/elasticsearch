@@ -372,9 +372,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     private static MatchingNode computeMatchingNode(
         DiscoveryNode primaryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
         DiscoveryNode replicaNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData replicaStore) {
-        if (replicaStore.isEmpty()) {
-            return new MatchingNode(0, -1, false); // store is corrupted
-        }
         final long retainingSeqNoForPrimary = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(primaryNode);
         final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(replicaNode);
         final boolean isNoopRecovery = (retainingSeqNoForReplica >= retainingSeqNoForPrimary && retainingSeqNoForPrimary >= 0)

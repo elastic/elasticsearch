@@ -448,14 +448,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, listener::onFailure), 2);
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        executor.execute(ActionRunnable.wrap(groupedListener, l -> {
+        executor.execute(ActionRunnable.supply(groupedListener, () -> {
             List<String> deletedBlobs = cleanupStaleRootFiles(staleRootBlobs(newRepoData, rootBlobs.keySet()));
-            l.onResponse(
-                new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum()));
+            return new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum());
         }));
 
         final Set<String> survivingIndexIds = newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
-        executor.execute(ActionRunnable.wrap(groupedListener, l -> l.onResponse(cleanupStaleIndices(foundIndices, survivingIndexIds))));
+        executor.execute(ActionRunnable.supply(groupedListener, () -> cleanupStaleIndices(foundIndices, survivingIndexIds)));
     }
 
     /**
@@ -670,26 +669,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // that decrements the generation it points at
 
         // Write Global MetaData
-        executor.execute(ActionRunnable.wrap(allMetaListener, l -> {
-            globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false);
-            l.onResponse(null);
-        }));
+        executor.execute(ActionRunnable.run(allMetaListener,
+            () -> globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false)));
 
         // write the index metadata for each index in the snapshot
         for (IndexId index : indices) {
-            executor.execute(ActionRunnable.wrap(allMetaListener, l -> {
-                indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false);
-                l.onResponse(null);
-            }));
+            executor.execute(ActionRunnable.run(allMetaListener, () ->
+                indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false)));
         }
 
-        executor.execute(ActionRunnable.wrap(allMetaListener, afterMetaListener -> {
+        executor.execute(ActionRunnable.supply(allMetaListener, () -> {
             final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 indices.stream().map(IndexId::getName).collect(Collectors.toList()),
                 startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
                 includeGlobalState, userMetadata);
             snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
-            afterMetaListener.onResponse(snapshotInfo);
+            return snapshotInfo;
         }));
     }
 

@@ -140,6 +140,11 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
+    public Map<String, Long> getFieldCardinalityLimits() {
+        return Collections.emptyMap();
+    }
+
+    @Override
     public boolean supportsMissingValues() {
         return true;
     }

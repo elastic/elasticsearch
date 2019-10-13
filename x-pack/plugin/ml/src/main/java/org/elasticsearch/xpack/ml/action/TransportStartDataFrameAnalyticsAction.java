@@ -433,6 +433,11 @@ public class TransportStartDataFrameAnalyticsAction
                 case STOPPING:
                     exception = ExceptionsHelper.conflictStatusException("the task has been stopped while waiting to be started");
                     return true;
+                // The STARTING case here is expected to be incredibly short-lived, just occurring during the
+                // time period when a job has successfully been assigned to a node but the request to update
+                // its task state is still in-flight.  (The long-lived STARTING case when a lazy node needs to
+                // be added to the cluster to accommodate the job was dealt with higher up this method when the
+                // magic AWAITING_LAZY_ASSIGNMENT assignment was checked for.)
                 case STARTING:
                 case STOPPED:
                     return false;

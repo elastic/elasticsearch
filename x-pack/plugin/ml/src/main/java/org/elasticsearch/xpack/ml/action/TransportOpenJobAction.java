@@ -558,6 +558,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 }
             }
             switch (jobState) {
+                // The OPENING case here is expected to be incredibly short-lived, just occurring during the
+                // time period when a job has successfully been assigned to a node but the request to update
+                // its task state is still in-flight.  (The long-lived OPENING case when a lazy node needs to
+                // be added to the cluster to accommodate the job was dealt with higher up this method when the
+                // magic AWAITING_LAZY_ASSIGNMENT assignment was checked for.)
                 case OPENING:
                 case CLOSED:
                     return false;

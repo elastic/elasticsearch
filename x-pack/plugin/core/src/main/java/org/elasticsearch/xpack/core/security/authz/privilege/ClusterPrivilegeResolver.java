@@ -50,12 +50,12 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
     private static final Set<String> MONITOR_PATTERN = Set.of("cluster:monitor/*");
     private static final Set<String> MONITOR_ML_PATTERN = Set.of("cluster:monitor/xpack/ml/*");
-    private static final Set<String> MONITOR_DATA_FRAME_PATTERN = Set.of("cluster:monitor/data_frame/*", "cluster:monitor/transform/*");
+    private static final Set<String> MONITOR_TRANSFORM_PATTERN = Set.of("cluster:monitor/data_frame/*", "cluster:monitor/transform/*");
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of("cluster:*", "indices:admin/template/*");
     private static final Set<String> MANAGE_ML_PATTERN = Set.of("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
-    private static final Set<String> MANAGE_DATA_FRAME_PATTERN = Set.of("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*",
+    private static final Set<String> MANAGE_TRANSFORM_PATTERN = Set.of("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*",
             "cluster:monitor/transform/*", "cluster:admin/transform/*");
     private static final Set<String> MANAGE_WATCHER_PATTERN = Set.of("cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*");
     private static final Set<String> TRANSPORT_CLIENT_PATTERN = Set.of("cluster:monitor/nodes/liveness", "cluster:monitor/state");
@@ -77,14 +77,18 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege ALL = new ActionClusterPrivilege("all", ALL_CLUSTER_PATTERN);
     public static final NamedClusterPrivilege MONITOR = new ActionClusterPrivilege("monitor", MONITOR_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ML = new ActionClusterPrivilege("monitor_ml", MONITOR_ML_PATTERN);
-    public static final NamedClusterPrivilege MONITOR_DATA_FRAME =
-        new ActionClusterPrivilege("monitor_data_frame_transforms", MONITOR_DATA_FRAME_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_TRANSFORM_DEPRECATED =
+        new ActionClusterPrivilege("monitor_data_frame_transforms", MONITOR_TRANSFORM_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_TRANSFORM =
+            new ActionClusterPrivilege("monitor_transform", MONITOR_TRANSFORM_PATTERN);
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
-    public static final NamedClusterPrivilege MANAGE_DATA_FRAME =
-        new ActionClusterPrivilege("manage_data_frame_transforms", MANAGE_DATA_FRAME_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_TRANSFORM_DEPRECATED =
+        new ActionClusterPrivilege("manage_data_frame_transforms", MANAGE_TRANSFORM_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_TRANSFORM =
+            new ActionClusterPrivilege("manage_transform", MANAGE_TRANSFORM_PATTERN);
     public static final NamedClusterPrivilege MANAGE_TOKEN = new ActionClusterPrivilege("manage_token", MANAGE_TOKEN_PATTERN);
     public static final NamedClusterPrivilege MANAGE_WATCHER = new ActionClusterPrivilege("manage_watcher", MANAGE_WATCHER_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ROLLUP = new ActionClusterPrivilege("manage_rollup", MANAGE_ROLLUP_PATTERN);
@@ -118,12 +122,14 @@ public class ClusterPrivilegeResolver {
         ALL,
         MONITOR,
         MONITOR_ML,
-        MONITOR_DATA_FRAME,
+        MONITOR_TRANSFORM_DEPRECATED,
+        MONITOR_TRANSFORM,
         MONITOR_WATCHER,
         MONITOR_ROLLUP,
         MANAGE,
         MANAGE_ML,
-        MANAGE_DATA_FRAME,
+        MANAGE_TRANSFORM_DEPRECATED,
+        MANAGE_TRANSFORM,
         MANAGE_TOKEN,
         MANAGE_WATCHER,
         MANAGE_IDX_TEMPLATES,

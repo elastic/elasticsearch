@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authc;
 
 import com.google.common.collect.Sets;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -175,43 +174,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
     }
 
-    public void testCreateApiKeyFailsWhenApiKeyWithSameNameAlreadyExists() throws InterruptedException, ExecutionException {
+    public void testMultipleApiKeysCanHaveSameName() {
         String keyName = randomAlphaOfLength(5);
+        int noOfApiKeys = randomIntBetween(2, 5);
         List<CreateApiKeyResponse> responses = new ArrayList<>();
-        {
-            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        for (int i = 0; i < noOfApiKeys; i++) {
+            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[]{"monitor"}, null, null);
             Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
-                    .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
             final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(keyName).setExpiration(null)
-                    .setRoleDescriptors(Collections.singletonList(descriptor)).get();
+                .setRoleDescriptors(Collections.singletonList(descriptor)).get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
             responses.add(response);
         }
-
-        final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
-                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> new CreateApiKeyRequestBuilder(client)
-            .setName(keyName)
-            .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-            .setRoleDescriptors(Collections.singletonList(descriptor))
-            .get());
-        assertThat(e.getMessage(), equalTo("Error creating api key as api key with name ["+keyName+"] already exists"));
-
-        // Now invalidate the API key
-        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyName(keyName, false), listener);
-        InvalidateApiKeyResponse invalidateResponse = listener.get();
-        verifyInvalidateResponse(1, responses, invalidateResponse);
-
-        // try to create API key with same name, should succeed now
-        CreateApiKeyResponse createResponse = new CreateApiKeyRequestBuilder(client).setName(keyName)
-                .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-                .setRoleDescriptors(Collections.singletonList(descriptor)).get();
-        assertNotNull(createResponse.getId());
-        assertNotNull(createResponse.getKey());
+        assertThat(responses.size(), is(noOfApiKeys));
+        for (int i = 0; i < noOfApiKeys; i++) {
+            assertThat(responses.get(i).getName(), is(keyName));
+        }
     }
 
     public void testInvalidateApiKeysForRealm() throws InterruptedException, ExecutionException {

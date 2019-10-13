@@ -82,14 +82,13 @@ public class SuggestionOptionTests extends ESTestCase {
         Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
         BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
         assertEquals(
-            // @formatter:off
             "{"
-                + "\"text\":\"someText\","
-                + "\"highlighted\":\"somethingHighlighted\","
-                + "\"score\":1.3,"
-                + "\"collate_match\":true"
-            + "}",
-            // @formatter:on
-            xContent.utf8ToString());
+                + "  \"text\": \"someText\","
+                + "  \"highlighted\": \"somethingHighlighted\","
+                + "  \"score\": 1.3,"
+                + "  \"collate_match\": true"
+                + "}",
+            xContent.utf8ToString()
+        );
     }
 }

@@ -24,7 +24,10 @@ import java.util.Map.Entry;
  */
 public enum DataType {
 
-    // @formatter:off
+    // The following code is more clearly expressed in a tabular formatter,
+    // so we disable automatic formatting with 'tag' and 'end'.
+    //
+    // tag::xpack-sql-datatypes-disable-formatting
     //             esType            jdbc type,          size,              defPrecision,dispSize, int,   rat,   docvals
     NULL(          "null",           JDBCType.NULL,      0,                 0,                 0,  false, false, false),
     UNSUPPORTED(                     JDBCType.OTHER,     0,                 0,                 0,  false, false, false),
@@ -79,7 +82,7 @@ public enum DataType {
     INTERVAL_HOUR_TO_MINUTE(  ExtTypes.INTERVAL_HOUR_TO_MINUTE,  Long.BYTES,      23,   23,  false, false, false),
     INTERVAL_HOUR_TO_SECOND(  ExtTypes.INTERVAL_HOUR_TO_SECOND,  Long.BYTES,      23,   23,  false, false, false),
     INTERVAL_MINUTE_TO_SECOND(ExtTypes.INTERVAL_MINUTE_TO_SECOND,Long.BYTES,      23,   23,  false, false, false);
-    // @formatter:on
+    // end::xpack-sql-datatypes-disable-formatting
 
     private static final Map<String, DataType> ODBC_TO_ES = new HashMap<>(36);
     static {
@@ -285,7 +288,7 @@ public enum DataType {
         return (ordinal >= INTERVAL_DAY.ordinal() && ordinal <= INTERVAL_SECOND.ordinal())
                 || (ordinal >= INTERVAL_DAY_TO_HOUR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal());
     }
-    
+
     // data type extract-able from _source or from docvalue_fields
     public boolean isFromDocValuesOnly() {
         return this == KEYWORD  // because of ignore_above. Extracting this from _source wouldn't make sense if it wasn't indexed at all.

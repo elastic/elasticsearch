@@ -29,7 +29,7 @@
         <setting id="org.eclipse.jdt.core.formatter.insert_space_before_comma_in_for_inits" value="do not insert"/>
         <setting id="org.eclipse.jdt.core.formatter.insert_space_after_semicolon_in_for" value="insert"/>
         <setting id="org.eclipse.jdt.core.formatter.align_with_spaces" value="false"/>
-        <setting id="org.eclipse.jdt.core.formatter.disabling_tag" value="@formatter:off"/>
+        <setting id="org.eclipse.jdt.core.formatter.disabling_tag" value="tag::"/>
         <setting id="org.eclipse.jdt.core.formatter.continuation_indentation" value="1"/>
         <setting id="org.eclipse.jdt.core.formatter.number_of_blank_lines_before_code_block" value="0"/>
         <setting id="org.eclipse.jdt.core.formatter.insert_space_before_comma_in_switch_case_expressions" value="do not insert"/>
@@ -43,7 +43,7 @@
         <setting id="org.eclipse.jdt.core.formatter.insert_space_after_opening_angle_bracket_in_parameterized_type_reference" value="do not insert"/>
         <setting id="org.eclipse.jdt.core.formatter.comment.indent_root_tags" value="false"/>
         <setting id="org.eclipse.jdt.core.formatter.wrap_before_or_operator_multicatch" value="true"/>
-        <setting id="org.eclipse.jdt.core.formatter.enabling_tag" value="@formatter:on"/>
+        <setting id="org.eclipse.jdt.core.formatter.enabling_tag" value="end::"/>
         <setting id="org.eclipse.jdt.core.formatter.insert_space_after_closing_brace_in_block" value="insert"/>
         <setting id="org.eclipse.jdt.core.formatter.comment.count_line_length_from_starting_position" value="true"/>
         <setting id="org.eclipse.jdt.core.formatter.insert_space_before_parenthesized_expression_in_return" value="insert"/>

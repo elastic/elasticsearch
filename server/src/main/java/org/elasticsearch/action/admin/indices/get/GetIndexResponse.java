@@ -255,9 +255,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                         builder.endObject();
                     } else {
                         MappingMetaData mappings = null;
-                        for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
-                            assert mappings == null;
-                            mappings = typeEntry.value;
+                        if (indexMappings != null) {
+                            for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
+                                assert mappings == null;
+                                mappings = typeEntry.value;
+                            }
                         }
                         if (mappings == null) {
                             // no mappings yet

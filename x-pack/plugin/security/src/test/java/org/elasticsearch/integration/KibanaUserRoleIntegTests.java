@@ -61,7 +61,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     public void testFieldMappings() throws Exception {
         final String index = "logstash-20-12-2015";
-        final String type = "event";
+        final String type = "_doc";
         final String field = "foo";
         indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
 
@@ -145,7 +145,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     public void testGetMappings() throws Exception {
         final String index = "logstash-20-12-2015";
-        final String type = "event";
+        final String type = "_doc";
         final String field = "foo";
         indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
 

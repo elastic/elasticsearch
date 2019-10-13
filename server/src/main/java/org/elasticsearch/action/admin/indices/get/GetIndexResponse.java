@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -40,7 +39,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -86,21 +84,19 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         int mappingsSize = in.readVInt();
         ImmutableOpenMap.Builder<String, MappingMetaData> mappingsMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < mappingsSize; i++) {
-            String key = in.readString();
+            String index = in.readString();
             if (in.getVersion().before(Version.V_8_0_0)) {
-                int valueSize = in.readVInt();
-                assert valueSize == 1 : "Expected single mapping but got " + valueSize;
-                String type = in.readString();
-                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got " + type;
-                mappingsMapBuilder.put(key, new MappingMetaData(in));
+                int numMappings = in.readVInt();
+                assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
+                if (numMappings == 1) {
+                    String type = in.readString();
+                    assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
+                    mappingsMapBuilder.put(index, new MappingMetaData(in));
+                }
             }
             else {
-                if (in.readBoolean()) {
-                    mappingsMapBuilder.put(key, new MappingMetaData(in));
-                }
-                else {
-                    mappingsMapBuilder.put(key, null);
-                }
+                boolean hasMapping = in.readBoolean();
+                mappingsMapBuilder.put(index, hasMapping ? new MappingMetaData(in) : null);
             }
         }
         mappings = mappingsMapBuilder.build();
@@ -208,16 +204,17 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, MappingMetaData> indexEntry : mappings) {
             out.writeString(indexEntry.key);
-            MappingMetaData mmd = indexEntry.value;
             if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(1);
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                mmd.writeTo(out);
+                out.writeVInt(indexEntry.value == null ? 0 : 1);
+                if (indexEntry.value != null) {
+                    out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                    indexEntry.value.writeTo(out);
+                }
             }
             else {
-                out.writeBoolean(mmd != null);
-                if (mmd != null) {
-                    mmd.writeTo(out);
+                out.writeBoolean(indexEntry.value != null);
+                if (indexEntry.value != null) {
+                    indexEntry.value.writeTo(out);
                 }
             }
         }
@@ -258,12 +255,13 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     builder.endObject();
 
                     MappingMetaData indexMappings = mappings.get(index);
-                    if (indexMappings == null) {
-                        builder.startObject("mappings").endObject();
-                    }
-                    else {
+                    if (indexMappings != null) {
                         builder.field("mappings", indexMappings.sourceAsMap());
                     }
+                    else {
+                        builder.startObject("mappings").endObject();
+                    }
+                    builder.endObject();
 
                     builder.startObject("settings");
                     Settings indexSettings = settings.get(index);
@@ -342,46 +340,6 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             if (indexSettings != null) this.indexSettings = indexSettings;
             if (indexDefaultSettings != null) this.indexDefaultSettings = indexDefaultSettings;
         }
-    }
-
-    public static GetIndexResponse fromXContent(XContentParser parser) throws IOException {
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
-        List<String> indices = new ArrayList<>();
-
-        if (parser.currentToken() == null) {
-            parser.nextToken();
-        }
-        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        parser.nextToken();
-
-        while (!parser.isClosed()) {
-            if (parser.currentToken() == Token.START_OBJECT) {
-                // we assume this is an index entry
-                String indexName = parser.currentName();
-                indices.add(indexName);
-                IndexEntry indexEntry = parseIndexEntry(parser);
-                // make the order deterministic
-                CollectionUtil.timSort(indexEntry.indexAliases, Comparator.comparing(AliasMetaData::alias));
-                aliases.put(indexName, Collections.unmodifiableList(indexEntry.indexAliases));
-                mappings.put(indexName, indexEntry.indexMappings);
-                settings.put(indexName, indexEntry.indexSettings);
-                if (indexEntry.indexDefaultSettings.isEmpty() == false) {
-                    defaultSettings.put(indexName, indexEntry.indexDefaultSettings);
-                }
-            } else if (parser.currentToken() == Token.START_ARRAY) {
-                parser.skipChildren();
-            } else {
-                parser.nextToken();
-            }
-        }
-        return
-            new GetIndexResponse(
-                indices.toArray(new String[0]), mappings.build(), aliases.build(),
-                settings.build(), defaultSettings.build()
-            );
     }
 
     @Override

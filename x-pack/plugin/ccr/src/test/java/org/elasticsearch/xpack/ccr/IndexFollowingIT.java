@@ -70,6 +70,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -109,6 +110,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
@@ -363,7 +365,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1", "doc", Long.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex("index1", "_doc", Long.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get()
@@ -376,7 +378,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"k\":%d}", i);
-            leaderClient().prepareIndex("index1", "doc", Long.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex("index1", "_doc", Long.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
@@ -500,7 +502,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                     throw new AssertionError(e);
                 }
                 final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
-                IndexRequest indexRequest = new IndexRequest("index1", "doc")
+                IndexRequest indexRequest = new IndexRequest("index1")
                     .source(source, XContentType.JSON)
                     .timeout(TimeValue.timeValueSeconds(1));
                 bulkProcessor.add(indexRequest);
@@ -741,6 +743,47 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         });
         pauseFollow("index2");
         ensureNoCcrTasks();
+    }
+
+    public void testFollowClosedIndex() {
+        final String leaderIndex = "test-index";
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .build()));
+        assertAcked(leaderClient().admin().indices().prepareClose(leaderIndex));
+
+        final String followerIndex = "follow-test-index";
+        expectThrows(IndexClosedException.class,
+            () -> followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).actionGet());
+        assertFalse(ESIntegTestCase.indexExists(followerIndex, followerClient()));
+    }
+
+    public void testResumeFollowOnClosedIndex() throws Exception {
+        final String leaderIndex = "test-index";
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+        ensureLeaderGreen(leaderIndex);
+
+        final int nbDocs = randomIntBetween(10, 100);
+        IntStream.of(nbDocs).forEach(i -> leaderClient().prepareIndex().setIndex(leaderIndex).setSource("field", i).get());
+
+        final String followerIndex = "follow-test-index";
+        PutFollowAction.Response response =
+            followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).actionGet();
+        assertTrue(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexShardsAcked());
+        assertTrue(response.isIndexFollowingStarted());
+
+        pauseFollow(followerIndex);
+        assertAcked(leaderClient().admin().indices().prepareClose(leaderIndex));
+
+        expectThrows(IndexClosedException.class, () ->
+            followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow(followerIndex)).actionGet());
     }
 
     public void testDeleteFollowerIndex() throws Exception {

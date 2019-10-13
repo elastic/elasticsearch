@@ -197,9 +197,11 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME, Collections.emptyMap());
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(job.getConfig().getRollupIndex(), meta);
-            when(response.getMappings()).thenReturn(builder.build());
+
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), meta);
+
+            when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -231,9 +233,11 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(job.getConfig().getRollupIndex(), meta);
-            when(response.getMappings()).thenReturn(builder.build());
+
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), meta);
+
+            when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -264,9 +268,11 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(job.getConfig().getRollupIndex(), meta);
-            when(response.getMappings()).thenReturn(builder.build());
+
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), meta);
+
+            when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -297,9 +303,11 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(job.getConfig().getRollupIndex(), meta);
-            when(response.getMappings()).thenReturn(builder.build());
+
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), meta);
+
+            when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -334,9 +342,11 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap(unrelatedJob.getId(), unrelatedJob));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put("rollup_index_foo", meta);
-            when(response.getMappings()).thenReturn(builder.build());
+
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(unrelatedJob.getRollupIndex(), meta);
+
+            when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());

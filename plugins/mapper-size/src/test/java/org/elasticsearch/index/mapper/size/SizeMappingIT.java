@@ -56,7 +56,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
-        assertSizeMappingEnabled(index, type, true);
+        assertSizeMappingEnabled(index, true);
 
         // update some field in the mapping
         XContentBuilder updateMappingBuilder =
@@ -67,7 +67,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
-        assertSizeMappingEnabled(index, type, true);
+        assertSizeMappingEnabled(index, true);
     }
 
     public void testThatSizeCanBeSwitchedOnAndOff() throws Exception {
@@ -79,7 +79,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
-        assertSizeMappingEnabled(index, type, true);
+        assertSizeMappingEnabled(index, true);
 
         // update some field in the mapping
         XContentBuilder updateMappingBuilder =
@@ -89,12 +89,12 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
-        assertSizeMappingEnabled(index, type, false);
+        assertSizeMappingEnabled(index, false);
     }
 
-    private void assertSizeMappingEnabled(String index, String type, boolean enabled) throws IOException {
+    private void assertSizeMappingEnabled(String index, boolean enabled) throws IOException {
         String errMsg = String.format(Locale.ROOT,
-            "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s/%s", index, type);
+            "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s", index);
         GetMappingsResponse getMappingsResponse =
             client().admin().indices().prepareGetMappings(index).get();
         Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).getSourceAsMap();

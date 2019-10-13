@@ -104,7 +104,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
-            assertConcreteMappingsOnAll("test", type, fieldName);
+            assertConcreteMappingsOnAll("test", fieldName);
         }
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(
@@ -293,7 +293,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
      * Waits until mappings for the provided fields exist on all nodes. Note, this waits for the current
      * started shards and checks for concrete mappings.
      */
-    private void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) {
+    private void assertConcreteMappingsOnAll(final String index, final String... fieldNames) {
         Set<String> nodes = internalCluster().nodesInclude(index);
         assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
         for (String node : nodes) {
@@ -306,18 +306,18 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
             }
         }
-        assertMappingOnMaster(index, type, fieldNames);
+        assertMappingOnMaster(index, fieldNames);
     }
 
     /**
      * Waits for the given mapping type to exists on the master node.
      */
-    private void assertMappingOnMaster(final String index, final String type, final String... fieldNames) {
+    private void assertMappingOnMaster(final String index, final String... fieldNames) {
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).get();
-        MappingMetaData mappingMetaData = response.getMappings().get(index);
-        assertThat(mappingMetaData, notNullValue());
+        MappingMetaData mappings = response.getMappings().get(index);
+        assertThat(mappings, notNullValue());
 
-        Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();
+        Map<String, Object> mappingSource = mappings.getSourceAsMap();
         assertFalse(mappingSource.isEmpty());
         assertTrue(mappingSource.containsKey("properties"));
 
@@ -326,7 +326,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             if (fieldName.indexOf('.') != -1) {
                 fieldName = fieldName.replace(".", ".properties.");
             }
-            assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(),
+            assertThat("field " + fieldName + " doesn't exists in mapping " + mappings.source().string(),
                 XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
         }
     }

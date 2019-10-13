@@ -41,7 +41,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleGetMappingsIT extends ESIntegTestCase {
 
@@ -54,7 +53,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         createIndex("index");
         GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
         assertThat(response.mappings().containsKey("index"), equalTo(true));
-        assertThat(response.mappings().get("index"), nullValue());
+        assertNull(response.mappings().get("index"));
     }
 
     private XContentBuilder getMappingForType(String type) throws IOException {
@@ -87,7 +86,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         assertThat(response.mappings().get("indexa"), notNullValue());
         assertThat(response.mappings().get("indexb"), notNullValue());
 
-        // Get all mappings in indexa
+        // Get mappings in indexa
         response = client().admin().indices().prepareGetMappings("indexa").execute().actionGet();
         assertThat(response.mappings().size(), equalTo(1));
         assertThat(response.mappings().get("indexa"), notNullValue());
@@ -104,7 +103,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
                 enableIndexBlock("test", block);
                 GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
                 assertThat(response.mappings().size(), equalTo(1));
-                assertThat(response.mappings().get("test"), notNullValue());
+                assertNotNull(response.mappings().get("test"));
             } finally {
                 disableIndexBlock("test", block);
             }

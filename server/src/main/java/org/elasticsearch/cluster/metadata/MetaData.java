@@ -386,20 +386,15 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            if (indexMetaData.mapping() != null) {
-                Predicate<String> fieldPredicate = fieldFilter.apply(index);
-                indexMapBuilder.put(index, filterFields(indexMetaData.mapping(), fieldPredicate));
-            }
-            else {
-                indexMapBuilder.put(index, null);
-            }
+            Predicate<String> fieldPredicate = fieldFilter.apply(index);
+            indexMapBuilder.put(index, filterFields(indexMetaData.mapping(), fieldPredicate));
         }
         return indexMapBuilder.build();
     }
 
     @SuppressWarnings("unchecked")
     private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) throws IOException {
-        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE || mappingMetaData == null) {
             return mappingMetaData;
         }
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetaData.source().compressedReference(), true).v2();

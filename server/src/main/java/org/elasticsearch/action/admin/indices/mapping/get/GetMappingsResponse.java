@@ -30,17 +30,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private ImmutableOpenMap<String, MappingMetaData> mappings;
+    private final ImmutableOpenMap<String, MappingMetaData> mappings;
 
     public GetMappingsResponse(ImmutableOpenMap<String, MappingMetaData> mappings) {
         this.mappings = mappings;
@@ -51,21 +49,19 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         int size = in.readVInt();
         ImmutableOpenMap.Builder<String, MappingMetaData> indexMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
-            String key = in.readString();
+            String index = in.readString();
             if (in.getVersion().before(Version.V_8_0_0)) {
-                int valueSize = in.readVInt();
-                assert valueSize == 1 : "Expected single mapping but got " + valueSize;
-                String type = in.readString();
-                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] type but got [" + type + "]";
-                indexMapBuilder.put(key, new MappingMetaData(in));
+                int mappingCount = in.readVInt();
+                assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
+                if (mappingCount == 1) {
+                    String type = in.readString();
+                    assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got [" + type + "]";
+                    indexMapBuilder.put(index, new MappingMetaData(in));
+                }
             }
             else {
-                if (in.readBoolean()) {
-                    indexMapBuilder.put(key, new MappingMetaData(in));
-                }
-                else {
-                    indexMapBuilder.put(key, null);
-                }
+                boolean hasMapping = in.readBoolean();
+                indexMapBuilder.put(index, hasMapping ? new MappingMetaData(in) : null);
             }
         }
         mappings = indexMapBuilder.build();
@@ -85,9 +81,11 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         for (ObjectObjectCursor<String, MappingMetaData> indexEntry : mappings) {
             out.writeString(indexEntry.key);
             if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(1);
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                indexEntry.value.writeTo(out);
+                out.writeVInt(indexEntry.value == null ? 0 : 1);
+                if (indexEntry.value != null) {
+                    out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                    indexEntry.value.writeTo(out);
+                }
             }
             else {
                 out.writeBoolean(indexEntry.value != null);
@@ -96,24 +94,6 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                 }
             }
         }
-    }
-
-    public static GetMappingsResponse fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() == null) {
-            parser.nextToken();
-        }
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-        Map<String, Object> parts = parser.map();
-
-        ImmutableOpenMap.Builder<String, MappingMetaData> builder = new ImmutableOpenMap.Builder<>();
-        for (Map.Entry<String, Object> entry : parts.entrySet()) {
-            final String indexName = entry.getKey();
-            assert entry.getValue() instanceof Map : "expected a map as type mapping, but got: " + entry.getValue().getClass();
-            final Map<String, Object> mapping = (Map<String, Object>) ((Map) entry.getValue()).get(MAPPINGS.getPreferredName());
-            builder.put(indexName, new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mapping));
-        }
-
-        return new GetMappingsResponse(builder.build());
     }
 
     @Override

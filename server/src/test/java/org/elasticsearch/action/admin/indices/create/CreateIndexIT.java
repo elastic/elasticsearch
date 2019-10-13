@@ -127,12 +127,9 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
+        MappingMetaData mappings = response.mappings().get("test");
         assertNotNull(mappings);
-
-        MappingMetaData metadata = mappings.get("test");
-        assertNotNull(metadata);
-        assertFalse(metadata.sourceAsMap().isEmpty());
+        assertFalse(mappings.sourceAsMap().isEmpty());
     }
 
     public void testEmptyNestedMappings() throws Exception {
@@ -141,12 +138,9 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
+        MappingMetaData mappings = response.mappings().get("test");
         assertNotNull(mappings);
-
-        MappingMetaData metadata = mappings.get("test");
-        assertNotNull(metadata);
-        assertTrue(metadata.sourceAsMap().isEmpty());
+        assertTrue(mappings.sourceAsMap().isEmpty());
     }
 
     public void testMappingParamAndNestedMismatch() throws Exception {
@@ -165,12 +159,9 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
+        MappingMetaData mappings = response.mappings().get("test");
         assertNotNull(mappings);
-
-        MappingMetaData metadata = mappings.get("test");
-        assertNotNull(metadata);
-        assertTrue(metadata.sourceAsMap().isEmpty());
+        assertTrue(mappings.sourceAsMap().isEmpty());
     }
 
     public void testInvalidShardCountSettings() throws Exception {

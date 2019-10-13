@@ -22,26 +22,16 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetMappingsResponseTests extends AbstractSerializingTestCase<GetMappingsResponse> {
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
+public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<GetMappingsResponse> {
 
     public void testCheckEqualsAndHashCode() {
         GetMappingsResponse resp = createTestInstance();
@@ -49,19 +39,14 @@ public class GetMappingsResponseTests extends AbstractSerializingTestCase<GetMap
     }
 
     @Override
-    protected GetMappingsResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetMappingsResponse.fromXContent(parser);
-    }
-
-    @Override
     protected Writeable.Reader<GetMappingsResponse> instanceReader() {
         return GetMappingsResponse::new;
     }
 
-    private static GetMappingsResponse mutate(GetMappingsResponse original) throws IOException {
+    private static GetMappingsResponse mutate(GetMappingsResponse original) {
         ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(original.mappings());
         String indexKey = original.mappings().keys().iterator().next().value;
-        builder.put(indexKey, new MappingMetaData("type-" + randomAlphaOfLength(6), randomFieldMapping()));
+        builder.put(indexKey + "1", createMappingsForIndex());
         return new GetMappingsResponse(builder.build());
     }
 
@@ -72,29 +57,19 @@ public class GetMappingsResponseTests extends AbstractSerializingTestCase<GetMap
 
     public static MappingMetaData createMappingsForIndex() {
         try {
+            Map<String, Object> mappings = new HashMap<>();
             if (rarely() == false) { // rarely have no fields
-                Map<String, Object> mappings = new HashMap<>();
-                mappings.put("field-1", randomFieldMapping());
+                mappings.put("field", randomFieldMapping());
                 if (randomBoolean()) {
-                    mappings.put("field2-2", randomFieldMapping());
+                    mappings.put("field2", randomFieldMapping());
                 }
                 String typeName = MapperService.SINGLE_MAPPING_NAME;
                 return new MappingMetaData(typeName, mappings);
             }
-            return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
+            return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappings);
         } catch (IOException e) {
-            fail("shouldn't have failed " + e);
+            throw new AssertionError("shouldn't have failed " + e);
         }
-        return null;    // we never reach here
-    }
-
-    /**
-     * For xContent roundtrip testing we force the xContent output to still contain types because the parser
-     * still expects them. The new typeless parsing is implemented in the client side GetMappingsResponse.
-     */
-    @Override
-    protected Params getToXContentParams() {
-        return new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true"));
     }
 
     @Override

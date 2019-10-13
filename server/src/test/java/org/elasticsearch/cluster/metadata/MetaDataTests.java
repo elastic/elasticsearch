@@ -527,7 +527,8 @@ public class MetaDataTests extends ESTestCase {
         }
         {
             ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(
-                    new String[]{"index1", "index2"}, MapperPlugin.NOOP_FIELD_FILTER);
+                    new String[]{"index1", "index2"},
+                    MapperPlugin.NOOP_FIELD_FILTER);
             assertEquals(2, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");
             assertIndexMappingsNotFiltered(mappings, "index2");
@@ -586,7 +587,8 @@ public class MetaDataTests extends ESTestCase {
 
         {
             ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(
-                    new String[]{"index1", "index2", "index3"}, index -> {
+                    new String[]{"index1", "index2", "index3"},
+                    index -> {
                         if (index.equals("index1")) {
                             return field -> field.startsWith("name.") == false && field.startsWith("properties.key.") == false
                                     && field.equals("age") == false && field.equals("address.location") == false;
@@ -645,8 +647,8 @@ public class MetaDataTests extends ESTestCase {
 
         {
             ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(
-                new String[]{"index1", "index2", "index3"},
-                index -> field -> (index.equals("index3") && field.endsWith("keyword")));
+                    new String[]{"index1", "index2" , "index3"},
+                    index -> field -> (index.equals("index3") && field.endsWith("keyword")));
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index2");
@@ -679,7 +681,8 @@ public class MetaDataTests extends ESTestCase {
 
         {
             ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(
-                    new String[]{"index1", "index2", "index3"}, index -> field -> (index.equals("index2")));
+                    new String[]{"index1", "index2" , "index3"},
+                    index -> field -> (index.equals("index2")));
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index3");

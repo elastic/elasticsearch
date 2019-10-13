@@ -143,9 +143,11 @@ public class JobResultsProviderTests extends ESTestCase {
         clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
 
         GetMappingsResponse getMappingsResponse = mock(GetMappingsResponse.class);
-        ImmutableOpenMap<String, MappingMetaData> typeMappings = ImmutableOpenMap.<String, MappingMetaData>of();
 
-        when(getMappingsResponse.mappings()).thenReturn(typeMappings);
+        ImmutableOpenMap<String, MappingMetaData> mappings =
+                ImmutableOpenMap.<String, MappingMetaData>builder()
+                        .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), null).build();
+        when(getMappingsResponse.mappings()).thenReturn(mappings);
         clientBuilder.prepareGetMapping(getMappingsResponse);
 
         Job.Builder job = buildJobBuilder("foo123");

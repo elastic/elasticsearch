@@ -236,8 +236,6 @@ public class GetIndexIT extends ESIntegTestCase {
         assertThat(mappings.size(), equalTo(1));
         MappingMetaData indexMappings = mappings.get(indexName);
         assertThat(indexMappings, notNullValue());
-        assertThat(indexMappings, notNullValue());
-        assertThat(indexMappings.type(), equalTo("type1"));
     }
 
     private void assertEmptyOrOnlyDefaultMappings(GetIndexResponse response, String indexName) {

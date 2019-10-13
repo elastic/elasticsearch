@@ -335,23 +335,16 @@ public class DiskThresholdDecider extends AllocationDecider {
             // If there is no usage, and we have other nodes in the cluster,
             // use the average usage for all nodes as the usage for this node
             usage = averageUsage(node, usages);
-            if (logger.isDebugEnabled()) {
-                logger.debug("unable to determine disk usage for {}, defaulting to average across nodes [{} total] [{} free] [{}% free]",
-                        node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeDiskAsPercentage());
-            }
+            logger.debug("unable to determine disk usage for {}, defaulting to average across nodes [{} total] [{} free] [{}% free]",
+                    node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeDiskAsPercentage());
         }
 
-        if (diskThresholdSettings.includeRelocations()) {
-            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, subtractLeavingShards, usage.getPath());
-            DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().getName(), usage.getPath(),
-                    usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
-            if (logger.isTraceEnabled()) {
-                logger.trace("usage without relocations: {}", usage);
-                logger.trace("usage with relocations: [{} bytes] {}", relocatingShardsSize, usageIncludingRelocations);
-            }
-            usage = usageIncludingRelocations;
-        }
-        return usage;
+        final long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, subtractLeavingShards, usage.getPath());
+        final DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().getName(), usage.getPath(),
+                usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
+        logger.trace("getDiskUsage: usage [{}] with [{}] bytes relocating yields [{}]",
+                     usage, relocatingShardsSize, usageIncludingRelocations);
+        return usageIncludingRelocations;
     }
 
     /**

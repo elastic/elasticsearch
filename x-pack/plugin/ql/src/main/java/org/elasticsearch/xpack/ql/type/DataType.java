@@ -285,10 +285,6 @@ public enum DataType {
         return this == DATE || this == DATETIME;
     }
 
-    public boolean isDateOrIntervalBased(){
-        return isDateBased() || DataTypes.isInterval(this);
-    }
-
     public boolean isTimeBased() {
         return this == TIME;
     }

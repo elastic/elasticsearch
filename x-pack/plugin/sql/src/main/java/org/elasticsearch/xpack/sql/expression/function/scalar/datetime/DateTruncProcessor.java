@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -62,11 +60,10 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
             }
         }
 
-        if (!(source2 instanceof ZonedDateTime || source2 instanceof IntervalYearMonth || source2 instanceof IntervalDayTime)) {
-            throw new SqlIllegalArgumentException("A datetime/date/interval is required; received [{}]", source2);
+        if (source2 instanceof ZonedDateTime == false) {
+            throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", source2);
         }
-        if(source2 instanceof ZonedDateTime)
-            return truncateDateField.truncate(((ZonedDateTime) source2).withZoneSameInstant(zoneId));
-        return truncateDateField.truncate(source2);
+
+        return truncateDateField.truncate(((ZonedDateTime) source2).withZoneSameInstant(zoneId));
     }
 }

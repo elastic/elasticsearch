@@ -62,7 +62,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
         MockSearchFunction mockSearch = mockedSearchFunction(Map.of("key", Map.of("shape", "object", "zipcode",94040)));
         GeoMatchProcessor processor = new GeoMatchProcessor("_tag", mockSearch, "_name", "location", "entry",
             false, false, "shape", maxMatches, ShapeRelation.INTERSECTS);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL,
             Map.of("location", fieldValue));
         // Run
         IngestDocument[] holder = new IngestDocument[1];

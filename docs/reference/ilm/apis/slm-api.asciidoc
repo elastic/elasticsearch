@@ -681,7 +681,9 @@ Stop the Snapshot Lifecycle Management (SLM) plugin.
 Halts all snapshot lifecycle management operations and stops the SLM plugin.
 This is useful when you are performing maintenance on the cluster and need to
 prevent SLM from performing any actions on your indices. Note that this API does
-not stop any snapshots that are currently in progress.
+not stop any snapshots that are currently in progress, and that snapshots can
+still be taken manually via the <<slm-api-execute,Execute Policy API>> even
+when SLM is stopped.
 
 The API returns as soon as the stop request has been acknowledged, but the
 plugin might continue to run until in-progress operations complete and the plugin

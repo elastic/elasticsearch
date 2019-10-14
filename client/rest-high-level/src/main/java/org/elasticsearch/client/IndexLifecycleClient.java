@@ -609,7 +609,7 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Stop the Snapshot Lifecycle Management feature.
+     * Get the status of Snapshot Lifecycle Management.
      * See <pre>
      *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
      *  java-rest-high-ilm-slm-status.html
@@ -626,7 +626,7 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Asynchronously stop the Snapshot Lifecycle Management feature.
+     * Asynchronously get the status of Snapshot Lifecycle Management.
      * See <pre>
      *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
      *  java-rest-high-ilm-slm-status.html

@@ -124,13 +124,15 @@ public class RestClient implements Closeable {
      * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
      * Creates a new builder instance and sets the nodes that the client will send requests to.
      *
-     * @param cloudId a valid elastic cloud cloudId that will route to a cluster
+     * @param cloudId a valid elastic cloud cloudId that will route to a cluster. The cloudId is located in
+     *                the user console https://cloud.elastic.co and will resemble a string like the following
+     *                optionalHumanReadableName:dXMtZWFzdC0xLmF3cy5mb3VuZC5pbyRlbGFzdGljc2VhcmNoJGtpYmFuYQ==
      */
     public static RestClientBuilder builder(String cloudId) {
         // there is an optional first portion of the cloudId that is a human readable string, but it is not used.
         if (cloudId.contains(":")) {
             if (cloudId.indexOf(":") == cloudId.length() - 1) {
-                throw new IllegalStateException("cloudId " + cloudId + " is invalid");
+                throw new IllegalStateException("cloudId " + cloudId + " must begin with a human readable identifier followed by a colon");
             }
             cloudId = cloudId.substring(cloudId.indexOf(":") + 1);
         }
@@ -139,7 +141,7 @@ public class RestClient implements Closeable {
         // once decoded the parts are separated by a $ character
         String[] decodedParts = decoded.split("\\$");
         if (decodedParts.length != 3) {
-            throw new IllegalStateException("cloudId " + cloudId + " did not contain the correct number of parts");
+            throw new IllegalStateException("cloudId " + cloudId + " did not decode to a cluster identifier correctly");
         }
 
         String url = decodedParts[1]  + "." + decodedParts[0];

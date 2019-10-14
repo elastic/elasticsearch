@@ -173,16 +173,16 @@ public class RestClientBuilderTests extends RestClientTestCase {
         String badId = Base64.getEncoder().encodeToString("foo$bar".getBytes());
         try {
             RestClient.builder(badId);
-            fail("should hae failed");
+            fail("should have failed");
         } catch (IllegalStateException e) {
-            assertEquals("cloudId " + badId + " did not contain the correct number of parts", e.getMessage());
+                assertEquals("cloudId " + badId + " did not decode to a cluster identifier correctly", e.getMessage());
         }
 
         try {
             RestClient.builder(badId + ":");
-            fail("should hae failed");
+            fail("should have failed");
         } catch (IllegalStateException e) {
-            assertEquals("cloudId " + badId + ":" + " is invalid", e.getMessage());
+                assertEquals("cloudId " + badId + ":" + " must begin with a human readable identifier followed by a colon", e.getMessage());
         }
 
         RestClient client = RestClient.builder(encodedId).build();

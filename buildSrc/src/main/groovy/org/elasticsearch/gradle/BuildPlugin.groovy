@@ -63,6 +63,8 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.util.function.Supplier
 import java.util.regex.Matcher
+import java.util.regex.Pattern
+import java.util.stream.Stream
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -1118,7 +1120,26 @@ class BuildPlugin implements Plugin<Project> {
             }
             final String ref = readFirstLine(head);
             if (ref.startsWith("ref:")) {
-                revision = readFirstLine(gitDir.resolve(ref.substring("ref:".length()).trim()));
+                String refName = ref.substring("ref:".length()).trim()
+                Path refFile = gitDir.resolve(refName)
+                if (Files.exists(refFile)) {
+                    revision = readFirstLine(refFile)
+                } else if (Files.exists(dotGit.resolve("packed-refs"))) {
+                    // Check packed references for commit ID
+                    Pattern p = Pattern.compile("^([a-f1-9]{40}) " + refName + "\$")
+                    Stream<String> lines = Files.lines(dotGit.resolve("packed-refs"));
+                    try {
+                        revision = lines.map( { s -> p.matcher(s) })
+                                .filter( { m -> m.matches() })
+                                .map({ m -> m.group(1) })
+                                .findFirst()
+                                .orElseThrow({ -> new IOException("Packed reference not found for refName " + refName) });
+                    } finally {
+                        lines.close()
+                    }
+                } else {
+                    throw new GradleException("Can't find revision for refName " + refName);
+                }
             } else {
                 // we are in detached HEAD state
                 revision = ref;
@@ -1131,17 +1152,22 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String readFirstLine(final Path path) throws IOException {
-        return Files.lines(path, StandardCharsets.UTF_8)
-                .findFirst()
-                .orElseThrow(
-                        new Supplier<IOException>() {
+        Stream lines =  Files.lines(path, StandardCharsets.UTF_8)
+        try {
+            return Files.lines(path, StandardCharsets.UTF_8)
+                    .findFirst()
+                    .orElseThrow(
+                            new Supplier<IOException>() {
 
-                            @Override
-                            IOException get() {
-                                return new IOException("file [" + path + "] is empty");
-                            }
+                                @Override
+                                IOException get() {
+                                    return new IOException("file [" + path + "] is empty");
+                                }
 
-                        });
+                            });
+        } finally {
+            lines.close()
+        }
     }
 
     /** Configures the test task */

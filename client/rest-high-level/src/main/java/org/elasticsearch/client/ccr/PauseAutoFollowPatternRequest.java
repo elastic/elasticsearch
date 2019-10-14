@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,18 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.client.ml.dataframe;
+package org.elasticsearch.client.ccr;
 
-import java.util.Locale;
+import org.elasticsearch.client.Validatable;
 
-public enum DataFrameAnalyticsState {
-    STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED, STARTING;
+import java.util.Objects;
 
-    public static DataFrameAnalyticsState fromString(String name) {
-        return valueOf(name.trim().toUpperCase(Locale.ROOT));
+/**
+ * Request class for pause auto follow pattern api.
+ */
+public final class PauseAutoFollowPatternRequest implements Validatable {
+
+    private final String name;
+
+    /**
+     * Pause auto follow pattern with the specified name
+     *
+     * @param name The name of the auto follow pattern to pause
+     */
+    public PauseAutoFollowPatternRequest(String name) {
+        this.name = Objects.requireNonNull(name);
     }
 
-    public String value() {
-        return name().toLowerCase(Locale.ROOT);
+    public String getName() {
+        return name;
     }
 }

@@ -92,7 +92,7 @@ public class MlConfigMigrationEligibilityCheck {
 
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         return MlTasks.openJobIds(persistentTasks).contains(jobId) == false ||
-                MlTasks.unallocatedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
+                MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
     }
 
     /**
@@ -119,6 +119,6 @@ public class MlConfigMigrationEligibilityCheck {
 
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         return MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId) == false
-                || MlTasks.unallocatedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
+                || MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
     }
 }

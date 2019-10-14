@@ -166,7 +166,8 @@ public class TransportStartDataFrameAnalyticsAction
         ActionListener<StartContext> memoryUsageHandledListener = ActionListener.wrap(
             startContext -> {
                 StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
-                    request.getId(), startContext.config.getVersion(), startContext.progressOnStart);
+                    request.getId(), startContext.config.getVersion(), startContext.progressOnStart,
+                    startContext.config.isAllowLazyStart());
                 persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                     MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, taskParams, waitForAnalyticsToStart);
             },
@@ -432,6 +433,12 @@ public class TransportStartDataFrameAnalyticsAction
                 case STOPPING:
                     exception = ExceptionsHelper.conflictStatusException("the task has been stopped while waiting to be started");
                     return true;
+                // The STARTING case here is expected to be incredibly short-lived, just occurring during the
+                // time period when a job has successfully been assigned to a node but the request to update
+                // its task state is still in-flight.  (The long-lived STARTING case when a lazy node needs to
+                // be added to the cluster to accommodate the job was dealt with higher up this method when the
+                // magic AWAITING_LAZY_ASSIGNMENT assignment was checked for.)
+                case STARTING:
                 case STOPPED:
                     return false;
                 case FAILED:
@@ -548,7 +555,7 @@ public class TransportStartDataFrameAnalyticsAction
             }
 
             JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, id, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker,
-                maxLazyMLNodes, node -> nodeFilter(node, id));
+                params.isAllowLazyStart() ? Integer.MAX_VALUE : maxLazyMLNodes, node -> nodeFilter(node, id));
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
             return jobNodeSelector.selectNode(

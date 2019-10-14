@@ -978,17 +978,18 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(deleteResp.isAcknowledged());
 
         // tag::slm-delete-snapshot-lifecycle-policy-execute-listener
-        ActionListener<AcknowledgedResponse> deleteListener = new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse resp) {
-                boolean deleteAcknowledged = resp.isAcknowledged(); // <1>
-            }
+        ActionListener<AcknowledgedResponse> deleteListener =
+            new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse resp) {
+                    boolean deleteAcknowledged = resp.isAcknowledged(); // <1>
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                // <2>
-            }
-        };
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
         // end::slm-delete-snapshot-lifecycle-policy-execute-listener
 
         // tag::slm-delete-snapshot-lifecycle-policy-execute-async

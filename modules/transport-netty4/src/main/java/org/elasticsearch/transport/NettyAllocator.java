@@ -107,17 +107,19 @@ public class NettyAllocator {
 
         @Override
         public ByteBuf directBuffer() {
-            throw new UnsupportedOperationException("Direct buffers not supported.");
+            // TODO: Remove
+            return heapBuffer();
         }
 
         @Override
         public ByteBuf directBuffer(int initialCapacity) {
-            throw new UnsupportedOperationException("Direct buffers not supported.");
+            // TODO: Remove
+            return heapBuffer(initialCapacity);
         }
 
         @Override
         public ByteBuf directBuffer(int initialCapacity, int maxCapacity) {
-            throw new UnsupportedOperationException("Direct buffers not supported.");
+            return heapBuffer(initialCapacity, maxCapacity);
         }
 
         @Override

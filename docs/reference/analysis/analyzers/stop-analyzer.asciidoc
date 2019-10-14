@@ -5,7 +5,8 @@ The `stop` analyzer is the same as the <<analysis-simple-analyzer,`simple` analy
 but adds support for removing stop words.  It defaults to using the
 `_english_` stop words.
 
-See the link:https://github.com/elastic/elasticsearch/blob/master/docs/reference/analysis/analyzers/stop-analyzer-language-support.asciidoc[Stop Analyzer Language Support] for more information about supported stop word languages
+See the <<supported-stop-words>> for supported languages with links
+to default stop words.
 
 
 [float]

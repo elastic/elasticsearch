@@ -275,3 +275,9 @@ PUT /stop_example
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> You'd add any token filters after `english_stop`.
+
+[float]
+[[supported-stop-words]]
+=== Supported stop words by language
+
+include::stop-analyzer-language-support.asciidoc[]

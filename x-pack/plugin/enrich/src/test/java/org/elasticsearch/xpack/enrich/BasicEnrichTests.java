@@ -153,9 +153,11 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
         GetResponse getResponse = client().get(new GetRequest("my-index", "_id")).actionGet();
         Map<String, Object> source = getResponse.getSourceAsMap();
-        List<?> entries = (List<?>) source.get("enriched");
+        Map<?, ?> entries = (Map) source.get("enriched");
         assertThat(entries, notNullValue());
-        assertThat(entries.size(), equalTo(1));
+        assertThat(entries.size(), equalTo(2));
+        assertThat(entries.containsKey(matchField), is(true));
+        assertThat(entries.get(enrichField), equalTo("94040"));
 
         EnrichStatsAction.Response statsResponse =
             client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request()).actionGet();
@@ -204,7 +206,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
             Map<String, Object> source = getResponse.getSourceAsMap();
             assertThat(source.size(), equalTo(2));
-            assertThat(source.get("target"), equalTo(List.of(Map.of("key", "key", "value", "val" + i))));
+            assertThat(source.get("target"), equalTo(Map.of("key", "key", "value", "val" + i)));
         }
     }
 

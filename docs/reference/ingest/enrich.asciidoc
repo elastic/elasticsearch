@@ -239,16 +239,14 @@ The API returns the following response:
   "_seq_no": 55,
   "_primary_term": 1,
   "_source": {
-    "user": [
-      {
-          "email": "mardy.brown@asciidocsmith.com",
-          "first_name": "Mardy",
-          "last_name": "Brown",
-          "zip": 70116,
-          "city": "New Orleans",
-          "state": "LA"
-      }
-    ],
+    "user": {
+      "email": "mardy.brown@asciidocsmith.com",
+      "first_name": "Mardy",
+      "last_name": "Brown",
+      "zip": 70116,
+      "city": "New Orleans",
+      "state": "LA"
+    }
     "email": "mardy.brown@asciidocsmith.com"
   }
 }

@@ -614,8 +614,10 @@ The Java High Level REST Client supports the following Enrich APIs:
 * <<{upid}-enrich-delete-policy>>
 * <<{upid}-enrich-get-policy>>
 * <<{upid}-enrich-stats-policy>>
+* <<{upid}-enrich-execute-policy>>
 
 include::enrich/put_policy.asciidoc[]
 include::enrich/delete_policy.asciidoc[]
 include::enrich/get_policy.asciidoc[]
 include::enrich/stats.asciidoc[]
+include::enrich/execute_policy.asciidoc[]

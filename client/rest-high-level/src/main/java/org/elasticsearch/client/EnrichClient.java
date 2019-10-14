@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
+import org.elasticsearch.client.enrich.ExecutePolicyRequest;
+import org.elasticsearch.client.enrich.ExecutePolicyResponse;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
@@ -220,6 +222,51 @@ public final class EnrichClient {
             EnrichRequestConverters::stats,
             options,
             StatsResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Executes the execute policy api, which executes an enrich policy.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#execute-policy">
+     * the docs</a> for more.
+     *
+     * @param request the {@link ExecutePolicyRequest}
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ExecutePolicyResponse executePolicy(ExecutePolicyRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            EnrichRequestConverters::executePolicy,
+            options,
+            ExecutePolicyResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes the execute policy api, which executes an enrich policy.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#execute-policy">
+     * the docs</a> for more.
+     *
+     * @param request the {@link ExecutePolicyRequest}
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable executePolicyAsync(ExecutePolicyRequest request,
+                                          RequestOptions options,
+                                          ActionListener<ExecutePolicyResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            EnrichRequestConverters::executePolicy,
+            options,
+            ExecutePolicyResponse::fromXContent,
             listener,
             Collections.emptySet()
         );

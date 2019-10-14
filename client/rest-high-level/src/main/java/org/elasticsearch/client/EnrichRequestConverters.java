@@ -20,8 +20,10 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
+import org.elasticsearch.client.enrich.ExecutePolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.client.enrich.StatsRequest;
@@ -64,6 +66,19 @@ final class EnrichRequestConverters {
             .addPathPartAsIs("_enrich", "_stats")
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
+    static Request executePolicy(ExecutePolicyRequest executePolicyRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_enrich", "policy")
+            .addPathPart(executePolicyRequest.getName())
+            .addPathPartAsIs("_execute")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        if (executePolicyRequest.getWaitForCompletion() != null) {
+            request.addParameter("wait_for_completion", executePolicyRequest.getWaitForCompletion().toString());
+        }
+        return request;
     }
 
 }

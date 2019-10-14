@@ -70,7 +70,7 @@ A {dfeed} resource has the following properties:
   any initial training period) then it will automatically stop itself and
   close its associated job after this many real-time searches that return no
   documents. In other words, it will stop after `frequency` times
-  `stop_after_empty_search_responses` of real-time operation. If not set
+  `max_empty_searches` of real-time operation. If not set
   then a {dfeed} with no end time that sees no data will remain started until
   it is explicitly stopped. By default this setting is not set.
 

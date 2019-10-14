@@ -529,6 +529,8 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-put-auto-follow-pattern>>
 * <<{upid}-ccr-delete-auto-follow-pattern>>
 * <<{upid}-ccr-get-auto-follow-pattern>>
+* <<{upid}-ccr-pause-auto-follow-pattern>>
+* <<{upid}-ccr-resume-auto-follow-pattern>>
 * <<{upid}-ccr-get-stats>>
 * <<{upid}-ccr-get-follow-stats>>
 * <<{upid}-ccr-get-follow-info>>
@@ -541,6 +543,8 @@ include::ccr/forget_follower.asciidoc[]
 include::ccr/put_auto_follow_pattern.asciidoc[]
 include::ccr/delete_auto_follow_pattern.asciidoc[]
 include::ccr/get_auto_follow_pattern.asciidoc[]
+include::ccr/pause_auto_follow_pattern.asciidoc[]
+include::ccr/resume_auto_follow_pattern.asciidoc[]
 include::ccr/get_stats.asciidoc[]
 include::ccr/get_follow_stats.asciidoc[]
 include::ccr/get_follow_info.asciidoc[]

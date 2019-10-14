@@ -96,12 +96,17 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 }
 
                 if (overrideEnabled || ingestDocument.hasField(targetField) == false) {
-                    List<Map<String, Object>> enrichDocuments = new ArrayList<>(searchHits.length);
-                    for (SearchHit searchHit : searchHits) {
-                        Map<String, Object> enrichDocument = searchHit.getSourceAsMap();
-                        enrichDocuments.add(enrichDocument);
+                    if (maxMatches == 1) {
+                        Map<String, Object> firstDocument = searchHits[0].getSourceAsMap();
+                        ingestDocument.setFieldValue(targetField, firstDocument);
+                    } else {
+                        List<Map<String, Object>> enrichDocuments = new ArrayList<>(searchHits.length);
+                        for (SearchHit searchHit : searchHits) {
+                            Map<String, Object> enrichDocument = searchHit.getSourceAsMap();
+                            enrichDocuments.add(enrichDocument);
+                        }
+                        ingestDocument.setFieldValue(targetField, enrichDocuments);
                     }
-                    ingestDocument.setFieldValue(targetField, enrichDocuments);
                 }
                 handler.accept(ingestDocument, null);
             });

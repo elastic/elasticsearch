@@ -80,13 +80,12 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // Check if document has been enriched
         Request getRequest = new Request("GET", "/my-index/_doc/1");
         Map<String, Object> response = toMap(client().performRequest(getRequest));
-        List<?> entries = (List<?>) ((Map<?, ?>) response.get("_source")).get("entry");
-        Map<?, ?> _source = (Map<?, ?>) entries.get(0);
-        assertThat(_source.size(), equalTo(4));
-        assertThat(_source.get("host"), equalTo("elastic.co"));
-        assertThat(_source.get("tld"), equalTo("co"));
-        assertThat(_source.get("globalRank"), equalTo(25));
-        assertThat(_source.get("tldRank"), equalTo(7));
+        Map<?, ?> entry = (Map<?, ?>) ((Map<?, ?>) response.get("_source")).get("entry");
+        assertThat(entry.size(), equalTo(4));
+        assertThat(entry.get("host"), equalTo("elastic.co"));
+        assertThat(entry.get("tld"), equalTo("co"));
+        assertThat(entry.get("globalRank"), equalTo(25));
+        assertThat(entry.get("tldRank"), equalTo(7));
 
         if (deletePipeilne) {
             // delete the pipeline so the policies can be deleted

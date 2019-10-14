@@ -9,9 +9,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,9 +23,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,13 +49,20 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.ilm.action.RetryAction;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.ElasticsearchException.toUnderscoreCase;
+import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
 
@@ -60,6 +74,8 @@ public class IndexLifecycleRunner {
     private PolicyStepsRegistry stepRegistry;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
+    // TODO: ugh, state
+    private Map<Step, ActionListener<RetryAction.Response>> inProgressRetries = new ConcurrentHashMap<>();
 
     public IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ClusterService clusterService,
                                 ThreadPool threadPool, LongSupplier nowSupplier) {
@@ -118,7 +134,20 @@ public class IndexLifecycleRunner {
             logger.debug("policy [{}] for index [{}] complete, skipping execution", policy, index);
             return;
         } else if (currentStep instanceof ErrorStep) {
-            logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
+            Step failedStep = stepRegistry.getStep(indexMetaData, new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(),
+                lifecycleState.getFailedStep()));
+            if (failedStep.isRetryable() && !inProgressRetries.containsKey(failedStep)) {
+                ActionListener<RetryAction.Response> listener = createRetryFailedStepListener(policy, indexMetaData, failedStep);
+                // todo the key in this map needs to have the index and possibly policy name as well (but hopefully we won't need this map)
+                inProgressRetries.put(failedStep, listener);
+                if (isFailedStepFailureRetryable(lifecycleState)) {
+                    retryFailedStep("ilm-retry-failed-step", new RetryAction.Request(index), listener);
+                } else {
+                    logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
+                }
+            } else {
+                logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
+            }
             return;
         }
 
@@ -152,6 +181,99 @@ public class IndexLifecycleRunner {
         } else {
             logger.trace("[{}] ignoring non periodic step execution from step transition [{}]", index, currentStep.getKey());
         }
+    }
+
+    private ActionListener<RetryAction.Response> createRetryFailedStepListener(String policy, IndexMetaData indexMetaData,
+                                                                               Step failedStep) {
+        return new ActionListener<>() {
+            private static final int MAX_NUMBER_OF_RETRIES = 10;
+            private final Iterator<TimeValue> backoffIterator = exponentialBackoff(TimeValue.timeValueSeconds(5), MAX_NUMBER_OF_RETRIES).
+                iterator();
+
+            @Override
+            public void onResponse(RetryAction.Response response) {
+                inProgressRetries.remove(failedStep);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                String index = indexMetaData.getIndex().getName();
+                if (backoffIterator.hasNext()) {
+                    LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+                    // todo unify the mechanism to check if exceptions are retryable once we clarify if we'll use the metadata stuff
+                    // todo it's importat to test this again here as it might fail due to a different cause
+                    if (ElasticsearchException.getExceptionName(e).equals(toUnderscoreCase(ClusterBlockException.class.getSimpleName()))) {
+                        TimeValue scheduleRetryInterval = backoffIterator.next();
+                        logger.info("scheduling the retry of step [{}] as part of policy [{}] as it failed due to [{}]",
+                            lifecycleState.getFailedStep(), policy, e.getMessage());
+                        threadPool.scheduleWithFixedDelay(() -> retryFailedStep("ilm-retry-failed-step",
+                            new RetryAction.Request(indexMetaData.getIndex().getName()), this),
+                            scheduleRetryInterval, ThreadPool.Names.GENERIC);
+                    } else {
+                        logger.warn("policy [{} for index [{}] encountered a terminal error on step [{}], skipping execution", policy
+                            , index, lifecycleState.getFailedStep());
+                    }
+                } else {
+                    logger.debug("policy [{}] for index [{}] on an error step after [{}] retries, skipping execution", policy, index,
+                        MAX_NUMBER_OF_RETRIES);
+                }
+            }
+        };
+    }
+
+    void retryFailedStep(String source, RetryAction.Request request, ActionListener<RetryAction.Response> listener) {
+        clusterService.submitStateUpdateTask(source,
+            new AckedClusterStateUpdateTask<>(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return moveClusterStateToFailedStep(currentState, request.indices());
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    for (String index : request.indices()) {
+                        IndexMetaData idxMeta = newState.metaData().index(index);
+                        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+                        StepKey retryStep = new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getStep());
+                        if (idxMeta == null) {
+                            // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
+                            logger.debug("index [" + index + "] has been deleted after moving to step [" +
+                                lifecycleState.getStep() + "], skipping async action check");
+                            return;
+                        }
+                        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
+                        maybeRunAsyncAction(newState, idxMeta, policyName, retryStep);
+                    }
+                }
+
+                @Override
+                protected RetryAction.Response newResponse(boolean acknowledged) {
+                    return new RetryAction.Response(acknowledged);
+                }
+            });
+    }
+
+    private boolean isFailedStepFailureRetryable(LifecycleExecutionState lifecycleState) {
+        try {
+            XContentParser parser =
+                JsonXContent.jsonXContent.createParser(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, lifecycleState.getStepInfo());
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ElasticsearchException elasticsearchException = ElasticsearchException.fromXContent(parser);
+            String exceptionMessage = elasticsearchException.getDetailedMessage();
+            int typeIndex = exceptionMessage.indexOf("type=");
+            int endTypeIndex = exceptionMessage.indexOf(",", typeIndex);
+            if (typeIndex != -1 && endTypeIndex != -1) {
+                String exceptionType = exceptionMessage.substring(typeIndex + 5, endTypeIndex);
+                // todo whitelist a series of retryable exceptions (in underscore case)
+                if (exceptionType.equals(toUnderscoreCase(ClusterBlockException.class.getSimpleName()))) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
+
+        }
+        return false;
     }
 
     /**
@@ -219,7 +341,20 @@ public class IndexLifecycleRunner {
             logger.debug("policy [{}] for index [{}] complete, skipping execution", policy, index);
             return;
         } else if (currentStep instanceof ErrorStep) {
-            logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
+            Step failedStep = stepRegistry.getStep(indexMetaData, new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(),
+                lifecycleState.getFailedStep()));
+            if (failedStep.isRetryable()) {
+                ActionListener<RetryAction.Response> listener = createRetryFailedStepListener(policy, indexMetaData, failedStep);
+                // todo the key in this map needs to have the index and possibly policy name as well (but hopefully we won't need this map)
+                inProgressRetries.put(failedStep, listener);
+                if (isFailedStepFailureRetryable(lifecycleState)) {
+                    retryFailedStep("ilm-retry-failed-step", new RetryAction.Request(index), listener);
+                } else {
+                    logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
+                }
+            } else {
+                logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
+            }
             return;
         }
 

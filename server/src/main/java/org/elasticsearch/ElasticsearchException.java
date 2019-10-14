@@ -1143,7 +1143,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     // lower cases and adds underscores to transitions in a name
-    private static String toUnderscoreCase(String value) {
+    public static String toUnderscoreCase(String value) {
         StringBuilder sb = new StringBuilder();
         boolean changed = false;
         for (int i = 0; i < value.length(); i++) {

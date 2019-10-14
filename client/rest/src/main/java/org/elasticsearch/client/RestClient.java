@@ -74,6 +74,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
 
 /**
@@ -137,7 +138,7 @@ public class RestClient implements Closeable {
             cloudId = cloudId.substring(cloudId.indexOf(":") + 1);
         }
 
-        String decoded = new String(Base64.getDecoder().decode(cloudId));
+        String decoded = new String(Base64.getDecoder().decode(cloudId), UTF_8);
         // once decoded the parts are separated by a $ character
         String[] decodedParts = decoded.split("\\$");
         if (decodedParts.length != 3) {

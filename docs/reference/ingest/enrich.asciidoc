@@ -188,7 +188,7 @@ Because the `max_matches` option for the enrich processor is `1`,
 the enrich processor appends the data from only the best matching document
 to the target field as an object.
 
-If `max_matches` option were greater than `1`,
+If the `max_matches` option were greater than `1`,
 the processor could append data from up to the `max_matches` number of documents
 to the target field as an array.
 

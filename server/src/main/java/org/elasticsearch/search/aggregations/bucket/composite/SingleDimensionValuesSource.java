@@ -148,7 +148,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     abstract SortedDocsProducer createSortedDocsProducerOrNull(Query query);
 
     /**
-     * Check if this source could produce sorted docs, then could optimize the query.
+     * Check if this source could produce sorted docs to optimize the execution.
      */
     abstract boolean canBeOptimizedBySortedDocs(IndexReader reader, Query query);
 

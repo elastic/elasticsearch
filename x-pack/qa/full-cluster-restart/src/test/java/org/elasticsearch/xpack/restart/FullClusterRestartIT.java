@@ -44,9 +44,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
-    public static final String INDEX_ACTION_TYPES_DEPRECATION_MESSAGE =
-        "[types removal] Specifying types in a watcher index action is deprecated.";
-
     public static final int UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION = 6;
     public static final int SECURITY_EXPECTED_INDEX_FORMAT_VERSION = 6;
 
@@ -121,10 +118,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
             Request createBwcWatch = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_watch");
             Request createBwcThrottlePeriod = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_throttle_period");
-            if (getOldClusterVersion().onOrAfter(Version.V_7_0_0)) {
-                createBwcWatch.setOptions(expectWarnings(INDEX_ACTION_TYPES_DEPRECATION_MESSAGE));
-                createBwcThrottlePeriod.setOptions(expectWarnings(INDEX_ACTION_TYPES_DEPRECATION_MESSAGE));
-            }
+
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
 
@@ -285,11 +279,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void assertWatchIndexContentsWork() throws Exception {
         // Fetch a basic watch
         Request getRequest = new Request("GET", "_watcher/watch/bwc_watch");
-        getRequest.setOptions(
-            expectWarnings(
-                INDEX_ACTION_TYPES_DEPRECATION_MESSAGE
-            )
-        );
 
         Map<String, Object> bwcWatch = entityAsMap(client().performRequest(getRequest));
 
@@ -306,11 +295,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Fetch a watch with "fun" throttle periods
         getRequest = new Request("GET", "_watcher/watch/bwc_throttle_period");
-        getRequest.setOptions(
-            expectWarnings(
-                INDEX_ACTION_TYPES_DEPRECATION_MESSAGE
-            )
-        );
 
         bwcWatch = entityAsMap(client().performRequest(getRequest));
         assertThat(bwcWatch.get("found"), equalTo(true));

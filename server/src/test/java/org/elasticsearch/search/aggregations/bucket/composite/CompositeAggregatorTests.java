@@ -661,8 +661,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             new SortedNumericSortField("long", SortField.Type.LONG)
         );
 
-        testSearchCase(Arrays.asList(new TermQuery(new Term("foo", "bar")),
-            new DocValuesFieldExistsQuery("keyword")), dataset,
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")), dataset,
             () -> new CompositeAggregationBuilder("name",
                 Arrays.asList(
                     new TermsValuesSourceBuilder("keyword").field("keyword"),
@@ -681,7 +680,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
         );
 
-        Query query = new DocValuesFieldExistsQuery("keyword");
+        // none match all query also could be optimized
+        Query query = new TermQuery(new Term("foo", "bar"));
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder("name",
             Arrays.asList(
                 new TermsValuesSourceBuilder("keyword").field("keyword"),
@@ -715,6 +715,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 indexSearcher.search(query, a);
                 a.postCollection();
 
+                // check start doc id filtered and early terminated
                 assertEquals(a.getStartDocId(), 2);
                 assertTrue(a.getQueue().isEarlyTerminate());
 

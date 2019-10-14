@@ -204,6 +204,7 @@ public class BulkProcessor implements Closeable {
         Objects.requireNonNull(consumer, "consumer");
         Objects.requireNonNull(listener, "listener");
         final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = Scheduler.initScheduler(Settings.EMPTY);
+        scheduledThreadPoolExecutor.setCorePoolSize(2);
         return new Builder(consumer, listener,
             buildScheduler(scheduledThreadPoolExecutor),
                 () -> Scheduler.terminate(scheduledThreadPoolExecutor, 10, TimeUnit.SECONDS));

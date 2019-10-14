@@ -187,7 +187,7 @@ public class HttpExporter extends Exporter {
                         new Setting.Validator<String>() {
                             @Override
                             public void validate(String password) {
-
+                                // no password validation that is independent of other settings
                             }
 
                             @Override

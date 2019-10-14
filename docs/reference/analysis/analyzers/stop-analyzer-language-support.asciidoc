@@ -3,7 +3,7 @@
 The following table contains a list of supported languages
 with links to default stop words.
 
-[width="100%"]
+[options="header"]
 |=======
 |Language |Source
 

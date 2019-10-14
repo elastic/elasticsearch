@@ -29,8 +29,7 @@ public enum DataFrameAnalyticsState implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         DataFrameAnalyticsState toWrite = this;
-        // TODO: change version in backport
-        if (out.getVersion().before(Version.V_8_0_0) && toWrite == STARTING) {
+        if (out.getVersion().before(Version.V_7_5_0) && toWrite == STARTING) {
             // Before 7.5.0 there was no STARTING state and jobs for which
             // tasks existed but were unassigned were considered STOPPED
             toWrite = STOPPED;

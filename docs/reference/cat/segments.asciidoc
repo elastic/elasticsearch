@@ -13,6 +13,8 @@ API.
 
 `GET /_cat/segments/<index>`
 
+`GET /_cat/segments`
+
 
 [[cat-segments-path-params]]
 ==== {api-path-parms-title}

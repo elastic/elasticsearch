@@ -7,10 +7,9 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -39,10 +38,10 @@ public class Mul extends ArithmeticOperation {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (DataTypes.isInterval(l) && r.isInteger()) {
+        if (l.isInterval() && r.isInteger()) {
             dataType = l;
             return TypeResolution.TYPE_RESOLVED;
-        } else if (DataTypes.isInterval(r) && l.isInteger()) {
+        } else if (r.isInterval() && l.isInteger()) {
             dataType = r;
             return TypeResolution.TYPE_RESOLVED;
         }

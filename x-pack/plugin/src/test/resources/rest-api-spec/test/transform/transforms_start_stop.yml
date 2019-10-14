@@ -28,6 +28,24 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-stop-cont" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
 
 ---
 teardown:
@@ -39,7 +57,14 @@ teardown:
   - do:
       transform.delete_transform:
         transform_id: "airline-transform-start-stop"
-
+  - do:
+      transform.stop_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+        timeout: "10m"
+        wait_for_completion: true
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-start-stop-continuous"
 ---
 "Test start transform":
   - do:
@@ -103,7 +128,6 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       transform.stop_transform:
@@ -128,29 +152,9 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state: "/started|indexing/" }
 ---
 "Test start/stop/start continuous transform":
   - do:
-      transform.put_transform:
-        transform_id: "airline-transform-start-stop-continuous"
-        body: >
-          {
-            "source": { "index": "airline-data" },
-            "dest": { "index": "airline-data-by-airline-start-stop-cont" },
-            "pivot": {
-              "group_by": { "airline": {"terms": {"field": "airline"}}},
-              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
-            },
-            "sync": {
-              "time": {
-                "field": "time",
-                "delay": "90m"
-              }
-            }
-          }
-
-  - do:
       transform.start_transform:
         transform_id: "airline-transform-start-stop-continuous"
   - match: { acknowledged: true }
@@ -192,10 +196,6 @@ teardown:
         transform_id: "airline-transform-start-stop-continuous"
         wait_for_completion: true
   - match: { acknowledged: true }
-
-  - do:
-      transform.delete_transform:
-        transform_id: "airline-transform-start-stop-continuous"
 ---
 "Test stop missing transform":
   - do:
@@ -235,18 +235,24 @@ teardown:
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
             }
           }
   - do:
       transform.start_transform:
-        transform_id: "airline-transform-start-stop"
+        transform_id: "airline-transform-start-stop-continuous"
   - match: { acknowledged: true }
 
   - do:
       transform.get_transform_stats:
-        transform_id: "airline-transform-start-stop"
+        transform_id: "airline-transform-start-stop-continuous"
   - match: { count: 1 }
-  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
   - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
@@ -263,7 +269,7 @@ teardown:
 
   - do:
       transform.stop_transform:
-        transform_id: "airline-transform-start-stop"
+        transform_id: "airline-transform-start-stop-continuous"
         wait_for_completion: true
   - match: { acknowledged: true }
 
@@ -306,7 +312,7 @@ teardown:
 
   - do:
       transform.start_transform:
-        transform_id: "airline-transform-start-stop"
+        transform_id: "airline-transform-start-stop-continuous"
   - match: { acknowledged: true }
 
   - do:
@@ -318,7 +324,7 @@ teardown:
   - do:
       transform.get_transform_stats:
         transform_id: "*"
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { transforms.0.state: "stopped" }
   - match: { transforms.1.state: "stopped" }
 

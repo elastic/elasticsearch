@@ -153,6 +153,12 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
+    public Map<String, Long> getFieldCardinalityLimits() {
+        // This restriction is due to the fact that currently the C++ backend only supports binomial classification.
+        return Collections.singletonMap(dependentVariable, 2L);
+    }
+
+    @Override
     public boolean supportsMissingValues() {
         return true;
     }

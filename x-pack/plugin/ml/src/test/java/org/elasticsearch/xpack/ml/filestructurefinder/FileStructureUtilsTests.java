@@ -194,7 +194,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().getJavaTimestampFormats(), contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"));
+        assertThat(match.v2().getJavaTimestampFormats(), contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().getGrokPatternName());
     }
 
@@ -227,7 +227,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("time2", match.v1());
-        assertThat(match.v2().getJavaTimestampFormats(), contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"));
+        assertThat(match.v2().getJavaTimestampFormats(), contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().getGrokPatternName());
     }
 

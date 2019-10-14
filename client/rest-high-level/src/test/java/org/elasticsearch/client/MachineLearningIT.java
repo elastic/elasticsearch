@@ -1746,7 +1746,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new EvaluateDataFrameRequest(
                 regressionIndex,
                 null,
-                new Regression(actualRegression, probabilityRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
+                new Regression(actualRegression, predictedRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
 
         EvaluateDataFrameResponse evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -1892,7 +1892,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     private static final String actualRegression = "regression_actual";
-    private static final String probabilityRegression = "regression_prob";
+    private static final String predictedRegression = "regression_predicted";
 
     private static XContentBuilder mappingForRegression() throws IOException {
         return XContentFactory.jsonBuilder().startObject()
@@ -1900,17 +1900,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .startObject(actualRegression)
                     .field("type", "double")
                 .endObject()
-                .startObject(probabilityRegression)
+                .startObject(predictedRegression)
                     .field("type", "double")
                 .endObject()
             .endObject()
         .endObject();
     }
 
-    private static IndexRequest docForRegression(String indexName, double act, double p) {
+    private static IndexRequest docForRegression(String indexName, double actualValue, double predictedValue) {
         return new IndexRequest()
             .index(indexName)
-            .source(XContentType.JSON, actualRegression, act, probabilityRegression, p);
+            .source(XContentType.JSON, actualRegression, actualValue, predictedRegression, predictedValue);
     }
 
     private void createIndex(String indexName, XContentBuilder mapping) throws IOException {
@@ -2177,7 +2177,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
 
         String snapshotUpdate = "{ \"timestamp\": " + timestamp + "}";
-        UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, "_doc", documentId);
+        UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, documentId);
         updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
     }
@@ -2197,7 +2197,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         Job job = MachineLearningIT.buildJob(jobId);
         highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2217,7 +2217,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         for(String snapshotId : snapshotIds) {
             String documentId = jobId + "_model_snapshot_" + snapshotId;
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
                 "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +

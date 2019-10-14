@@ -15,6 +15,13 @@
           }
         }
       ]
+    },
+    "params":{
+      "wait_for_completion":{
+        "type":"boolean",
+        "default":true,
+        "description":"Should the request should block until the execution is complete."
+      }
     }
   }
 }

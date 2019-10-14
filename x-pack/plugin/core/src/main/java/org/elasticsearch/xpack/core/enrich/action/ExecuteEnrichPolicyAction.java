@@ -30,24 +30,37 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
     public static class Request extends MasterNodeRequest<Request> {
 
         private final String name;
+        private boolean waitForCompletion;
 
         public Request(String name) {
             this.name = Objects.requireNonNull(name, "name cannot be null");
+            this.waitForCompletion = true;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readString();
+            waitForCompletion = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
+            out.writeBoolean(waitForCompletion);
         }
 
         public String getName() {
             return name;
+        }
+
+        public boolean isWaitForCompletion() {
+            return waitForCompletion;
+        }
+
+        public Request setWaitForCompletion(boolean waitForCompletion) {
+            this.waitForCompletion = waitForCompletion;
+            return this;
         }
 
         @Override
@@ -66,12 +79,13 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name);
+            return waitForCompletion == request.waitForCompletion &&
+                Objects.equals(name, request.name);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
+            return Objects.hash(name, waitForCompletion);
         }
     }
 

@@ -323,15 +323,13 @@ The API returns the following response:
   "_seq_no": 55,
   "_primary_term": 1,
   "_source": {
-    "geo_data": [
-        {
-            "location": {
-                "type": "envelope",
-                "coordinates": [[13.0, 53.0], [14.0, 52.0]]
-            },
-            "postal_code": "96598"
-        }
-    ],
+    "geo_data": {
+      "location": {
+        "type": "envelope",
+        "coordinates": [[13.0, 53.0], [14.0, 52.0]]
+      },
+      "postal_code": "96598"
+    },
     "first_name": "Mardy",
     "last_name": "Brown",
     "geo_location": "POINT (13.5 52.5)"

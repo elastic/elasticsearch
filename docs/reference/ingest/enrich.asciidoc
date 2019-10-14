@@ -167,7 +167,8 @@ PUT /_ingest/pipeline/user_lookup
       "enrich" : {
         "policy_name": "users-policy",
         "field" : "email",
-        "target_field": "user"
+        "target_field": "user",
+        "max_matches": "1"
       }
     }
   ]
@@ -175,33 +176,37 @@ PUT /_ingest/pipeline/user_lookup
 ----
 // TEST[continued]
 
+Because the enrich policy type is `match`,
+the enrich processor matches incoming documents
+to documents in the enrich index
+based on match field values.
+The enrich processor then appends the enrich field data 
+from matching documents in the enrich index
+to the target field of incoming documents.
+
+Because the `max_matches` option for the enrich processor is `1`,
+the enrich processor appends the data from only the best matching document
+to each incoming document's target field as an object.
+
+If the `max_matches` option were greater than `1`,
+the processor could append data from up to the `max_matches` number of documents
+to the target field as an array.
+
+If the incoming document matches no documents in the enrich index,
+the processor appends no data.
+
 You also can add other <<ingest-processors,processors>>
 to your ingest pipeline.
 You can use these processors to change or drop incoming documents
 based on your criteria.
-
 See <<ingest-processors>> for a list of built-in processors.
+
 
 [float]
 [[ingest-enrich-docs]]
 ==== Ingest and enrich documents
 
 Index incoming documents using your ingest pipeline.
-
-Because the enrich policy type is `match`,
-the enrich processor matches incoming documents
-to documents in the enrich index
-based on match field values.
-The processor then appends the enrich field data 
-from any matching document in the enrich index
-to target field of the incoming document.
-
-The enrich processor appends all data to the target field as an array.
-If the incoming document matches more than one document in the enrich index,
-the processor appends data from those documents to the array.
-
-If the incoming document matches no documents in the enrich index,
-the processor appends no data.
 
 The following <<docs-index_,index API>> request uses the ingest pipeline
 to index a document
@@ -240,16 +245,14 @@ The API returns the following response:
   "_seq_no": 55,
   "_primary_term": 1,
   "_source": {
-    "user": [
-      {
-          "email": "mardy.brown@asciidocsmith.com",
-          "first_name": "Mardy",
-          "last_name": "Brown",
-          "zip": 70116,
-          "city": "New Orleans",
-          "state": "LA"
-      }
-    ],
+    "user": {
+      "email": "mardy.brown@asciidocsmith.com",
+      "first_name": "Mardy",
+      "last_name": "Brown",
+      "zip": 70116,
+      "city": "New Orleans",
+      "state": "LA"
+    },
     "email": "mardy.brown@asciidocsmith.com"
   }
 }

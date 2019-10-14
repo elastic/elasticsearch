@@ -209,10 +209,9 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public void testNumericValue() {
-        int maxMatches = randomIntBetween(1, 8);
         MockSearchFunction mockSearch = mockedSearchFunction(mapOf(2, mapOf("globalRank", 451, "tldRank", 23, "tld", "co")));
         MatchProcessor processor =
-            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", maxMatches);
+            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", 1);
         IngestDocument ingestDocument =
             new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL, mapOf("domain", 2));
 
@@ -230,8 +229,7 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(termQueryBuilder.value(), equalTo(2));
 
         // Check result
-        List<?> entries = ingestDocument.getFieldValue("entry", List.class);
-        Map<?, ?> entry = (Map<?, ?>) entries.get(0);
+        Map<?, ?> entry = ingestDocument.getFieldValue("entry", Map.class);
         assertThat(entry.size(), equalTo(3));
         assertThat(entry.get("globalRank"), equalTo(451));
         assertThat(entry.get("tldRank"), equalTo(23));
@@ -239,11 +237,10 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public void testArray() {
-        int maxMatches = randomIntBetween(1, 8);
         MockSearchFunction mockSearch =
             mockedSearchFunction(mapOf(Arrays.asList("1", "2"), mapOf("globalRank", 451, "tldRank", 23, "tld", "co")));
         MatchProcessor processor =
-            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", maxMatches);
+            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", 1);
         IngestDocument ingestDocument =
             new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL, mapOf("domain", Arrays.asList("1", "2")));
 
@@ -263,8 +260,7 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(termQueryBuilder.values().get(1), equalTo("2"));
 
         // Check result
-        List<?> entries = ingestDocument.getFieldValue("entry", List.class);
-        Map<?, ?> entry = (Map<?, ?>) entries.get(0);
+        Map<?, ?> entry = ingestDocument.getFieldValue("entry", Map.class);
         assertThat(entry.size(), equalTo(3));
         assertThat(entry.get("globalRank"), equalTo(451));
         assertThat(entry.get("tldRank"), equalTo(23));

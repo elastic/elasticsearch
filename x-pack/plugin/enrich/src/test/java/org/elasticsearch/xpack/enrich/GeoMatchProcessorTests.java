@@ -95,8 +95,13 @@ public class GeoMatchProcessorTests extends ESTestCase {
         assertThat(shapeQueryBuilder.shape(), equalTo(expectedGeometry));
 
         // Check result
-        List<?> entries = ingestDocument.getFieldValue("entry", List.class);
-        Map<?, ?> entry = (Map<?, ?>) entries.get(0);
+        Map<?, ?> entry;
+        if (maxMatches == 1) {
+            entry = ingestDocument.getFieldValue("entry", Map.class);
+        } else {
+            List<?> entries = ingestDocument.getFieldValue("entry", List.class);
+            entry = (Map<?, ?>) entries.get(0);
+        }
         assertThat(entry.size(), equalTo(2));
         assertThat(entry.get("zipcode"), equalTo(94040));
 

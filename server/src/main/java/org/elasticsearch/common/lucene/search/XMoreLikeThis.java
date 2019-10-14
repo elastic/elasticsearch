@@ -727,6 +727,10 @@ public final class XMoreLikeThis {
         int numDocs = ir.numDocs();
         final int limit = Math.min(maxQueryTerms, words.size());
         FreqQ queue = new FreqQ(limit); // will order words by score
+        
+        if (limit == 0) {
+            return queue;
+        }
 
         for (String word : words.keySet()) { // for every word
             int tf = words.get(word).x; // term freq in the source doc

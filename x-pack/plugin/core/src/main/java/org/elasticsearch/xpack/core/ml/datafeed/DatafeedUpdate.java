@@ -151,8 +151,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         } else {
             delayedDataCheckConfig = null;
         }
-        // TODO: change version in backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             maxEmptySearches = in.readOptionalInt();
         } else {
             maxEmptySearches = null;
@@ -202,8 +201,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeOptionalWriteable(delayedDataCheckConfig);
         }
-        // TODO: change version in backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalInt(maxEmptySearches);
         }
     }

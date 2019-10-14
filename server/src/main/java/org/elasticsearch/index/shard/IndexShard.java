@@ -2619,6 +2619,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.removePeerRecoveryRetentionLease(nodeId, listener);
     }
 
+    /**
+     * Returns a list of retention leases for peer recovery installed in this shard copy.
+     */
+    public List<RetentionLease> getPeerRecoveryRetentionLeases() {
+        return replicationTracker.getPeerRecoveryRetentionLeases();
+    }
+
     private SafeCommitInfo getSafeCommitInfo() {
         final Engine engine = getEngineOrNull();
         return engine == null ? SafeCommitInfo.EMPTY : engine.getSafeCommitInfo();

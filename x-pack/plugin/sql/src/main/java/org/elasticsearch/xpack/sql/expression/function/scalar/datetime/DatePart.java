@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -93,11 +92,6 @@ public class DatePart extends BinaryDateTimeFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, DatePart::new, left(), right(), zoneId());
-    }
-
-    @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
     }
 
     @Override

@@ -429,7 +429,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             for (int i = 0; i < size; i++) {
                 DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
                 ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
-                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.type(), writeRequest.id(), 1, 1, 1, true);
+                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.id(), 1, 1, 1, true);
                 bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
             }
 
@@ -455,7 +455,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             for (int i = 0; i < size; i++) {
                 DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
                 ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
-                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.type(), writeRequest.id(), 1, 1, 1, true);
+                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.id(), 1, 1, 1, true);
                 bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
             }
 

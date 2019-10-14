@@ -120,7 +120,7 @@ $ cat requests
 { "index" : { "_index" : "test", "_id" : "1" } }
 { "field1" : "value1" }
 $ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
-{"took":7, "errors": false, "items":[{"index":{"_index":"test","_type":"_doc","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
+{"took":7, "errors": false, "items":[{"index":{"_index":"test","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
 --------------------------------------------------
 // NOTCONSOLE
 // Not converting to console because this shows how curl works
@@ -240,7 +240,6 @@ The API returns the following result:
       {
          "index": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "1",
             "_version": 1,
             "result": "created",
@@ -257,7 +256,6 @@ The API returns the following result:
       {
          "delete": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "2",
             "_version": 1,
             "result": "not_found",
@@ -274,7 +272,6 @@ The API returns the following result:
       {
          "create": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "3",
             "_version": 1,
             "result": "created",
@@ -291,7 +288,6 @@ The API returns the following result:
       {
          "update": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "1",
             "_version": 2,
             "result": "updated",

@@ -666,7 +666,7 @@ POST _reindex
 }
 --------------------------------------------------
 // TEST[setup:twitter]
-// TEST[s/^/PUT blog\/post\/post1?refresh\n{"test": "foo"}\n/]
+// TEST[s/^/PUT blog\/_doc\/post1?refresh\n{"test": "foo"}\n/]
 
 NOTE: The Reindex API makes no effort to handle ID collisions so the last
 document written will "win" but the order isn't usually predictable so it is

@@ -901,6 +901,85 @@ setup:
         id: "missing_config"
 
 ---
+"Test delete given config and state documents":
+  - skip:
+      features: headers
+  - do:
+      ml.put_data_frame_analytics:
+        id: "delete_foo"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"regression":{
+                "dependent_variable": "to_predict"
+            }}
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: "delete_foo_regression_state#1"
+        body: >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: "data_frame_analytics-delete_foo-progress"
+        body: >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: .ml-state
+
+  - do:
+      search:
+        index: .ml-state
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "data_frame_analytics-delete_foo-progress"
+                    - "delete_foo_regression_state#1"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      ml.delete_data_frame_analytics:
+        id: "delete_foo"
+  - match: { acknowledged: true }
+
+  - do:
+      search:
+        index: .ml-state*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "data_frame_analytics-delete_foo-progress"
+                    - "delete_foo_regression_state#1"
+  - match: { hits.total.value: 0 }
+
+---
 "Test max model memory limit":
   - skip:
       features: headers

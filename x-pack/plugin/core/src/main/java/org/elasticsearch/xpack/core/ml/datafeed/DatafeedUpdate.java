@@ -411,7 +411,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && (aggProvider == null || Objects.equals(aggProvider.getAggs(), datafeed.getAggregations()))
                 && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
                 && (delayedDataCheckConfig == null || Objects.equals(delayedDataCheckConfig, datafeed.getDelayedDataCheckConfig()))
-                && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()));
+                && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()))
+                && (maxEmptySearches == null || Objects.equals(maxEmptySearches, datafeed.getMaxEmptySearches()));
     }
 
     public static class Builder {

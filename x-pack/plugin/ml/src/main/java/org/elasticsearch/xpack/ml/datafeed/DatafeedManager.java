@@ -232,7 +232,7 @@ public class DatafeedManager {
                     long nextDelayInMsSinceEpoch;
                     try {
                         nextDelayInMsSinceEpoch = holder.executeRealTime();
-                        holder.problemTracker.reportNonEmptyCount();
+                        holder.problemTracker.reportNonEmptyDataCount();
                     } catch (DatafeedJob.ExtractionProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
                         holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());

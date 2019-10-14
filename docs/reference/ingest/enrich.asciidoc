@@ -246,7 +246,7 @@ The API returns the following response:
       "zip": 70116,
       "city": "New Orleans",
       "state": "LA"
-    }
+    },
     "email": "mardy.brown@asciidocsmith.com"
   }
 }

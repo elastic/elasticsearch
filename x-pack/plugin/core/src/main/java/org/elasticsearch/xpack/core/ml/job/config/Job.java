@@ -233,8 +233,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
         resultsIndexName = in.readString();
         deleting = in.readBoolean();
-        // TODO: change version in backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             allowLazyOpen = in.readBoolean();
         } else {
             allowLazyOpen = false;
@@ -509,8 +508,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
         out.writeString(resultsIndexName);
         out.writeBoolean(deleting);
-        // TODO: change version in backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeBoolean(allowLazyOpen);
         }
     }
@@ -740,8 +738,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
             resultsIndexName = in.readOptionalString();
             deleting = in.readBoolean();
-            // TODO: change version in backport
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
                 allowLazyOpen = in.readBoolean();
             }
         }
@@ -943,8 +940,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
             out.writeOptionalString(resultsIndexName);
             out.writeBoolean(deleting);
-            // TODO: change version in backport
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 out.writeBoolean(allowLazyOpen);
             }
         }

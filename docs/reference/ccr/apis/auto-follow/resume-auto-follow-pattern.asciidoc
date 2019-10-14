@@ -8,7 +8,7 @@
 
 Resumes an auto-follow pattern.
 
-[[ccr-post-resume-auto-follow-pattern-request]]
+[[ccr-resume-auto-follow-pattern-request]]
 ==== {api-request-title}
 
 //////////////////////////

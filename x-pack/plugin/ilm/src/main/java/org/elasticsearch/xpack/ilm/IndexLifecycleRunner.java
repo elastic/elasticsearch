@@ -136,11 +136,16 @@ public class IndexLifecycleRunner {
         } else if (currentStep instanceof ErrorStep) {
             Step failedStep = stepRegistry.getStep(indexMetaData, new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(),
                 lifecycleState.getFailedStep()));
-            if (failedStep.isRetryable() && !inProgressRetries.containsKey(failedStep)) {
+            if (failedStep.isRetryable()) {
+                if (inProgressRetries.containsKey(failedStep)) {
+                    logger.debug("a retry for policy [{}] for index [{}] on step [{}] is in progress", policy, index,
+                        lifecycleState.getFailedStep());
+                    return;
+                }
                 ActionListener<RetryAction.Response> listener = createRetryFailedStepListener(policy, indexMetaData, failedStep);
-                // todo the key in this map needs to have the index and possibly policy name as well (but hopefully we won't need this map)
-                inProgressRetries.put(failedStep, listener);
                 if (isFailedStepFailureRetryable(lifecycleState)) {
+                    // todo the key in this map needs to have the index and possibly policy name as well (but hopefully we won't need this map)
+                    inProgressRetries.put(failedStep, listener);
                     retryFailedStep("ilm-retry-failed-step", new RetryAction.Request(index), listener);
                 } else {
                     logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
@@ -203,6 +208,7 @@ public class IndexLifecycleRunner {
                     // todo unify the mechanism to check if exceptions are retryable once we clarify if we'll use the metadata stuff
                     // todo it's importat to test this again here as it might fail due to a different cause
                     if (ElasticsearchException.getExceptionName(e).equals(toUnderscoreCase(ClusterBlockException.class.getSimpleName()))) {
+                        // TODO add jitter to the retry interval to avoid correlated spikes
                         TimeValue scheduleRetryInterval = backoffIterator.next();
                         logger.info("scheduling the retry of step [{}] as part of policy [{}] as it failed due to [{}]",
                             lifecycleState.getFailedStep(), policy, e.getMessage());
@@ -271,7 +277,7 @@ public class IndexLifecycleRunner {
                 }
             }
         } catch (IOException e) {
-
+            // can't figure out what the exception is so we'll not retry
         }
         return false;
     }

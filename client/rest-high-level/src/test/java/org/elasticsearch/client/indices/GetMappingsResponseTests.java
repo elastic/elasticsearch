@@ -31,8 +31,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetMappingsResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse,
-    GetMappingsResponse> {
+public class GetMappingsResponseTests
+    extends AbstractResponseTestCase<org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse, GetMappingsResponse> {
 
     @Override
     protected org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse createServerTestInstance(XContentType xContentType) {
@@ -50,7 +50,8 @@ public class GetMappingsResponseTests extends AbstractResponseTestCase<org.elast
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse serverTestInstance, GetMappingsResponse clientInstance) {
+    protected void assertInstances(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse serverTestInstance,
+                                   GetMappingsResponse clientInstance) {
         assertMapEquals(serverTestInstance.getMappings(), clientInstance.mappings());
     }
 

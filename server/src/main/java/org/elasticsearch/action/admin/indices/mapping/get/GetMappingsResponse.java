@@ -58,6 +58,9 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                     assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got [" + type + "]";
                     indexMapBuilder.put(index, new MappingMetaData(in));
                 }
+                else {
+                    indexMapBuilder.put(index, null);
+                }
             }
             else {
                 boolean hasMapping = in.readBoolean();

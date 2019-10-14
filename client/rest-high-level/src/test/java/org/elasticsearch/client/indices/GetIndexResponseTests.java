@@ -37,12 +37,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class GetIndexResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.admin.indices.get.GetIndexResponse,
     GetIndexResponse> {
@@ -85,7 +82,8 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.admin.indices.get.GetIndexResponse serverTestInstance, GetIndexResponse clientInstance) {
+    protected void assertInstances(org.elasticsearch.action.admin.indices.get.GetIndexResponse serverTestInstance,
+                                   GetIndexResponse clientInstance) {
         assertArrayEquals(serverTestInstance.getIndices(), clientInstance.getIndices());
         assertMapEquals(serverTestInstance.getMappings(), clientInstance.getMappings());
         assertMapEquals(serverTestInstance.getSettings(), clientInstance.getSettings());

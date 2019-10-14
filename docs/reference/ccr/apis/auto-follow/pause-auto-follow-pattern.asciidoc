@@ -53,7 +53,8 @@ set to `false` in the <<ccr-get-auto-follow-pattern, GET auto-follow patterns AP
 
 You can resume auto-following with the <<ccr-resume-auto-follow-pattern,resume auto-follow pattern API>>.
 Once resumed, the auto-follow pattern is active again and automatically configures as
-follower indices created indices on the remote cluster. Remote indices created while the
+follower indices for newly created indices on the remote cluster that match its patterns.
+Remote indices created while the
 pattern was paused will also be followed, unless they have been deleted or closed in the
 meantime.
 

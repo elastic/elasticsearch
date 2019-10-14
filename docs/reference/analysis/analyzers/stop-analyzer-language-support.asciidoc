@@ -1,4 +1,3 @@
-=== Stop Analyzer Language Support
 
 The following table contains a list of supported languages
 with links to default stop words.

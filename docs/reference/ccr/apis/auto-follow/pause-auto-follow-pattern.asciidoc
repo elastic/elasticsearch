@@ -46,7 +46,7 @@ see <<security-privileges>>.
 [[ccr-pause-auto-follow-pattern-desc]]
 ==== {api-description-title}
 
-This API pauses an auto-follow pattern. When this API returns, the auto-follow pattern
+This API pauses an <<ccr-auto-follow,auto-follow pattern>>. When this API returns, the auto-follow pattern
 is inactive and ignores any new index created on the remote cluster that matches any of
 the auto-follow's patterns. Paused auto-follow patterns appear with the `active` field
 set to `false` in the <<ccr-get-auto-follow-pattern, GET auto-follow patterns API>>.

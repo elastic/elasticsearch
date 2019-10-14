@@ -70,7 +70,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
             ActionListener<IndexResponse> listener = (ActionListener) invocation.getArguments()[2];
 
             ShardId shardId = new ShardId(new Index(Watch.INDEX, "uuid"), 0);
-            listener.onResponse(new IndexResponse(shardId, request.type(), request.id(), 1, 1, 1, true));
+            listener.onResponse(new IndexResponse(shardId, request.id(), 1, 1, 1, true));
 
             return null;
         }).when(client).execute(any(), any(), any());

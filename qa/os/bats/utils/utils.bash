@@ -531,12 +531,12 @@ run_elasticsearch_tests() {
     [ "$status" -eq 0 ]
     echo "$output" | grep -w "green"
 
-    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/1?refresh=true&pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/_doc/1?refresh=true&pretty' -d '{
       "title": "Book #1",
       "pages": 123
     }'
 
-    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/2?refresh=true&pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/_doc/2?refresh=true&pretty' -d '{
       "title": "Book #2",
       "pages": 456
     }'

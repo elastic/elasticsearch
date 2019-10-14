@@ -50,6 +50,8 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -132,7 +134,7 @@ public class TransportDeleteDataFrameAnalyticsAction
 
         // Step 2. Delete state
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> deleteState(parentTaskClient, id, deleteStateHandler),
+            config -> deleteState(parentTaskClient, config, deleteStateHandler),
             listener::onFailure
         );
 
@@ -159,11 +161,16 @@ public class TransportDeleteDataFrameAnalyticsAction
         ));
     }
 
-    private void deleteState(ParentTaskAssigningClient parentTaskClient, String analyticsId,
+    private void deleteState(ParentTaskAssigningClient parentTaskClient,
+                             DataFrameAnalyticsConfig config,
                              ActionListener<BulkByScrollResponse> listener) {
+        List<String> ids = new ArrayList<>();
+        ids.add(DataFrameAnalyticsTask.progressDocId(config.getId()));
+        if (config.getAnalysis().persistsState()) {
+            ids.add(config.getAnalysis().getStateDocId(config.getId()));
+        }
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
-        request.setQuery(QueryBuilders.idsQuery().addIds(
-            DataFrameAnalyticsTask.progressDocId(analyticsId)));
+        request.setQuery(QueryBuilders.idsQuery().addIds(ids.toArray(String[]::new)));
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setAbortOnVersionConflict(false);

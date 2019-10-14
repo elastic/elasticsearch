@@ -163,8 +163,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             createTime = null;
             version = null;
         }
-        // TODO: change version in backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             allowLazyStart = in.readBoolean();
         } else {
             allowLazyStart = false;

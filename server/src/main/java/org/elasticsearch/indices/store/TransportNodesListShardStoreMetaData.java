@@ -189,7 +189,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public StoreFilesMetaData(StreamInput in) throws IOException {
             this.shardId = new ShardId(in);
             this.metadataSnapshot = new Store.MetadataSnapshot(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
                 this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
             } else {
                 this.peerRecoveryRetentionLeases = Collections.emptyList();
@@ -200,7 +200,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             metadataSnapshot.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 out.writeList(peerRecoveryRetentionLeases);
             }
         }

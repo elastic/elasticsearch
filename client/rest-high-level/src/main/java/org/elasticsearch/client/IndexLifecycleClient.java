@@ -547,8 +547,10 @@ public class IndexLifecycleClient {
 
     /**
      * Start the Snapshot Lifecycle Management feature.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-start.html">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-start-slm.html
+     * </pre> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -561,8 +563,10 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously start the Snapshot Lifecycle Management feature.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-start.html">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-start-slm.html
+     * </pre> for more.
      * @param request the request
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
@@ -574,8 +578,10 @@ public class IndexLifecycleClient {
 
     /**
      * Stop the Snapshot Lifecycle Management feature.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-stop.html">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-stop-slm.html
+     * </pre> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -588,8 +594,10 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously stop the Snapshot Lifecycle Management feature.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-stop.html">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-stop-slm.html
+     * </pre> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -602,8 +610,10 @@ public class IndexLifecycleClient {
 
     /**
      * Stop the Snapshot Lifecycle Management feature.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-get-status.html">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-status.html
+     * </pre> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -617,8 +627,10 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously stop the Snapshot Lifecycle Management feature.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-get-status.html">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-status.html
+     * </pre> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion

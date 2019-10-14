@@ -17,6 +17,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.LoggingTaskListener;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -59,17 +62,23 @@ public class TransportExecuteEnrichPolicyAction
     @Override
     protected void masterOperation(ExecuteEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<ExecuteEnrichPolicyAction.Response> listener) {
-        executor.runPolicy(request, new ActionListener<ExecuteEnrichPolicyStatus>() {
-            @Override
-            public void onResponse(ExecuteEnrichPolicyStatus executionStatus) {
-                listener.onResponse(new ExecuteEnrichPolicyAction.Response(executionStatus));
-            }
+        if (request.isWaitForCompletion()) {
+            executor.runPolicy(request, new ActionListener<ExecuteEnrichPolicyStatus>() {
+                @Override
+                public void onResponse(ExecuteEnrichPolicyStatus executionStatus) {
+                    listener.onResponse(new ExecuteEnrichPolicyAction.Response(executionStatus));
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            Task executeTask = executor.runPolicy(request, LoggingTaskListener.instance());
+            TaskId taskId = new TaskId(clusterService.localNode().getId(), executeTask.getId());
+            listener.onResponse(new ExecuteEnrichPolicyAction.Response(taskId));
+        }
     }
 
     @Override

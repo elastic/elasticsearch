@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -23,6 +26,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
 import java.util.ArrayList;
@@ -41,7 +45,9 @@ import static org.elasticsearch.xpack.enrich.MatchProcessorTests.mapOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BasicEnrichTests extends ESSingleNodeTestCase {
 
@@ -211,6 +217,60 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             Map<String, Object> source = getResponse.getSourceAsMap();
             assertThat(source.size(), equalTo(2));
             assertThat(source.get("target"), equalTo(mapOf("key", "key", "value", "val" + i)));
+        }
+    }
+
+    public void testAsyncTaskExecute() throws Exception {
+        String policyName = "async-policy";
+        String sourceIndexName = "async-policy-source";
+
+        {
+            IndexRequest indexRequest = new IndexRequest(sourceIndexName);
+            indexRequest.source("key", "key", "value", "val1");
+            client().index(indexRequest).actionGet();
+            client().admin().indices().refresh(new RefreshRequest(sourceIndexName)).actionGet();
+        }
+
+        EnrichPolicy enrichPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndexName), "key",
+                Collections.singletonList("value"));
+        PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+        client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
+        ExecuteEnrichPolicyAction.Response executeResponse = client()
+            .execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName).setWaitForCompletion(false))
+            .actionGet();
+
+        assertThat(executeResponse.getStatus(), is(nullValue()));
+        assertThat(executeResponse.getTaskId(), is(not(nullValue())));
+        GetTaskRequest getPolicyTaskRequest = new GetTaskRequest().setTaskId(executeResponse.getTaskId()).setWaitForCompletion(true);
+        assertBusy(() -> {
+            GetTaskResponse taskResponse = client().execute(GetTaskAction.INSTANCE, getPolicyTaskRequest).actionGet();
+            assertThat(((ExecuteEnrichPolicyStatus) taskResponse.getTask().getTask().getStatus()).getPhase(),
+                is(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE));
+        });
+
+        String pipelineName = "test-pipeline";
+        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
+            "\", \"field\": \"key\", \"target_field\": \"target\"}}]}";
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
+
+        BulkRequest bulkRequest = new BulkRequest("my-index");
+        int numTestDocs = randomIntBetween(3, 10);
+        for (int i = 0; i < numTestDocs; i++) {
+            IndexRequest indexRequest = new IndexRequest("my-index");
+            indexRequest.id(Integer.toString(i));
+            indexRequest.setPipeline(pipelineName);
+            indexRequest.source(Collections.singletonMap("key", "key"));
+            bulkRequest.add(indexRequest);
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
+
+        for (int i = 0; i < numTestDocs; i++) {
+            GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
+            Map<String, Object> source = getResponse.getSourceAsMap();
+            assertThat(source.size(), equalTo(2));
+            assertThat(source.get("target"), equalTo(mapOf("key", "key", "value", "val1")));
         }
     }
 

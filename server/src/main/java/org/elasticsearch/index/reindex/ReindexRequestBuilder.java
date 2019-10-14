@@ -61,16 +61,6 @@ public class ReindexRequestBuilder extends
     }
 
     /**
-     * Set the destination index and type.
-     * @deprecated use {@link #destination(String)}
-     */
-    @Deprecated
-    public ReindexRequestBuilder destination(String index, String type) {
-        destination.setIndex(index);
-        return this;
-    }
-
-    /**
      * Setup reindexing from a remote cluster.
      */
     public ReindexRequestBuilder setRemoteInfo(RemoteInfo remoteInfo) {

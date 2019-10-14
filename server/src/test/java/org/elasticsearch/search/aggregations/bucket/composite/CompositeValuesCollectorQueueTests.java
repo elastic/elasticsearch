@@ -282,7 +282,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                                 queue.addIfCompetitive();
                             }
                         };
-                        if (docsProducer != null && sources[0].canBeOptimizedBySortedDocs(reader, new MatchAllDocsQuery()) && withProducer) {
+                        if (docsProducer != null &&
+                            sources[0].canBeOptimizedBySortedDocs(reader, new MatchAllDocsQuery()) && withProducer) {
                             assertEquals(DocIdSet.EMPTY,
                                 docsProducer.processLeaf(new MatchAllDocsQuery(), queue, leafReaderContext, false));
                         } else {

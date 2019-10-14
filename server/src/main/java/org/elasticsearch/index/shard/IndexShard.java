@@ -1216,6 +1216,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().failEngine(reason, e);
     }
 
+    /**
+     * Acquire the searcher without applying the additional reader wrapper.
+     */
+    public Engine.Searcher acquireSearcherNoWrap(String source) {
+        readAllowed();
+        markSearcherAccessed();
+        return getEngine().acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
+    }
+
     public Engine.Searcher acquireSearcher(String source) {
         return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
     }
@@ -2619,6 +2628,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void removePeerRecoveryRetentionLease(String nodeId, ActionListener<ReplicationResponse> listener) {
         assert assertPrimaryMode();
         replicationTracker.removePeerRecoveryRetentionLease(nodeId, listener);
+    }
+
+    /**
+     * Returns a list of retention leases for peer recovery installed in this shard copy.
+     */
+    public List<RetentionLease> getPeerRecoveryRetentionLeases() {
+        return replicationTracker.getPeerRecoveryRetentionLeases();
     }
 
     private SafeCommitInfo getSafeCommitInfo() {

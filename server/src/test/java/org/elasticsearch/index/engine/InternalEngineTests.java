@@ -109,16 +109,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -179,7 +174,6 @@ import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
@@ -3020,13 +3014,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private Mapping dynamicUpdate() {
-        BuilderContext context = new BuilderContext(
-            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), new ContentPath());
-        final RootObjectMapper root = new RootObjectMapper.Builder("some_type").build(context);
-        return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], emptyMap());
-    }
-
     private Path[] filterExtraFSFiles(Path[] files) {
         List<Path> paths = new ArrayList<>();
         for (Path p : files) {
@@ -3050,7 +3037,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
         assertVisibleCount(engine, numDocs);
         translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
-        translogHandler.mappingUpdate = dynamicUpdate();
 
         engine.close();
         // we need to reuse the engine config unless the parser.mappingModified won't work
@@ -3059,11 +3045,6 @@ public class InternalEngineTests extends EngineTestCase {
 
         assertVisibleCount(engine, numDocs, false);
         assertEquals(numDocs, translogHandler.appliedOperations());
-        if (translogHandler.mappingUpdate != null) {
-            assertEquals(1, translogHandler.getRecoveredTypes().size());
-        } else {
-            assertEquals(0, translogHandler.getRecoveredTypes().size());
-        }
 
         engine.close();
         translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());

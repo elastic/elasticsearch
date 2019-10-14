@@ -31,7 +31,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -52,8 +51,6 @@ import static java.util.Collections.emptyMap;
 public class TranslogHandler implements Engine.TranslogRecoveryRunner {
 
     private final MapperService mapperService;
-    public Mapping mappingUpdate = null;
-    private final Map<String, Mapping> recoveredTypes = new HashMap<>();
 
     private final AtomicLong appliedOperations = new AtomicLong();
 
@@ -74,18 +71,13 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
     private DocumentMapperForType docMapper(String type) {
         RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
         DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
-        return new DocumentMapperForType(b.build(mapperService), mappingUpdate);
+        return new DocumentMapperForType(b.build(mapperService), null);
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
         switch (operation.operationType()) {
             case INDEX:
-                Engine.Index engineIndex = (Engine.Index) operation;
-                Mapping update = engineIndex.parsedDoc().dynamicMappingsUpdate();
-                if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
-                    recoveredTypes.compute("", (k, mapping) -> mapping == null ? update : mapping.merge(update));
-                }
-                engine.index(engineIndex);
+                engine.index((Engine.Index) operation);
                 break;
             case DELETE:
                 engine.delete((Engine.Delete) operation);
@@ -96,13 +88,6 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             default:
                 throw new IllegalStateException("No operation defined for [" + operation + "]");
         }
-    }
-
-    /**
-     * Returns the recovered types modifying the mapping during the recovery
-     */
-    public Map<String, Mapping> getRecoveredTypes() {
-        return recoveredTypes;
     }
 
     @Override

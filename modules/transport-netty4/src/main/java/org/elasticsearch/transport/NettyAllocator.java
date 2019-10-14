@@ -31,10 +31,10 @@ public class NettyAllocator {
     public static final ByteBufAllocator ALLOCATOR;
 
     static {
-        ByteBufAllocator delegate;
         if (Booleans.parseBoolean(System.getProperty("es.unsafe.use_netty_default_allocator"), false)) {
-            delegate = ByteBufAllocator.DEFAULT;
+            ALLOCATOR = ByteBufAllocator.DEFAULT;
         } else {
+            ByteBufAllocator delegate;
             if ("unpooled".equals(System.getProperty("io.netty.allocator.type"))) {
                 delegate = UnpooledByteBufAllocator.DEFAULT;
             } else {
@@ -48,8 +48,8 @@ public class NettyAllocator {
                 delegate = new PooledByteBufAllocator(false, nHeapArena, 0, pageSize, maxOrder, tinyCacheSize,
                     smallCacheSize, normalCacheSize, useCacheForAllThreads);
             }
+            ALLOCATOR = new NoDirectBuffers(delegate);
         }
-        ALLOCATOR = new NoDirectBuffers(delegate);
     }
 
     private static class NoDirectBuffers implements ByteBufAllocator {

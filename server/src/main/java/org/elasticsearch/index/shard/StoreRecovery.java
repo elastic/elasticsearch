@@ -279,11 +279,7 @@ final class StoreRecovery {
                 RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
                 assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
-                executeRecovery(indexShard, l -> {
-                    logger.debug("restoring from {} ...", indexShard.recoveryState().getRecoverySource());
-                    restore(indexShard, repository, recoverySource);
-                    l.onResponse(true);
-                }, listener);
+                executeRecovery(indexShard, l -> restore(indexShard, repository, recoverySource, l), listener);
             } else {
                 listener.onResponse(false);
             }
@@ -360,8 +356,9 @@ final class StoreRecovery {
                     // got closed on us, just ignore this recovery
                     listener.onResponse(false);
                 } else {
-                    throw new IndexShardRecoveryException(shardId, "failed recovery", e);
+                    listener.onFailure(new IndexShardRecoveryException(shardId, "failed recovery", e));
                 }
+                return;
             }
             listener.onResponse(false);
         });
@@ -463,14 +460,31 @@ final class StoreRecovery {
     /**
      * Restores shard from {@link SnapshotRecoverySource} associated with this shard in routing table
      */
-    private void restore(final IndexShard indexShard, final Repository repository, final SnapshotRecoverySource restoreSource) {
+    private void restore(IndexShard indexShard, Repository repository, SnapshotRecoverySource restoreSource,
+                         ActionListener<Boolean> listener) {
+        logger.debug("restoring from {} ...", indexShard.recoveryState().getRecoverySource());
         final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
         if (restoreSource == null) {
-            throw new IndexShardRestoreFailedException(shardId, "empty restore source");
+            listener.onFailure(new IndexShardRestoreFailedException(shardId, "empty restore source"));
+            return;
         }
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] restoring shard [{}]", restoreSource.snapshot(), shardId);
         }
+        final ActionListener<Void> restoreListener = ActionListener.wrap(
+            v -> {
+                final Store store = indexShard.store();
+                bootstrap(indexShard, store);
+                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                writeEmptyRetentionLeasesFile(indexShard);
+                indexShard.openEngineAndRecoverFromTranslog();
+                indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                indexShard.finalizeRecovery();
+                indexShard.postRecovery("restore done");
+                listener.onResponse(true);
+                listener.onResponse(true);
+            }, e -> listener.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e))
+        );
         try {
             translogState.totalOperations(0);
             translogState.totalOperationsOnStart(0);
@@ -482,20 +496,10 @@ final class StoreRecovery {
             }
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             assert indexShard.getEngineOrNull() == null;
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(),
-                restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState(), future);
-            future.actionGet();
-            final Store store = indexShard.store();
-            bootstrap(indexShard, store);
-            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
-            writeEmptyRetentionLeasesFile(indexShard);
-            indexShard.openEngineAndRecoverFromTranslog();
-            indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
-            indexShard.finalizeRecovery();
-            indexShard.postRecovery("restore done");
+            repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId,
+                snapshotShardId, indexShard.recoveryState(), restoreListener);
         } catch (Exception e) {
-            throw new IndexShardRestoreFailedException(shardId, "restore failed", e);
+            restoreListener.onFailure(e);
         }
     }
 

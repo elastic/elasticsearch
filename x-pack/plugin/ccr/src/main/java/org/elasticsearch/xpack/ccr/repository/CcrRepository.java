@@ -468,94 +468,98 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             this.throttleListener = throttleListener;
         }
 
-        void restoreFiles(Store store) throws IOException {
+        void restoreFiles(Store store) {
             ArrayList<FileInfo> fileInfos = new ArrayList<>();
             for (StoreFileMetaData fileMetaData : sourceMetaData) {
                 ByteSizeValue fileSize = new ByteSizeValue(fileMetaData.length());
                 fileInfos.add(new FileInfo(fileMetaData.name(), fileMetaData, fileSize));
             }
             SnapshotFiles snapshotFiles = new SnapshotFiles(LATEST, fileInfos);
-            restore(snapshotFiles, store);
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            restore(snapshotFiles, store, future);
+            future.actionGet();
         }
 
         @Override
-        protected void restoreFiles(List<FileInfo> filesToRecover, Store store) throws IOException {
+        protected void restoreFiles(List<FileInfo> filesToRecover, Store store, ActionListener<Void> doneListener) {
             logger.trace("[{}] starting CCR restore of {} files", shardId, filesToRecover);
+            ActionListener.completeWith(doneListener, () -> {
+                try (MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {
+                })) {
+                    final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
+                    final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
 
-            try (MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {
-            })) {
-                final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
-                final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
+                    for (FileInfo fileInfo : filesToRecover) {
+                        final long fileLength = fileInfo.length();
+                        long offset = 0;
+                        while (offset < fileLength && error.get() == null) {
+                            final long requestSeqId = requestSeqIdTracker.generateSeqNo();
+                            try {
+                                requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());
 
-                for (FileInfo fileInfo : filesToRecover) {
-                    final long fileLength = fileInfo.length();
-                    long offset = 0;
-                    while (offset < fileLength && error.get() == null) {
-                        final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                        try {
-                            requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());
+                                if (error.get() != null) {
+                                    requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
+                                    break;
+                                }
 
-                            if (error.get() != null) {
-                                requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
-                                break;
-                            }
+                                final int bytesRequested = Math.toIntExact(
+                                    Math.min(ccrSettings.getChunkSize().getBytes(), fileLength - offset));
+                                offset += bytesRequested;
 
-                            final int bytesRequested = Math.toIntExact(
-                                Math.min(ccrSettings.getChunkSize().getBytes(), fileLength - offset));
-                            offset += bytesRequested;
+                                final GetCcrRestoreFileChunkRequest request =
+                                    new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileInfo.name(), bytesRequested);
+                                logger.trace("[{}] [{}] fetching chunk for file [{}], expected offset: {}, size: {}", shardId, snapshotId,
+                                    fileInfo.name(), offset, bytesRequested);
 
-                            final GetCcrRestoreFileChunkRequest request =
-                                new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileInfo.name(), bytesRequested);
-                            logger.trace("[{}] [{}] fetching chunk for file [{}], expected offset: {}, size: {}", shardId, snapshotId,
-                                fileInfo.name(), offset, bytesRequested);
+                                TimeValue timeout = ccrSettings.getRecoveryActionTimeout();
+                                ActionListener<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> listener =
+                                    ListenerTimeouts.wrapWithTimeout(threadPool, ActionListener.wrap(
+                                        r -> threadPool.generic().execute(new AbstractRunnable() {
+                                            @Override
+                                            public void onFailure(Exception e) {
+                                                error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
+                                                requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
+                                            }
 
-                            TimeValue timeout = ccrSettings.getRecoveryActionTimeout();
-                            ActionListener<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> listener =
-                                ListenerTimeouts.wrapWithTimeout(threadPool, ActionListener.wrap(
-                                    r -> threadPool.generic().execute(new AbstractRunnable() {
-                                        @Override
-                                        public void onFailure(Exception e) {
+                                            @Override
+                                            protected void doRun() throws Exception {
+                                                final int actualChunkSize = r.getChunk().length();
+                                                logger.trace("[{}] [{}] got response for file [{}], offset: {}, length: {}", shardId,
+                                                    snapshotId, fileInfo.name(), r.getOffset(), actualChunkSize);
+                                                final long nanosPaused = ccrSettings.getRateLimiter().maybePause(actualChunkSize);
+                                                throttleListener.accept(nanosPaused);
+                                                final boolean lastChunk = r.getOffset() + actualChunkSize >= fileLength;
+                                                multiFileWriter.writeFileChunk(fileInfo.metadata(), r.getOffset(), r.getChunk(), lastChunk);
+                                                requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
+                                            }
+                                        }),
+                                        e -> {
                                             error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
                                             requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
                                         }
-
-                                        @Override
-                                        protected void doRun() throws Exception {
-                                            final int actualChunkSize = r.getChunk().length();
-                                            logger.trace("[{}] [{}] got response for file [{}], offset: {}, length: {}", shardId,
-                                                snapshotId, fileInfo.name(), r.getOffset(), actualChunkSize);
-                                            final long nanosPaused = ccrSettings.getRateLimiter().maybePause(actualChunkSize);
-                                            throttleListener.accept(nanosPaused);
-                                            final boolean lastChunk = r.getOffset() + actualChunkSize >= fileLength;
-                                            multiFileWriter.writeFileChunk(fileInfo.metadata(), r.getOffset(), r.getChunk(), lastChunk);
-                                            requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
-                                        }
-                                    }),
-                                    e -> {
-                                        error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
-                                        requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
-                                    }
                                     ), timeout, ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME);
-                            remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request, listener);
-                        } catch (Exception e) {
-                            error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
-                            requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
+                                remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request, listener);
+                            } catch (Exception e) {
+                                error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
+                                requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
+                            }
                         }
+                    }
+
+                    try {
+                        requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqIdTracker.getMaxSeqNo());
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new ElasticsearchException(e);
+                    }
+                    if (error.get() != null) {
+                        handleError(store, error.get().v2());
                     }
                 }
 
-                try {
-                    requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqIdTracker.getMaxSeqNo());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new ElasticsearchException(e);
-                }
-                if (error.get() != null) {
-                    handleError(store, error.get().v2());
-                }
-            }
-
-            logger.trace("[{}] completed CCR restore", shardId);
+                logger.trace("[{}] completed CCR restore", shardId);
+                return null;
+            });
         }
 
         private void handleError(Store store, Exception e) throws IOException {

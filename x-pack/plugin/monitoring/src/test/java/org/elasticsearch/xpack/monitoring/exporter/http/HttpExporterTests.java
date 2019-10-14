@@ -235,13 +235,7 @@ public class HttpExporterTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(prefix + ".auth.password").get(settings));
-        assertThat(
-            e,
-            hasToString(
-                containsString("Failed to parse value [_pass] for setting [xpack.monitoring.exporters._http.auth.password]")));
-
-        assertThat(e.getCause(), instanceOf(SettingsException.class));
-        assertThat(e.getCause(), hasToString(containsString(expected)));
+        assertThat(e, hasToString(containsString(expected)));
     }
 
     public void testExporterWithUnknownBlacklistedClusterAlerts() {

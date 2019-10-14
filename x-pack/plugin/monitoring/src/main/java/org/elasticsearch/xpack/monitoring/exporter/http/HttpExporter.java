@@ -15,6 +15,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
@@ -201,7 +202,7 @@ public class HttpExporter extends Exporter {
                                 // username is required for any auth
                                 if (Strings.isNullOrEmpty(username)) {
                                     if (Strings.isNullOrEmpty(password) == false) {
-                                        throw new SettingsException(
+                                        throw new IllegalArgumentException(
                                             "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] without [" +
                                                 AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "]");
                                     }

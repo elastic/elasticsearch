@@ -317,21 +317,42 @@ GET /_slm/policy
 
 
 [[slm-api-execute]]
-=== Execute Snapshot Lifecycle Policy API
+=== Execute snapshot lifecycle policy API
+++++
+<titleabbrev>Execute snapshot lifecycle policy</titleabbrev>
+++++
+
+Executes a snapshot lifecycle policy, immediately creating a snapshot
+without waiting for the scheduled creation time.
+
+
+[[slm-api-execute-request]]
+==== {api-request-title}
+
+`PUT /_slm/policy/<snapshot-lifecycle-policy-id>/_execute`
+
+
+[[slm-api-execute-desc]]
+==== {api-description-title}
 
 Sometimes it can be useful to immediately execute a snapshot based on policy,
 perhaps before an upgrade or before performing other maintenance on indices. The
 execute snapshot policy API allows you to perform a snapshot immediately without
 waiting for a policy's scheduled invocation.
 
-==== Path Parameters
 
-`policy_id` (required)::
-  (string) Id of the policy to execute
+[[slm-api-execute-path-params]]
+==== {api-path-parms-title}
 
-==== Example
+`<snapshot-lifecycle-policy-id>`::
+(Required, string)
+ID of the snapshot lifecycle policy to execute.
 
-To take an immediate snapshot using a policy, use the following
+
+[[slm-api-execute-example]]
+==== {api-examples-title}
+
+To take an immediate snapshot using a policy, use the following request:
 
 [source,console]
 --------------------------------------------------
@@ -339,7 +360,7 @@ POST /_slm/policy/daily-snapshots/_execute
 --------------------------------------------------
 // TEST[skip:we can't easily handle snapshots from docs tests]
 
-This API will immediately return with the generated snapshot name
+This API returns the following response with the generated snapshot name:
 
 [source,console-result]
 --------------------------------------------------
@@ -450,8 +471,7 @@ POST /_slm/policy/daily-snapshots/_execute
 --------------------------------------------------
 // TESTRESPONSE[skip:we can't handle snapshots in docs tests]
 
-Now retriving the policy shows that the policy has successfully been executed:
-
+Now retrieving the policy shows that the policy has successfully been executed:
 
 [source,console]
 --------------------------------------------------
@@ -514,12 +534,22 @@ Which now includes the successful snapshot information:
 It is a good idea to test policies using the execute API to ensure they work.
 
 [[slm-get-stats]]
-=== Get Snapshot Lifecycle Stats API
+=== Get snapshot lifecycle stats API
+++++
+<titleabbrev>Get snapshot lifecycle stats</titleabbrev>
+++++
 
-SLM stores statistics on a global and per-policy level about actions taken. These stats can be
-retrieved by using the following API:
+Returns global and policy-level statistics about actions taken by {slm}.
 
-==== Example
+
+[[slm-api-stats-request]]
+==== {api-request-title}
+
+`GET /_slm/stats`
+
+
+[[slm-api-stats-example]]
+==== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
@@ -527,7 +557,7 @@ GET /_slm/stats
 --------------------------------------------------
 // TEST[continued]
 
-Which returns a response similar to:
+The API returns the following response:
 
 [source,js]
 --------------------------------------------------
@@ -546,19 +576,40 @@ Which returns a response similar to:
 --------------------------------------------------
 // TESTRESPONSE[s/runs": 13/runs": $body.retention_runs/ s/_failed": 0/_failed": $body.retention_failed/ s/_timed_out": 0/_timed_out": $body.retention_timed_out/ s/"1.4s"/$body.retention_deletion_time/ s/1404/$body.retention_deletion_time_millis/ s/total_snapshots_taken": 1/total_snapshots_taken": $body.total_snapshots_taken/ s/total_snapshots_failed": 1/total_snapshots_failed": $body.total_snapshots_failed/ s/"policy_stats": [.*]/"policy_stats": $body.policy_stats/]
 
+
 [[slm-api-delete]]
-=== Delete Snapshot Lifecycle Policy API
+=== Delete snapshot lifecycle policy API
+++++
+<titleabbrev>Delete snapshot lifecycle policy</titleabbrev>
+++++
+
+Deletes an existing snapshot lifecycle policy.
+
+
+[[slm-api-delete-request]]
+==== {api-request-title}
+
+`DELETE /_slm/policy/<snapshot-lifecycle-policy-id>`
+
+
+[[slm-api-delete-desc]]
+==== {api-description-title}
 
 A policy can be deleted by issuing a delete request with the policy id. Note
 that this prevents any future snapshots from being taken, but does not cancel
 any currently ongoing snapshots or remove any previously taken snapshots.
 
-==== Path Parameters
 
-`policy_id` (optional)::
-  (string) Id of the policy to remove.
+[[slm-api-delete-path-params]]
+==== {api-path-parms-title}
 
-==== Example
+`<snapshot-lifecycle-policy-id>`::
+(Required, string)
+ID of the snapshot lifecycle policy to delete.
+
+
+[[slm-api-delete-example]]
+==== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
@@ -566,23 +617,42 @@ DELETE /_slm/policy/daily-snapshots
 --------------------------------------------------
 // TEST[continued]
 
+
 [[slm-api-execute-retention]]
-=== Execute Snapshot Lifecycle Retention API
+=== Execute snapshot lifecycle retention API
+++++
+<titleabbrev>Execute snapshot lifecycle retention</titleabbrev>
+++++
+
+Deletes any expired snapshots based on lifecycle policy retention rules.
+
+
+[[slm-api-execute-retention-request]]
+==== {api-request-title}
+
+`POST /_slm/_execute_retention`
+
+
+[[slm-api-execute-retention-desc]]
+==== {api-description-title}
 
 While Snapshot Lifecycle Management retention is usually invoked through the global cluster settings
 for its schedule, it can sometimes be useful to invoke a retention run to expunge expired snapshots
 immediately. This API allows you to run a one-off retention run.
 
-==== Example
 
-To immediately start snapshot retention, use the following
+[[slm-api-execute-retention-example]]
+==== {api-examples-title}
+
+To immediately start snapshot retention, use the following request:
 
 [source,console]
 --------------------------------------------------
 POST /_slm/_execute_retention
 --------------------------------------------------
 
-This API will immediately return, as retention will be run asynchronously in the background:
+This API returns the following response as retention runs asynchronously in the
+background:
 
 [source,console-result]
 --------------------------------------------------

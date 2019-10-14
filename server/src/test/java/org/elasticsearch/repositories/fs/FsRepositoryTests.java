@@ -145,6 +145,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<Void> futureB =  PlainActionFuture.newFuture();
             runGeneric(threadPool, () ->
                 repository.restoreShard(store, snapshotId, Version.CURRENT, indexId, shardId, firstState, futureB));
+            futureB.actionGet();
             assertEquals("should reuse everything except of .liv and .si",
                 commitFileNames.size()-2, firstState.getIndex().reusedFileCount());
 
@@ -152,6 +153,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<Void> futureC = PlainActionFuture.newFuture();
             runGeneric(threadPool, () ->
                 repository.restoreShard(store, incSnapshotId, Version.CURRENT, indexId, shardId, secondState, futureC));
+            futureC.actionGet();
             assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size()-2);
             assertEquals(secondState.getIndex().recoveredFileCount(), 2);
             List<RecoveryState.File> recoveredFiles =

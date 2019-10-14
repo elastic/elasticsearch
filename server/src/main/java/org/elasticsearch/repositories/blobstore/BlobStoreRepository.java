@@ -1147,7 +1147,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ShardId shardId = store.shardId();
         final ActionListener<Void> restoreListener = ActionListener.delegateResponse(listener,
             (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e)));
-        try {
+        threadPool.generic().execute(ActionRunnable.wrap(restoreListener, l -> {
             final BlobContainer container = shardContainer(indexId, snapshotShardId);
             BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
             SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
@@ -1163,10 +1163,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     return restoreRateLimiter == null ? dataBlobCompositeStream :
                         new RateLimitingInputStream(dataBlobCompositeStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
                 }
-            }.restore(snapshotFiles, store, restoreListener);
-        } catch (Exception e) {
-            restoreListener.onFailure(e);
-        }
+            }.restore(snapshotFiles, store, l);
+        }));
     }
 
     @Override

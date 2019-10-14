@@ -29,13 +29,10 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.WriterConstants;
 
+import java.lang.reflect.Modifier;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-
-import static org.objectweb.asm.Opcodes.ACC_FINAL;
-import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
-import static org.objectweb.asm.Opcodes.ACC_STATIC;
 
 /**
  * Represents a regex constant. All regexes are constants.
@@ -92,7 +89,8 @@ public final class ERegex extends AExpression {
         }
 
         String name = scriptRoot.getNextSyntheticName("regex");
-        scriptRoot.getClassNode().addField(new SField(location, ACC_FINAL | ACC_PRIVATE | ACC_STATIC, name, Pattern.class, null));
+        scriptRoot.getClassNode().addField(
+                new SField(location, Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE, true, name, Pattern.class, null));
         constant = new Constant(location, MethodWriter.getType(Pattern.class), name, this::initializeConstant);
         actual = Pattern.class;
     }

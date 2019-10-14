@@ -1077,7 +1077,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::slm-status-execute
             LifecycleManagementStatusResponse response =
                 client.indexLifecycle()
-                    .snapshotLifecycleManagementStatus(request, RequestOptions.DEFAULT);
+                    .getSLMStatus(request, RequestOptions.DEFAULT);
             // end::slm-status-execute
 
             // tag::slm-status-response
@@ -1110,7 +1110,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::slm-status-execute-async
-        client.indexLifecycle().snapshotLifecycleManagementStatusAsync(request,
+        client.indexLifecycle().getSLMStatusAsync(request,
             RequestOptions.DEFAULT, listener); // <1>
         // end::slm-status-execute-async
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1118,7 +1118,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // Check that SLM is running again
         LifecycleManagementStatusResponse response =
             client.indexLifecycle()
-                .snapshotLifecycleManagementStatus(request, RequestOptions.DEFAULT);
+                .getSLMStatus(request, RequestOptions.DEFAULT);
 
         OperationMode operationMode = response.getOperationMode();
         assertEquals(OperationMode.RUNNING, operationMode);

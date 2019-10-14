@@ -11,36 +11,7 @@ Resumes an auto-follow pattern.
 [[ccr-resume-auto-follow-pattern-request]]
 ==== {api-request-title}
 
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-PUT /_ccr/auto_follow/my_auto_follow_pattern
-{
-  "remote_cluster" : "remote_cluster",
-  "leader_index_patterns" :
-  [
-    "leader_index"
-  ],
-  "follow_index_pattern" : "{{leader_index}}-follower"
-}
---------------------------------------------------
-// TEST[setup:remote_cluster]
-// TESTSETUP
-
-[source,console]
---------------------------------------------------
-POST /_ccr/auto_follow/my_auto_follow_pattern/pause
---------------------------------------------------
-// TEST
-
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-POST /_ccr/auto_follow/<auto_follow_pattern_name>/resume
---------------------------------------------------
-// TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
+`POST /_ccr/auto_follow/<auto_follow_pattern_name>/resume`
 
 [[ccr-resume-auto-follow-pattern-prereqs]]
 ==== {api-prereq-title}
@@ -71,12 +42,35 @@ have been deleted or closed in the meantime.
 
 This example resumes the activity of a paused auto-follow pattern
 named `my_auto_follow_pattern`:
+//////////////////////////
 
+[source,console]
+--------------------------------------------------
+PUT /_ccr/auto_follow/my_auto_follow_pattern
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index_patterns" :
+  [
+    "leader_index"
+  ],
+  "follow_index_pattern" : "{{leader_index}}-follower"
+}
+--------------------------------------------------
+// TEST[setup:remote_cluster]
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+POST /_ccr/auto_follow/my_auto_follow_pattern/pause
+--------------------------------------------------
+// TEST
+
+//////////////////////////
 [source,console]
 --------------------------------------------------
 POST /_ccr/auto_follow/my_auto_follow_pattern/resume
 --------------------------------------------------
-// TEST[setup:remote_cluster]
+// TEST
 
 The API returns the following result:
 

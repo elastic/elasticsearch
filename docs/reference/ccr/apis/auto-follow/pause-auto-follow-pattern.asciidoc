@@ -11,30 +11,7 @@ Pauses an auto-follow pattern.
 [[ccr-pause-auto-follow-pattern-request]]
 ==== {api-request-title}
 
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-PUT /_ccr/auto_follow/my_auto_follow_pattern
-{
-  "remote_cluster" : "remote_cluster",
-  "leader_index_patterns" :
-  [
-    "leader_index"
-  ],
-  "follow_index_pattern" : "{{leader_index}}-follower"
-}
---------------------------------------------------
-// TEST[setup:remote_cluster]
-// TESTSETUP
-
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-POST /_ccr/auto_follow/<auto_follow_pattern_name>/pause
---------------------------------------------------
-// TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
+`POST /_ccr/auto_follow/<auto_follow_pattern_name>/pause`
 
 [[ccr-pause-auto-follow-pattern-prereqs]]
 ==== {api-prereq-title}
@@ -69,12 +46,30 @@ meantime.
 ==== {api-examples-title}
 
 This example pauses an auto-follow pattern named `my_auto_follow_pattern`:
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /_ccr/auto_follow/my_auto_follow_pattern
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index_patterns" :
+  [
+    "leader_index"
+  ],
+  "follow_index_pattern" : "{{leader_index}}-follower"
+}
+--------------------------------------------------
+// TEST[setup:remote_cluster]
+// TESTSETUP
+
+//////////////////////////
 
 [source,console]
 --------------------------------------------------
 POST /_ccr/auto_follow/my_auto_follow_pattern/pause
 --------------------------------------------------
-// TEST[setup:remote_cluster]
+// TEST
 
 The API returns the following result:
 

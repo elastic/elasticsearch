@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -154,28 +155,42 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
         assert checkpointThrottler != null;
         if (isDone.compareAndSet(false, true)) {
-            checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception));
+            checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception, TimeValue.ZERO));
         }
     }
 
-    private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
+    private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
+                                    TimeValue delay) {
         ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(reindexResponse, exception);
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
+        lastState = null;
+
         reindexIndexClient.updateReindexTaskDoc(persistentTaskId, state, term, seqNo, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {
-                lastState = null;
                 finishedListener.onResponse(taskState.getStateDoc());
 
             }
 
             @Override
             public void onFailure(Exception e) {
-                lastState = null;
-                // TODO: Maybe retry finished write?
-                finishedListener.onFailure(e);
+                // TODO: Need to ensure that the allocation has changed
+                if (e instanceof VersionConflictEngineException == false) {
+                    TimeValue nextDelay = getNextDelay(delay);
+                    threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay, ThreadPool.Names.SAME);
+                }
             }
         });
+    }
+
+    private TimeValue getNextDelay(TimeValue delay) {
+        TimeValue newDelay;
+        if (TimeValue.ZERO.equals(delay)) {
+            newDelay = TimeValue.timeValueMillis(500);
+        } else {
+            newDelay = TimeValue.timeValueSeconds(Math.max(delay.getMillis() * 2, TimeValue.timeValueMinutes(1).millis()));
+        }
+        return newDelay;
     }
 }

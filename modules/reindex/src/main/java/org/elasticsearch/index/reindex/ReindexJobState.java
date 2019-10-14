@@ -103,7 +103,6 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     public enum Status {
         STARTED,
         ASSIGNMENT_FAILED,
-        SET_DONE_FAILED,
         DONE
     }
 }

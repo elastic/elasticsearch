@@ -25,6 +25,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 
 public class DateDiff extends ThreeArgsDateTimeFunction {
 
@@ -37,7 +38,17 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
             "months", "mm", "m"),
         DAYOFYEAR((start, end) -> safeInt(diffInDays(start, end)), "dy", "y"),
         DAY(DAYOFYEAR::diff, "days", "dd", "d"),
-        WEEK((start, end) -> safeInt(diffInDays(start, end) / 7), "weeks", "wk", "ww"),
+        WEEK((start, end) -> {
+            int extraWeek = NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(end) -
+                NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(start) == 0 ? 0 : 1;
+            long diffWeeks = diffInDays(start ,end) / 7;
+            if (diffWeeks < 0) {
+                diffWeeks -= extraWeek;
+            } else {
+                diffWeeks += extraWeek;
+            }
+            return safeInt(diffWeeks);
+        }, "weeks", "wk", "ww"),
         WEEKDAY(DAYOFYEAR::diff,  "weekdays", "dw"),
         HOUR((start, end) -> safeInt(diffInHours(start, end)),  "hours", "hh"),
         MINUTE((start, end) -> safeInt(diffInMinutes(start, end)), "minutes", "mi", "n"),

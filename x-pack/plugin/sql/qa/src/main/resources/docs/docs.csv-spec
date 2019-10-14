@@ -2492,7 +2492,7 @@ SELECT DATE_DIFF('week', '2019-09-04T11:22:33.000Z'::datetime, '2016-12-08T22:33
 
       diffInWeeks
 ------------------------
--142
+-143
 // end::dateDiffDateTimeWeeks
 ;
 

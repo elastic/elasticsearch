@@ -262,6 +262,28 @@ public class DateDiffProcessorTests extends AbstractSqlWireSerializingTestCase<D
             .makePipe().asProcessor().process(null));
         assertEquals(-96, new DateDiff(Source.EMPTY, l("m"), dt2, dt1, zoneId)
             .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(1976, 9, 9, 0, 0, 0, 0));
+        dt2 = l(dateTime(1983, 5, 22, 0, 0, 0, 0));
+        assertEquals(350, new DateDiff(Source.EMPTY, l("week"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-350, new DateDiff(Source.EMPTY, l("weeks"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(350, new DateDiff(Source.EMPTY, l("wk"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-350, new DateDiff(Source.EMPTY, l("ww"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(1988, 1, 5, 0, 0, 0, 0));
+        dt2 = l(dateTime(1996, 5, 13, 0, 0, 0, 0));
+        assertEquals(436, new DateDiff(Source.EMPTY, l("week"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-436, new DateDiff(Source.EMPTY, l("weeks"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(436, new DateDiff(Source.EMPTY, l("wk"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-436, new DateDiff(Source.EMPTY, l("ww"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
     }
 
     public void testOverflow() {

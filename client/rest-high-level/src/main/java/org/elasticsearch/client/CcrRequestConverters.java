@@ -129,12 +129,11 @@ final class CcrRequestConverters {
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
-
     static Request resumeAutoFollowPattern(ResumeAutoFollowPatternRequest resumeAutoFollowPatternRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_ccr", "auto_follow")
             .addPathPart(resumeAutoFollowPatternRequest.getName())
-            .addPathPartAsIs("resumse")
+            .addPathPartAsIs("resume")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }

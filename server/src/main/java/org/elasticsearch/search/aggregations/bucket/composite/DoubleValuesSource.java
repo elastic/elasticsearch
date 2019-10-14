@@ -183,8 +183,13 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
+    SortedDocsProducer createSortedDocsProducerOrNull(Query query) {
         return null;
+    }
+
+    @Override
+    boolean canBeOptimizedBySortedDocs(IndexReader reader, Query query) {
+        return false;
     }
 
     @Override

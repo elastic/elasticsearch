@@ -143,9 +143,14 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
                                                   LeafReaderContext context, LeafBucketCollector next) throws IOException;
 
     /**
-     * Returns a {@link SortedDocsProducer} or null if this source cannot produce sorted docs.
+     * Returns a {@link SortedDocsProducer}, could be null.
      */
-    abstract SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query);
+    abstract SortedDocsProducer createSortedDocsProducerOrNull(Query query);
+
+    /**
+     * Check if this source could produce sorted docs, then could optimize the query.
+     */
+    abstract boolean canBeOptimizedBySortedDocs(IndexReader reader, Query query);
 
     /**
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.

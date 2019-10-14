@@ -19,19 +19,27 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -72,6 +80,8 @@ final class CompositeAggregator extends BucketsAggregator {
     private LeafReaderContext currentLeaf;
     private RoaringDocIdSet.Builder docIdSetBuilder;
     private BucketCollector deferredCollectors;
+    private SortField leadingSortField;
+    private int startDocId = 0;
 
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
@@ -93,7 +103,7 @@ final class CompositeAggregator extends BucketsAggregator {
             this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(), sourceConfigs[i], size);
         }
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
-        this.sortedDocsProducer = sources[0].createSortedDocsProducerOrNull(context.searcher().getIndexReader(), context.query());
+        this.sortedDocsProducer = sources[0].createSortedDocsProducerOrNull(context.query());
     }
 
     @Override
@@ -153,6 +163,8 @@ final class CompositeAggregator extends BucketsAggregator {
             entries.add(new Entry(currentLeaf, docIdSet));
             currentLeaf = null;
             docIdSetBuilder = null;
+            queue.setEarlyTerminate(false);
+            startDocId = 0;
         }
     }
 
@@ -160,7 +172,8 @@ final class CompositeAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         finishLeaf();
         boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR;
-        if (sortedDocsProducer != null) {
+        if (sortedDocsProducer != null &&
+            sources[0].canBeOptimizedBySortedDocs(context.searcher().getIndexReader(), context.query())) {
             /*
               The producer will visit documents sorted by the leading source of the composite definition
               and terminates when the leading source value is guaranteed to be greater than the lowest
@@ -182,12 +195,38 @@ final class CompositeAggregator extends BucketsAggregator {
                 currentLeaf = ctx;
                 docIdSetBuilder = new RoaringDocIdSet.Builder(ctx.reader().maxDoc());
             }
+
+            QueryShardContext shardContext = context.getQueryShardContext();
+            IndexSortConfig indexSortConfig = shardContext.getIndexSettings().getIndexSortConfig();
+            if (indexSortConfig.hasIndexSort()) {
+                Sort sort = indexSortConfig.buildIndexSort(
+                    shardContext::fieldMapper, shardContext::getForField);
+                this.leadingSortField = sort.getSort()[0];
+            }
+
+            if (leadingSortField != null && isSingleValued(ctx.reader(), leadingSortField)
+                && leadingSortField.getField().equals(sourceNames.get(0))) {
+                queue.setLeadingSort(true);
+                SingleDimensionValuesSource<?> leadingSource = sources[0];
+                int leadingFieldReverse = leadingSortField.getReverse() == false ? 1 : -1;
+                // if source and leading field have the same order, get start doc id for filtering
+                if (sortedDocsProducer != null && leadingSource.reverseMul * leadingFieldReverse > 0) {
+                    startDocId = sortedDocsProducer.getStartDocId(queue, ctx);
+                }
+            }
+
             final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder));
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long zeroBucket) throws IOException {
                     assert zeroBucket == 0L;
-                    inner.collect(doc);
+                    if (queue.isEarlyTerminate()) {
+                        throw new CollectionTerminatedException();
+                    }
+
+                    if (doc >= startDocId) {
+                        inner.collect(doc);
+                    }
                 }
             };
         }
@@ -270,6 +309,14 @@ final class CompositeAggregator extends BucketsAggregator {
                 }
             }
         };
+    }
+
+    public CompositeValuesCollectorQueue getQueue() {
+        return queue;
+    }
+
+    public int getStartDocId() {
+        return startDocId;
     }
 
     private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader,
@@ -356,6 +403,24 @@ final class CompositeAggregator extends BucketsAggregator {
             this.context = context;
             this.docIdSet = docIdSet;
         }
+    }
+
+    private boolean isSingleValued(IndexReader reader, SortField field) throws IOException {
+        SortField.Type type = IndexSortConfig.getSortFieldType(field);
+        for (LeafReaderContext context : reader.leaves()) {
+            if (type == SortField.Type.STRING) {
+                final SortedSetDocValues values = DocValues.getSortedSet(context.reader(), field.getField());
+                if (values.cost() > 0 && DocValues.unwrapSingleton(values) == null) {
+                    return false;
+                }
+            } else {
+                final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), field.getField());
+                if (values.cost() > 0 && DocValues.unwrapSingleton(values) == null) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }
 

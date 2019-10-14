@@ -35,8 +35,9 @@ public class GCMPacketsEncryptedInputStream extends FilterInputStream {
     private Cipher packetCipher;
 
     private long runningPacketIndex;
-    private final ByteBuffer runningPacketIV;
-    private int roomLeftInPacket;
+    private final ByteBuffer runningPacketIV = ByteBuffer.allocate(GCM_IV_SIZE_IN_BYTES);
+    // how much to read from the underlying stream before finishing the current packet and starting the next one
+    private int roomLeftInPacket = PACKET_SIZE_IN_BYTES;
 
     private byte[] plaintextBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES];
     private byte[] ciphertextBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES];
@@ -45,17 +46,19 @@ public class GCMPacketsEncryptedInputStream extends FilterInputStream {
     private int readButNotEncrypted = 0;
 
     public GCMPacketsEncryptedInputStream(InputStream in, Provider provider, SecretKey secretKey) throws GeneralSecurityException {
+        this(in, provider, secretKey, 0, new SecureRandom().nextInt());
+    }
+
+    private GCMPacketsEncryptedInputStream(InputStream in, Provider provider, SecretKey secretKey, long packetIndex, int nonce)
+            throws GeneralSecurityException {
         super(in);
         cipherSecurityProvider = provider;
         encryptionKey = secretKey;
-        runningPacketIndex = 0L;
-        runningPacketIV = ByteBuffer.allocate(GCM_IV_SIZE_IN_BYTES);
+        runningPacketIndex = packetIndex;
         // the first 8 bytes of the IV for packet encryption are the index of the packet
-        runningPacketIV.putLong(runningPacketIndex);
+        runningPacketIV.putLong(packetIndex);
         // the last 4 bytes of the IV for packet encryption are all equal (randomly generated)
-        runningPacketIV.putInt(new SecureRandom().nextInt());
-        // how much to read from the underlying stream before finishing the current packet and starting the next one
-        roomLeftInPacket = PACKET_SIZE_IN_BYTES;
+        runningPacketIV.putInt(nonce);
         initCipher();
     }
 

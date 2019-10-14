@@ -25,6 +25,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
+import org.elasticsearch.client.enrich.ExecutePolicyRequest;
+import org.elasticsearch.client.enrich.ExecutePolicyResponse;
 import org.elasticsearch.client.enrich.NamedPolicy;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyResponse;
@@ -33,6 +35,7 @@ import org.elasticsearch.client.enrich.StatsRequest;
 import org.elasticsearch.client.enrich.StatsResponse;
 import org.elasticsearch.client.enrich.StatsResponse.CoordinatorStats;
 import org.elasticsearch.client.enrich.StatsResponse.ExecutingPolicy;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -156,7 +159,7 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
-            "users-policy", "exact_match", Collections.singletonList("users"),
+            "users-policy", "match", Collections.singletonList("users"),
             "email", Arrays.asList("address", "zip", "city", "state"));
         client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
 
@@ -247,6 +250,63 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         client.enrich().statsAsync(statsRequest, RequestOptions.DEFAULT,
             listener); // <1>
         // end::enrich-stats-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testExecutePolicy() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
+                .mapping(Collections.singletonMap("properties", Collections.singletonMap("email",
+                    Collections.singletonMap("type", "keyword"))));
+            client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+            PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
+                "users-policy", "match", Collections.singletonList("users"),
+                "email", Arrays.asList("address", "zip", "city", "state"));
+            client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
+        }
+
+        // tag::enrich-execute-policy-request
+        ExecutePolicyRequest request =
+            new ExecutePolicyRequest("users-policy");
+        // end::enrich-execute-policy-request
+
+        // tag::enrich-execute-policy-execute
+        ExecutePolicyResponse response =
+            client.enrich().executePolicy(request, RequestOptions.DEFAULT);
+        // end::enrich-execute-policy-execute
+
+        // tag::enrich-execute-policy-response
+        ExecutePolicyResponse.ExecutionStatus status =
+            response.getExecutionStatus();
+        // end::enrich-execute-policy-response
+
+        // tag::enrich-execute-policy-execute-listener
+        ActionListener<ExecutePolicyResponse> listener =
+            new ActionListener<ExecutePolicyResponse>() {
+            @Override
+            public void onResponse(ExecutePolicyResponse response) { // <1>
+                ExecutePolicyResponse.ExecutionStatus status =
+                    response.getExecutionStatus();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::enrich-execute-policy-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::enrich-execute-policy-execute-async
+        client.enrich().executePolicyAsync(request, RequestOptions.DEFAULT,
+            listener); // <1>
+        // end::enrich-execute-policy-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

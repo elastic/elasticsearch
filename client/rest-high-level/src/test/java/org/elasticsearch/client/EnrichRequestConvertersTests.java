@@ -20,8 +20,10 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
+import org.elasticsearch.client.enrich.ExecutePolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequestTests;
@@ -86,6 +88,26 @@ public class EnrichRequestConvertersTests extends ESTestCase {
         assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
         assertThat(result.getEndpoint(), equalTo("/_enrich/_stats"));
         assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
+    }
+
+    public void testExecutePolicy() {
+        ExecutePolicyRequest request = new ExecutePolicyRequest(randomAlphaOfLength(4));
+        Request result = EnrichRequestConverters.executePolicy(request);
+
+        assertThat(result.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getName() + "/_execute"));
+        assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
+
+        request = new ExecutePolicyRequest(randomAlphaOfLength(4));
+        request.setWaitForCompletion(randomBoolean());
+        result = EnrichRequestConverters.executePolicy(request);
+
+        assertThat(result.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getName() + "/_execute"));
+        assertThat(result.getParameters().size(), equalTo(1));
+        assertThat(result.getParameters().get("wait_for_completion"), equalTo(request.getWaitForCompletion().toString()));
         assertThat(result.getEntity(), nullValue());
     }
 

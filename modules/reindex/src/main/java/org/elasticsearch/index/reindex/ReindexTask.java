@@ -56,6 +56,7 @@ public class ReindexTask extends AllocatedPersistentTask {
     private final TaskId taskId;
     private final BulkByScrollTask childTask;
     private volatile BulkByScrollTask.Status transientStatus;
+    private volatile String description;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
@@ -101,14 +102,36 @@ public class ReindexTask extends AllocatedPersistentTask {
         this.reindexIndexClient = new ReindexIndexClient(client, clusterService, xContentRegistry);
         this.reindexer = reindexer;
         this.taskId = new TaskId(clusterService.localNode().getId(), id);
-        this.childTask = new BulkByScrollTask(id, type, action, getDescription(), parentTask, headers);
+        this.childTask = new BulkByScrollTask(id, type, action, getDescription(), parentTask, headers) {
+            @Override
+            public String getReasonCancelled() {
+                return ReindexTask.this.getReasonCancelled();
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return ReindexTask.this.isCancelled();
+            }
+        };
         this.transientStatus = childTask.getStatus();
 
     }
 
     @Override
     public Status getStatus() {
-        return transientStatus;
+        BulkByScrollTask.StatusBuilder statusBuilder = new BulkByScrollTask.StatusBuilder(transientStatus);
+        statusBuilder.setReasonCancelled(getReasonCancelled());
+        return statusBuilder.buildStatus();
+    }
+
+    @Override
+    public String getDescription() {
+        String description = this.description;
+        if (description != null) {
+            return description;
+        } else {
+            return super.getDescription();
+        }
     }
 
     BulkByScrollTask getChildTask() {
@@ -136,6 +159,7 @@ public class ReindexTask extends AllocatedPersistentTask {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {
                 ReindexRequest reindexRequest = stateDoc.getReindexRequest();
+                description = reindexRequest.getDescription();
                 reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {

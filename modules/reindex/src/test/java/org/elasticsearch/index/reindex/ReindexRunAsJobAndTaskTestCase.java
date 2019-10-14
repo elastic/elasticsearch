@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
  * This should eventually go away (only necessary in 7.x).
  */
 public abstract class ReindexRunAsJobAndTaskTestCase extends ReindexTestCase {
+    private final String name;
     private ReindexRequestBuilderFactory requestBuilderFactory;
 
     private static final Map<String, ReindexRequestBuilderFactory> requestBuilderFactories = new LinkedHashMap<>();
@@ -54,7 +55,7 @@ public abstract class ReindexRunAsJobAndTaskTestCase extends ReindexTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> requestFactoryParameters() {
-        return requestBuilderFactories.keySet().stream().map(name -> new Object[] { name }).collect(Collectors.toList());
+        return requestBuilderFactories.keySet().stream().map(name -> new Object[]{name}).collect(Collectors.toList());
     }
 
     protected interface ReindexRequestBuilderFactory {
@@ -62,11 +63,16 @@ public abstract class ReindexRunAsJobAndTaskTestCase extends ReindexTestCase {
     }
 
     protected ReindexRunAsJobAndTaskTestCase(String name) {
+        this.name = name;
         this.requestBuilderFactory = requestBuilderFactories.get(name);
     }
 
     @Override
     protected ReindexRequestBuilder reindex(Client client) {
         return requestBuilderFactory.create(client);
+    }
+
+    protected void assumeTaskTest() {
+        assumeTrue("does not support resilient job", "task".equals(name));
     }
 }

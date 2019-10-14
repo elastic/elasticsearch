@@ -180,7 +180,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Internal
     public Version getVersion() {
-        return distributions.get(currentDistro).getVersion();
+        return Version.fromString(distributions.get(currentDistro).getVersion());
     }
 
     @Internal
@@ -660,7 +660,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 })
                 .collect(Collectors.joining(" "));
         }
-        defaultEnv.put("ES_JAVA_OPTS", "-Xms512m -Xmx512m -ea -esa " +
+        String heapSize = System.getProperty("tests.heap.size", "512m");
+        defaultEnv.put("ES_JAVA_OPTS", "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa " +
             systemPropertiesString + " " +
             jvmArgsString + " " +
             // Support  passing in additional JVM arguments

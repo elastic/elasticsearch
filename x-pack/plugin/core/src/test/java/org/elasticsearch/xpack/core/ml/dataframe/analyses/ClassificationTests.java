@@ -13,6 +13,9 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClassificationTests extends AbstractSerializingTestCase<Classification> {
 
@@ -64,5 +67,9 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
             () -> new Classification("foo", new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0), "result", 3, 100.0001));
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
+    }
+
+    public void testFieldCardinalityLimitsIsNonNull() {
+        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
     }
 }

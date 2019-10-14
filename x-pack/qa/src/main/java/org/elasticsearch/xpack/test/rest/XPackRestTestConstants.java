@@ -39,6 +39,7 @@ public final class XPackRestTestConstants {
             CONFIG_INDEX));
 
     // Transform constants:
+    public static final String TRANSFORM_TASK_NAME = "data_frame/transforms";
     public static final String TRANSFORM_INTERNAL_INDEX_PREFIX = ".transform-internal-";
     public static final String TRANSFORM_NOTIFICATIONS_INDEX_PREFIX = ".transform-notifications-";
     public static final String TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED = ".data-frame-internal-";

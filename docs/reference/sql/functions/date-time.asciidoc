@@ -248,6 +248,79 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
 Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
 function as the maximum number of second fractional digits returned is 3 (milliseconds).
 
+[[sql-functions-datetime-add]]
+==== `DATE_ADD/DATEADD/TIMESTAMPADD/TIMESTAMP_ADD`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_ADD(
+    string_exp, <1>
+    integer_exp, <2>
+    datetime_exp) <3>
+--------------------------------------------------
+
+*Input*:
+
+<1> string expression denoting the date/time unit to add to the date/datetime
+<2> integer expression denoting how many times the above unit should be added to/from the date/datetime,
+if a negative value is used it results to a subtraction from the date/datetime
+<3> date/datetime expression
+
+*Output*: datetime
+
+.Description:
+
+Add the given number of date/time units to a date/datetime. If the number of units is negative then it's subtracted from
+the date/datetime. If any of the three arguments is `null` a `null` is returned.
+
+[cols="^,^"]
+|===
+2+h|Datetime units to add/subtract
+
+s|unit
+s|abbreviations
+
+| year        | years, yy, yyyy
+| quarter     | quarters, qq, q
+| month       | months, mm, m
+| dayofyear   | dy, y
+| day         | days, dd, d
+| week        | weeks, wk, ww
+| weekday     | weekdays, dw
+| hour        | hours, hh
+| minute      | minutes, mi, n
+| second      | seconds, ss, s
+| millisecond | milliseconds, ms
+| microsecond | microseconds, mcs
+| nanosecond  | nanoseconds, ns
+|===
+
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateTimeYears]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateTimeWeeks]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateTimeSeconds]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateQuarters]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateMinutes]
+--------------------------------------------------
 
 [[sql-functions-datetime-part]]
 ==== `DATE_PART/DATEPART`

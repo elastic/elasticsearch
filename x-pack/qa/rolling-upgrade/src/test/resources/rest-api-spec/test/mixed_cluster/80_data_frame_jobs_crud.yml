@@ -1,5 +1,8 @@
 ---
 "Test put batch data frame transforms on mixed cluster":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/47943"
   - do:
       cluster.health:
         index: "transform-airline-data"
@@ -111,6 +114,9 @@
 
 ---
 "Test put continuous data frame transform on mixed cluster":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/47943"
   - do:
       cluster.health:
         index: "transform-airline-data-cont"
@@ -156,7 +162,9 @@
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
-  - match: { transforms.0.state: "/started|indexing/" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  #- match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame_transform_deprecated.stop_transform:
@@ -169,10 +177,15 @@
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
-  - match: { transforms.0.state: "stopped" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  #- match: { transforms.0.state: "stopped" }
 
 ---
 "Test GET, start, and stop old cluster batch transforms":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/47943"
   - do:
       cluster.health:
         index: "transform-airline-data"
@@ -257,6 +270,9 @@
 
 ---
 "Test GET, stop, start, old continuous transforms":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/47943"
   - do:
       cluster.health:
         index: "transform-airline-data-cont"
@@ -282,7 +298,9 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
-  - match: { transforms.0.state: "/started|indexing/" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  #- match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame_transform_deprecated.stop_transform:
@@ -295,4 +313,6 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
-  - match: { transforms.0.state: "stopped" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  #- match: { transforms.0.state: "stopped" }

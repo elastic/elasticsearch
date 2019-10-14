@@ -177,7 +177,7 @@ public class AzureStorageService {
         return splits[2];
     }
 
-    public boolean blobExists(String account, String container, String blob) throws URISyntaxException, StorageException, IOException {
+    public boolean blobExists(String account, String container, String blob) throws URISyntaxException, StorageException {
         // Container name must be lower case.
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -187,7 +187,7 @@ public class AzureStorageService {
         });
     }
 
-    public void deleteBlob(String account, String container, String blob) throws URISyntaxException, StorageException, IOException {
+    public void deleteBlob(String account, String container, String blob) throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         // Container name must be lower case.
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);

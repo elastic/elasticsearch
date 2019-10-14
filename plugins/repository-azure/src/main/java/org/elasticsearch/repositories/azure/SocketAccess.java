@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.StorageException;
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.SpecialPermission;
 
 import java.io.IOException;
@@ -44,28 +45,24 @@ public final class SocketAccess {
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof IOException) {
-                throw (IOException) e.getCause();
-            } else {
-                throw new IOException(cause);
-            }
-        }
-    }
-
-    public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation)
-            throws StorageException, IOException, URISyntaxException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged(operation);
-        } catch (PrivilegedActionException e) {
-            safeRethrowCause(e);
+            Throwables.rethrow(e.getCause());
             assert false : "always throws";
             return null;
         }
     }
 
-    public static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException, IOException {
+    public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) throws StorageException {
+        SpecialPermission.check();
+        try {
+            return AccessController.doPrivileged(operation);
+        } catch (PrivilegedActionException e) {
+            Throwables.rethrow(e.getCause());
+            assert false : "always throws";
+            return null;
+        }
+    }
+
+    public static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException {
         SpecialPermission.check();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
@@ -73,22 +70,7 @@ public final class SocketAccess {
                 return null;
             });
         } catch (PrivilegedActionException e) {
-            safeRethrowCause(e);
-        }
-    }
-
-    private static void safeRethrowCause(PrivilegedActionException e) throws IOException, URISyntaxException, StorageException {
-        Throwable cause = e.getCause();
-        if (cause instanceof StorageException) {
-            throw (StorageException) cause;
-        } else if (cause instanceof URISyntaxException) {
-            throw (URISyntaxException) cause;
-        } else if (cause instanceof IOException) {
-            throw (IOException) cause;
-        } else if (cause instanceof RuntimeException) {
-            throw (RuntimeException) cause;
-        } else {
-            throw new IOException(cause);
+            Throwables.rethrow(e.getCause());
         }
     }
 

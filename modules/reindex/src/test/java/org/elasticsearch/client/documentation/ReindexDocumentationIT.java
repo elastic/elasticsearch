@@ -293,7 +293,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
         ReindexRequestBuilder builder = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source(INDEX_NAME)
-            .destination("target_index", "_doc");
+            .destination("target_index");
         // Scroll by 1 so that cancellation is easier to control
         builder.source().setSize(1);
 

@@ -240,7 +240,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 @Override
                 public void onResponse(final GetSnapshotsResponse resp) {
                     Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
-                    final Set<SnapshotState> retainableStates = Set.of(SnapshotState.SUCCESS, SnapshotState.FAILED);
+                    final Set<SnapshotState> retainableStates = Set.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL);
                     repositories.forEach(repo -> {
                         snapshots.put(repo,
                             // Only return snapshots in the SUCCESS state

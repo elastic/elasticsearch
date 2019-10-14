@@ -115,13 +115,14 @@ public class BulkProcessorTests extends ESTestCase {
         bulkProcessor.add(new IndexRequest());
         bulkProcessor.add(new IndexRequest());
         bulkProcessor.add(new IndexRequest());
+        // Step-1: different from #46790, here we first execute `Flush` method
         Thread.sleep(2000L);
         latch.countDown();
         Future<?> future = userExec.submit(() -> {
                 bulkProcessor.add(new IndexRequest());
                 bulkProcessor.add(new IndexRequest());
                 bulkProcessor.add(new IndexRequest());
-                bulkProcessor.add(new IndexRequest());
+                bulkProcessor.add(new IndexRequest());// Step-3: Due to step-1 is not completed,here we wait for ReentrantLock   
             });
         
         
@@ -131,9 +132,9 @@ public class BulkProcessorTests extends ESTestCase {
     private BiConsumer<BulkRequest, ActionListener<BulkResponse>> bulkAsync(CountDownLatch latch) {
         return (request, listener) ->
         {
-            // Step-3: retry of bulk request by using scheduler thread
-            // Due to step-2, scheduler thread is already occupied, causing the retry policy to not be executed 
-            // Causes the lock and latch in step-1 not to be released
+            // Step-2: retry of bulk request by using scheduler thread
+            // Due to step-1, scheduler thread is already occupied, causing the retry policy to not be executed 
+            // latch in step-1 not to be released
             asyncExec.execute(() -> {
                 try {
                     latch.await();

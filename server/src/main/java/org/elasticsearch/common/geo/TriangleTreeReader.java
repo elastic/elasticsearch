@@ -113,12 +113,12 @@ public class TriangleTreeReader {
                 }
             }
             if ((metadata & 1 << 0) == 1 << 0) {
-                if (relateNode(component, minX, maxX, minY, maxY, true, thisMaxX, thisMaxY)) {
+                if (intersects(component, true, thisMaxX, thisMaxY)) {
                     return true;
                 }
             }
             if ((metadata & 1 << 1) == 1 << 1) {
-                if (relateNode(component, minX, maxX, minY, maxY, true, thisMaxX, thisMaxY)) {
+                if (intersects(component, true, thisMaxX, thisMaxY)) {
                     return true;
                 }
             }
@@ -126,11 +126,11 @@ public class TriangleTreeReader {
        return false;
     }
 
-    private  boolean relateNode(Rectangle component, int minX, int maxX, int minY, int maxY, boolean splitX, int parentMax, int parentMaxY) throws IOException {
-        int thisMaxX = Math.toIntExact(parentMax - input.readVLong());
+    private boolean intersects(Rectangle component, boolean splitX, int parentMaxX, int parentMaxY) throws IOException {
+        int thisMaxX = Math.toIntExact(parentMaxX - input.readVLong());
         int thisMaxY = Math.toIntExact(parentMaxY - input.readVLong());
         int size =  input.readVInt();
-        if (minY <= thisMaxY && minX <= thisMaxX) {
+        if (component.minY <= thisMaxY && component.minX <= thisMaxX) {
             byte metadata = input.readByte();
             int thisMinX;
             int thisMinY;
@@ -166,16 +166,16 @@ public class TriangleTreeReader {
                 thisMinX = aX;
                 thisMinY = Math.min(Math.min(aY, bY), cY);
             }
-            if ((metadata & 1 << 0) == 1 << 0) {
-                if (relateNode(component, minX, maxX, minY, maxY, !splitX, thisMaxX, thisMaxY)) {
+            if ((metadata & 1 << 0) == 1 << 0) { // left != null
+                if (intersects(component, !splitX, thisMaxX, thisMaxY)) {
                     return true;
                 }
             }
 
-            if ((metadata & 1 << 1) == 1 << 1) {
+            if ((metadata & 1 << 1) == 1 << 1) { // right != null
                 int rightSize = input.readVInt();
-                if ((splitX == false && maxY >= thisMinY) || (splitX && maxX >= thisMinX)) {
-                    if (relateNode(component, minX, maxX, minY, maxY, !splitX, thisMaxX, thisMaxY)) {
+                if ((splitX == false && component.maxY >= thisMinY) || (splitX && component.maxX >= thisMinX)) {
+                    if (intersects(component, !splitX, thisMaxX, thisMaxY)) {
                         return true;
                     }
                 } else {

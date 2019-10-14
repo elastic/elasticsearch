@@ -36,7 +36,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class GeometryEncodingTests extends ESTestCase {
+
+// This test class is just for comparing the size of different encodings.
+public class EncodingComparisonTests extends ESTestCase {
 
     public void testRandomRectangle() throws Exception {
         for (int i =0; i < 100; i++) {

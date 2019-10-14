@@ -232,12 +232,17 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
+    boolean canBeOptimizedBySortedDocs(IndexReader reader, Query query) {
         query = extractQuery(query);
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
-            return null;
+            checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
+            return false;
         }
+        return true;
+    }
+
+    @Override
+    SortedDocsProducer createSortedDocsProducerOrNull(Query query) {
         final byte[] lowerPoint;
         final byte[] upperPoint;
         if (query instanceof PointRangeQuery) {

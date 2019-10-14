@@ -24,6 +24,7 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
@@ -76,5 +77,25 @@ class TermsSortedDocsProducer extends SortedDocsProducer {
             first = false;
         } while (te.next() != null);
         return fillDocIdSet ? builder.build() : DocIdSet.EMPTY;
+    }
+
+    @Override
+    int getStartDocId(CompositeValuesCollectorQueue queue, LeafReaderContext context) throws IOException {
+        final Terms terms = context.reader().terms(field);
+        if (terms == null) {
+            return 0;
+        }
+        Comparable<?> lowerSource = queue.getLowerValueLeadSource();
+        if (lowerSource == null) {
+            return 0;
+        }
+        final TermsEnum te = terms.iterator();
+        if (te.seekCeil((BytesRef) lowerSource) != TermsEnum.SeekStatus.END) {
+            PostingsEnum reuse = te.postings(null, PostingsEnum.NONE);
+            if (reuse.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                return reuse.docID();
+            }
+        }
+        return 0;
     }
 }

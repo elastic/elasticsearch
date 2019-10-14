@@ -65,6 +65,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     private final SingleDimensionValuesSource<?>[] arrays;
     private IntArray docCounts;
     private boolean afterKeyIsSet = false;
+    private boolean isLeadingSort = false;
+    private boolean isEarlyTerminate = false;
 
     /**
      * Constructs a composite queue with the specified size and sources.
@@ -242,6 +244,18 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         return collector;
     }
 
+    public void setLeadingSort(boolean isLeadingSort) {
+        this.isLeadingSort = isLeadingSort;
+    }
+
+    public boolean isEarlyTerminate() {
+        return isEarlyTerminate;
+    }
+
+    public void setEarlyTerminate(boolean earlyTerminate) {
+        this.isEarlyTerminate = earlyTerminate;
+    }
+
     /**
      * Check if the current candidate should be added in the queue.
      * @return The target slot of the candidate or -1 is the candidate is not competitive.
@@ -256,12 +270,22 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         }
         if (afterKeyIsSet && compareCurrentWithAfter() <= 0) {
             // this key is greater than the top value collected in the previous round, skip it
+            if (isLeadingSort && size() >= maxSize) {
+                if (arrays[0].compareCurrentWithAfter() < 0) {
+                    isEarlyTerminate = true;
+                }
+            }
             return -1;
         }
         if (size() >= maxSize
-                // the tree map is full, check if the candidate key should be kept
-                && compare(CANDIDATE_SLOT, top()) > 0) {
+            // the tree map is full, check if the candidate key should be kept
+            && compare(CANDIDATE_SLOT, top()) > 0) {
             // the candidate key is not competitive, skip it
+            if (isLeadingSort) {
+                if (arrays[0].compareCurrent(top()) > 0) {
+                    isEarlyTerminate = true;
+                }
+            }
             return -1;
         }
 

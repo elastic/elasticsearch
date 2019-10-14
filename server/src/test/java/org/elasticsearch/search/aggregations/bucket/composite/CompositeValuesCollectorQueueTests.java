@@ -274,7 +274,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 while (pos < size) {
                     final CompositeValuesCollectorQueue queue =
                         new CompositeValuesCollectorQueue(BigArrays.NON_RECYCLING_INSTANCE, sources, size, last);
-                    final SortedDocsProducer docsProducer = sources[0].createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery());
+                    final SortedDocsProducer docsProducer = sources[0].createSortedDocsProducerOrNull(new MatchAllDocsQuery());
                     for (LeafReaderContext leafReaderContext : reader.leaves()) {
                         final LeafBucketCollector leafCollector = new LeafBucketCollector() {
                             @Override
@@ -282,7 +282,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                                 queue.addIfCompetitive();
                             }
                         };
-                        if (docsProducer != null && withProducer) {
+                        if (docsProducer != null && sources[0].canBeOptimizedBySortedDocs(reader, new MatchAllDocsQuery()) && withProducer) {
                             assertEquals(DocIdSet.EMPTY,
                                 docsProducer.processLeaf(new MatchAllDocsQuery(), queue, leafReaderContext, false));
                         } else {

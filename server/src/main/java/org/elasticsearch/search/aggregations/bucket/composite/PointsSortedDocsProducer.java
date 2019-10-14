@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.FutureArrays;
@@ -53,6 +54,36 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             // no value for the field
             return DocIdSet.EMPTY;
         }
+
+        DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values, field) : null;
+        Visitor visitor = getIntersectVisitor(values, queue, context, builder, false);
+        try {
+            values.intersect(visitor);
+            visitor.flush();
+        } catch (CollectionTerminatedException exc) {}
+        return fillDocIdSet ? builder.build() : DocIdSet.EMPTY;
+    }
+
+    @Override
+    int getStartDocId(CompositeValuesCollectorQueue queue, LeafReaderContext context) throws IOException {
+        final PointValues values = context.reader().getPointValues(field);
+        if (values == null) {
+            return 0;
+        }
+        DocIdSetBuilder builder = new DocIdSetBuilder(context.reader().maxDoc(), values, field);
+        Visitor visitor = getIntersectVisitor(values, queue, context, builder, true);
+        try {
+            values.intersect(visitor);
+        } catch (CollectionTerminatedException exc) {}
+        int docId = builder.build().iterator().nextDoc();
+        if (docId != DocIdSetIterator.NO_MORE_DOCS) {
+            return docId;
+        }
+        return 0;
+    }
+
+    Visitor getIntersectVisitor(PointValues values, CompositeValuesCollectorQueue queue, LeafReaderContext context,
+                                DocIdSetBuilder builder, boolean terminateAfterStartDoc) throws IOException {
         long lowerBucket = Long.MIN_VALUE;
         Comparable lowerValue = queue.getLowerValueLeadSource();
         if (lowerValue != null) {
@@ -70,16 +101,11 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
             upperBucket = (Long) upperValue;
         }
-        DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values, field) : null;
-        Visitor visitor = new Visitor(context, queue, builder, values.getBytesPerDimension(), lowerBucket, upperBucket);
-        try {
-            values.intersect(visitor);
-            visitor.flush();
-        } catch (CollectionTerminatedException exc) {}
-        return fillDocIdSet ? builder.build() : DocIdSet.EMPTY;
+
+        return new Visitor(context, queue, builder, values.getBytesPerDimension(), lowerBucket, upperBucket, terminateAfterStartDoc);
     }
 
-    private class Visitor implements PointValues.IntersectVisitor {
+    protected class Visitor implements PointValues.IntersectVisitor {
         final LeafReaderContext context;
         final CompositeValuesCollectorQueue queue;
         final DocIdSetBuilder builder;
@@ -87,6 +113,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         final int bytesPerDim;
         final long lowerBucket;
         final long upperBucket;
+        final boolean terminateAfterStartDoc;
 
         DocIdSetBuilder bucketDocsBuilder;
         DocIdSetBuilder.BulkAdder adder;
@@ -95,7 +122,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         boolean first = true;
 
         Visitor(LeafReaderContext context, CompositeValuesCollectorQueue queue, DocIdSetBuilder builder,
-                int bytesPerDim, long lowerBucket, long upperBucket) {
+                int bytesPerDim, long lowerBucket, long upperBucket, boolean terminateAfterStartDoc) {
             this.context = context;
             this.maxDoc = context.reader().maxDoc();
             this.queue = queue;
@@ -104,6 +131,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             this.upperBucket = upperBucket;
             this.bucketDocsBuilder = new DocIdSetBuilder(maxDoc);
             this.bytesPerDim = bytesPerDim;
+            this.terminateAfterStartDoc = terminateAfterStartDoc;
         }
 
         @Override
@@ -143,6 +171,11 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             first = false;
             adder.add(docID);
             remaining --;
+
+            if (terminateAfterStartDoc) {
+                builder.grow(1).add(docID);
+                throw new CollectionTerminatedException();
+            }
         }
 
         @Override

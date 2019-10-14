@@ -105,4 +105,9 @@ abstract class SortedDocsProducer {
      */
     abstract DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue,
                                   LeafReaderContext context, boolean fillDocIdSet) throws IOException;
+
+    /**
+     * Returns the first doc id based on the lower source field.
+     */
+    abstract int getStartDocId(CompositeValuesCollectorQueue queue, LeafReaderContext context) throws IOException;
 }

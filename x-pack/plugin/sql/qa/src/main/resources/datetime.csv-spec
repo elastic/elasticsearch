@@ -382,6 +382,23 @@ Magy           | F          | null                     | 1993-03-21 00:00:00.000
 Yishay         | M          | null                     | 1990-10-20 00:00:00.000Z | null          | null
 ;
 
+selectDiffWithComplexExpressions4
+schema::first_name:s|gender:s|birth_date:ts|hire_date:ts|date_diff1:i|date_diff2:i|arithmetics:i
+SELECT first_name, gender, birth_date, hire_date, DATE_DIFF('months', birth_date - INTERVAL 40 months, hire_date + INTERVAL 40 months) AS date_diff1,
+DATE_DIFF('quarter', hire_date + INTERVAL 20 month, birth_date - INTERVAL 20 month) AS date_diff2,
+(DATE_DIFF('months', birth_date - INTERVAL 40 months, hire_date + INTERVAL 40 months) * DATE_DIFF('quarter', hire_date + INTERVAL 20 month, birth_date - INTERVAL 20 month))
+- DATE_DIFF('months', birth_date - INTERVAL 40 months, hire_date + INTERVAL 40 months) + DATE_DIFF('quarter', hire_date + INTERVAL 20 month, birth_date - INTERVAL 20 month) AS arithmetics
+FROM test_emp WHERE ((date_diff1 * date_diff2) - date_diff1 + date_diff2) < -81000 AND first_name LIKE '%y%' ORDER BY date_diff1 DESC;
+
+  first_name | gender | birth_date               | hire_date                | date_diff1 | date_diff2 | arithmetics
+-------------+--------+--------------------------+--------------------------+------------+------------+------------
+Mayuko       | M      | 1952-12-24 00:00:00.000Z | 1991-01-26 00:00:00.000Z | 537        | -165       | -89307
+Mayumi       | M      | 1957-04-04 00:00:00.000Z | 1995-03-13 00:00:00.000Z | 535        | -165       | -88975
+Saniya       | M      | 1958-02-19 00:00:00.000Z | 1994-09-15 00:00:00.000Z | 519        | -160       | -83719
+Mary         | null   | 1953-11-07 00:00:00.000Z | 1990-01-22 00:00:00.000Z | 514        | -158       | -81884
+Hironoby     | F      | 1952-05-15 00:00:00.000Z | 1988-07-21 00:00:00.000Z | 514        | -158       | -81884
+;
+
 dateDiffOrderBy
 schema::emp_no:i | birth_date:ts | hire_date:ts | diff:i
 SELECT emp_no, birth_date, hire_date, DATE_DIFF('hours', hire_date, birth_date) as diff FROM test_emp ORDER BY diff NULLS LAST, emp_no LIMIT 5;

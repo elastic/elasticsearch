@@ -265,21 +265,42 @@ GET /_slm/policy
 
 
 [[slm-api-execute]]
-=== Execute Snapshot Lifecycle Policy API
+=== Execute snapshot lifecycle policy API
+++++
+<titleabbrev>Execute snapshot lifecycle policy</titleabbrev>
+++++
+
+Executes a snapshot lifecycle policy, immediately creating a snapshot
+without waiting for the scheduled creation time.
+
+
+[[slm-api-execute-request]]
+==== {api-request-title}
+
+`PUT /_slm/policy/<snapshot-lifecycle-policy-id>/_execute`
+
+
+[[slm-api-execute-desc]]
+==== {api-description-title}
 
 Sometimes it can be useful to immediately execute a snapshot based on policy,
 perhaps before an upgrade or before performing other maintenance on indices. The
 execute snapshot policy API allows you to perform a snapshot immediately without
 waiting for a policy's scheduled invocation.
 
-==== Path Parameters
 
-`policy_id` (required)::
-  (string) Id of the policy to execute
+[[slm-api-execute-path-params]]
+==== {api-path-parms-title}
 
-==== Example
+`<snapshot-lifecycle-policy-id>`::
+(Required, string)
+ID of the snapshot lifecycle policy to execute.
 
-To take an immediate snapshot using a policy, use the following
+
+[[slm-api-execute-example]]
+==== {api-examples-title}
+
+To take an immediate snapshot using a policy, use the following request:
 
 [source,js]
 --------------------------------------------------
@@ -288,7 +309,7 @@ PUT /_slm/policy/daily-snapshots/_execute
 // CONSOLE
 // TEST[skip:we can't easily handle snapshots from docs tests]
 
-This API will immediately return with the generated snapshot name
+This API returns the following response with the generated snapshot name:
 
 [source,js]
 --------------------------------------------------
@@ -384,8 +405,7 @@ PUT /_slm/policy/daily-snapshots/_execute
 --------------------------------------------------
 // TESTRESPONSE[skip:we can't handle snapshots in docs tests]
 
-Now retriving the policy shows that the policy has successfully been executed:
-
+Now retrieving the policy shows that the policy has successfully been executed:
 
 [source,js]
 --------------------------------------------------
@@ -436,18 +456,38 @@ Which now includes the successful snapshot information:
 It is a good idea to test policies using the execute API to ensure they work.
 
 [[slm-api-delete]]
-=== Delete Snapshot Lifecycle Policy API
+=== Delete snapshot lifecycle policy API
+++++
+<titleabbrev>Delete snapshot lifecycle policy</titleabbrev>
+++++
+
+Deletes an existing snapshot lifecycle policy.
+
+
+[[slm-api-delete-request]]
+==== {api-request-title}
+
+`DELETE /_slm/policy/<snapshot-lifecycle-policy-id>`
+
+
+[[slm-api-delete-desc]]
+==== {api-description-title}
 
 A policy can be deleted by issuing a delete request with the policy id. Note
 that this prevents any future snapshots from being taken, but does not cancel
 any currently ongoing snapshots or remove any previously taken snapshots.
 
-==== Path Parameters
 
-`policy_id` (optional)::
-  (string) Id of the policy to remove.
+[[slm-api-delete-path-params]]
+==== {api-path-parms-title}
 
-==== Example
+`<snapshot-lifecycle-policy-id>`::
+(Required, string)
+ID of the snapshot lifecycle policy to delete.
+
+
+[[slm-api-delete-example]]
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

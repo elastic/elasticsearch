@@ -631,7 +631,7 @@ The following example stops the SLM plugin.
 
 [source,console]
 --------------------------------------------------
-POST _ilm/stop
+POST _slm/stop
 --------------------------------------------------
 // TEST[continued]
 

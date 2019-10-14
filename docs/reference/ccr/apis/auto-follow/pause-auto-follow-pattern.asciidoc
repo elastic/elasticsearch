@@ -62,7 +62,7 @@ meantime.
 ==== {api-path-parms-title}
 
 `<auto_follow_pattern_name>`::
-  (Required, string) Specifies the name of the auto-follow pattern to pause.
+  (Required, string) Name of the auto-follow pattern to pause.
 
 
 [[ccr-pause-auto-follow-pattern-examples]]

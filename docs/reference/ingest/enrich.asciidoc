@@ -181,12 +181,12 @@ the enrich processor matches incoming documents
 to documents in the enrich index
 based on match field values.
 The enrich processor then appends the enrich field data 
-from a matching document in the enrich index
-to target field of the incoming document.
+from matching documents in the enrich index
+to the target field of incoming documents.
 
 Because the `max_matches` option for the enrich processor is `1`,
 the enrich processor appends the data from only the best matching document
-to the target field as an object.
+to each incoming document's target field as an object.
 
 If the `max_matches` option were greater than `1`,
 the processor could append data from up to the `max_matches` number of documents

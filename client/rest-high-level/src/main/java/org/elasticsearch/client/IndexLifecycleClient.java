@@ -547,7 +547,7 @@ public class IndexLifecycleClient {
 
     /**
      * Start the Snapshot Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-start.html">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -561,7 +561,7 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously start the Snapshot Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-start.html">
      * the docs</a> for more.
      * @param request the request
      * @param listener the listener to be notified upon request completion
@@ -574,7 +574,7 @@ public class IndexLifecycleClient {
 
     /**
      * Stop the Snapshot Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-stop.html">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -588,7 +588,7 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously stop the Snapshot Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-stop.html">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -602,7 +602,7 @@ public class IndexLifecycleClient {
 
     /**
      * Stop the Snapshot Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-get-status.html">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -617,7 +617,7 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously stop the Snapshot Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-get-status.html">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

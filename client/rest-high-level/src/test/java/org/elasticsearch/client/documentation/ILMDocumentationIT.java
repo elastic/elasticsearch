@@ -779,7 +779,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
 
         //////// PUT
-        // tag::slm-put-snapshot-lifecycle-policy
+        // tag::slm-put-snapshot-lifecycle-policy-request
         Map<String, Object> config = new HashMap<>();
         config.put("indices", Collections.singletonList("idx"));
         SnapshotRetentionConfiguration retention =
@@ -789,7 +789,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             "my_repository", config, retention);
         PutSnapshotLifecyclePolicyRequest request =
             new PutSnapshotLifecyclePolicyRequest(policy);
-        // end::slm-put-snapshot-lifecycle-policy
+        // end::slm-put-snapshot-lifecycle-policy-request
 
         // tag::slm-put-snapshot-lifecycle-policy-execute
         AcknowledgedResponse resp = client.indexLifecycle()
@@ -818,16 +818,16 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::slm-put-snapshot-lifecycle-policy-execute-async
         client.indexLifecycle().putSnapshotLifecyclePolicyAsync(request,
-            RequestOptions.DEFAULT, putListener);
+            RequestOptions.DEFAULT, putListener); // <1>
         // end::slm-put-snapshot-lifecycle-policy-execute-async
 
         //////// GET
-        // tag::slm-get-snapshot-lifecycle-policy
+        // tag::slm-get-snapshot-lifecycle-policy-request
         GetSnapshotLifecyclePolicyRequest getAllRequest =
             new GetSnapshotLifecyclePolicyRequest(); // <1>
         GetSnapshotLifecyclePolicyRequest getRequest =
             new GetSnapshotLifecyclePolicyRequest("policy_id"); // <2>
-        // end::slm-get-snapshot-lifecycle-policy
+        // end::slm-get-snapshot-lifecycle-policy-request
 
         // tag::slm-get-snapshot-lifecycle-policy-execute
         GetSnapshotLifecyclePolicyResponse getResponse =
@@ -854,7 +854,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::slm-get-snapshot-lifecycle-policy-execute-async
         client.indexLifecycle().getSnapshotLifecyclePolicyAsync(getRequest,
-            RequestOptions.DEFAULT, getListener);
+            RequestOptions.DEFAULT, getListener); // <1>
         // end::slm-get-snapshot-lifecycle-policy-execute-async
 
         assertThat(getResponse.getPolicies().size(), equalTo(1));
@@ -882,10 +882,10 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         createIndex("idx", Settings.builder().put("index.number_of_shards", 1).build());
 
         //////// EXECUTE
-        // tag::slm-execute-snapshot-lifecycle-policy
+        // tag::slm-execute-snapshot-lifecycle-policy-request
         ExecuteSnapshotLifecyclePolicyRequest executeRequest =
             new ExecuteSnapshotLifecyclePolicyRequest("policy_id"); // <1>
-        // end::slm-execute-snapshot-lifecycle-policy
+        // end::slm-execute-snapshot-lifecycle-policy-request
 
         // tag::slm-execute-snapshot-lifecycle-policy-execute
         ExecuteSnapshotLifecyclePolicyResponse executeResponse =
@@ -940,7 +940,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::slm-execute-snapshot-lifecycle-policy-execute-async
         client.indexLifecycle()
             .executeSnapshotLifecyclePolicyAsync(executeRequest,
-                RequestOptions.DEFAULT, executeListener);
+                RequestOptions.DEFAULT, executeListener); // <1>
         // end::slm-execute-snapshot-lifecycle-policy-execute-async
         latch.await(5, TimeUnit.SECONDS);
 
@@ -961,42 +961,49 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             greaterThanOrEqualTo(1L));
 
         //////// DELETE
-        // tag::slm-delete-snapshot-lifecycle-policy
+        // tag::slm-delete-snapshot-lifecycle-policy-request
         DeleteSnapshotLifecyclePolicyRequest deleteRequest =
             new DeleteSnapshotLifecyclePolicyRequest("policy_id"); // <1>
-        // end::slm-delete-snapshot-lifecycle-policy
+        // end::slm-delete-snapshot-lifecycle-policy-request
 
         // tag::slm-delete-snapshot-lifecycle-policy-execute
         AcknowledgedResponse deleteResp = client.indexLifecycle()
             .deleteSnapshotLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT);
         // end::slm-delete-snapshot-lifecycle-policy-execute
+
+        // tag::slm-delete-snapshot-lifecycle-policy-response
+        boolean deleteAcknowledged = deleteResp.isAcknowledged(); // <1>
+        // end::slm-delete-snapshot-lifecycle-policy-response
+
         assertTrue(deleteResp.isAcknowledged());
 
+        // tag::slm-delete-snapshot-lifecycle-policy-execute-listener
         ActionListener<AcknowledgedResponse> deleteListener = new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse resp) {
-                // no-op
+                boolean deleteAcknowledged = resp.isAcknowledged(); // <1>
             }
 
             @Override
             public void onFailure(Exception e) {
-                // no-op
+                // <2>
             }
         };
+        // end::slm-delete-snapshot-lifecycle-policy-execute-listener
 
         // tag::slm-delete-snapshot-lifecycle-policy-execute-async
         client.indexLifecycle()
             .deleteSnapshotLifecyclePolicyAsync(deleteRequest,
-                RequestOptions.DEFAULT, deleteListener);
+                RequestOptions.DEFAULT, deleteListener); // <1>
         // end::slm-delete-snapshot-lifecycle-policy-execute-async
 
         assertTrue(deleteResp.isAcknowledged());
 
         //////// EXECUTE RETENTION
-        // tag::slm-execute-snapshot-lifecycle-retention
+        // tag::slm-execute-snapshot-lifecycle-retention-request
         ExecuteSnapshotLifecycleRetentionRequest req =
             new ExecuteSnapshotLifecycleRetentionRequest();
-        // end::slm-execute-snapshot-lifecycle-retention
+        // end::slm-execute-snapshot-lifecycle-retention-request
 
         // tag::slm-execute-snapshot-lifecycle-retention-execute
         AcknowledgedResponse retentionResp =
@@ -1009,7 +1016,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         final boolean acked = retentionResp.isAcknowledged();
         // end::slm-execute-snapshot-lifecycle-retention-response
 
-        // tag::slm-execute-snapshot-lifecycle-policy-execute-listener
+        // tag::slm-execute-snapshot-lifecycle-retention-execute-listener
         ActionListener<AcknowledgedResponse> retentionListener =
             new ActionListener<>() {
                 @Override
@@ -1027,7 +1034,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::slm-execute-snapshot-lifecycle-retention-execute-async
         client.indexLifecycle()
             .executeSnapshotLifecycleRetentionAsync(req,
-                RequestOptions.DEFAULT, retentionListener);
+                RequestOptions.DEFAULT, retentionListener); // <1>
         // end::slm-execute-snapshot-lifecycle-retention-execute-async
     }
 

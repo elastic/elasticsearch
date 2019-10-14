@@ -1,6 +1,7 @@
 === Stop Analyzer Language Support
 
-The `stop` analyzer supports the following languages:
+The following table contains a list of supported languages
+with links to default stop words.
 
 [width="100%"]
 |=======

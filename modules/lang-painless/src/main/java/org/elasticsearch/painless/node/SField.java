@@ -36,7 +36,6 @@ import java.util.Set;
 public class SField extends ANode {
 
     private final int modifiers;
-    private final boolean synthetic;
     private final String name;
     private final Class<?> type;
     private final Object instance;
@@ -49,11 +48,10 @@ public class SField extends ANode {
      * @param type type of the field
      * @param instance initial value for the field
      */
-    public SField(Location location, int modifiers, boolean synthetic, String name, Class<?> type, Object instance) {
+    public SField(Location location, int modifiers, String name, Class<?> type, Object instance) {
         super(location);
 
         this.modifiers = modifiers;
-        this.synthetic = synthetic;
         this.name = name;
         this.type = type;
         this.instance = instance;
@@ -89,7 +87,7 @@ public class SField extends ANode {
 
     void write(ClassWriter classWriter) {
         classWriter.getClassVisitor().visitField(
-                ClassWriter.buildAccess(modifiers, synthetic), name, Type.getType(type).getDescriptor(), null, null).visitEnd();
+                ClassWriter.buildAccess(modifiers, true), name, Type.getType(type).getDescriptor(), null, null).visitEnd();
     }
 
     @Override

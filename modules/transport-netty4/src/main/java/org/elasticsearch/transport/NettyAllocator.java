@@ -107,18 +107,25 @@ public class NettyAllocator {
 
         @Override
         public ByteBuf directBuffer() {
-            // TODO: Remove
+            // TODO: Currently the Netty SslHandler requests direct ByteBufs even when interacting with the
+            //  JDK SSLEngine. This will be fixed in a future version of Netty. For now, return a heap
+            //  ByteBuf. After a Netty upgrade, return to throwing UnsupportedOperationException
             return heapBuffer();
         }
 
         @Override
         public ByteBuf directBuffer(int initialCapacity) {
-            // TODO: Remove
+            // TODO: Currently the Netty SslHandler requests direct ByteBufs even when interacting with the
+            //  JDK SSLEngine. This will be fixed in a future version of Netty. For now, return a heap
+            //  ByteBuf. After a Netty upgrade, return to throwing UnsupportedOperationException
             return heapBuffer(initialCapacity);
         }
 
         @Override
         public ByteBuf directBuffer(int initialCapacity, int maxCapacity) {
+            // TODO: Currently the Netty SslHandler requests direct ByteBufs even when interacting with the
+            //  JDK SSLEngine. This will be fixed in a future version of Netty. For now, return a heap
+            //  ByteBuf. After a Netty upgrade, return to throwing UnsupportedOperationException
             return heapBuffer(initialCapacity, maxCapacity);
         }
 

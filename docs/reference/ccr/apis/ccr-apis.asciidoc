@@ -30,6 +30,8 @@ You can use the following APIs to perform {ccr} operations.
 * <<ccr-put-auto-follow-pattern,Create auto-follow pattern>>
 * <<ccr-delete-auto-follow-pattern,Delete auto-follow pattern>>
 * <<ccr-get-auto-follow-pattern,Get auto-follow patterns>>
+* <<ccr-pause-auto-follow-pattern,Pause auto-follow pattern>>
+* <<ccr-resume-auto-follow-pattern,Resume auto-follow pattern>>
 
 // top-level
 include::get-ccr-stats.asciidoc[]

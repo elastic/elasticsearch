@@ -1,0 +1,85 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-pause-auto-follow-pattern]]
+=== Pause auto-follow pattern API
+++++
+<titleabbrev>Pause auto-follow pattern</titleabbrev>
+++++
+
+Pauses an auto-follow pattern.
+
+[[ccr-post-pause-auto-follow-pattern-request]]
+==== {api-request-title}
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /_ccr/auto_follow/my_auto_follow_pattern
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index_patterns" :
+  [
+    "leader_index"
+  ],
+  "follow_index_pattern" : "{{leader_index}}-follower"
+}
+--------------------------------------------------
+// TEST[setup:remote_cluster]
+// TESTSETUP
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+POST /_ccr/auto_follow/<auto_follow_pattern_name>/pause
+--------------------------------------------------
+// TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
+
+[[ccr-pause-auto-follow-pattern-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
+privileges on the cluster that contains the follower index. For more information,
+see <<security-privileges>>.
+
+[[ccr-pause-auto-follow-pattern-desc]]
+==== {api-description-title}
+
+This API pauses an auto-follow pattern. When this API returns, the auto-follow pattern
+is inactive and ignores any new index created on the remote cluster that matches any of
+the auto-follow's patterns. Paused auto-follow patterns appear with the `active` field
+set to `false` in the <<ccr-get-auto-follow-pattern, GET auto-follow patterns API>>.
+
+You can resume auto-following with the <<ccr-post-resume-auto-follow,resume auto-follow pattern API>>.
+Once resumed, the auto-follow pattern is active again and automatically configures as
+follower indices created indices on the remote cluster. Remote indices created while the
+pattern was paused will also be followed, unless they have been deleted or closed in the
+meantime.
+
+[[ccr-pause-auto-follow-pattern-path-parms]]
+==== {api-path-parms-title}
+
+`<auto_follow_pattern_name>`::
+  (Required, string) Specifies the name of the auto-follow pattern to pause.
+
+
+[[ccr-pause-auto-follow-pattern-examples]]
+==== {api-examples-title}
+
+This example pauses an auto-follow pattern named `my_auto_follow_pattern`:
+
+[source,console]
+--------------------------------------------------
+POST /_ccr/auto_follow/my_auto_follow_pattern/pause
+--------------------------------------------------
+// TEST[setup:remote_cluster]
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged" : true
+}
+--------------------------------------------------

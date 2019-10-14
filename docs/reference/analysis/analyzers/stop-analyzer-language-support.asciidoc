@@ -1,4 +1,3 @@
-[[analysis-stop-analyzer-language-support]]
 === Stop Analyzer Language Support
 
 The `stop` analyzer supports the following languages:

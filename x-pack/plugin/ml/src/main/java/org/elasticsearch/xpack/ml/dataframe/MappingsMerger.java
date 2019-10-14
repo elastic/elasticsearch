@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -74,9 +75,9 @@ public final class MappingsMerger {
             }
         }
 
-        MappingMetaData mappingMetaData = createMappingMetaData(type, mergedMappings);
+        MappingMetaData mappingMetaData = createMappingMetaData(MapperService.SINGLE_MAPPING_NAME, mergedMappings);
         ImmutableOpenMap.Builder<String, MappingMetaData> result = ImmutableOpenMap.builder();
-        result.put(type, mappingMetaData);
+        result.put(MapperService.SINGLE_MAPPING_NAME, mappingMetaData);
         return result.build();
     }
 

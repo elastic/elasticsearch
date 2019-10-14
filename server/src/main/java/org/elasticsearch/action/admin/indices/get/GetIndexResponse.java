@@ -261,7 +261,6 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     else {
                         builder.startObject("mappings").endObject();
                     }
-                    builder.endObject();
 
                     builder.startObject("settings");
                     Settings indexSettings = settings.get(index);

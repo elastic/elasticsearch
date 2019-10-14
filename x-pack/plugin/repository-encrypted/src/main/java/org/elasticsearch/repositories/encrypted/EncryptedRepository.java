@@ -14,9 +14,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -27,7 +25,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import javax.crypto.Cipher;
-import javax.crypto.CipherInputStream;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
@@ -36,10 +33,8 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
@@ -193,34 +188,35 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public InputStream readBlob(String blobName) throws IOException {
-            final BytesReference dataDecryptionKeyBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
-            try {
-                SecretKey dataDecryptionKey = unwrapKey(BytesReference.toBytes(dataDecryptionKeyBytes), this.masterSecretKey);
-                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_FIPS_PROV);
-                cipher.init(Cipher.DECRYPT_MODE, dataDecryptionKey, ivParameterSpec);
-                return new CipherInputStream(this.delegatedBlobContainer.readBlob(blobName), cipher);
-            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException e) {
-                throw new IOException(e);
-            }
+//            final BytesReference dataDecryptionKeyBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
+//            try {
+//                SecretKey dataDecryptionKey = unwrapKey(BytesReference.toBytes(dataDecryptionKeyBytes), this.masterSecretKey);
+//                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_FIPS_PROV);
+//                cipher.init(Cipher.DECRYPT_MODE, dataDecryptionKey, ivParameterSpec);
+//                return new CipherInputStream(this.delegatedBlobContainer.readBlob(blobName), cipher);
+//            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException e) {
+//                throw new IOException(e);
+//            }
+            return null;
         }
 
         @Override
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-            try {
-                SecretKey dataEncryptionKey = generateRandomSecretKey();
-                byte[] wrappedDataEncryptionKey = wrapKey(dataEncryptionKey, this.masterSecretKey);
-                try (InputStream stream = new ByteArrayInputStream(wrappedDataEncryptionKey)) {
-                    this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
-                }
-                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_FIPS_PROV);
-                cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey, ivParameterSpec);
-                cipher.update()
-                this.delegatedBlobContainer.writeBlob(blobName, new CipherInputStream(inputStream, cipher), blobSize + GCM_TAG_BYTES_LENGTH,
-                        failIfAlreadyExists);
-            } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException
-                    | InvalidAlgorithmParameterException e) {
-                throw new IOException(e);
-            }
+//            try {
+//                SecretKey dataEncryptionKey = generateRandomSecretKey();
+//                byte[] wrappedDataEncryptionKey = wrapKey(dataEncryptionKey, this.masterSecretKey);
+//                try (InputStream stream = new ByteArrayInputStream(wrappedDataEncryptionKey)) {
+//                    this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
+//                }
+//                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_FIPS_PROV);
+//                cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey, ivParameterSpec);
+//                cipher.update()
+//                this.delegatedBlobContainer.writeBlob(blobName, new CipherInputStream(inputStream, cipher), blobSize + GCM_TAG_BYTES_LENGTH,
+//                        failIfAlreadyExists);
+//            } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException
+//                    | InvalidAlgorithmParameterException e) {
+//                throw new IOException(e);
+//            }
         }
 
         @Override

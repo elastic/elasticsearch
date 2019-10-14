@@ -16,34 +16,37 @@ import java.security.GeneralSecurityException;
 import java.security.Provider;
 import java.security.SecureRandom;
 
+import static javax.crypto.Cipher.DECRYPT_MODE;
 import static javax.crypto.Cipher.ENCRYPT_MODE;
 
 /**
  * This is NOT thread-safe.
  */
-public class GCMPacketsEncryptedInputStream extends FilterInputStream {
+public class GCMPacketsCipherInputStream extends FilterInputStream {
 
     private static final int GCM_TAG_SIZE_IN_BYTES = 16;
     private static final int GCM_IV_SIZE_IN_BYTES = 12;
-    private static final String GCM_ENCRYPTION_MODE = "AES/GCM/NoPadding";
+    private static final String GCM_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
 
     private static final int PACKET_SIZE_IN_BYTES = 4096;
     private static final int READ_BUFFER_SIZE_IN_BYTES = 512;
 
     private boolean done = false;
     private boolean closed = false;
-    private final Provider cipherSecurityProvider;
-    private final SecretKey encryptionKey;
+    private final Provider provider;
+    private final SecretKey secretKey;
+    private final int mode;
     private Cipher packetCipher;
 
-    private long runningPacketIndex;
-    private final ByteBuffer runningPacketIV = ByteBuffer.allocate(GCM_IV_SIZE_IN_BYTES);
+    private long packetIndex;
+    private final ByteBuffer packetIV = ByteBuffer.allocate(GCM_IV_SIZE_IN_BYTES);
     // how much to read from the underlying stream before finishing the current packet and starting the next one
-    private int roomLeftInPacket = PACKET_SIZE_IN_BYTES;
+    private int stillToReadInPacket;
+    private int packetSizeInBytes;
 
-    private byte[] plaintextBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES];
-    private byte[] ciphertextBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES];
-    private ByteArrayInputStream ciphertextReadBuffer = new ByteArrayInputStream(new byte[0]);
+    private byte[] inputByteBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES];
+    private byte[] processedByteBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES];
+    private ByteArrayInputStream processedInputStream = new ByteArrayInputStream(new byte[0]);
     private int bytesBufferedInsideTheCipher = 0;
 
     private ByteArrayOutputStream markWriteBuffer = null;
@@ -52,101 +55,119 @@ public class GCMPacketsEncryptedInputStream extends FilterInputStream {
     private long markPacketIndex;
     private int markReadLimit;
 
-    public GCMPacketsEncryptedInputStream(InputStream in, Provider provider, SecretKey secretKey) {
-        this(in, provider, secretKey, 0, new SecureRandom().nextInt());
+    public static GCMPacketsCipherInputStream getGCMPacketsEncryptor(InputStream in, Provider provider, SecretKey secretKey) {
+        return new GCMPacketsCipherInputStream(in, provider, secretKey, ENCRYPT_MODE, 0, new SecureRandom().nextInt());
     }
 
-    private GCMPacketsEncryptedInputStream(InputStream in, Provider provider, SecretKey secretKey, long packetIndex, int nonce) {
+    public static GCMPacketsCipherInputStream getGCMPacketsDecryptor(InputStream in, Provider provider, SecretKey secretKey) {
+        return new GCMPacketsCipherInputStream(in, provider, secretKey, DECRYPT_MODE, 0, new SecureRandom().nextInt());
+    }
+
+    private GCMPacketsCipherInputStream(InputStream in, Provider provider, SecretKey secretKey, int mode, long packetIndex, int nonce) {
         super(in);
-        cipherSecurityProvider = provider;
-        encryptionKey = secretKey;
-        runningPacketIndex = packetIndex;
+        this.provider = provider;
+        this.secretKey = secretKey;
+        this.mode = mode;
+        this.packetIndex = packetIndex;
         // the first 8 bytes of the IV for packet encryption are the index of the packet
-        runningPacketIV.putLong(packetIndex);
+        packetIV.putLong(packetIndex);
         // the last 4 bytes of the IV for packet encryption are all equal (randomly generated)
-        runningPacketIV.putInt(nonce);
+        packetIV.putInt(nonce);
+        if (mode == ENCRYPT_MODE) {
+            packetSizeInBytes = PACKET_SIZE_IN_BYTES;
+        } else {
+            packetSizeInBytes = PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES;
+        }
     }
 
     private void initCipher() throws GeneralSecurityException {
         Cipher cipher;
-        if (cipherSecurityProvider != null) {
-            cipher = Cipher.getInstance(GCM_ENCRYPTION_MODE, cipherSecurityProvider);
+        if (provider != null) {
+            cipher = Cipher.getInstance(GCM_ENCRYPTION_SCHEME, provider);
         } else {
-            cipher = Cipher.getInstance(GCM_ENCRYPTION_MODE);
+            cipher = Cipher.getInstance(GCM_ENCRYPTION_SCHEME);
         }
-        runningPacketIV.putLong(0, runningPacketIndex++);
-        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_SIZE_IN_BYTES * Byte.SIZE, runningPacketIV.array());
-        cipher.init(ENCRYPT_MODE, encryptionKey, gcmParameterSpec);
+        packetIV.putLong(0, packetIndex++);
+        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_SIZE_IN_BYTES * Byte.SIZE, packetIV.array());
+        cipher.init(mode, secretKey, gcmParameterSpec);
         packetCipher = cipher;
     }
 
-    private int readAndEncrypt() throws IOException, GeneralSecurityException {
-        // do not read anything more, there is still ciphertext to be consumed
-        if (ciphertextReadBuffer.available() > 0) {
-            ciphertextReadBuffer.available();
+    private int readAndProcess() throws IOException, GeneralSecurityException {
+        // do not read anything more, there are still processed bytes to be consumed
+        if (processedInputStream.available() > 0) {
+            processedInputStream.available();
         }
         // the underlying input stream is exhausted
         if (done) {
             return -1;
         }
-        if (roomLeftInPacket == PACKET_SIZE_IN_BYTES) {
+        if (stillToReadInPacket == packetSizeInBytes) {
             readAtTheStartOfPacket();
         }
-        int bytesToRead = Math.min(plaintextBuffer.length - bytesBufferedInsideTheCipher, roomLeftInPacket);
+        int bytesToRead = Math.min(inputByteBuffer.length - bytesBufferedInsideTheCipher, stillToReadInPacket);
         if (bytesToRead <= 0) {
             throw new IllegalStateException();
         }
-        int bytesRead = in.read(plaintextBuffer, 0, bytesToRead);
+        int bytesRead = in.read(inputByteBuffer, 0, bytesToRead);
         assert bytesRead != 0 : "read must return at least one byte";
-        assert ciphertextReadBuffer.available() == 0 : "there exists ciphertext still to be consumed, but it shouldn't";
-        final int ciphertextLen;
+        assert processedInputStream.available() == 0 : "there exists processed still to be consumed, but it shouldn't";
+        final int bytesProcessed;
         if (bytesRead == -1) {
             // end of the underlying stream to be encrypted
             done = true;
             try {
-                ciphertextLen = packetCipher.doFinal(ciphertextBuffer, 0);
+                bytesProcessed = packetCipher.doFinal(processedByteBuffer, 0);
             } catch (ShortBufferException e) {
                 throw new IllegalStateException();
             }
             // there should be no internally buffered (by the cipher) data remaining after doFinal
-            bytesBufferedInsideTheCipher -= ciphertextLen;
-            bytesBufferedInsideTheCipher += GCM_TAG_SIZE_IN_BYTES;
+            bytesBufferedInsideTheCipher -= bytesProcessed;
+            if (mode == ENCRYPT_MODE) {
+                bytesBufferedInsideTheCipher += GCM_TAG_SIZE_IN_BYTES;
+            } else {
+                bytesBufferedInsideTheCipher -= GCM_TAG_SIZE_IN_BYTES;
+            }
             if (bytesBufferedInsideTheCipher != 0) {
                 throw new IllegalStateException();
             }
         } else {
-            roomLeftInPacket -= bytesRead;
-            if (roomLeftInPacket < 0) {
+            stillToReadInPacket -= bytesRead;
+            if (stillToReadInPacket < 0) {
                 throw new IllegalStateException();
             }
-            if (roomLeftInPacket == 0) {
+            if (stillToReadInPacket == 0) {
                 // this is the last encryption for this packet
                 try {
-                    ciphertextLen = packetCipher.doFinal(plaintextBuffer, 0, bytesRead, ciphertextBuffer, 0);
+                    bytesProcessed = packetCipher.doFinal(inputByteBuffer, 0, bytesRead, processedByteBuffer, 0);
                 } catch (ShortBufferException e) {
                     throw new IllegalStateException(e);
                 }
                 // there should be no internally buffered (by the cipher) data remaining after doFinal
-                bytesBufferedInsideTheCipher += (bytesRead - ciphertextLen);
-                bytesBufferedInsideTheCipher += GCM_TAG_SIZE_IN_BYTES;
+                bytesBufferedInsideTheCipher += (bytesRead - bytesProcessed);
+                if (mode == ENCRYPT_MODE) {
+                    bytesBufferedInsideTheCipher += GCM_TAG_SIZE_IN_BYTES;
+                } else {
+                    bytesBufferedInsideTheCipher -= GCM_TAG_SIZE_IN_BYTES;
+                }
                 if (bytesBufferedInsideTheCipher != 0) {
                     throw new IllegalArgumentException();
                 }
                 // reset the packet size for the next packet
-                roomLeftInPacket = PACKET_SIZE_IN_BYTES;
+                stillToReadInPacket = packetSizeInBytes;
             } else {
                 // this is a partial encryption inside the packet
                 try {
-                    ciphertextLen = packetCipher.update(plaintextBuffer, 0, bytesRead, ciphertextBuffer, 0);
+                    bytesProcessed = packetCipher.update(inputByteBuffer, 0, bytesRead, processedByteBuffer, 0);
                 } catch (ShortBufferException e) {
                     throw new IllegalStateException(e);
                 }
                 // the cipher might encrypt only part of the plaintext and cache the rest
-                bytesBufferedInsideTheCipher += (bytesRead - ciphertextLen);
+                bytesBufferedInsideTheCipher += (bytesRead - bytesProcessed);
             }
         }
-        ciphertextReadBuffer = new ByteArrayInputStream(ciphertextBuffer, 0, ciphertextLen);
-        return ciphertextLen;
+        processedInputStream = new ByteArrayInputStream(processedByteBuffer, 0, bytesProcessed);
+        return bytesProcessed;
     }
 
     @Override
@@ -155,16 +176,16 @@ public class GCMPacketsEncryptedInputStream extends FilterInputStream {
         if (markReadBuffer.available() > 0) {
             return markReadBuffer.read();
         }
-        while (ciphertextReadBuffer.available() <= 0) {
+        while (processedInputStream.available() <= 0) {
             try {
-                if (readAndEncrypt() == -1) {
+                if (readAndProcess() == -1) {
                     return -1;
                 }
             } catch (GeneralSecurityException e) {
                 throw new IOException(e);
             }
         }
-        int cipherByte = ciphertextReadBuffer.read();
+        int cipherByte = processedInputStream.read();
         if (markTriggered && cipherByte != -1) {
             markWriteBuffer.write(cipherByte);
         }
@@ -177,16 +198,16 @@ public class GCMPacketsEncryptedInputStream extends FilterInputStream {
         if (bytesReadFromMarkBuffer != -1) {
             return bytesReadFromMarkBuffer;
         }
-        while (ciphertextReadBuffer.available() <= 0) {
+        while (processedInputStream.available() <= 0) {
             try {
-                if( readAndEncrypt() == -1) {
+                if( readAndProcess() == -1) {
                     return -1;
                 }
             } catch (GeneralSecurityException e) {
                 throw new IOException(e);
             }
         }
-        int bytesReadFromCipherBuffer = ciphertextReadBuffer.read(b, off, len);
+        int bytesReadFromCipherBuffer = processedInputStream.read(b, off, len);
         if (markTriggered && bytesReadFromCipherBuffer != -1) {
             markWriteBuffer.write(b, off, bytesReadFromCipherBuffer);
         }
@@ -199,20 +220,20 @@ public class GCMPacketsEncryptedInputStream extends FilterInputStream {
             return markReadBuffer.skip(n);
         }
         if (markTriggered) {
-            ciphertextReadBuffer.mark(PACKET_SIZE_IN_BYTES);
-            int skipAheadBytes = Math.toIntExact(ciphertextReadBuffer.skip(n));
+            processedInputStream.mark(packetSizeInBytes);
+            int skipAheadBytes = Math.toIntExact(processedInputStream.skip(n));
             byte[] temp = new byte[skipAheadBytes];
-            ciphertextReadBuffer.read(temp);
+            processedInputStream.read(temp);
             markWriteBuffer.write(temp);
             return skipAheadBytes;
         } else {
-            return ciphertextReadBuffer.skip(n);
+            return processedInputStream.skip(n);
         }
     }
 
     @Override
     public int available() throws IOException {
-        return markReadBuffer.available() + ciphertextReadBuffer.available();
+        return markReadBuffer.available() + processedInputStream.available();
     }
 
     @Override
@@ -221,7 +242,7 @@ public class GCMPacketsEncryptedInputStream extends FilterInputStream {
             return;
         }
         closed = true;
-        ciphertextReadBuffer = new ByteArrayInputStream(new byte[0]);
+        processedInputStream = new ByteArrayInputStream(new byte[0]);
         in.close();
         // Throw away the unprocessed data and throw no crypto exceptions.
         // Normally the GCM cipher is fully readed before closing, so any authentication
@@ -245,7 +266,7 @@ public class GCMPacketsEncryptedInputStream extends FilterInputStream {
     public void mark(int readLimit) {
         markTriggered = true;
         markWriteBuffer = new ByteArrayOutputStream();
-        markPacketIndex = runningPacketIndex;
+        markPacketIndex = packetIndex;
         markReadLimit = readLimit;
     }
 
@@ -256,17 +277,18 @@ public class GCMPacketsEncryptedInputStream extends FilterInputStream {
         }
         if (false == markTriggered) {
             in.reset();
-            ciphertextReadBuffer = new ByteArrayInputStream(new byte[0]);
+            processedInputStream = new ByteArrayInputStream(new byte[0]);
         }
         markReadBuffer = new ByteArrayInputStream(markWriteBuffer.toByteArray());
-        runningPacketIndex = markPacketIndex;
+        packetIndex = markPacketIndex;
     }
 
     private void readAtTheStartOfPacket() throws GeneralSecurityException {
-        // reinit cipher for the next packet
+        // re init cipher for this following packet
         initCipher();
         if (markTriggered) {
             markTriggered = false;
+            // mark the underlying stream at the start of the packet
             in.mark(markReadLimit);
         }
     }

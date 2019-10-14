@@ -7,7 +7,7 @@ with links to default stop words.
 |=======
 |Language |Source
 
-|link:https://github.com/elastic/elasticsearch/blob/master/modules/analysis-common/src/main/java/org/elasticsearch/analysis/common/ArabicAnalyzerProvider.java[Arabic]
+|Arabic
 | link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/ar/ArabicAnalyzer.java#L57[Lucene]
 
 |link:https://github.com/elastic/elasticsearch/blob/master/modules/analysis-common/src/main/java/org/elasticsearch/analysis/common/ArmenianAnalyzerProvider.java[Armenian]

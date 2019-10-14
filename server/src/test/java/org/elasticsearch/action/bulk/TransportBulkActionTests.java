@@ -110,7 +110,7 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index", "type", "id"));
+        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id"));
 
         ActionTestUtils.execute(bulkAction, null, bulkRequest, ActionListener.wrap(response -> {
             assertFalse(bulkAction.indexCreated);
@@ -126,7 +126,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
     public void testDeleteNonExistingDocExternalVersionCreatesIndex() throws Exception {
         BulkRequest bulkRequest = new BulkRequest()
-                .add(new DeleteRequest("index", "type", "id").versionType(VersionType.EXTERNAL).version(0));
+                .add(new DeleteRequest("index").id("id").versionType(VersionType.EXTERNAL).version(0));
 
         ActionTestUtils.execute(bulkAction, null, bulkRequest, ActionListener.wrap(response -> {
             assertTrue(bulkAction.indexCreated);
@@ -137,7 +137,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
     public void testDeleteNonExistingDocExternalGteVersionCreatesIndex() throws Exception {
         BulkRequest bulkRequest = new BulkRequest()
-                .add(new DeleteRequest("index2", "type", "id").versionType(VersionType.EXTERNAL_GTE).version(0));
+                .add(new DeleteRequest("index2").id("id").versionType(VersionType.EXTERNAL_GTE).version(0));
 
         ActionTestUtils.execute(bulkAction, null, bulkRequest, ActionListener.wrap(response -> {
             assertTrue(bulkAction.indexCreated);
@@ -147,10 +147,10 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testGetIndexWriteRequest() throws Exception {
-        IndexRequest indexRequest = new IndexRequest("index", "type", "id1").source(Collections.emptyMap());
-        UpdateRequest upsertRequest = new UpdateRequest("index", "type", "id1").upsert(indexRequest).script(mockScript("1"));
-        UpdateRequest docAsUpsertRequest = new UpdateRequest("index", "type", "id2").doc(indexRequest).docAsUpsert(true);
-        UpdateRequest scriptedUpsert = new UpdateRequest("index", "type", "id2").upsert(indexRequest).script(mockScript("1"))
+        IndexRequest indexRequest = new IndexRequest("index").id("id1").source(Collections.emptyMap());
+        UpdateRequest upsertRequest = new UpdateRequest("index", "id1").upsert(indexRequest).script(mockScript("1"));
+        UpdateRequest docAsUpsertRequest = new UpdateRequest("index", "id2").doc(indexRequest).docAsUpsert(true);
+        UpdateRequest scriptedUpsert = new UpdateRequest("index", "id2").upsert(indexRequest).script(mockScript("1"))
             .scriptedUpsert(true);
 
         assertEquals(TransportBulkAction.getIndexWriteRequest(indexRequest), indexRequest);
@@ -161,7 +161,7 @@ public class TransportBulkActionTests extends ESTestCase {
         DeleteRequest deleteRequest = new DeleteRequest("index", "id");
         assertNull(TransportBulkAction.getIndexWriteRequest(deleteRequest));
 
-        UpdateRequest badUpsertRequest = new UpdateRequest("index", "type", "id1");
+        UpdateRequest badUpsertRequest = new UpdateRequest("index", "id1");
         assertNull(TransportBulkAction.getIndexWriteRequest(badUpsertRequest));
     }
 

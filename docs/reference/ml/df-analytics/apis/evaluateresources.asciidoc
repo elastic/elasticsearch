@@ -103,7 +103,8 @@ which outputs a prediction of values.
 ==== {classification-cap} evaluation objects
 
 {classification-cap} evaluation evaluates the results of a {classification} 
-analysis which outputs 
+analysis which outputs a prediction that identifies to which of the classes each 
+document belongs.
 
 
 [discrete]

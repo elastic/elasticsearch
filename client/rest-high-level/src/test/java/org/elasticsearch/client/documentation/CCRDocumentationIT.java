@@ -686,7 +686,8 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testPauseAutoFollowPattern() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         {
-            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest("my_pattern", "local", List.of("logs-*"));
+            final PutAutoFollowPatternRequest putRequest =
+                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
             AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
             assertThat(putResponse.isAcknowledged(), is(true));
         }
@@ -742,7 +743,8 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testResumeAutoFollowPattern() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         {
-            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest("my_pattern", "local", List.of("logs-*"));
+            final PutAutoFollowPatternRequest putRequest =
+                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
             AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
             assertThat(putResponse.isAcknowledged(), is(true));
 

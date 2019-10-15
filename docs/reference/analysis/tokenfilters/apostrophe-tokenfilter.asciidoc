@@ -6,6 +6,12 @@
 
 Strips all characters after an apostrophe, including the apostrophe itself.
 
+This filter is included in {es}'s built-in <<turkish-analyzer,Turkish language
+analyzer>>. It uses Lucene's
+https://lucene.apache.org/core/4_8_0/analyzers-common/org/apache/lucene/analysis/tr/ApostropheFilter.html[ApostropheFilter],
+which was built for the Turkish language.
+
+
 [[analysis-apostrophe-tokenfilter-analyze-ex]]
 ==== Example
 
@@ -22,7 +28,7 @@ GET /_analyze
 }
 --------------------------------------------------
 
-The `apostrophe` token filter produces the following tokens:
+The filter produces the following tokens:
 
 [source,text]
 ---------------------------
@@ -64,7 +70,7 @@ The `apostrophe` token filter produces the following tokens:
 ==== Add to an analyzer
 
 The following <<indices-create-index,create index API>> request adds the
-`apostrophe` token filter to an analyzer.
+apostrophe token filter to an analyzer.
 
 [source,console]
 --------------------------------------------------
@@ -73,7 +79,7 @@ PUT /apostrophe_example
     "settings" : {
         "analysis" : {
             "analyzer" : {
-                "default" : {
+                "standard_apostrophe" : {
                     "tokenizer" : "standard",
                     "filter" : ["apostrophe"]
                 }

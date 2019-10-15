@@ -414,7 +414,6 @@ PUT logs/_doc/2 <2>
 --------------------------------------------------
 {
   "_index" : "my_logs_index-000002",
-  "_type" : "_doc",
   "_id" : "2",
   "_version" : 1,
   "result" : "created",

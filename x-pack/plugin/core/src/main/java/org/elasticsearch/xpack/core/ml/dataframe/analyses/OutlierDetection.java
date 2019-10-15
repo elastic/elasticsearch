@@ -219,6 +219,11 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
+    public Map<String, Long> getFieldCardinalityLimits() {
+        return Collections.emptyMap();
+    }
+
+    @Override
     public boolean supportsMissingValues() {
         return false;
     }

@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -153,22 +153,27 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-                indexLogger.warn( new IndexingSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.warn(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-                indexLogger.info(new IndexingSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.info(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-                indexLogger.debug(new IndexingSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.debug(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-                indexLogger.trace( new IndexingSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.trace(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             }
         }
     }
 
-    static final class IndexingSlowLogMessage extends ESLogMessage {
+    static final class IndexingSlowLogMessage {
 
-        IndexingSlowLogMessage(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
-            super(prepareMap(index,doc,tookInNanos,reformat,maxSourceCharsToLog),
-                message(index,doc,tookInNanos,reformat,maxSourceCharsToLog));
+        public static ESLogMessage of(
+            Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
+
+            Map<String, Object> jsonFields = prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
+            //message for json logs is provided by jsonFields
+            String plaintextMessage = message(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
+
+            return new ESLogMessage(plaintextMessage).withFields(jsonFields);
         }
 
         private static Map<String, Object> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
@@ -177,7 +182,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             map.put("message", index);
             map.put("took", TimeValue.timeValueNanos(tookInNanos));
             map.put("took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-            map.put("doc_type", doc.type());
             map.put("id", doc.id());
             map.put("routing", doc.routing());
 
@@ -209,7 +213,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             sb.append(index).append(" ");
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ");
             sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
-            sb.append("type[").append(doc.type()).append("], ");
             sb.append("id[").append(doc.id()).append("], ");
             if (doc.routing() == null) {
                 sb.append("routing[]");

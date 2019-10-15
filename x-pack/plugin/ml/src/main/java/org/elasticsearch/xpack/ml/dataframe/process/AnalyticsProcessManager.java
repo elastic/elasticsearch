@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFact
 import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessor;
 import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.io.IOException;
@@ -57,15 +58,18 @@ public class AnalyticsProcessManager {
     private final AnalyticsProcessFactory<AnalyticsResult> processFactory;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
     private final DataFrameAnalyticsAuditor auditor;
+    private final TrainedModelProvider trainedModelProvider;
 
     public AnalyticsProcessManager(Client client,
                                    ThreadPool threadPool,
                                    AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory,
-                                   DataFrameAnalyticsAuditor auditor) {
+                                   DataFrameAnalyticsAuditor auditor,
+                                   TrainedModelProvider trainedModelProvider) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.processFactory = Objects.requireNonNull(analyticsProcessFactory);
         this.auditor = Objects.requireNonNull(auditor);
+        this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
     }
 
     public void runJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory,
@@ -356,7 +360,8 @@ public class AnalyticsProcessManager {
             process = createProcess(task, config, analyticsProcessConfig, state);
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
-            resultProcessor = new AnalyticsResultProcessor(id, dataFrameRowsJoiner, this::isProcessKilled, task.getProgressTracker());
+            resultProcessor = new AnalyticsResultProcessor(config, dataFrameRowsJoiner, this::isProcessKilled, task.getProgressTracker(),
+                trainedModelProvider, auditor);
             return true;
         }
 

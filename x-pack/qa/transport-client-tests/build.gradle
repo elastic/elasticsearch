@@ -17,7 +17,7 @@ testingConventions {
   naming.clear()
   naming {
     IT {
-      baseClass 'org.elasticsearch.xpack.ml.client.ESXPackSmokeClientTestCase'
+      baseClass 'org.elasticsearch.xpack.ESXPackSmokeClientTestCase'
     }
   }
 }

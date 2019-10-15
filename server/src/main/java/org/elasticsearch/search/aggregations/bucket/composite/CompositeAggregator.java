@@ -163,9 +163,9 @@ final class CompositeAggregator extends BucketsAggregator {
             entries.add(new Entry(currentLeaf, docIdSet));
             currentLeaf = null;
             docIdSetBuilder = null;
-            queue.setEarlyTerminate(false);
-            startDocId = 0;
         }
+        queue.setEarlyTerminate(false);
+        startDocId = 0;
     }
 
     @Override

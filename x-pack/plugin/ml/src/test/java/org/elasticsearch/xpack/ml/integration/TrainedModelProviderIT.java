@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
@@ -60,7 +61,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         blockingCall(listener -> trainedModelProvider.storeTrainedModel(config, listener), putConfigHolder, exceptionHolder);
         assertThat(exceptionHolder.get(), is(not(nullValue())));
         assertThat(exceptionHolder.get().getMessage(),
-            equalTo(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, modelId, 0)));
+            equalTo(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, modelId)));
     }
 
     public void testGetTrainedModelConfig() throws Exception {
@@ -95,6 +96,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .setDescription("trained model config for test")
             .setModelId(modelId)
+            .setVersion(Version.CURRENT)
             .build();
     }
 

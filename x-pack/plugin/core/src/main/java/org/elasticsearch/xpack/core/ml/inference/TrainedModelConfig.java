@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -62,6 +63,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         parser.declareObject(TrainedModelConfig.Builder::setDefinition,
             (p, c) -> TrainedModelDefinition.fromXContent(p, ignoreUnknownFields),
             DEFINITION);
+        parser.declareString((bucket, s) -> {}, InferenceIndexConstants.DOC_TYPE);
         return parser;
     }
 
@@ -177,6 +179,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
         }
+        builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
         builder.endObject();
         return builder;
     }
@@ -311,7 +314,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 createdBy,
                 version,
                 description,
-                createTime,
+                createTime == null ? Instant.now() : createTime,
                 definition,
                 tags,
                 metadata);

@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedModelConfig> {
@@ -67,7 +69,8 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
             randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
-            tags,
+            randomBoolean() ? null :
+                Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
     }
 

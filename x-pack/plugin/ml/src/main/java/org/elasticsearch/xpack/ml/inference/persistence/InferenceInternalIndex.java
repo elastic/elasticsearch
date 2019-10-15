@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -66,6 +67,12 @@ public final class InferenceInternalIndex {
         builder.field(DYNAMIC, "false");
 
         builder.startObject(PROPERTIES);
+
+        // Add the doc_type field
+        builder.startObject(InferenceIndexConstants.DOC_TYPE.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject();
+
         addInferenceDocFields(builder);
         return builder.endObject()
             .endObject()

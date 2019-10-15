@@ -23,12 +23,12 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTrack
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -54,6 +55,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     private DataFrameRowsJoiner dataFrameRowsJoiner;
     private ProgressTracker progressTracker = new ProgressTracker();
     private TrainedModelProvider trainedModelProvider;
+    private DataFrameAnalyticsAuditor auditor;
     private DataFrameAnalyticsConfig analyticsConfig;
 
     @Before
@@ -62,6 +64,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         process = mock(AnalyticsProcess.class);
         dataFrameRowsJoiner = mock(DataFrameRowsJoiner.class);
         trainedModelProvider = mock(TrainedModelProvider.class);
+        auditor = mock(DataFrameAnalyticsAuditor.class);
         analyticsConfig = new DataFrameAnalyticsConfig.Builder()
             .setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
@@ -114,7 +117,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testProcess_GivenInferenceModelIsStoredSuccessfully() throws IOException {
+    public void testProcess_GivenInferenceModelIsStoredSuccessfully() {
         givenDataFrameRows(0);
 
         doAnswer(invocationOnMock -> {
@@ -142,19 +145,24 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getDefinition(), equalTo(inferenceModel));
         Map<String, Object> metadata = storedModel.getMetadata();
         assertThat(metadata.size(), equalTo(1));
-        assertThat(metadata, hasKey("config"));
+        assertThat(metadata, hasKey("analytics_config"));
         Map<String, Object> analyticsConfigAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, analyticsConfig.toString(),
             true);
-        assertThat(analyticsConfigAsMap, equalTo(metadata.get("config")));
+        assertThat(analyticsConfigAsMap, equalTo(metadata.get("analytics_config")));
+
+        ArgumentCaptor<String> auditCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditor).info(eq(JOB_ID), auditCaptor.capture());
+        assertThat(auditCaptor.getValue(), containsString("Stored trained model with id [" + JOB_ID));
+        Mockito.verifyNoMoreInteractions(auditor);
     }
 
     @SuppressWarnings("unchecked")
-    public void testProcess_GivenInferenceModelFailedToStore() throws IOException {
+    public void testProcess_GivenInferenceModelFailedToStore() {
         givenDataFrameRows(0);
 
         doAnswer(invocationOnMock -> {
             ActionListener<Boolean> storeListener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-            storeListener.onFailure(new RuntimeException());
+            storeListener.onFailure(new RuntimeException("some failure"));
             return null;
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
@@ -164,7 +172,13 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
         resultProcessor.process(process);
         resultProcessor.awaitForCompletion();
+
         // This test verifies the processor knows how to handle a failure on storing the model and completes normally
+        ArgumentCaptor<String> auditCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditor).error(eq(JOB_ID), auditCaptor.capture());
+        assertThat(auditCaptor.getValue(), containsString("Error storing trained model with id [" + JOB_ID));
+        assertThat(auditCaptor.getValue(), containsString("[some failure]"));
+        Mockito.verifyNoMoreInteractions(auditor);
     }
 
     private void givenProcessResults(List<AnalyticsResult> results) {
@@ -178,6 +192,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     private AnalyticsResultProcessor createResultProcessor() {
-        return new AnalyticsResultProcessor(analyticsConfig, dataFrameRowsJoiner, () -> false, progressTracker, trainedModelProvider);
+        return new AnalyticsResultProcessor(analyticsConfig, dataFrameRowsJoiner, () -> false, progressTracker, trainedModelProvider,
+            auditor);
     }
 }

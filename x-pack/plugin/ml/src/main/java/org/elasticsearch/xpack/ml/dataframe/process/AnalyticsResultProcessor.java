@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTrack
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -39,17 +40,19 @@ public class AnalyticsResultProcessor {
     private final Supplier<Boolean> isProcessKilled;
     private final ProgressTracker progressTracker;
     private final TrainedModelProvider trainedModelProvider;
+    private final DataFrameAnalyticsAuditor auditor;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
     private volatile String failure;
 
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
                                     Supplier<Boolean> isProcessKilled, ProgressTracker progressTracker,
-                                    TrainedModelProvider trainedModelProvider) {
+                                    TrainedModelProvider trainedModelProvider, DataFrameAnalyticsAuditor auditor) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.isProcessKilled = Objects.requireNonNull(isProcessKilled);
         this.progressTracker = Objects.requireNonNull(progressTracker);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Nullable
@@ -137,7 +140,7 @@ public class AnalyticsResultProcessor {
             .setCreateTime(createTime)
             .setTags(Collections.singletonList(analytics.getId()))
             .setDescription(analytics.getDescription())
-            .setMetadata(Collections.singletonMap("config",
+            .setMetadata(Collections.singletonMap("analytics_config",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
             .setDefinition(inferenceModel)
             .build();
@@ -151,10 +154,14 @@ public class AnalyticsResultProcessor {
                     LOGGER.error("[{}] Storing trained model responded false", analytics.getId());
                 } else {
                     LOGGER.info("[{}] Stored trained model with id [{}]", analytics.getId(), trainedModelConfig.getModelId());
+                    auditor.info(analytics.getId(), "Stored trained model with id [" + trainedModelConfig.getModelId() + "]");
                 }
             },
             e -> {
-                LOGGER.error(new ParameterizedMessage("[{}] Error trying to store trained model", analytics.getId()), e);
+                LOGGER.error(new ParameterizedMessage("[{}] Error storing trained model [{}]", analytics.getId(),
+                    trainedModelConfig.getModelId()), e);
+                auditor.error(analytics.getId(), "Error storing trained model with id [" + trainedModelConfig.getModelId()
+                    + "]; error message [" + e.getMessage() + "]");
             }
         );
         trainedModelProvider.storeTrainedModel(trainedModelConfig, new LatchedActionListener<>(storeListener, latch));

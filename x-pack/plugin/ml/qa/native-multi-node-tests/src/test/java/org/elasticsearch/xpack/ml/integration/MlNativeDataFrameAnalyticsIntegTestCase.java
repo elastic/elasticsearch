@@ -35,13 +35,15 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base class of ML integration tests that use a native data_frame_analytics process
@@ -187,17 +189,27 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
         assertBusy(() -> assertTrue(indexExists(AuditorField.NOTIFICATIONS_INDEX)));
         assertBusy(() -> {
-            String[] actualAuditMessages = fetchAllAuditMessages(configId);
-            assertThat("Messages: " + Arrays.toString(actualAuditMessages), actualAuditMessages.length,
-                equalTo(expectedAuditMessagePrefixes.length));
-            for (int i = 0; i < actualAuditMessages.length; i++) {
-                assertThat(actualAuditMessages[i], startsWith(expectedAuditMessagePrefixes[i]));
+            final List<String> allAuditMessages = fetchAllAuditMessages(configId);
+            List<String> auditMessagesStillToMatch = new ArrayList<>(allAuditMessages);
+            for (int i = 0; i < expectedAuditMessagePrefixes.length; i++) {
+                Iterator<String> iter = auditMessagesStillToMatch.iterator();
+                boolean found = false;
+                while (iter.hasNext()) {
+                    if (iter.next().startsWith(expectedAuditMessagePrefixes[i])) {
+                        found = true;
+                        iter.remove();
+                        break;
+                    }
+                }
+                assertTrue("Messages: " + allAuditMessages + ", expected prefixes: " + Arrays.asList(expectedAuditMessagePrefixes)
+                    + ", first failure index: " + i, found);
             }
+            assertThat("Messages: " + allAuditMessages + ", expected prefixes: " + Arrays.asList(expectedAuditMessagePrefixes)
+                + ", unmatched messages: " + auditMessagesStillToMatch, auditMessagesStillToMatch, emptyCollectionOf(String.class));
         });
     }
 
-    @SuppressWarnings("unchecked")
-    private static String[] fetchAllAuditMessages(String dataFrameAnalyticsId) throws Exception {
+    private static List<String> fetchAllAuditMessages(String dataFrameAnalyticsId) {
         RefreshRequest refreshRequest = new RefreshRequest(AuditorField.NOTIFICATIONS_INDEX);
         RefreshResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
@@ -211,6 +223,6 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
         return Arrays.stream(searchResponse.getHits().getHits())
             .map(hit -> (String) hit.getSourceAsMap().get("message"))
-            .toArray(String[]::new);
+            .collect(Collectors.toList());
     }
 }

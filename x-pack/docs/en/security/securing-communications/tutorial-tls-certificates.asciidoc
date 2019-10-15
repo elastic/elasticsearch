@@ -49,7 +49,7 @@ same IP address and hostname. In general, clusters are more resilient when they
 contain nodes from multiple servers and this list would reflect that diversity.
 
 For information about all of the possible fields in this file, see 
-{ref}/certutil.html#certutil-silent[Using elasticsearch-certutil in silent mode].
+<<certutil-silent>>.
 
 Then run the following command:
 
@@ -57,7 +57,6 @@ Then run the following command:
 ----------------------------------------------------------------------
 ./bin/elasticsearch-certutil cert --in test-cluster.yml --keep-ca-key
 ----------------------------------------------------------------------
-// NOTCONSOLE
 
 It prompts you for passwords to secure each output file. 
 
@@ -83,7 +82,6 @@ Archive:  certificate-bundle.zip
    creating: node-3/
   inflating: node-3/node-3.p12  
 ----------------------------------------------------------------------
-// NOTCONSOLE
   
 The `certificate-bundle.zip` file contains a folder for each of your nodes and a
 `ca` folder.
@@ -117,14 +115,13 @@ For example:
 --dns <domain_name> \ <3>
 --ip <ip_addresses> <4>
 ----------------------------------------------------------------------
-// NOTCONSOLE
 <1> The certificate authority that you generated for this cluster.
 <2> The name of the generated certificate. Ideally this value matches the new
 node's `node.name` value in its `elasticsearch.yml` file.
 <3> A comma-separated list of DNS names for the new node.
 <4> A comma-separated list of IP addresses for the new node.
 
-TIP: The {ref}/certutil.html[elasticsearch-certutil] command has a lot more
+TIP: The <<certutil,elasticsearch-certutil>> command has a lot more
 options. For example, it can generate Privacy Enhanced Mail (PEM) formatted
 certificates and keys. It can also generate certificate signing requests (CSRs)
 that you can use to obtain signed certificates from a commercial or

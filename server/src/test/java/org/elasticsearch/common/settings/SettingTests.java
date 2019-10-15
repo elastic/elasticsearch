@@ -241,6 +241,32 @@ public class SettingTests extends ESTestCase {
         assertTrue(FooBarValidator.invokedWithDependencies);
     }
 
+    private static final Setting<String> FILTERED_FOO_BAR_SETTING = new Setting<>(
+        "foo.bar",
+        "foobar",
+        Function.identity(),
+        new FilteredFooBarValidator(),
+        Property.Filtered);
+
+    static class FilteredFooBarValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(String value) {
+            throw new SettingsException("validate always fails");
+        }
+    }
+
+    public void testValidatorForFilteredSetting() {
+        final Settings settings = Settings.builder()
+            .put("foo.bar", "foo.bar value")
+            .build();
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FILTERED_FOO_BAR_SETTING.get(settings));
+        assertThat(e, hasToString(
+            containsString("Failed to parse value for setting [" + FILTERED_FOO_BAR_SETTING.getKey() + "]")));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("validate always fails")));
+    }
+
     public void testUpdateNotDynamic() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.NodeScope);
         assertFalse(booleanSetting.isGroupSetting());

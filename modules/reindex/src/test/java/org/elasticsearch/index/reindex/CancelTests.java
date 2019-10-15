@@ -313,15 +313,15 @@ public class CancelTests extends ReindexRunAsJobAndTaskTestCase {
 
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
-            return preCheck(shardId, index, index.type());
+            return preCheck(shardId, index);
         }
 
         @Override
         public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-            return preCheck(shardId, delete, delete.type());
+            return preCheck(shardId, delete);
         }
 
-        private <T extends Engine.Operation> T preCheck(ShardId shardId, T operation, String type) {
+        private <T extends Engine.Operation> T preCheck(ShardId shardId, T operation) {
             if (operation.origin() != Origin.PRIMARY || shardId.getIndexName().startsWith(".reindex")) {
                 return operation;
             }

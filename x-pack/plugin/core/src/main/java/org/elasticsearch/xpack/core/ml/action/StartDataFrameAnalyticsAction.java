@@ -197,8 +197,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
             } else {
                 progressOnStart = Collections.emptyList();
             }
-            // TODO: change version in backport
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
                 allowLazyStart = in.readBoolean();
             } else {
                 allowLazyStart = false;
@@ -234,8 +233,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
             if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 out.writeList(progressOnStart);
             }
-            // TODO: change version in backport
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 out.writeBoolean(allowLazyStart);
             }
         }

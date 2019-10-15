@@ -67,8 +67,8 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
             return DateTimeField.findSimilar(NAME_TO_PART.keySet(), match);
         }
 
-        public static Part resolve(String truncateTo) {
-            return DateTimeField.resolveMatch(NAME_TO_PART, truncateTo);
+        public static Part resolve(String dateTimeUnit) {
+            return DateTimeField.resolveMatch(NAME_TO_PART, dateTimeUnit);
         }
 
         public ZonedDateTime add(ZonedDateTime dateTime, Integer numberOfUnits) {
@@ -134,8 +134,8 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
     }
 
     @Override
-    protected Pipe createPipe(Pipe first, Pipe second, Pipe third, ZoneId zoneId) {
-        return new DateAddPipe(source(), this, first, second, third, zoneId);
+    protected Pipe createPipe(Pipe unit, Pipe numberOfUnits, Pipe timestamp, ZoneId zoneId) {
+        return new DateAddPipe(source(), this, unit, numberOfUnits, timestamp, zoneId);
     }
 
     @Override

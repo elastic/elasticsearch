@@ -142,8 +142,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         } else {
             modelSnapshotMinVersion = null;
         }
-        // TODO: change version in backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             allowLazyOpen = in.readOptionalBoolean();
         } else {
             allowLazyOpen = null;
@@ -187,8 +186,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 out.writeBoolean(false);
             }
         }
-        // TODO: change version in backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalBoolean(allowLazyOpen);
         }
     }

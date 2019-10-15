@@ -301,16 +301,16 @@ e.g. -Dtests.rest.blacklist=index/*/Index document,get/10_basic/*
 == Testing packaging
 
 The packaging tests use Vagrant virtual machines or cloud instances to verify
-that installing and running elasticsearch distributions works correctly on
+that installing and running Elasticsearch distributions works correctly on
 supported operating systems. These tests should really only be run on ephemeral
 systems because they're destructive; that is, these tests install and remove
 packages and freely modify system settings, so you will probably regret it if
 you execute them on your development machine.
 
 When you run a packaging test, Gradle will set up the target VM and mount your
-repo directory in the VM. Once this is done, a Gradle task will issue a Vagrant
-command to run a *nested* Gradle task on the VM. This nested Gradle runs the
-actual "destructive" test classes.
+repository directory in the VM. Once this is done, a Gradle task will issue a
+Vagrant command to run a *nested* Gradle task on the VM. This nested Gradle
+runs the actual "destructive" test classes.
 
 . Install Virtual Box and Vagrant.
 +
@@ -324,24 +324,25 @@ vagrant plugin install vagrant-cachier
 
 . You can run all of the OS packaging tests with `./gradlew distroTest`. This
 will cause Gradle to build the tar, zip, and deb packages and all the plugins.
-It will then run the tests on every available system. This will take some time.
-
-The various systems under test have their own Gradle tasks under `qa/os`. To find
-out what packiging combinations can be tested on a system, run the `tasks` task.
-For example:
-
+It will then run the tests on every available system. This will take a very 
+long time.
++
+Fortunately, the various systems under test have their own Gradle tasks under
+`qa/os`. To find out what packaging combinations can be tested on a system, run
+the `tasks` task.  For example:
++
 ----------------------------------
 ./gradlew :qa:os:ubuntu-1804:tasks
 ----------------------------------
-
++
 If you want a quick test of the tarball and RPM packagings for Centos 7, you
 would run:
-
++
 -------------------------------------------------------------------------------------------------
 ./gradlew :qa:os:centos-7:distroTest.default-rpm :qa:os:centos-7:distroTest.default-linux-archive
 -------------------------------------------------------------------------------------------------
 
-Note that if you interrupt gradle in the middle of running these tasks, any boxes started
+Note that if you interrupt Gradle in the middle of running these tasks, any boxes started
 will remain running and you'll have to stop them manually with `./gradlew stop` or
 `vagrant halt`.
 
@@ -450,9 +451,9 @@ non-OS tests can. For example:
 -----------------------------------------------------------
 
 If you need to work on the packaging test framework or run Gradle tests from
-the VM's command line, you might have to trace the operations of the gradle
-plugin; we don't have a single command that will spin up and prepare a Vagrant
-VM but stop just short of running the tests.
+the VM's command line, you might have to trace the operations of the Gradle
+`DistroTestPlugin` plugin; we don't have a single command that will spin up and
+prepare a Vagrant VM but stop just short of running the tests.
 
 However, this sequence of commands runs the default-rpm tests on the command
 line of a centos-7 VM, and it might provide some clues for test development:
@@ -465,13 +466,13 @@ line of a centos-7 VM, and it might provide some clues for test development:
 vagrant up --provision centos-7
 vagrant ssh centos-7
 
-# from here, we are running on the gradle command line
+# from here, we are running on the Gradle command line
 export PATH=/elasticsearch/build/jdks/openjdk-12.0.1_linux/bin:$PATH
 export SYSTEM_JAVA_HOME-/elasticsearch/build/jdks/openjdk-11.0.2_linux
 
 cd /project
 
-# If running gradle with sudo scares you, it should! These tests are
+# If running Gradle with sudo scares you, it should! These tests are
 # destructive. VM use only!
 sudo --preserve-env=PATH,SYSTEM_JAVA_HOME ./gradlew --Dtests.inVM \
   --project-cache-dir=/project/gradle-cache \

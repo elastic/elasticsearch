@@ -104,6 +104,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         awaitElasticsearchStartup(startElasticsearch());
         stopElasticsearch();
 
+        Platforms.onWindows(() -> sh.chown(installation.config("elasticsearch.keystore")));
+
         verifyKeystorePermissions();
 
         final Installation.Executables bin = installation.executables();

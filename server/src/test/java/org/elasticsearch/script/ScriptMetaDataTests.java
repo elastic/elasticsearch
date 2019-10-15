@@ -33,8 +33,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaData> {
 

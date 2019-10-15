@@ -18,8 +18,6 @@ include::setup/installing-xes.asciidoc[]
 
 include::setup/setup-xes.asciidoc[]
 
-include::{xes-repo-dir}/security/configuring-es.asciidoc[]
-
 include::setup/setup-xclient.asciidoc[]
 
 include::settings/configuring-xes.asciidoc[]
@@ -62,6 +60,8 @@ include::monitoring/index.asciidoc[]
 include::rollup/index.asciidoc[]
 
 include::{xes-repo-dir}/watcher/index.asciidoc[]
+
+include::security/index.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

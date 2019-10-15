@@ -206,7 +206,7 @@ public class AzureStorageService extends AbstractComponent {
     }
 
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, String container, String keyPath, String prefix)
-        throws URISyntaxException, StorageException {
+            throws URISyntaxException, StorageException, IOException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
         // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
@@ -233,8 +233,9 @@ public class AzureStorageService extends AbstractComponent {
     }
 
     public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,
-                          boolean failIfAlreadyExists)
-        throws URISyntaxException, StorageException, FileAlreadyExistsException {
+                          boolean failIfAlreadyExists) throws URISyntaxException, StorageException, IOException {
+        assert inputStream.markSupported()
+            : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);

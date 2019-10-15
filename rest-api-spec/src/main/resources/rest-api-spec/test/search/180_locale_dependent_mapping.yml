@@ -13,7 +13,7 @@
                   properties:
                       date_field:
                           type: date
-                          format: "E, d MMM yyyy HH:mm:ss Z"
+                          format: "E, d MMM uuuu HH:mm:ss Z"
                           locale: "de"
   - do:
       bulk:

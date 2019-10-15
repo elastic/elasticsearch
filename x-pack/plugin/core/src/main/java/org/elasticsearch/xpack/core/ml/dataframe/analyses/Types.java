@@ -11,6 +11,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,11 +31,12 @@ public final class Types {
         Stream.concat(Stream.of(NumberType.values()).map(NumberType::typeName), Stream.of("scaled_float"))
             .collect(Collectors.toUnmodifiableSet());
 
-    private static final Set<String> BOOLEAN_AND_DISCRETE_NUMERICAL_TYPES =
-        Stream.concat(
-                Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG).map(NumberType::typeName),
-                Stream.of(BooleanFieldMapper.CONTENT_TYPE))
+    private static final Set<String> DISCRETE_NUMERICAL_TYPES =
+        Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG)
+            .map(NumberType::typeName)
             .collect(Collectors.toUnmodifiableSet());
+
+    private static final Set<String> BOOL_TYPES = Collections.singleton(BooleanFieldMapper.CONTENT_TYPE);
 
     public static Set<String> categorical() {
         return CATEGORICAL_TYPES;
@@ -44,7 +46,11 @@ public final class Types {
         return NUMERICAL_TYPES;
     }
 
-    public static Set<String> booleanAndDiscreteNumerical() {
-        return BOOLEAN_AND_DISCRETE_NUMERICAL_TYPES;
+    public static Set<String> discreteNumerical() {
+        return DISCRETE_NUMERICAL_TYPES;
+    }
+
+    public static Set<String> bool() {
+        return BOOL_TYPES;
     }
 }

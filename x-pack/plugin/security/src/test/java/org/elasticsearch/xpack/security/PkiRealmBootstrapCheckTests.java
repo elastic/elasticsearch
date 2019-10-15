@@ -104,11 +104,20 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
     }
 
     public void testBootstrapCheckWithDelegationEnabled() throws Exception {
+        final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        // enable transport tls
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.security.authc.realms.pki.test_pki.enabled", true)
                 .put("xpack.security.authc.realms.pki.test_pki.delegation.enabled", true)
+                .put("xpack.security.transport.ssl.enabled", randomBoolean())
                 .put("xpack.security.transport.ssl.client_authentication", "none")
+                .put("xpack.security.transport.ssl.certificate", certPath.toString())
+                .put("xpack.security.transport.ssl.key", keyPath.toString())
                 .put("path.home", createTempDir())
+                .setSecureSettings(secureSettings)
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());

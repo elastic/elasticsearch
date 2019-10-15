@@ -346,21 +346,21 @@ F         | 1958-09-05 00:00:00.000Z | 1997-05-19 00:00:00.000Z | 594
 ;
 
 selectDiffWithComplexExpressions2
-schema::languages:byte|first_name:s|gender:s|birth_date:ts|hire_date:ts|diff:s
+schema::languages:byte|first_name:s|gender:s|birth_date:ts|hire_date:ts|diff:l
 SELECT languages, first_name, gender, birth_date, hire_date,
 CAST(DATE_DIFF(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN NULL ELSE 'quarter' END,
-    hire_date + INTERVAL 20 month, birth_date - interval 50 month) AS string) AS diff
+    hire_date + INTERVAL 20 month, birth_date - interval 50 month) AS long) AS diff
 FROM test_emp WHERE languages >= 3 AND first_name LIKE '%y%' ORDER BY diff ASC, languages DESC;
 
    languages  |   first_name  |  gender  |      birth_date          |       hire_date          |  diff
 --------------+---------------+----------+--------------------------+--------------------------+------
+4             | Mayumi        | M        | 1957-04-04 00:00:00.000Z | 1995-03-13 00:00:00.000Z | -525
+5             | Georgy        | M        | 1956-06-06 00:00:00.000Z | 1992-04-27 00:00:00.000Z | -500
+4             | Jayson        | M        | 1954-09-16 00:00:00.000Z | 1990-01-14 00:00:00.000Z | -494
+5             | Mary          | null     | 1953-11-07 00:00:00.000Z | 1990-01-22 00:00:00.000Z | -168
 5             | Hironoby      | F        | 1952-05-15 00:00:00.000Z | 1988-07-21 00:00:00.000Z | null
 4             | Weiyi         | F        | null                     | 1993-02-14 00:00:00.000Z | null
 3             | Magy          | F        | null                     | 1993-03-21 00:00:00.000Z | null
-5             | Mary          | null     | 1953-11-07 00:00:00.000Z | 1990-01-22 00:00:00.000Z | -168
-4             | Jayson        | M        | 1954-09-16 00:00:00.000Z | 1990-01-14 00:00:00.000Z | -494
-5             | Georgy        | M        | 1956-06-06 00:00:00.000Z | 1992-04-27 00:00:00.000Z | -500
-4             | Mayumi        | M        | 1957-04-04 00:00:00.000Z | 1995-03-13 00:00:00.000Z | -525
 ;
 
 selectDiffWithComplexExpressions3

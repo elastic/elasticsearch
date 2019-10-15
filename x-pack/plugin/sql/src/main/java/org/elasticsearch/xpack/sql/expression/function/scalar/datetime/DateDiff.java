@@ -41,7 +41,7 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
         WEEK((start, end) -> {
             int extraWeek = NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(end) -
                 NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(start) == 0 ? 0 : 1;
-            long diffWeeks = diffInDays(start ,end) / 7;
+            long diffWeeks = diffInDays(start, end) / 7;
             if (diffWeeks < 0) {
                 diffWeeks -= extraWeek;
             } else {

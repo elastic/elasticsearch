@@ -346,7 +346,7 @@ DATE_DIFF(
 
 Subtract the second argument from the third argument and return their difference in multiples of the unit
 specified in the first argument. If the second argument (start) is greater than the third argument (end),
-then a negative value is return. If any of the three arguments is `null` a `null` is returned.
+then negative value are returned. If any of the three arguments is `null`, a `null` is returned.
 
 [cols="^,^"]
 |===

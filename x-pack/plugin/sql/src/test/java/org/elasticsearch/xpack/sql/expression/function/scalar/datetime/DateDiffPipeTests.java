@@ -82,19 +82,21 @@ public class DateDiffPipeTests extends AbstractNodeTestCase<DateDiffPipe, Pipe> 
         Pipe newSecond = pipe(((Expression) randomValueOtherThan(b.second(), FunctionTestUtils::randomDatetimeLiteral)));
         Pipe newThird = pipe(((Expression) randomValueOtherThan(b.third(), FunctionTestUtils::randomDatetimeLiteral)));
         ZoneId newZoneId = randomValueOtherThan(b.zoneId(), ESTestCase::randomZone);
-        DateDiffPipe newB = new DateDiffPipe( b.source(), b.expression(), b.first(), b.second(), b.third(), newZoneId);
+        DateDiffPipe newB = new DateDiffPipe(b.source(), b.expression(), b.first(), b.second(), b.third(), newZoneId);
 
         ThreeArgsDateTimePipe transformed = newB.replaceChildren(newFirst, b.second(), b.third());
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.first(), newFirst);
         assertEquals(transformed.second(), b.second());
+        assertEquals(transformed.third(), b.third());
 
         transformed = newB.replaceChildren(b.first(), newSecond, b.third());
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.first(), b.first());
         assertEquals(transformed.second(), newSecond);
+        assertEquals(transformed.third(), b.third());
 
         transformed = newB.replaceChildren(b.first(), b.second(), newThird);
         assertEquals(transformed.expression(), b.expression());

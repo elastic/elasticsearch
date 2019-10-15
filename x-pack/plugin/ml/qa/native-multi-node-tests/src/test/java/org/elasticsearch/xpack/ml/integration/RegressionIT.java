@@ -114,7 +114,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis");
+            "Finished analysis",
+            "Stored trained model with id");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
@@ -166,7 +167,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis");
+            "Finished analysis",
+            "Stored trained model with id");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty() throws Exception {
@@ -233,7 +235,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis");
+            "Finished analysis",
+            "Stored trained model with id");
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47612")

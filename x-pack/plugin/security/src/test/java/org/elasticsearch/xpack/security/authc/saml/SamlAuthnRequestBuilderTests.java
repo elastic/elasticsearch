@@ -16,8 +16,6 @@ import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
-import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
-import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -38,17 +36,7 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
     @Before
     public void init() throws Exception {
         SamlUtils.initialize(logger);
-
-        final SingleSignOnService sso = SamlUtils.buildObject(SingleSignOnService.class, SingleSignOnService.DEFAULT_ELEMENT_NAME);
-        sso.setLocation(IDP_URL);
-        sso.setBinding(SAMLConstants.SAML2_REDIRECT_BINDING_URI);
-
-        final IDPSSODescriptor idpRole = SamlUtils.buildObject(IDPSSODescriptor.class, IDPSSODescriptor.DEFAULT_ELEMENT_NAME);
-        idpRole.getSingleSignOnServices().add(sso);
-
-        idpDescriptor = SamlUtils.buildObject(EntityDescriptor.class, EntityDescriptor.DEFAULT_ELEMENT_NAME);
-        idpDescriptor.setEntityID(IDP_ENTITY_ID);
-        idpDescriptor.getRoleDescriptors().add(idpRole);
+        idpDescriptor = buildIdPDescriptor(IDP_URL, IDP_ENTITY_ID);
     }
 
     public void testBuildRequestWithDefaultSettingsHasNoNameIdPolicy() {

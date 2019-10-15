@@ -584,6 +584,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         this.memoryTracker.set(memoryTracker);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
             autodetectProcessManager, memoryTracker);
+        MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
+            new MlConfigMigrator(settings, client, clusterService), clusterService);
 
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
         final InvalidLicenseEnforcer enforcer =
@@ -602,12 +604,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobManager,
                 jobManagerHolder,
                 autodetectProcessManager,
-                new MlInitializationService(settings, threadPool, clusterService, client),
+                new MlInitializationService(settings, threadPool, clusterService, client, mlAssignmentNotifier),
                 jobDataCountsPersister,
                 datafeedManager,
                 anomalyDetectionAuditor,
                 dataFrameAnalyticsAuditor,
-                new MlAssignmentNotifier(settings, anomalyDetectionAuditor, threadPool, client, clusterService),
+                mlAssignmentNotifier,
                 memoryTracker,
                 analyticsProcessManager,
                 memoryEstimationProcessManager,

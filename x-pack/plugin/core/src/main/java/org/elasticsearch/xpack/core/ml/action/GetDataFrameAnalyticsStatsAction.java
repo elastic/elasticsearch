@@ -209,6 +209,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     case REINDEXING:
                         reindexingProgress = legacyProgressPercent;
                         break;
+                    case STARTING:
                     case STARTED:
                     case STOPPED:
                     case STOPPING:
@@ -233,6 +234,14 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
             public List<PhaseProgress> getProgress() {
                 return progress;
+            }
+
+            public DiscoveryNode getNode() {
+                return node;
+            }
+
+            public String getAssignmentExplanation() {
+                return assignmentExplanation;
             }
 
             @Override
@@ -297,6 +306,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     case REINDEXING:
                         targetPhase = "reindexing";
                         break;
+                    case STARTING:
                     case STARTED:
                     case STOPPED:
                     case STOPPING:

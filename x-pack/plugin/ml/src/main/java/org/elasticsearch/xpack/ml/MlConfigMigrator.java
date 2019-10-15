@@ -296,9 +296,9 @@ public class MlConfigMigrator {
                                                                             PersistentTasksCustomMetaData currentTasks,
                                                                             DiscoveryNodes nodes) {
 
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedJobTasks = MlTasks.unassignedJobTasks(currentTasks, nodes);
         Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedDatafeedsTasks =
-                MlTasks.unallocatedDatafeedTasks(currentTasks, nodes);
+                MlTasks.unassignedDatafeedTasks(currentTasks, nodes);
 
         if (unallocatedJobTasks.isEmpty() && unallocatedDatafeedsTasks.isEmpty()) {
             return currentTasks;
@@ -561,7 +561,7 @@ public class MlConfigMigrator {
     public static List<Job> closedOrUnallocatedJobs(ClusterState clusterState) {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         Set<String> openJobIds = MlTasks.openJobIds(persistentTasks);
-        openJobIds.removeAll(MlTasks.unallocatedJobIds(persistentTasks, clusterState.nodes()));
+        openJobIds.removeAll(MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getJobs().values().stream()
@@ -581,7 +581,7 @@ public class MlConfigMigrator {
     public static List<DatafeedConfig> stopppedOrUnallocatedDatafeeds(ClusterState clusterState) {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(persistentTasks);
-        startedDatafeedIds.removeAll(MlTasks.unallocatedDatafeedIds(persistentTasks, clusterState.nodes()));
+        startedDatafeedIds.removeAll(MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getDatafeeds().values().stream()

@@ -32,17 +32,19 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -188,24 +190,12 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
         assertBusy(() -> assertTrue(indexExists(AuditorField.NOTIFICATIONS_INDEX)));
+        @SuppressWarnings("unchecked")
+        Matcher<String>[] itemMatchers = Arrays.stream(expectedAuditMessagePrefixes).map(Matchers::startsWith).toArray(Matcher[]::new);
         assertBusy(() -> {
             final List<String> allAuditMessages = fetchAllAuditMessages(configId);
-            List<String> auditMessagesStillToMatch = new ArrayList<>(allAuditMessages);
-            for (int i = 0; i < expectedAuditMessagePrefixes.length; i++) {
-                Iterator<String> iter = auditMessagesStillToMatch.iterator();
-                boolean found = false;
-                while (iter.hasNext()) {
-                    if (iter.next().startsWith(expectedAuditMessagePrefixes[i])) {
-                        found = true;
-                        iter.remove();
-                        break;
-                    }
-                }
-                assertTrue("Messages: " + allAuditMessages + ", expected prefixes: " + Arrays.asList(expectedAuditMessagePrefixes)
-                    + ", first failure index: " + i, found);
-            }
-            assertThat("Messages: " + allAuditMessages + ", expected prefixes: " + Arrays.asList(expectedAuditMessagePrefixes)
-                + ", unmatched messages: " + auditMessagesStillToMatch, auditMessagesStillToMatch, emptyCollectionOf(String.class));
+            assertThat(allAuditMessages, hasItems(itemMatchers));
+            assertThat("Messages: " + allAuditMessages, allAuditMessages, hasSize(expectedAuditMessagePrefixes.length));
         });
     }
 

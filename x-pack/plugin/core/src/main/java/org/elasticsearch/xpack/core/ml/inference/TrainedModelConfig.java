@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -63,7 +64,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         parser.declareObject(TrainedModelConfig.Builder::setDefinition,
             (p, c) -> TrainedModelDefinition.fromXContent(p, ignoreUnknownFields),
             DEFINITION);
-        parser.declareString((bucket, s) -> {}, InferenceIndexConstants.DOC_TYPE);
+        parser.declareString((trainedModelConfig, s) -> {}, InferenceIndexConstants.DOC_TYPE);
         return parser;
     }
 
@@ -179,7 +180,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
         }
-        builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
+        }
         builder.endObject();
         return builder;
     }

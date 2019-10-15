@@ -16,14 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.common.logging;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.SuppressLoggerChecks;
+import org.apache.logging.log4j.util.Chars;
+import org.apache.logging.log4j.util.StringBuilders;
 
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,28 +36,57 @@ import java.util.stream.Stream;
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
-public abstract class ESLogMessage extends ParameterizedMessage {
+public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     private static final JsonStringEncoder JSON_STRING_ENCODER = JsonStringEncoder.getInstance();
-    private final Map<String, Object> fields;
 
-    /**
-     * This is an abstract class, so this is safe. The check is done on DeprecationMessage.
-     * Other subclasses are not allowing varargs
-     */
-    @SuppressLoggerChecks(reason = "Safe as this is abstract class")
-    public ESLogMessage(Map<String, Object> fields, String messagePattern, Object... args) {
-        super(messagePattern, args);
-        this.fields = fields;
+    private final String messagePattern;
+    private final List<Object> arguments = new ArrayList<>();
+
+    public ESLogMessage(String messagePattern, Object... arguments) {
+        super(new LinkedHashMap<>());
+        this.messagePattern = messagePattern;
+        Collections.addAll(this.arguments, arguments);
     }
 
-    public static String escapeJson(String text) {
-        byte[] sourceEscaped = JSON_STRING_ENCODER.quoteAsUTF8(text);
-        return new String(sourceEscaped, Charset.defaultCharset());
+    public ESLogMessage argAndField(String key, Object value) {
+        this.arguments.add(value);
+        super.with(key,value);
+        return this;
     }
 
-    public String getValueFor(String key) {
-        Object value = fields.get(key);
-        return value!=null ? value.toString() : null;
+    public ESLogMessage field(String key, Object value) {
+        super.with(key,value);
+        return this;
+    }
+
+    public ESLogMessage withFields(Map<String, Object> prepareMap) {
+        prepareMap.forEach(this::field);
+        return this;
+    }
+
+    @Override
+    protected void appendMap(final StringBuilder sb) {
+        String message = ParameterizedMessage.format(messagePattern, arguments.toArray());
+        sb.append(message);
+    }
+
+    //taken from super.asJson without the wrapping '{' '}'
+    @Override
+    protected void asJson(StringBuilder sb) {
+        for (int i = 0; i < getIndexedReadOnlyStringMap().size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(Chars.DQUOTE);
+            int start = sb.length();
+            sb.append(getIndexedReadOnlyStringMap().getKeyAt(i));
+            StringBuilders.escapeJson(sb, start);
+            sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
+            start = sb.length();
+            sb.append(getIndexedReadOnlyStringMap().getValueAt(i).toString());
+            StringBuilders.escapeJson(sb, start);
+            sb.append(Chars.DQUOTE);
+        }
     }
 
     public static String inQuotes(String s) {
@@ -71,5 +105,10 @@ public abstract class ESLogMessage extends ParameterizedMessage {
         return "[" + stream
             .map(ESLogMessage::inQuotes)
             .collect(Collectors.joining(", ")) + "]";
+    }
+
+    public static String escapeJson(String text) {
+        byte[] sourceEscaped = JSON_STRING_ENCODER.quoteAsUTF8(text);
+        return new String(sourceEscaped, Charset.defaultCharset());
     }
 }

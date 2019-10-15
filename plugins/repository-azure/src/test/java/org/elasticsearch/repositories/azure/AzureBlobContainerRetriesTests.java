@@ -49,6 +49,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
@@ -63,6 +64,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -292,6 +294,44 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
+    }
+
+    public void testRetryUntilFail() throws IOException {
+        final AtomicBoolean requestReceived = new AtomicBoolean(false);
+        httpServer.createContext("/container/write_blob_max_retries", exchange -> {
+            try {
+                if (requestReceived.compareAndSet(false, true)) {
+                    throw new AssertionError("Should not receive two requests");
+                } else {
+                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(randomIntBetween(2, 5));
+        try (InputStream stream = new InputStream() {
+
+            @Override
+            public int read() throws IOException {
+                throw new IOException("foo");
+            }
+
+            @Override
+            public boolean markSupported() {
+                return true;
+            }
+
+            @Override
+            public void reset() {
+                throw new AssertionError("should not be called");
+            }
+        }) {
+            final IOException ioe = expectThrows(IOException.class, () ->
+                blobContainer.writeBlob("write_blob_max_retries", stream, randomIntBetween(1, 128), randomBoolean()));
+            assertThat(ioe.getMessage(), is("foo"));
+        }
     }
 
     private static byte[] randomBlobContent() {

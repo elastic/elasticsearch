@@ -659,8 +659,8 @@ POST /_security/oidc/authenticate
 // TEST[catch:unauthorized]
 +
 Elasticsearch will validate this and if all is correct will respond with an access token that can be used
-  as a `Bearer` token for subsequent requests and a refresh token that can be later used to refresh the given
-  access token as described in {ref}/security-api-get-token.html[get token API].
+as a `Bearer` token for subsequent requests and a refresh token that can be later used to refresh the given
+access token as described in {ref}/security-api-get-token.html[get token API].
 . At some point, if necessary, the custom web application can log the user out by using the
   {ref}/security-api-oidc-logout.html[OIDC Logout API] passing the access token and refresh token as parameters. For example:
 +

@@ -21,7 +21,7 @@ import static javax.crypto.Cipher.DECRYPT_MODE;
 import static javax.crypto.Cipher.ENCRYPT_MODE;
 
 /**
- * This is NOT thread-safe.
+ * This is obviously NOT thread-safe.
  */
 public class GCMPacketsCipherInputStream extends FilterInputStream {
 
@@ -29,8 +29,8 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
     private static final int GCM_IV_SIZE_IN_BYTES = 12;
     private static final String GCM_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
 
-    private static final int PACKET_SIZE_IN_BYTES = 4096;
-    private static final int READ_BUFFER_SIZE_IN_BYTES = 512;
+    static final int PACKET_SIZE_IN_BYTES = 4096;
+    static final int READ_BUFFER_SIZE_IN_BYTES = 512;
 
     private boolean done = false;
     private boolean closed = false;
@@ -70,6 +70,16 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
 
     public static GCMPacketsCipherInputStream getGCMPacketsDecryptor(InputStream in, SecretKey secretKey, int nonce) {
         return getGCMPacketsDecryptor(in, secretKey, nonce, new BouncyCastleFipsProvider());
+    }
+
+    public static int getEncryptionSizeFromPlainSize(int size) {
+        return (size / PACKET_SIZE_IN_BYTES) * (PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES)
+                + (size % PACKET_SIZE_IN_BYTES) + GCM_TAG_SIZE_IN_BYTES;
+    }
+
+    public static int getDecryptionSizeFromCipherSize(int size) {
+        return (size / (PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES)) * PACKET_SIZE_IN_BYTES
+                + (size % (PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES)) - GCM_TAG_SIZE_IN_BYTES;
     }
 
     private GCMPacketsCipherInputStream(InputStream in, SecretKey secretKey, int mode, long packetIndex, int nonce, Provider provider) {
@@ -176,7 +186,10 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
                 bytesBufferedInsideTheCipher += (bytesRead - bytesProcessed);
             }
         }
-        processedInputStream = new ByteArrayInputStream(processedByteBuffer, 0, bytesProcessed);
+        // the "if" is just an "optimization"
+        if (bytesProcessed != 0) {
+            processedInputStream = new ByteArrayInputStream(processedByteBuffer, 0, bytesProcessed);
+        }
         return bytesProcessed;
     }
 
@@ -229,11 +242,18 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
         if (markReadBuffer.available() > 0) {
             return markReadBuffer.skip(n);
         }
+        // if mark is triggered bytes cannot be discarded because they might be read later
         if (markTriggered) {
+            // mark
             processedInputStream.mark(packetSizeInBytes);
+            // skip
             int skipAheadBytes = Math.toIntExact(processedInputStream.skip(n));
+            // reset
+            processedInputStream.reset();
             byte[] temp = new byte[skipAheadBytes];
+            // re-read the skipped bytes
             processedInputStream.read(temp);
+            // cache the skipped bytes
             markWriteBuffer.write(temp);
             return skipAheadBytes;
         } else {

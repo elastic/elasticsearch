@@ -425,6 +425,76 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testSLMXpackInfo() {
+        Map<String, Object> features = (Map<String, Object>) getLocation("/_xpack").get("features");
+        assertNotNull(features);
+        Map<String, Object> slm = (Map<String, Object>) features.get("slm");
+        assertNotNull(slm);
+        assertTrue((boolean) slm.get("available"));
+        assertTrue((boolean) slm.get("enabled"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSLMXpackUsage() throws Exception {
+        Map<String, Object> slm = (Map<String, Object>) getLocation("/_xpack/usage").get("slm");
+        assertNotNull(slm);
+        assertTrue((boolean) slm.get("available"));
+        assertTrue((boolean) slm.get("enabled"));
+        assertNull(slm.get("policy_count"));
+
+        // Create a snapshot repo
+        initializeRepo("repo");
+        // Create a policy with a retention period of 1 millisecond
+        createSnapshotPolicy("policy", "snap", "1 2 3 4 5 ?", "repo", "*", true,
+            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null));
+        final String snapshotName = executePolicy("policy");
+
+        // Check that the executed snapshot is created
+        assertBusy(() -> {
+            try {
+                logger.info("--> checking for snapshot creation...");
+                Response response = client().performRequest(new Request("GET", "/_snapshot/repo/" + snapshotName));
+                Map<String, Object> snapshotResponseMap;
+                try (InputStream is = response.getEntity().getContent()) {
+                    snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                assertThat(snapshotResponseMap.size(), greaterThan(0));
+            } catch (ResponseException e) {
+                fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
+            }
+        });
+
+        // Wait for stats to be updated
+        assertBusy(() -> {
+            logger.info("--> checking for stats to be updated...");
+            Map<String, Object> stats = getSLMStats();
+            Map<String, Object> policyStats = policyStatsAsMap(stats);
+            Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get("policy");
+            assertNotNull(policyIdStats);
+        });
+
+        slm = (Map<String, Object>) getLocation("/_xpack/usage").get("slm");
+        assertNotNull(slm);
+        assertTrue((boolean) slm.get("available"));
+        assertTrue((boolean) slm.get("enabled"));
+        assertThat("got: " + slm, slm.get("policy_count"), equalTo(1));
+        assertNotNull(slm.get("policy_stats"));
+    }
+
+    public Map<String, Object> getLocation(String path) {
+        try {
+            Response executeRepsonse = client().performRequest(new Request("GET", path));
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, EntityUtils.toByteArray(executeRepsonse.getEntity()))) {
+                return parser.map();
+            }
+        } catch (Exception e) {
+            fail("failed to execute GET request to " + path + " - got: " + e);
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * Execute the given policy and return the generated snapshot name
      */

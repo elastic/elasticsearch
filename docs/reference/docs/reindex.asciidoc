@@ -522,19 +522,8 @@ reindex timed out.
 (integer) The number of documents that were successfully processed.
 
 `updated`::
-+
---
-(integer) The number of documents that were successfully updated, i.e., a document with same id already existed prior to reindex updating it.
-
-This number includes:
-
-* Documents overwritten during the reindex. This can occur when documents in the
-source and destination indices have the same ID.
-
-* Documents indexed more than once during the reindex. This can occur when {es}
-mistakenly marks a successful attempt to index a document as a failure. In this
-case, {es} indexes the document again, causing a document update.
---
+(integer) The number of documents that were successfully updated,
+i.e. a document with same ID already existed prior to reindex updating it.
 
 `created`::
 

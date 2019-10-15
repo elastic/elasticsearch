@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -64,13 +65,17 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
                 .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
                 .setTrainedModel(buildClassification(true)))
-            .build(Version.CURRENT);
+            .setVersion(Version.CURRENT)
+            .setCreateTime(Instant.now())
+            .build();
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
                 .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
                 .setTrainedModel(buildRegression()))
-            .build(Version.CURRENT);
+            .setVersion(Version.CURRENT)
+            .setCreateTime(Instant.now())
+            .build();
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -107,19 +112,19 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         }});
 
         // Test regression
-        InferModelAction.Request request = new InferModelAction.Request(modelId1, 0, toInfer, new RegressionConfig());
+        InferModelAction.Request request = new InferModelAction.Request(modelId1, toInfer, new RegressionConfig());
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.3, 1.25));
 
-        request = new InferModelAction.Request(modelId1, 0, toInfer2, new RegressionConfig());
+        request = new InferModelAction.Request(modelId1, toInfer2, new RegressionConfig());
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.65, 1.55));
 
 
         // Test classification
-        request = new InferModelAction.Request(modelId2, 0, toInfer, new ClassificationConfig(0));
+        request = new InferModelAction.Request(modelId2, toInfer, new ClassificationConfig(0));
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults()
                 .stream()
@@ -128,7 +133,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             contains("not_to_be", "to_be"));
 
         // Get top classes
-        request = new InferModelAction.Request(modelId2, 0, toInfer, new ClassificationConfig(2));
+        request = new InferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2));
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults =
@@ -147,7 +152,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         // Test that top classes restrict the number returned
-        request = new InferModelAction.Request(modelId2, 0, toInfer2, new ClassificationConfig(1));
+        request = new InferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1));
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
@@ -157,7 +162,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
     public void testInferMissingModel() {
         String model = "test-infer-missing-model";
-        InferModelAction.Request request = new InferModelAction.Request(model, 0, Collections.emptyList(), new RegressionConfig());
+        InferModelAction.Request request = new InferModelAction.Request(model, Collections.emptyList(), new RegressionConfig());
         try {
             client().execute(InferModelAction.INSTANCE, request).actionGet();
         } catch (ElasticsearchException ex) {
@@ -170,8 +175,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setCreatedBy("ml_test")
             .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .setDescription("trained model config for test")
-            .setModelId(modelId)
-            .setModelType("binary_decision_tree");
+            .setModelId(modelId);
     }
 
     @Override

@@ -35,6 +35,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -78,9 +79,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
         String model1 = "test-load-model-1";
         String model2 = "test-load-model-2";
         String model3 = "test-load-model-3";
-        withTrainedModel(model1, 0);
-        withTrainedModel(model2, 0);
-        withTrainedModel(model3, 0);
+        withTrainedModel(model1);
+        withTrainedModel(model2);
+        withTrainedModel(model3);
 
         ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider, threadPool, clusterService);
 
@@ -90,95 +91,96 @@ public class ModelLoadingServiceTests extends ESTestCase {
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
             PlainActionFuture<Model> future = new PlainActionFuture<>();
-            modelLoadingService.getModel(model, 0, future);
+            modelLoadingService.getModel(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(0L), any());
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(0L), any());
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(0L), any());
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), any());
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), any());
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), any());
     }
 
     public void testGetCachedMissingModel() throws Exception {
         String model = "test-load-cached-missing-model";
-        withMissingModel(model, 0);
+        withMissingModel(model);
 
         ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider, threadPool, clusterService);
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
         PlainActionFuture<Model> future = new PlainActionFuture<>();
-        modelLoadingService.getModel(model, 0, future);
+        modelLoadingService.getModel(model, future);
 
         try {
             future.get();
             fail("Should not have succeeded in loaded model");
         } catch (Exception ex) {
-            assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model, 0)));
+            assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
 
-        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model), eq(0L), any());
+        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model), any());
     }
 
     public void testGetMissingModel() {
         String model = "test-load-missing-model";
-        withMissingModel(model, 0);
+        withMissingModel(model);
 
         ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider, threadPool, clusterService);
 
         PlainActionFuture<Model> future = new PlainActionFuture<>();
-        modelLoadingService.getModel(model, 0, future);
+        modelLoadingService.getModel(model, future);
         try {
             future.get();
             fail("Should not have succeeded");
         } catch (Exception ex) {
-            assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model, 0)));
+            assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
     }
 
     public void testGetModelEagerly() throws Exception {
         String model = "test-get-model-eagerly";
-        withTrainedModel(model, 0);
+        withTrainedModel(model);
 
         ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider, threadPool, clusterService);
 
         for(int i = 0; i < 3; i++) {
             PlainActionFuture<Model> future = new PlainActionFuture<>();
-            modelLoadingService.getModel(model, 0, future);
+            modelLoadingService.getModel(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(3)).getTrainedModel(eq(model), eq(0L), any());
+        verify(trainedModelProvider, times(3)).getTrainedModel(eq(model), any());
     }
 
     @SuppressWarnings("unchecked")
-    private void withTrainedModel(String modelId, long modelVersion) {
-        TrainedModelConfig trainedModelConfig = buildTrainedModelConfigBuilder(modelId, modelVersion).build(Version.CURRENT);
+    private void withTrainedModel(String modelId) {
+        TrainedModelConfig trainedModelConfig = buildTrainedModelConfigBuilder(modelId)
+            .setVersion(Version.CURRENT)
+            .setCreateTime(Instant.now())
+            .build();
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(trainedModelConfig);
             return null;
-        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(modelVersion), any());
+        }).when(trainedModelProvider).getTrainedModel(eq(modelId), any());
     }
 
-    private void withMissingModel(String modelId, long modelVersion) {
+    private void withMissingModel(String modelId) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onFailure(new ResourceNotFoundException(
-                Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId, modelVersion)));
+                Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
             return null;
-        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(modelVersion), any());
+        }).when(trainedModelProvider).getTrainedModel(eq(modelId), any());
     }
 
-    private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId, long modelVersion) {
+    private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
             .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .setDescription("trained model config for test")
-            .setModelId(modelId)
-            .setModelType("binary_decision_tree")
-            .setModelVersion(modelVersion);
+            .setModelId(modelId);
     }
 
     private static ClusterChangedEvent ingestChangedEvent(String... modelId) throws IOException {

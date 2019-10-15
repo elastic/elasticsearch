@@ -36,24 +36,21 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
     public static class Request extends ActionRequest {
 
         private final String modelId;
-        private final long modelVersion;
         private final List<Map<String, Object>> objectsToInfer;
         private final InferenceConfig config;
 
-        public Request(String modelId, long modelVersion) {
-            this(modelId, modelVersion, Collections.emptyList(), new RegressionConfig());
+        public Request(String modelId) {
+            this(modelId, Collections.emptyList(), new RegressionConfig());
         }
 
-        public Request(String modelId, long modelVersion, List<Map<String, Object>> objectsToInfer, InferenceConfig inferenceConfig) {
+        public Request(String modelId, List<Map<String, Object>> objectsToInfer, InferenceConfig inferenceConfig) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
-            this.modelVersion = modelVersion;
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
             this.config = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
         }
 
-        public Request(String modelId, long modelVersion, Map<String, Object> objectToInfer, InferenceConfig config) {
+        public Request(String modelId, Map<String, Object> objectToInfer, InferenceConfig config) {
             this(modelId,
-                modelVersion,
                 Arrays.asList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
                 config);
         }
@@ -61,17 +58,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.modelId = in.readString();
-            this.modelVersion = in.readVLong();
             this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
             this.config = in.readNamedWriteable(InferenceConfig.class);
         }
 
         public String getModelId() {
             return modelId;
-        }
-
-        public long getModelVersion() {
-            return modelVersion;
         }
 
         public List<Map<String, Object>> getObjectsToInfer() {
@@ -91,7 +83,6 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
-            out.writeVLong(modelVersion);
             out.writeCollection(objectsToInfer, StreamOutput::writeMap);
             out.writeNamedWriteable(config);
         }
@@ -102,14 +93,13 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (o == null || getClass() != o.getClass()) return false;
             InferModelAction.Request that = (InferModelAction.Request) o;
             return Objects.equals(modelId, that.modelId)
-                && Objects.equals(modelVersion, that.modelVersion)
                 && Objects.equals(config, that.config)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, modelVersion, objectsToInfer, config);
+            return Objects.hash(modelId, objectsToInfer, config);
         }
 
     }

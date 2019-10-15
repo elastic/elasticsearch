@@ -1,4 +1,7 @@
 "Action to get all contexts":
+    - skip:
+      version: " - 7.5.0"
+      reason: "get_all_contexts introduced in 7.5.0"
   - do:
       get_script_context: {}
   - match: { contexts.aggregation_selector: {} }

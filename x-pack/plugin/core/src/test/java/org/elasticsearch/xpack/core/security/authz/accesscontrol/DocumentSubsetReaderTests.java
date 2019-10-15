@@ -26,7 +26,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -213,18 +212,6 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);
-    }
-
-    public void testLazyNumDocs() throws Exception {
-        Directory dir = newDirectory();
-        IndexWriterConfig iwc = new IndexWriterConfig(null);
-        IndexWriter iw = new IndexWriter(dir, iwc);
-        iw.close();
-        DirectoryReader directoryReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
-
-        bitsetCache.close();
-        directoryReader.close();
-        dir.close();
     }
 
     private void openDirectoryReader() throws IOException {

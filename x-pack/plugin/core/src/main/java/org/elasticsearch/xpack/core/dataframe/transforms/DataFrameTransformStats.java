@@ -123,7 +123,7 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
             DataFrameTransformState transformState = new DataFrameTransformState(in);
             this.state = State.fromComponents(transformState.getTaskState(), transformState.getIndexerState());
             this.reason = transformState.getReason();
-            this.node = null;
+            this.node = transformState.getNode();
             this.indexerStats = new DataFrameIndexerTransformStats(in);
             this.checkpointingInfo = new DataFrameTransformCheckpointingInfo(in);
         }
@@ -171,8 +171,8 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
                 checkpointingInfo.getNext().getPosition(),
                 checkpointingInfo.getLast().getCheckpoint(),
                 reason,
-                checkpointingInfo.getNext().getCheckpointProgress()).writeTo(out);
-            out.writeBoolean(false);
+                checkpointingInfo.getNext().getCheckpointProgress(),
+                node).writeTo(out);
             indexerStats.writeTo(out);
             checkpointingInfo.writeTo(out);
         }

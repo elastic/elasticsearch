@@ -73,8 +73,13 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
         assertThat(termQueryBuilder.value(), equalTo("elastic.co"));
         // Check result
-        List<?> entries = ingestDocument.getFieldValue("entry", List.class);
-        Map<?, ?> entry = (Map<?, ?>) entries.get(0);
+        Map<?, ?> entry;
+        if (maxMatches == 1) {
+            entry = ingestDocument.getFieldValue("entry", Map.class);
+        } else {
+            List<?> entries = ingestDocument.getFieldValue("entry", List.class);
+            entry = (Map<?, ?>) entries.get(0);
+        }
         assertThat(entry.size(), equalTo(3));
         assertThat(entry.get("globalRank"), equalTo(451));
         assertThat(entry.get("tldRank"), equalTo(23));

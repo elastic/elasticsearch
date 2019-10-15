@@ -1,5 +1,3 @@
-
-
 tag::actions[]
 `actions`::
 +
@@ -238,6 +236,13 @@ tag::help[]
 to `false`.
 end::help[]
 
+tag::bulk-id[]
+`_id`::
+(Optional, string) 
+The document ID.
+If no ID is specified, a document ID is automatically generated. 
+end::bulk-id[]
+
 tag::if_primary_term[]
 `if_primary_term`::
 (Optional, integer) Only perform the operation if the document has
@@ -301,6 +306,13 @@ tag::index[]
 (Optional, string) Comma-separated list or wildcard expression of index names
 used to limit the request.
 end::index[]
+
+tag::bulk-index[]
+`_index`::
+(Optional, string)
+The name of the target index. 
+Required if not specified as a path parameter.
+end::bulk-index[]
 
 tag::index-metric[]
 `<index-metric>`::

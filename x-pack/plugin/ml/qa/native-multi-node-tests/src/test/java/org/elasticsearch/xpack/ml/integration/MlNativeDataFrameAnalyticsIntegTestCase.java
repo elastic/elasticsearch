@@ -133,7 +133,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         GetDataFrameAnalyticsStatsAction.Response response = client().execute(GetDataFrameAnalyticsStatsAction.INSTANCE, request)
             .actionGet();
         List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = response.getResponse().results();
-        assertThat(stats.size(), equalTo(1));
+        assertThat("Got: " + stats.toString(), stats.size(), equalTo(1));
         return stats.get(0);
     }
 

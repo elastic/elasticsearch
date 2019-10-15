@@ -15,10 +15,9 @@ SLM policy management is split into three different CRUD APIs, a way to put or u
 policies, a way to retrieve policies, and a way to delete unwanted policies, as
 well as a separate API for immediately invoking a snapshot based on a policy.
 
-Since SLM falls under the same category as ILM, it is stopped and started by
-using the <<start-stop-ilm,start and stop>> ILM APIs. It is, however, managed
-by a different enable setting. To disable SLM's functionality, set the cluster
-setting `xpack.slm.enabled` to `false` in elasticsearch.yml.
+SLM can be stopped temporarily and restarted using the <<slm-stop,Stop SLM>> and
+<<slm-start,Start SLM>> APIs. To disable SLM's functionality entirely, set the
+cluster setting `xpack.slm.enabled` to `false` in elasticsearch.yml.
 
 [[slm-api-put]]
 === Put snapshot lifecycle policy API
@@ -661,3 +660,163 @@ background:
 }
 --------------------------------------------------
 
+[[slm-stop]]
+=== Stop Snapshot Lifecycle Management API
+
+[subs="attributes"]
+++++
+<titleabbrev>Stop Snapshot Lifecycle Management</titleabbrev>
+++++
+
+Stop the Snapshot Lifecycle Management (SLM) plugin.
+
+[[slm-stop-request]]
+==== {api-request-title}
+
+`POST /_ilm/stop`
+
+[[slm-stop-desc]]
+==== {api-description-title}
+
+Halts all snapshot lifecycle management operations and stops the SLM plugin.
+This is useful when you are performing maintenance on the cluster and need to
+prevent SLM from performing any actions on your indices. Note that this API does
+not stop any snapshots that are currently in progress, and that snapshots can
+still be taken manually via the <<slm-api-execute,Execute Policy API>> even
+when SLM is stopped.
+
+The API returns as soon as the stop request has been acknowledged, but the
+plugin might continue to run until in-progress operations complete and the plugin
+can be safely stopped. Use the  <<slm-get-status, Get SLM Status>> API to see
+if SLM is running. 
+
+==== Request Parameters
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+==== Authorization
+
+You must have the `manage_slm` cluster privilege to use this API.
+For more information, see <<security-privileges>>.
+
+[[slm-stop-example]]
+==== {api-examples-title}
+
+Stops the SLM plugin.
+
+[source,console]
+--------------------------------------------------
+POST _slm/stop
+--------------------------------------------------
+// TEST[continued]
+
+If the request does not encounter errors, you receive the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+[[slm-start]]
+=== Start Snapshot Lifecycle Management API
+
+[subs="attributes"]
+++++
+<titleabbrev>Start Snapshot Lifecycle Management</titleabbrev>
+++++
+
+Start the Snapshot Lifecycle Management (SLM) plugin.
+
+[[slm-start-request]]
+==== {api-request-title}
+
+`POST /_slm/start`
+
+[[slm-start-desc]]
+==== {api-description-title}
+
+Starts the SLM plugin if it is currently stopped. SLM is started
+automatically when the cluster is formed. Restarting SLM is only
+necessary if it has been stopped using the <<slm-stop, Stop SLM API>>.
+
+==== Request Parameters
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+==== Authorization
+
+You must have the `manage_slm` cluster privilege to use this API.
+For more information, see <<security-privileges>>.
+
+[[slm-start-example]]
+==== {api-examples-title}
+
+Starts the SLM plugin.
+
+[source,console]
+--------------------------------------------------
+POST _slm/start
+--------------------------------------------------
+// TEST[continued]
+
+If the request succeeds, you receive the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+[[slm-get-status]]
+=== Get Snapshot Lifecycle Management status API
+
+[subs="attributes"]
+++++
+<titleabbrev>Get Snapshot Lifecycle Management status</titleabbrev>
+++++
+
+Retrieves the current Snapshot Lifecycle Management (SLM) status.
+
+[[slm-get-status-request]]
+==== {api-request-title}
+
+`GET /_slm/status`
+
+[[slm-get-status-desc]]
+==== {api-description-title}
+
+Returns the status of the SLM plugin. The `operation_mode` field in the
+response shows one of three states: `STARTED`, `STOPPING`,
+or `STOPPED`. You can change the status of the SLM plugin with the
+<<slm-start, Start SLM>> and <<slm-stop, Stop SLM>> APIs.
+
+==== Request Parameters
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+==== Authorization
+
+You must have the `manage_slm` or `read_slm` or both cluster privileges to use this API.
+For more information, see <<security-privileges>>.
+
+[[slm-get-status-example]]
+==== {api-examples-title}
+
+Gets the SLM plugin status.
+
+[source,console]
+--------------------------------------------------
+GET _slm/status
+--------------------------------------------------
+
+If the request succeeds, the body of the response shows the operation mode:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "operation_mode": "RUNNING"
+}
+--------------------------------------------------

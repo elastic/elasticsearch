@@ -81,7 +81,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -141,7 +141,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -199,7 +199,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -259,14 +259,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
 
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
-            DataFrameAnalyticsState state = getAnalyticsStats(jobId).get(0).getState();
+            DataFrameAnalyticsState state = getAnalyticsStats(jobId).getState();
             assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
                 equalTo(DataFrameAnalyticsState.STOPPED))));
         });

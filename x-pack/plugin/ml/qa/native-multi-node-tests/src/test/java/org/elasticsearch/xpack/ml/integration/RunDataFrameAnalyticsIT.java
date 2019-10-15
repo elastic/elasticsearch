@@ -80,7 +80,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
@@ -157,7 +157,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
@@ -228,7 +228,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
@@ -293,12 +293,12 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         startAnalytics(id);
         // State here could be any of STARTED, REINDEXING or ANALYZING
 
         assertThat(stopAnalytics(id).isStopped(), is(true));
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         if (indexExists(config.getDest().getIndex()) == false) {
             // We stopped before we even created the destination index
             return;
@@ -363,7 +363,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
@@ -421,7 +421,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
@@ -480,7 +480,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         registerAnalytics(config);
         putAnalytics(config);
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
 
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(id));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -525,14 +525,14 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         registerAnalytics(config);
         putAnalytics(config);
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
 
         // Due to lazy start being allowed, this should succeed even though no node currently in the cluster is big enough
         startAnalytics(id);
 
         // Wait until state is STARTING, there is no node but there is an assignment explanation.
         assertBusy(() -> {
-            GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id).get(0);
+            GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
             assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STARTING));
             assertThat(stats.getNode(), is(nullValue()));
             assertThat(stats.getAssignmentExplanation(), containsString("persistent task is awaiting node assignment"));
@@ -576,12 +576,12 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         startAnalytics(id);
 
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
-            DataFrameAnalyticsState state = getAnalyticsStats(id).get(0).getState();
+            DataFrameAnalyticsState state = getAnalyticsStats(id).getState();
             assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
                 equalTo(DataFrameAnalyticsState.STOPPED))));
         });
@@ -652,7 +652,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);

@@ -434,10 +434,10 @@ that'd consume a ton of ram.
 === Iterating on packaging tests
 
 Because our packaging tests are capable of testing many combinations of OS
-(e.g., Windows or Linux), package type (e.g., zip file or RPM), Elasticsearch
-distribution type (e.g., default or OSS), and so forth, it's faster to develop
-against smaller subsets of the tests. For example, to run tests for the default
-archive distribution on Fedora 28:
+(e.g., Windows, Linux, etc.), package type (e.g., zip file, RPM, etc.),
+Elasticsearch distribution type (e.g., default or OSS), and so forth, it's
+faster to develop against smaller subsets of the tests. For example, to run
+tests for the default archive distribution on Fedora 28:
 
 -----------------------------------------------------------
 ./gradlew :qa:os:fedora-28:distroTest.default-linux-archive

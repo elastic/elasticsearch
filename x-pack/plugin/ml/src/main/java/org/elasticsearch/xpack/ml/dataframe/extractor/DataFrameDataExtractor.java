@@ -268,7 +268,7 @@ public class DataFrameDataExtractor {
         return context.extractedFields.getAllFields().stream()
             .filter(extractedField -> analysis.getAllowedCategoricalTypes(extractedField.getName()).containsAll(extractedField.getTypes()))
             .map(ExtractedField::getName)
-            .collect(Collectors.toUnmodifiableSet());
+            .collect(Collectors.toSet());
     }
 
     public static class DataSummary {

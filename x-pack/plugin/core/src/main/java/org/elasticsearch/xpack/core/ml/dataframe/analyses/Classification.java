@@ -62,9 +62,10 @@ public class Classification implements DataFrameAnalysis {
     }
 
     private static final Set<String> ALLOWED_DEPENDENT_VARIABLE_TYPES =
-        Stream.of(Types.categorical(), Types.discreteNumerical(), Types.bool())
-            .flatMap(Set::stream)
-            .collect(Collectors.toUnmodifiableSet());
+        Collections.unmodifiableSet(
+            Stream.of(Types.categorical(), Types.discreteNumerical(), Types.bool())
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet()));
 
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;

@@ -24,17 +24,20 @@ public final class Types {
     private Types() {}
 
     private static final Set<String> CATEGORICAL_TYPES =
-        Stream.of(TextFieldMapper.CONTENT_TYPE, KeywordFieldMapper.CONTENT_TYPE, IpFieldMapper.CONTENT_TYPE)
-            .collect(Collectors.toUnmodifiableSet());
+        Collections.unmodifiableSet(
+            Stream.of(TextFieldMapper.CONTENT_TYPE, KeywordFieldMapper.CONTENT_TYPE, IpFieldMapper.CONTENT_TYPE)
+                .collect(Collectors.toSet()));
 
     private static final Set<String> NUMERICAL_TYPES =
-        Stream.concat(Stream.of(NumberType.values()).map(NumberType::typeName), Stream.of("scaled_float"))
-            .collect(Collectors.toUnmodifiableSet());
+        Collections.unmodifiableSet(
+            Stream.concat(Stream.of(NumberType.values()).map(NumberType::typeName), Stream.of("scaled_float"))
+                .collect(Collectors.toSet()));
 
     private static final Set<String> DISCRETE_NUMERICAL_TYPES =
-        Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG)
-            .map(NumberType::typeName)
-            .collect(Collectors.toUnmodifiableSet());
+        Collections.unmodifiableSet(
+            Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG)
+                .map(NumberType::typeName)
+                .collect(Collectors.toSet()));
 
     private static final Set<String> BOOL_TYPES = Collections.singleton(BooleanFieldMapper.CONTENT_TYPE);
 

@@ -31,9 +31,9 @@ GET /_analyze
 The filter produces the following tokens:
 
 [source,text]
----------------------------
+--------------------------------------------------
 [ Istanbul, veya, Istanbul ]
----------------------------
+--------------------------------------------------
 
 /////////////////////
 [source,console-result]

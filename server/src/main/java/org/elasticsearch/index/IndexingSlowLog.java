@@ -182,7 +182,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             map.put("message", index);
             map.put("took", TimeValue.timeValueNanos(tookInNanos));
             map.put("took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-            map.put("doc_type", doc.type());
             map.put("id", doc.id());
             map.put("routing", doc.routing());
 
@@ -214,7 +213,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             sb.append(index).append(" ");
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ");
             sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
-            sb.append("type[").append(doc.type()).append("], ");
             sb.append("id[").append(doc.id()).append("], ");
             if (doc.routing() == null) {
                 sb.append("routing[]");

@@ -321,11 +321,11 @@ a bit more performance out of the process:
 vagrant plugin install vagrant-cachier
 --------------------------------------
 +
-
-. You can run all of the OS packaging tests with `./gradlew distroTest`. This
-will cause Gradle to build the tar, zip, and deb packages and all the plugins.
-It will then run the tests on every available system. This will take a very 
-long time.
+. You can run all of the OS packaging tests with `./gradlew packagingTest`.
+This task includes our legacy `bats` tests. To run only the OS tests that are
+written in Java, run `.gradlew distroTest`, will cause Gradle to build the tar,
+zip, and deb packages and all the plugins.  It will then run the tests on every
+available system. This will take a very long time.
 +
 Fortunately, the various systems under test have their own Gradle tasks under
 `qa/os`. To find out what packaging combinations can be tested on a system, run
@@ -343,7 +343,7 @@ would run:
 -------------------------------------------------------------------------------------------------
 
 Note that if you interrupt Gradle in the middle of running these tasks, any boxes started
-will remain running and you'll have to stop them manually with `./gradlew stop` or
+will remain running and you'll have to stop them manually with `./gradlew --stop` or
 `vagrant halt`.
 
 All the regular vagrant commands should just work so you can get a shell in a
@@ -433,10 +433,11 @@ that'd consume a ton of ram.
 
 === Iterating on packaging tests
 
-Because our packaging tests are capable of testing many combinations of OS (Windows
-or Linux), package type (zip file or RPM), Elasticsearch distribution type (default
-or OSS), and so forth, it's faster to develop against smaller subsets of the tests.
-For example, to run tests for the default archive distribution on Fedora 28:
+Because our packaging tests are capable of testing many combinations of OS
+(e.g., Windows or Linux), package type (e.g., zip file or RPM), Elasticsearch
+distribution type (e.g., default or OSS), and so forth, it's faster to develop
+against smaller subsets of the tests. For example, to run tests for the default
+archive distribution on Fedora 28:
 
 -----------------------------------------------------------
 ./gradlew :qa:os:fedora-28:distroTest.default-linux-archive
@@ -449,35 +450,6 @@ non-OS tests can. For example:
 ./gradlew :qa:os:fedora-28:distroTest.default-linux-archive \
   --tests "com.elasticsearch.packaging.test.ArchiveTests"
 -----------------------------------------------------------
-
-If you need to work on the packaging test framework or run Gradle tests from
-the VM's command line, you might have to trace the operations of the Gradle
-`DistroTestPlugin` plugin; we don't have a single command that will spin up and
-prepare a Vagrant VM but stop just short of running the tests.
-
-However, this sequence of commands runs the default-rpm tests on the command
-line of a centos-7 VM, and it might provide some clues for test development:
-
---------
-# set up JDKs needed for Gradle testing on the VM
-./gradlew :extractLinuxJdk-openjdk-11.0.2+9
-./gradlew :extractLinuxJdk-openjdk-12.0.1+12@69cfe15208a647278a19ef0990eea691
-
-vagrant up --provision centos-7
-vagrant ssh centos-7
-
-# from here, we are running on the Gradle command line
-export PATH=/elasticsearch/build/jdks/openjdk-12.0.1_linux/bin:$PATH
-export SYSTEM_JAVA_HOME-/elasticsearch/build/jdks/openjdk-11.0.2_linux
-
-cd /project
-
-# If running Gradle with sudo scares you, it should! These tests are
-# destructive. VM use only!
-sudo --preserve-env=PATH,SYSTEM_JAVA_HOME ./gradlew --Dtests.inVM \
-  --project-cache-dir=/project/gradle-cache \
-  :qa:os:destructiveDistroTest.default-rpm
---------
 
 == Testing backwards compatibility
 

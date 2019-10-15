@@ -97,7 +97,6 @@ teardown:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       index:
         index: shared_logs
-        type: type
         id: 1
         pipeline: "my_pipeline"
         body:  >
@@ -109,7 +108,6 @@ teardown:
         Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       index:
         index: shared_logs
-        type: type
         id: 2
         pipeline: "my_pipeline"
         body:  >

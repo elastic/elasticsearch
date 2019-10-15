@@ -78,7 +78,7 @@ public class CreateDocsIndexPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     public void testCreateDocUserIsDeniedToIndexUpdatesToExistingDocument() throws IOException {
-        assertAccessIsDenied(CREATE_DOC_USER, "POST", "/" + INDEX_NAME + "/_doc/1/_update", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+        assertAccessIsDenied(CREATE_DOC_USER, "POST", "/" + INDEX_NAME + "/_update/1", "{ \"doc\" : { \"foo\" : \"baz\" } }");
         assertAccessIsDenied(CREATE_DOC_USER, "PUT", "/" + INDEX_NAME + "/_doc/1", "{ \"foo\" : \"baz\" }");
     }
 

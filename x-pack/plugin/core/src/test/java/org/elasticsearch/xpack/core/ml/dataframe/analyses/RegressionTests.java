@@ -14,6 +14,8 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RegressionTests extends AbstractSerializingTestCase<Regression> {
 
@@ -64,6 +66,10 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
             () -> new Regression("foo", new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0), "result", 100.0001));
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
+    }
+
+    public void testFieldCardinalityLimitsIsNonNull() {
+        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
     }
 
     public void testGetStateDocId() {

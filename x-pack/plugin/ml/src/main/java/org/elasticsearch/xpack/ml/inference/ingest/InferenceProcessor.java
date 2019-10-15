@@ -117,7 +117,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 }
             });
         }
-        return new InferModelAction.Request(modelId, 0, fields, inferenceConfig);
+        return new InferModelAction.Request(modelId, fields, inferenceConfig);
     }
 
     void mutateDocument(InferModelAction.Response response, IngestDocument ingestDocument) {

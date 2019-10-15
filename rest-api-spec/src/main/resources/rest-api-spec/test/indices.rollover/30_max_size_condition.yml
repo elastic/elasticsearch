@@ -14,7 +14,6 @@
   - do:
       index:
         index: logs-1
-        type:  doc
         id:    "1"
         body:  { "foo": "hello world" }
         refresh: true

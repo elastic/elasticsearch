@@ -5,12 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.time.IsoLocale;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
@@ -23,6 +28,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -259,8 +265,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testDateAddInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_ADD(int, int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_ADD(int, int, date) FROM test"));
-        assertEquals("1:8: second argument of [DATE_ADD(keyword, keyword, date)] must be [integer], found value [keyword] " +
-            "type [keyword]", error("SELECT DATE_ADD(keyword, keyword, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_ADD(keyword, 1.2, date)] must be [integer], found value [1.2] " +
+            "type [double]", error("SELECT DATE_ADD(keyword, 1.2, date) FROM test"));
         assertEquals("1:8: third argument of [DATE_ADD(keyword, int, keyword)] must be [date or datetime], found value [keyword] " +
             "type [keyword]", error("SELECT DATE_ADD(keyword, int, keyword) FROM test"));
         assertEquals("1:8: first argument of [DATE_ADD('invalid', int, date)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
@@ -277,9 +283,9 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testDateAddValidArgs() {
         accept("SELECT DATE_ADD('weekday', 0, date) FROM test");
-        accept("SELECT DATE_ADD('dw', 20, date) FROM test");
-        accept("SELECT DATE_ADD('years', -10, date) FROM test");
-        accept("SELECT DATE_ADD('dayofyear', 123, date) FROM test");
+        accept("SELECT DATEADD('dw', 20, date) FROM test");
+        accept("SELECT TIMESTAMP_ADD('years', -10, date) FROM test");
+        accept("SELECT TIMESTAMPADD('dayofyear', 123, date) FROM test");
         accept("SELECT DATE_ADD('dy', 30, date) FROM test");
         accept("SELECT DATE_ADD('ms', 1, date::date) FROM test");
     }
@@ -554,13 +560,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInvalidTypeForStringFunction_WithOneArgNumeric() {
-        assertEquals("1:8: argument of [CHAR('foo')] must be [integer], found value ['foo'] type [keyword]",
-            error("SELECT CHAR('foo')"));
+        String functionName = randomFrom(Arrays.asList(Char.class, Space.class)).getSimpleName().toUpperCase(IsoLocale.ROOT);
+        assertEquals("1:8: argument of [" + functionName + "('foo')] must be [integer], found value ['foo'] type [keyword]",
+            error("SELECT " + functionName + "('foo')"));
+        assertEquals("1:8: argument of [" + functionName + "(1.2)] must be [integer], found value [1.2] type [double]",
+            error("SELECT " + functionName + "(1.2)"));
     }
 
     public void testInvalidTypeForNestedStringFunctions_WithOneArg() {
-        assertEquals("1:14: argument of [CHAR('foo')] must be [integer], found value ['foo'] type [keyword]",
-            error("SELECT ASCII(CHAR('foo'))"));
+        assertEquals("1:15: argument of [SPACE('foo')] must be [integer], found value ['foo'] type [keyword]",
+            error("SELECT LENGTH(SPACE('foo'))"));
+        assertEquals("1:15: argument of [SPACE(1.2)] must be [integer], found value [1.2] type [double]",
+            error("SELECT LENGTH(SPACE(1.2))"));
     }
 
     public void testInvalidTypeForNumericFunction_WithOneArg() {
@@ -581,10 +592,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInvalidTypeForNumericFunction_WithTwoArgs() {
-        assertEquals("1:8: first argument of [TRUNCATE('foo', 2)] must be [numeric], found value ['foo'] type [keyword]",
-            error("SELECT TRUNCATE('foo', 2)"));
-        assertEquals("1:8: second argument of [TRUNCATE(1.2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
-            error("SELECT TRUNCATE(1.2, 'bar')"));
+        String functionName = randomFrom(Arrays.asList(Round.class, Truncate.class)).getSimpleName().toUpperCase(IsoLocale.ROOT);
+        assertEquals("1:8: first argument of [" + functionName + "('foo', 2)] must be [numeric], found value ['foo'] type [keyword]",
+            error("SELECT " + functionName + "('foo', 2)"));
+        assertEquals("1:8: second argument of [" + functionName + "(1.2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
+            error("SELECT " + functionName + "(1.2, 'bar')"));
+        assertEquals("1:8: second argument of [" + functionName + "(1.2, 3.4)] must be [integer], found value [3.4] type [double]",
+            error("SELECT " + functionName + "(1.2, 3.4)"));
     }
 
     public void testInvalidTypeForBooleanFuntion_WithTwoArgs() {
@@ -623,9 +637,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
         assertEquals("1:8: second argument of [SUBSTRING('foo', 'bar', 3)] must be [integer], found value ['bar'] type [keyword]",
             error("SELECT SUBSTRING('foo', 'bar', 3)"));
+        assertEquals("1:8: second argument of [SUBSTRING('foo', 1.2, 3)] must be [integer], found value [1.2] type [double]",
+            error("SELECT SUBSTRING('foo', 1.2, 3)"));
 
         assertEquals("1:8: third argument of [SUBSTRING('foo', 2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
             error("SELECT SUBSTRING('foo', 2, 'bar')"));
+        assertEquals("1:8: third argument of [SUBSTRING('foo', 2, 3.4)] must be [integer], found value [3.4] type [double]",
+            error("SELECT SUBSTRING('foo', 2, 3.4)"));
     }
 
     public void testInvalidTypeForFunction_WithFourArgs() {

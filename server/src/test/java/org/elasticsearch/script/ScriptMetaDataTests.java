@@ -202,6 +202,7 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         assertNull(smd.getStoredScript("painless#test"));
         assertNull(smd.getStoredScript("lang#test"));
         assertEquals(new StoredScriptSource("painless", "code", Collections.emptyMap()), smd.getStoredScript("test"));
+        assertEquals(1, smd.getStoredScripts().size());
     }
 
     @Override

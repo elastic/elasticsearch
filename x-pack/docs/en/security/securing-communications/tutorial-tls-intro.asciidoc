@@ -1,0 +1,49 @@
+[role="xpack"]
+[testenv="trial"]
+[[encrypting-internode-communications]]
+== Tutorial: Encrypting communications
+
+In 6.0 and later releases, if you have a gold or higher license and the {es}
+{security-features} are enabled, you must use Transport Layer Security (TLS) to
+encrypt internode communication. In this tutorial, you learn how to meet the
+minimum requirements to pass the 
+{ref}/bootstrap-checks-xpack.html#bootstrap-checks-tls[TLS bootstrap check].
+
+NOTE: Single-node clusters that use a loopback interface do not have this
+requirement.
+
+[float]
+[[encrypting-internode-prerequisites]]
+=== Before you begin
+
+Ideally, you should do this tutorial only after you complete the 
+{stack-gs}/get-started-elastic-stack.html[Getting started with the {stack}] and
+<<security-getting-started,Getting started with security>> tutorials. At a
+minimum, you must:
+
+. Install and configure {es} and {kib} in a cluster with a single {es} node, as
+described in
+{stack-gs}/get-started-elastic-stack.html[Getting started with the {stack}]. In
+particular, this tutorial provides instructions that work with the `zip` and
+`tar.gz` packages.
+
+. <<get-started-license,Install a trial license>>.
+
+. <<get-started-enable-security,Enable the {es} {security-features}>>.
+
+. <<get-started-built-in-users,Create passwords for built-in users>>.
+
+. <<get-started-kibana-user,Add the built-in user to {kib}>>.
+
+. Stop {kib}. The method for starting and stopping {kib} varies depending on 
+how you installed it. For example, if you installed {kib} from an archive 
+distribution (`.tar.gz` or `.zip`), stop it by entering `Ctrl-C` on the command 
+line. See {kibana-ref}/start-stop.html[Starting and stopping {kib}]. 
+
+. Stop {es}. For example, if you installed {es} from an archive distribution, 
+enter `Ctrl-C` on the command line. See 
+{ref}/stopping-elasticsearch.html[Stopping {es}].
+
+include::tutorial-tls-addnodes.asciidoc[]
+include::tutorial-tls-certificates.asciidoc[]
+include::tutorial-tls-internode.asciidoc[]

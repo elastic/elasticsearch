@@ -1110,8 +1110,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     protected void doRun() {
                         try {
                             if (alreadyFailed.get() == false) {
-                                assert lifecycle.started() :
-                                    "Tried to run file upload but repository was in state [" + lifecycle.state() + "]";
                                 if (store.tryIncRef()) {
                                     try {
                                         snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);

@@ -1,5 +1,5 @@
 "Action to get all contexts":
-    - skip:
+  - skip:
       version: " - 7.5.0"
       reason: "get_all_contexts introduced in 7.5.0"
   - do:

@@ -1,5 +1,84 @@
 [[analysis-apostrophe-tokenfilter]]
-=== Apostrophe Token Filter
+=== Apostrophe token filter
+++++
+<titleabbrev>Apostrophe</titleabbrev>
+++++
 
-The `apostrophe` token filter strips all characters after an apostrophe,
-including the apostrophe itself.
+Strips all characters after an apostrophe, including the apostrophe itself.
+
+[[analysis-apostrophe-tokenfilter-analyze-ex]]
+==== Example
+
+The following <<indices-analyze,analyze API>> request demonstrates how the
+apostrophe token filter works.
+
+[source,console]
+--------------------------------------------------
+GET /_analyze
+{
+  "tokenizer" : "standard",
+  "filter" : ["apostrophe"],
+  "text" : "Istanbul'a veya Istanbul'dan"
+}
+--------------------------------------------------
+
+The `apostrophe` token filter produces the following tokens:
+
+[source,text]
+---------------------------
+[ Istanbul, veya, Istanbul ]
+---------------------------
+
+/////////////////////
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "Istanbul",
+      "start_offset" : 0,
+      "end_offset" : 10,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "veya",
+      "start_offset" : 11,
+      "end_offset" : 15,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "Istanbul",
+      "start_offset" : 16,
+      "end_offset" : 28,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    }
+  ]
+}
+--------------------------------------------------
+/////////////////////
+
+[[analysis-apostrophe-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request adds the
+`apostrophe` token filter to an analyzer.
+
+[source,console]
+--------------------------------------------------
+PUT /apostrophe_example
+{
+    "settings" : {
+        "analysis" : {
+            "analyzer" : {
+                "default" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["apostrophe"]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------

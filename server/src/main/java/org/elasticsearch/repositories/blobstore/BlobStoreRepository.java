@@ -1151,7 +1151,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer container = shardContainer(indexId, snapshotShardId);
             BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
             SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-            new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE) {
+            new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE, threadPool.generic()) {
                 @Override
                 protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
                     final InputStream dataBlobCompositeStream = new SlicedInputStream(fileInfo.numberOfParts()) {

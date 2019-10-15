@@ -457,7 +457,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         RestoreSession(String repositoryName, Client remoteClient, String sessionUUID, DiscoveryNode node, ShardId shardId,
                        RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData, long mappingVersion,
                        ThreadPool threadPool, CcrSettings ccrSettings, LongConsumer throttleListener) {
-            super(repositoryName, shardId, SNAPSHOT_ID, recoveryState, Math.toIntExact(ccrSettings.getChunkSize().getBytes()));
+            super(repositoryName, shardId, SNAPSHOT_ID, recoveryState, Math.toIntExact(ccrSettings.getChunkSize().getBytes()),
+                  threadPool.generic());
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;

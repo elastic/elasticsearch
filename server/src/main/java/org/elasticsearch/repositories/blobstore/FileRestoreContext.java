@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -47,6 +48,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -67,6 +69,8 @@ public abstract class FileRestoreContext {
     protected final ShardId shardId;
     protected final int bufferSize;
 
+    private final Executor executor;
+
     /**
      * Constructs new restore context
      *
@@ -76,12 +80,13 @@ public abstract class FileRestoreContext {
      * @param bufferSize    buffer size for restore
      */
     protected FileRestoreContext(String repositoryName, ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState,
-                                 int bufferSize) {
+                                 int bufferSize, Executor executor) {
         this.repositoryName = repositoryName;
         this.recoveryState = recoveryState;
         this.snapshotId = snapshotId;
         this.shardId = shardId;
         this.bufferSize = bufferSize;
+        this.executor = executor;
     }
 
     /**
@@ -228,7 +233,7 @@ public abstract class FileRestoreContext {
             // restore the files from the snapshot to the Lucene store
             for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
                 logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
-                restoreFile(fileToRecover, store, allFilesListener);
+                executor.execute(ActionRunnable.wrap(allFilesListener, l -> restoreFile(fileToRecover, store, l)));
             }
         }
     }

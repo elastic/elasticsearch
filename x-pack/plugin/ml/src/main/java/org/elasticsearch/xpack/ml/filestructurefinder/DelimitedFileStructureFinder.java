@@ -139,9 +139,11 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 String quote = String.valueOf(csvPreference.getQuoteChar());
                 String twoQuotes = quote + quote;
                 String optQuote = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + "?";
+                String delimiterMatcher =
+                    (delimiter == '\t') ? "\\t" : String.valueOf(delimiter).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
                 structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(header)
                     .map(column -> optQuote + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + optQuote)
-                    .collect(Collectors.joining(",")));
+                    .collect(Collectors.joining(delimiterMatcher)));
             }
 
             boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();

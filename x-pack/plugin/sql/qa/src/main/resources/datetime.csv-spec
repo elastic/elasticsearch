@@ -170,6 +170,25 @@ FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
 10042     | null                     |  null                    |  null                    |  null                    |  null                    |  null                    |  null                    |  null
 ;
 
+selectAddWithLong
+schema::emp_no:i | birth_date:ts | date_add:date
+SELECT emp_no, birth_date, TIMESTAMP_ADD('months', CAST(CAST({fn TRUNCATE(11.55,0)} AS INTEGER) AS BIGINT), birth_date)::date AS date_add
+FROM test_emp ORDER BY emp_no LIMIT 10;
+
+ emp_no | birth_date               | date_add
+--------+--------------------------+-----------
+10001   | 1953-09-02 00:00:00.000Z | 1954-08-02
+10002   | 1964-06-02 00:00:00.000Z | 1965-05-02
+10003   | 1959-12-03 00:00:00.000Z | 1960-11-03
+10004   | 1954-05-01 00:00:00.000Z | 1955-04-01
+10005   | 1955-01-21 00:00:00.000Z | 1955-12-21
+10006   | 1953-04-20 00:00:00.000Z | 1954-03-20
+10007   | 1957-05-23 00:00:00.000Z | 1958-04-23
+10008   | 1958-02-19 00:00:00.000Z | 1959-01-19
+10009   | 1952-04-19 00:00:00.000Z | 1953-03-19
+10010   | 1963-06-01 00:00:00.000Z | 1964-05-01
+;
+
 selectAddWithComplexExpressions1
 SELECT gender, birth_date, TIMESTAMPADD('months', CASE WHEN gender = 'M' THEN 10 WHEN gender = 'F' THEN -10 ELSE 100 END,
 birth_date + INTERVAL 10 month) AS dt FROM test_emp WHERE dt > '1954-07-01'::date ORDER BY emp_no LIMIT 10;

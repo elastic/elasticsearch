@@ -74,11 +74,14 @@ See <<ml-job-resource>>. | Yes
 |`results_retention_days` |Advanced configuration option. The number of days
 for which job results are retained. See <<ml-job-resource>>. | Yes
 
+|`allow_lazy_open` |Advanced configuration option. Whether to allow the job to be
+opened when no {ml} node has sufficient capacity. See <<ml-job-resource>>. | Yes
+
 |=======================================================================
 
 For those properties that have `Requires Restart` set to `Yes` in this table,
 if the job is open when you make the update, you must stop the data feed, close
-the job, then restart the data feed and open the job for the changes to take
+the job, then reopen the job and restart the data feed for the changes to take
 effect.
 
 [NOTE]
@@ -170,7 +173,8 @@ configuration information, including the updated property values. For example:
       }
     ]
   },
-  "results_index_name": "shared"
+  "results_index_name": "shared",
+  "allow_lazy_open": false
 }
 ----
 // TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]

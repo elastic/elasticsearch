@@ -318,7 +318,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 final int seqNo = randomInt(20);
                 final int primaryTerm = randomIntBetween(1, 16);
                 final IndexResponse response =
-                        new IndexResponse(shardId, "type", "id" + i, seqNo, primaryTerm, randomInt(), createdResponse);
+                        new IndexResponse(shardId, "id" + i, seqNo, primaryTerm, randomInt(), createdResponse);
                 responses[i] = new BulkItemResponse(i, opType, response);
             }
             assertExactlyOnce(onSuccess ->
@@ -549,7 +549,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
         BulkRequest request = new BulkRequest();
         for (int i = 0; i < size + 1; i++) {
-            request.add(new IndexRequest("index", "type", "id" + i));
+            request.add(new IndexRequest("index").id("id" + i));
         }
         if (failWithRejection) {
             action.sendBulkRequest(request, Assert::fail);
@@ -876,7 +876,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                         response =
                             new IndexResponse(
                                 shardId,
-                                index.type(),
                                 index.id() == null ? "dummy_id" : index.id(),
                                 randomInt(20),
                                 randomIntBetween(1, 16),
@@ -884,14 +883,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                                 true);
                     } else if (item instanceof UpdateRequest) {
                         UpdateRequest update = (UpdateRequest) item;
-                        response = new UpdateResponse(shardId, update.type(), update.id(), randomNonNegativeLong(),
+                        response = new UpdateResponse(shardId, update.id(), randomNonNegativeLong(),
                             randomIntBetween(1, Integer.MAX_VALUE), randomIntBetween(0, Integer.MAX_VALUE), Result.CREATED);
                     } else if (item instanceof DeleteRequest) {
                         DeleteRequest delete = (DeleteRequest) item;
                         response =
                             new DeleteResponse(
                                 shardId,
-                                delete.type(),
                                 delete.id(),
                                 randomInt(20),
                                 randomIntBetween(1, 16),

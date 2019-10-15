@@ -73,6 +73,11 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
                 }
                 innerHits.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
                 innerHits.setUid(new Uid(MapperService.SINGLE_MAPPING_NAME, hit.getId()));
+                innerHits.lookup().source().setSource(context.lookup().source().internalSourceRef());
+                if (context.lookup().source().source() != null) {
+                    innerHits.lookup().source().setSource(context.lookup().source().source());
+                }
+
                 fetchPhase.execute(innerHits);
                 FetchSearchResult fetchResult = innerHits.fetchResult();
                 SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();

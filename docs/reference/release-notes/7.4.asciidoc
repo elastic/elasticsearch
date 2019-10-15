@@ -47,6 +47,7 @@ Geo::
 * Geo: add Geometry-based query builders to QueryBuilders {pull}45058[#45058] (issues: {issue}44715[#44715], {issue}45048[#45048])
 
 Infra/Core::
+* Bundle AdoptOpenJDK 13 {pull}46860[#46860]
 * Add deprecation check for pidfile setting {pull}45939[#45939] (issues: {issue}45938[#45938], {issue}45940[#45940])
 * Deprecate the pidfile setting {pull}45938[#45938]
 * Add node.processors setting in favor of processors {pull}45855[#45855]

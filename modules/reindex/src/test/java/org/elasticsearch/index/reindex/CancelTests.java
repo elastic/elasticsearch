@@ -42,6 +42,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Optional;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -59,12 +60,16 @@ import static org.hamcrest.Matchers.hasSize;
  * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
  * simulate failures but does not exercise important portion of the stack like transport and task management.
  */
-public class CancelTests extends ReindexTestCase {
+public class CancelTests extends ReindexRunAsJobAndTaskTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";
 
     // Semaphore used to allow & block indexing operations during the test
     private static final Semaphore ALLOWED_OPERATIONS = new Semaphore(0);
+
+    public CancelTests(String name) {
+        super(name);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -193,18 +198,24 @@ public class CancelTests extends ReindexTestCase {
 
     public static TaskInfo findTaskToCancel(String actionName, int workerCount) {
         ListTasksResponse tasks;
+        ListTasksResponse jobTasks;
         long start = System.nanoTime();
         do {
             tasks = client().admin().cluster().prepareListTasks().setActions(actionName).setDetailed(true).get();
             tasks.rethrowFailures("Find tasks to cancel");
-            for (TaskInfo taskInfo : tasks.getTasks()) {
-                // Skip tasks with a parent because those are children of the task we want to cancel
-                if (false == taskInfo.getParentTaskId().isSet()) {
-                    return taskInfo;
-                }
+            jobTasks = client().admin().cluster().prepareListTasks().setActions(ReindexTask.NAME+"[c]").setDetailed(true).get();
+            jobTasks.rethrowFailures("Find tasks to cancel");
+            // Skip tasks with a parent because those are children of the task we want to cancel
+            Optional<TaskInfo> foundTask = tasks.getTasks().stream()
+                .filter(taskInfo -> false == taskInfo.getParentTaskId().isSet()).findAny();
+            if (foundTask.isPresent() == false) {
+                foundTask = jobTasks.getTasks().stream().findAny();
             }
+            if (foundTask.isPresent())
+                return foundTask.get();
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
-        throw new AssertionError("Couldn't find task to rethrottle after waiting tasks=" + tasks.getTasks());
+        throw new AssertionError("Couldn't find task to rethrottle after waiting tasks=" + tasks.getTasks()
+            + ", jobtasks=" + jobTasks.getTasks());
     }
 
     public void testReindexCancel() throws Exception {
@@ -217,6 +228,7 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryCancel() throws Exception {
+        assumeTaskTest();
         BytesReference pipeline = new BytesArray("{\n" +
                 "  \"description\" : \"sets processed to true\",\n" +
                 "  \"processors\" : [ {\n" +
@@ -234,6 +246,7 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryCancel() throws Exception {
+        assumeTaskTest();
         testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()),
             (response, total, modified) -> {
                 assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")));
@@ -253,6 +266,7 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
+        assumeTaskTest();
         BytesReference pipeline = new BytesArray("{\n" +
                 "  \"description\" : \"sets processed to true\",\n" +
                 "  \"processors\" : [ {\n" +
@@ -271,6 +285,7 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryCancelWithWorkers() throws Exception {
+        assumeTaskTest();
         testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()).setSlices(5),
             (response, total, modified) -> {
                 assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
@@ -298,21 +313,21 @@ public class CancelTests extends ReindexTestCase {
 
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
-            return preCheck(index, index.type());
+            return preCheck(shardId, index, index.type());
         }
 
         @Override
         public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-            return preCheck(delete, delete.type());
+            return preCheck(shardId, delete, delete.type());
         }
 
-        private <T extends Engine.Operation> T preCheck(T operation, String type) {
-            if ((operation.origin() != Origin.PRIMARY)) {
+        private <T extends Engine.Operation> T preCheck(ShardId shardId, T operation, String type) {
+            if (operation.origin() != Origin.PRIMARY || shardId.getIndexName().startsWith(".reindex")) {
                 return operation;
             }
 
             try {
-                log.debug("checking");
+                log.debug("checking {}", shardId);
                 if (ALLOWED_OPERATIONS.tryAcquire(30, TimeUnit.SECONDS)) {
                     log.debug("passed");
                     return operation;

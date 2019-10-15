@@ -223,6 +223,27 @@ public class BulkByScrollTask extends CancellableTask {
         private TimeValue throttledUntil = null;
         private List<StatusOrException> sliceStatuses = new ArrayList<>();
 
+        public StatusBuilder() {
+        }
+
+        public StatusBuilder(Status copyFrom) {
+            this.sliceId = copyFrom.sliceId;
+            this.total = copyFrom.total;
+            this.updated = copyFrom.updated;
+            this.created = copyFrom.created;
+            this.deleted = copyFrom.deleted;
+            this.batches = copyFrom.batches;
+            this.versionConflicts = copyFrom.versionConflicts;
+            this.noops = copyFrom.noops;
+            this.bulkRetries = copyFrom.bulkRetries;
+            this.searchRetries = copyFrom.searchRetries;
+            this.throttled = copyFrom.throttled;
+            this.requestsPerSecond = copyFrom.requestsPerSecond;
+            this.reasonCancelled = copyFrom.reasonCancelled;
+            this.throttledUntil = copyFrom.throttledUntil;
+            this.sliceStatuses = new ArrayList<>(copyFrom.sliceStatuses);
+        }
+
         public void setSliceId(Integer sliceId) {
             this.sliceId = sliceId;
         }

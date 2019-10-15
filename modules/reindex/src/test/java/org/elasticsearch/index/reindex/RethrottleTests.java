@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * too but this is the only place that tests running against multiple nodes so it is the only integration tests that checks for
  * serialization.
  */
+// todo: split this test case into reindex vs update/delete and make the reindex variant run as both job and task.
 public class RethrottleTests extends ReindexTestCase {
 
     public void testReindex() throws Exception {

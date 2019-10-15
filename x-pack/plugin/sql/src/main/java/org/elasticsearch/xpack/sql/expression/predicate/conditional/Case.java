@@ -58,6 +58,7 @@ public class Case extends ConditionalFunction {
                 for (IfConditional conditional : conditions) {
                     dataType = DataTypeConversion.commonType(dataType, conditional.dataType());
                 }
+                dataType = DataTypeConversion.commonType(dataType, elseResult.dataType());
             }
         }
         return dataType;

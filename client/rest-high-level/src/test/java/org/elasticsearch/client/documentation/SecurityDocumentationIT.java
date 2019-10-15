@@ -28,6 +28,7 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
+import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
@@ -79,7 +80,6 @@ import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.TemplateRoleName;
-import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
 import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
@@ -99,8 +99,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -120,6 +118,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -681,8 +682,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 27 system roles plus the three we created
-            assertThat(roles.size(), equalTo(30));
+            // 29 system roles plus the three we created
+            assertThat(roles.size(), equalTo(32));
         }
 
         {
@@ -1925,7 +1926,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file");
         {
             // tag::get-api-key-id-request
-            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);
             // end::get-api-key-id-request
 
             // tag::get-api-key-execute
@@ -1939,7 +1940,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::get-api-key-name-request
-            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyName(createApiKeyResponse1.getName());
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyName(createApiKeyResponse1.getName(), false);
             // end::get-api-key-name-request
 
             GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
@@ -1974,6 +1975,30 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
+            // tag::get-api-keys-owned-by-authenticated-user-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.forOwnedApiKeys();
+            // end::get-api-keys-owned-by-authenticated-user-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-all-api-keys-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.forAllApiKeys();
+            // end::get-all-api-keys-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
             // tag::get-user-realm-api-keys-request
             GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("default_file", "test_user");
             // end::get-user-realm-api-keys-request
@@ -1988,7 +2013,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);
 
             ActionListener<GetApiKeyResponse> listener;
             // tag::get-api-key-execute-listener
@@ -2049,7 +2074,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::invalidate-api-key-id-request
-            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);
             // end::invalidate-api-key-id-request
 
             // tag::invalidate-api-key-execute
@@ -2074,7 +2099,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(createApiKeyResponse2.getKey());
 
             // tag::invalidate-api-key-name-request
-            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyName(createApiKeyResponse2.getName());
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyName(createApiKeyResponse2.getName(),
+                false);
             // end::invalidate-api-key-name-request
 
             InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
@@ -2167,7 +2193,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(createApiKeyResponse6.getName(), equalTo("k6"));
             assertNotNull(createApiKeyResponse6.getKey());
 
-            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId());
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId(), false);
 
             ActionListener<InvalidateApiKeyResponse> listener;
             // tag::invalidate-api-key-execute-listener
@@ -2203,6 +2229,30 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
             assertThat(response.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
         }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k7", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse7 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse7.getName(), equalTo("k7"));
+            assertNotNull(createApiKeyResponse7.getKey());
+
+            // tag::invalidate-api-keys-owned-by-authenticated-user-request
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.forOwnedApiKeys();
+            // end::invalidate-api-keys-owned-by-authenticated-user-request
+
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
+                RequestOptions.DEFAULT);
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse7.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
     }
 
     public void testDelegatePkiAuthentication() throws Exception {

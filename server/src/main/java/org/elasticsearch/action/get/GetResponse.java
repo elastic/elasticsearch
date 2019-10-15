@@ -72,13 +72,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     }
 
     /**
-     * The type of the document.
-     */
-    public String getType() {
-        return getResult.getType();
-    }
-
-    /**
      * The id of the document.
      */
     public String getId() {
@@ -196,9 +189,9 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
         // At this stage we ensure that we parsed enough information to return
         // a valid GetResponse instance. If it's not the case, we throw an
         // exception so that callers know it and can handle it correctly.
-        if (getResult.getIndex() == null && getResult.getType() == null && getResult.getId() == null) {
+        if (getResult.getIndex() == null && getResult.getId() == null) {
             throw new ParsingException(parser.getTokenLocation(),
-                    String.format(Locale.ROOT, "Missing required fields [%s,%s,%s]", GetResult._INDEX, GetResult._TYPE, GetResult._ID));
+                    String.format(Locale.ROOT, "Missing required fields [%s,%s]", GetResult._INDEX, GetResult._ID));
         }
         return new GetResponse(getResult);
     }

@@ -53,9 +53,6 @@ doesn't take the query into account that is part of request.
 ===== Other term suggest options:
 
 [horizontal]
-`lowercase_terms`::
-    Lowercases the suggest text terms after text analysis.
-
 `max_edits`::
     The maximum edit distance candidate suggestions can
     have in order to be considered as a suggestion. Can only be a value

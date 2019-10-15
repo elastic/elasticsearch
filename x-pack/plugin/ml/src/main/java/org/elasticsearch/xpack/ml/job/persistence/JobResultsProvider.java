@@ -304,7 +304,7 @@ public class JobResultsProvider {
                             e -> {
                                 // Possible that the index was created while the request was executing,
                                 // so we need to handle that possibility
-                                if (e instanceof ResourceAlreadyExistsException) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                                     LOGGER.info("Index already exists");
                                     // Add the term field mappings and alias.  The complication is that the state at the
                                     // beginning of the operation doesn't have any knowledge of the index, as it's only
@@ -525,7 +525,8 @@ public class JobResultsProvider {
             .setSize(1)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)))
-            .addSort(SortBuilders.fieldSort(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName()).order(SortOrder.DESC));
+            .addSort(SortBuilders.fieldSort(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
+                .unmappedType("double").order(SortOrder.DESC));
     }
 
     public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
@@ -1188,7 +1189,7 @@ public class JobResultsProvider {
                 .sortDescending(true).from(BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE - 1).size(1)
                 .includeInterim(false);
         bucketsViaInternalClient(jobId, bucketQuery, bucketHandler, e -> {
-            if (e instanceof ResourceNotFoundException) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 handler.accept(0L);
             } else {
                 errorHandler.accept(e);
@@ -1436,7 +1437,7 @@ public class JobResultsProvider {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
                 } else {
                     listener.onFailure(e);

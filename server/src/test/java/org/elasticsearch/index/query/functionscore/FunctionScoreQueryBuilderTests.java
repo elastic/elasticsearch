@@ -52,7 +52,6 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
@@ -253,7 +252,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, either(instanceOf(FunctionScoreQuery.class)).or(instanceOf(FunctionScoreQuery.class)));
     }
 

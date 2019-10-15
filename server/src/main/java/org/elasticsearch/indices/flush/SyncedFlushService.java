@@ -387,9 +387,9 @@ public class SyncedFlushService implements IndexEventListener {
             if (preSyncedResponse.numDocs != numDocsOnPrimary &&
                 preSyncedResponse.numDocs != PreSyncedFlushResponse.UNKNOWN_NUM_DOCS &&
                 numDocsOnPrimary != PreSyncedFlushResponse.UNKNOWN_NUM_DOCS) {
-                logger.warn("{} can't to issue sync id [{}] for out of sync replica [{}] with num docs [{}]; num docs on primary [{}]",
+                logger.debug("{} can't issue sync id [{}] for replica [{}] with num docs [{}]; num docs on primary [{}]",
                     shardId, syncId, shard, preSyncedResponse.numDocs, numDocsOnPrimary);
-                results.put(shard, new ShardSyncedFlushResponse("out of sync replica; " +
+                results.put(shard, new ShardSyncedFlushResponse("ongoing indexing operations: " +
                     "num docs on replica [" + preSyncedResponse.numDocs + "]; num docs on primary [" + numDocsOnPrimary + "]"));
                 countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;

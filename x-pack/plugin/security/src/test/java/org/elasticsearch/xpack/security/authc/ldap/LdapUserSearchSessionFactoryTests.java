@@ -59,7 +59,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
-         * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
+         * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
 

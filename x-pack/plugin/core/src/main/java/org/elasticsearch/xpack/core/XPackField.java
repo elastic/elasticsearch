@@ -35,8 +35,8 @@ public final class XPackField {
     public static final String INDEX_LIFECYCLE = "ilm";
     /** Name constant for the CCR feature. */
     public static final String CCR = "ccr";
-    /** Name constant for the data frame feature. */
-    public static final String DATA_FRAME = "data_frame";
+    /** Name constant for the transform feature. */
+    public static final String TRANSFORM = "transform";
     /** Name constant for flattened fields. */
     public static final String FLATTENED = "flattened";
     /** Name constant for the vectors feature. */
@@ -48,7 +48,7 @@ public final class XPackField {
     /** Name constant for spatial features. */
     public static final String SPATIAL = "spatial";
     /** Name constant for the data science plugin. */
-    public static final String DATA_SCIENCE = "data_science";
+    public static final String ANALYTICS = "analytics";
 
     private XPackField() {}
 

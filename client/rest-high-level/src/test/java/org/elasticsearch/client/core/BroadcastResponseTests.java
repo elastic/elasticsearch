@@ -22,6 +22,7 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
     private Set<Integer> shardIds;
 
     @Override
-    protected org.elasticsearch.action.support.broadcast.BroadcastResponse createServerTestInstance() {
+    protected org.elasticsearch.action.support.broadcast.BroadcastResponse createServerTestInstance(XContentType xContentType) {
         index = randomAlphaOfLength(8);
         id = randomAlphaOfLength(8);
         final int total = randomIntBetween(1, 16);

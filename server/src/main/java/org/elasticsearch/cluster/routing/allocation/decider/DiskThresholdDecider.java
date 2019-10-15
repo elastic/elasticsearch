@@ -90,16 +90,36 @@ public class DiskThresholdDecider extends AllocationDecider {
                                        boolean subtractShardsMovingAway, String dataPath) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
         long totalSize = 0;
-        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING)) {
-            String actualPath = clusterInfo.getDataPath(routing);
-            if (dataPath.equals(actualPath)) {
-                if (routing.initializing() && routing.relocatingNodeId() != null) {
-                    totalSize += getExpectedShardSize(routing, allocation, 0);
-                } else if (subtractShardsMovingAway && routing.relocating()) {
+
+        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
+            if (routing.relocatingNodeId() == null) {
+                // in practice the only initializing-but-not-relocating shards with a nonzero expected shard size will be ones created
+                // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
+                // any additional space and can be ignored here
+                continue;
+            }
+
+            final String actualPath = clusterInfo.getDataPath(routing);
+            // if we don't yet know the actual path of the incoming shard then conservatively assume it's going to the path with the least
+            // free space
+            if (actualPath == null || actualPath.equals(dataPath)) {
+                totalSize += getExpectedShardSize(routing, allocation, 0);
+            }
+        }
+
+        if (subtractShardsMovingAway) {
+            for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING)) {
+                String actualPath = clusterInfo.getDataPath(routing);
+                if (actualPath == null) {
+                    // we might know the path of this shard from before when it was relocating
+                    actualPath = clusterInfo.getDataPath(routing.cancelRelocation());
+                }
+                if (dataPath.equals(actualPath)) {
                     totalSize -= getExpectedShardSize(routing, allocation, 0);
                 }
             }
         }
+
         return totalSize;
     }
 
@@ -315,23 +335,16 @@ public class DiskThresholdDecider extends AllocationDecider {
             // If there is no usage, and we have other nodes in the cluster,
             // use the average usage for all nodes as the usage for this node
             usage = averageUsage(node, usages);
-            if (logger.isDebugEnabled()) {
-                logger.debug("unable to determine disk usage for {}, defaulting to average across nodes [{} total] [{} free] [{}% free]",
-                        node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeDiskAsPercentage());
-            }
+            logger.debug("unable to determine disk usage for {}, defaulting to average across nodes [{} total] [{} free] [{}% free]",
+                    node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeDiskAsPercentage());
         }
 
-        if (diskThresholdSettings.includeRelocations()) {
-            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, subtractLeavingShards, usage.getPath());
-            DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().getName(), usage.getPath(),
-                    usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
-            if (logger.isTraceEnabled()) {
-                logger.trace("usage without relocations: {}", usage);
-                logger.trace("usage with relocations: [{} bytes] {}", relocatingShardsSize, usageIncludingRelocations);
-            }
-            usage = usageIncludingRelocations;
-        }
-        return usage;
+        final long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, subtractLeavingShards, usage.getPath());
+        final DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().getName(), usage.getPath(),
+                usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
+        logger.trace("getDiskUsage: usage [{}] with [{}] bytes relocating yields [{}]",
+                     usage, relocatingShardsSize, usageIncludingRelocations);
+        return usageIncludingRelocations;
     }
 
     /**

@@ -47,8 +47,6 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class ActionWrapper implements ToXContentObject {
 
-    private final int MAXIMUM_FOREACH_RUNS = 100;
-
     private String id;
     @Nullable
     private final ExecutableCondition condition;
@@ -58,18 +56,21 @@ public class ActionWrapper implements ToXContentObject {
     private final ExecutableAction<? extends Action> action;
     @Nullable
     private String path;
+    private final Integer maxIterations;
 
     public ActionWrapper(String id, ActionThrottler throttler,
                          @Nullable ExecutableCondition condition,
                          @Nullable ExecutableTransform<Transform, Transform.Result> transform,
                          ExecutableAction<? extends Action> action,
-                         @Nullable String path) {
+                         @Nullable String path,
+                         @Nullable Integer maxIterations) {        
         this.id = id;
         this.condition = condition;
         this.throttler = throttler;
         this.transform = transform;
         this.action = action;
         this.path = path;
+        this.maxIterations = (maxIterations != null) ? maxIterations : 100;
     }
 
     public String id() {
@@ -177,7 +178,7 @@ public class ActionWrapper implements ToXContentObject {
                         throw new ElasticsearchException("foreach object [{}] was an empty list, could not run any action", path);
                     } else {
                         for (Object o : collection) {
-                            if (runs >= MAXIMUM_FOREACH_RUNS) {
+                            if (runs >= maxIterations) {
                                 break;
                             }
                             if (o instanceof Map) {
@@ -216,6 +217,7 @@ public class ActionWrapper implements ToXContentObject {
                                 builder.endObject();
                             }
                             builder.endArray();
+                            builder.field(WatchField.MAX_ITERATIONS.getPreferredName(), maxIterations);
                             return builder;
                         }
                 });
@@ -279,7 +281,9 @@ public class ActionWrapper implements ToXContentObject {
         }
         if (Strings.isEmpty(path) == false) {
             builder.field(WatchField.FOREACH.getPreferredName(), path);
+            builder.field(WatchField.MAX_ITERATIONS.getPreferredName(), maxIterations);
         }
+
         builder.field(action.type(), action, params);
         return builder.endObject();
     }
@@ -294,6 +298,7 @@ public class ActionWrapper implements ToXContentObject {
         TimeValue throttlePeriod = null;
         String path = null;
         ExecutableAction<? extends Action> action = null;
+        Integer maxIterations = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -316,6 +321,8 @@ public class ActionWrapper implements ToXContentObject {
                         throw new ElasticsearchParseException("could not parse action [{}/{}]. failed to parse field [{}] as time value",
                                 pe, watchId, actionId, currentFieldName);
                     }
+                } else if (WatchField.MAX_ITERATIONS.match(currentFieldName, parser.getDeprecationHandler())) {
+                    maxIterations = parser.intValue();
                 } else {
                     // it's the type of the action
                     ActionFactory actionFactory = actionRegistry.factory(currentFieldName);
@@ -332,7 +339,7 @@ public class ActionWrapper implements ToXContentObject {
         }
 
         ActionThrottler throttler = new ActionThrottler(clock, throttlePeriod, licenseState);
-        return new ActionWrapper(actionId, throttler, condition, transform, action, path);
+        return new ActionWrapper(actionId, throttler, condition, transform, action, path, maxIterations);
     }
 
 }

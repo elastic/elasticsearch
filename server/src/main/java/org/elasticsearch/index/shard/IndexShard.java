@@ -922,7 +922,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
         DocumentMapper mapper = mapperService.documentMapper();
-        if (mapper == null || mapper.type().equals(mapperService.resolveDocumentType(get.type())) == false) {
+        if (mapper == null) {
             return GetResult.NOT_EXISTS;
         }
         return getEngine().get(get, this::acquireSearcher);
@@ -985,7 +985,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
-    public IndexingStats indexingStats(String... types) {
+    public IndexingStats indexingStats() {
         Engine engine = getEngineOrNull();
         final boolean throttled;
         final long throttleTimeInMillis;
@@ -996,7 +996,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throttled = engine.isThrottled();
             throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
         }
-        return internalIndexingStats.stats(throttled, throttleTimeInMillis, types);
+        return internalIndexingStats.stats(throttled, throttleTimeInMillis);
     }
 
     public SearchStats searchStats(String... groups) {
@@ -1054,12 +1054,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
         verifyNotClosed();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
-        Engine engine = getEngine();
-        if (engine.isRecovering()) {
-            throw new IllegalIndexShardStateException(shardId(), state, "syncFlush is only allowed if the engine is not recovery" +
-                " from translog");
-        }
-        return engine.syncFlush(syncId, expectedCommitId);
+        return getEngine().syncFlush(syncId, expectedCommitId);
     }
 
     /**
@@ -1078,15 +1073,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          * since we use Engine#writeIndexingBuffer for this now.
          */
         verifyNotClosed();
-        final Engine engine = getEngine();
-        if (engine.isRecovering()) {
-            throw new IllegalIndexShardStateException(
-                    shardId(),
-                    state,
-                    "flush is only allowed if the engine is not recovery from translog");
-        }
         final long time = System.nanoTime();
-        final Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
+        final Engine.CommitId commitId = getEngine().flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
     }
@@ -1226,6 +1214,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void failShard(String reason, @Nullable Exception e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
         getEngine().failEngine(reason, e);
+    }
+
+    /**
+     * Acquire the searcher without applying the additional reader wrapper.
+     */
+    public Engine.Searcher acquireSearcherNoWrap(String source) {
+        readAllowed();
+        markSearcherAccessed();
+        return getEngine().acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2399,11 +2396,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Should be called for each no-op update operation to increment relevant statistics.
-     *
-     * @param type the doc type of the update
      */
-    public void noopUpdate(String type) {
-        internalIndexingStats.noopUpdate(type);
+    public void noopUpdate() {
+        internalIndexingStats.noopUpdate();
     }
 
     public void maybeCheckIndex() {
@@ -2631,6 +2626,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void removePeerRecoveryRetentionLease(String nodeId, ActionListener<ReplicationResponse> listener) {
         assert assertPrimaryMode();
         replicationTracker.removePeerRecoveryRetentionLease(nodeId, listener);
+    }
+
+    /**
+     * Returns a list of retention leases for peer recovery installed in this shard copy.
+     */
+    public List<RetentionLease> getPeerRecoveryRetentionLeases() {
+        return replicationTracker.getPeerRecoveryRetentionLeases();
     }
 
     private SafeCommitInfo getSafeCommitInfo() {

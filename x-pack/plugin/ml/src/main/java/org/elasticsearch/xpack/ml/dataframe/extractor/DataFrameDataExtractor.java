@@ -23,6 +23,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
 
@@ -268,7 +269,7 @@ public class DataFrameDataExtractor {
         Set<String> categoricalFields = new HashSet<>();
         for (ExtractedField extractedField : context.extractedFields.getAllFields()) {
             String fieldName = extractedField.getName();
-            if (ExtractedFieldsDetector.CATEGORICAL_TYPES.containsAll(extractedField.getTypes())) {
+            if (Types.categorical().containsAll(extractedField.getTypes())) {
                 categoricalFields.add(fieldName);
             }
         }

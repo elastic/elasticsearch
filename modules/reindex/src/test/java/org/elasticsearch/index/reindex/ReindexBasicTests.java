@@ -43,23 +43,23 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
 
         // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         assertThat(copy.get(), matcher().created(4));
         assertHitCount(client().prepareSearch("dest").setSize(0).get(), 4);
 
         // Now none of them
         createIndex("none");
-        copy = reindex().source("source").destination("none", "type").filter(termQuery("foo", "no_match")).refresh(true);
+        copy = reindex().source("source").destination("none").filter(termQuery("foo", "no_match")).refresh(true);
         assertThat(copy.get(), matcher().created(0));
         assertHitCount(client().prepareSearch("none").setSize(0).get(), 0);
 
         // Now half of them
-        copy = reindex().source("source").destination("dest_half", "type").filter(termQuery("foo", "a")).refresh(true);
+        copy = reindex().source("source").destination("dest_half").filter(termQuery("foo", "a")).refresh(true);
         assertThat(copy.get(), matcher().created(2));
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), 2);
 
         // Limit with maxDocs
-        copy = reindex().source("source").destination("dest_size_one", "type").maxDocs(1).refresh(true);
+        copy = reindex().source("source").destination("dest_size_one").maxDocs(1).refresh(true);
         assertThat(copy.get(), matcher().created(1));
         assertHitCount(client().prepareSearch("dest_size_one").setSize(0).get(), 1);
     }
@@ -75,7 +75,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
         // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(max, 5));
@@ -83,7 +83,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         // Copy some of the docs
         int half = max / 2;
-        copy = reindex().source("source").destination("dest_half", "type").refresh(true);
+        copy = reindex().source("source").destination("dest_half").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.maxDocs(half);
@@ -105,7 +105,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         int expectedSlices = expectedSliceStatuses(slices, "source");
 
         // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(slices);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true).setSlices(slices);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(expectedSlices)));
@@ -113,7 +113,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         // Copy some of the docs
         int half = max / 2;
-        copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(slices);
+        copy = reindex().source("source").destination("dest_half").refresh(true).setSlices(slices);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.maxDocs(half);
@@ -148,7 +148,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);
         ReindexRequestBuilder request = reindex()
             .source(sourceIndexNames)
-            .destination("dest", "type")
+            .destination("dest")
             .refresh(true)
             .setSlices(slices);
 

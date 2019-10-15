@@ -13,7 +13,7 @@ Pauses a follower index.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
@@ -21,17 +21,15 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 // TEST[setup:remote_cluster_and_leader_index]
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /<follower_index>/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEST[s/<follower_index>/follower_index/]
 
 [[ccr-post-pause-follow-prereqs]]
@@ -39,7 +37,7 @@ POST /<follower_index>/_ccr/pause_follow
 
 * If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
 privileges on the cluster that contains the follower index. For more information,
-see {stack-ov}/security-privileges.html[Security privileges].
+see <<security-privileges>>.
 
 [[ccr-post-pause-follow-desc]]
 ==== {api-description-title}
@@ -61,19 +59,17 @@ following task.
 
 This example pauses a follower index named `follower_index`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE

@@ -17,7 +17,7 @@ to limit the number of matched documents with a `query` parameter.
 Let's create an index with the following mapping and index a couple
 of documents into it.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -52,13 +52,12 @@ PUT my_index/_doc/2
 }
 
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 For dense_vector fields, `cosineSimilarity` calculates the measure of
 cosine similarity between a given query vector and document vectors.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -83,7 +82,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> To restrict the number of documents on which script score calculation is applied, provide a filter.
 <2> The script adds 1.0 to the cosine similarity to prevent the score from being negative.
 <3> To take advantage of the script optimizations, provide a query vector as a script parameter.
@@ -94,7 +93,7 @@ different from the query's vector, an error will be thrown.
 Similarly, for sparse_vector fields, `cosineSimilaritySparse` calculates cosine similarity
 between a given query vector and document vectors.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -119,12 +118,11 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 For dense_vector fields, `dotProduct` calculates the measure of
 dot product between a given query vector and document vectors.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -152,14 +150,13 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Using the standard sigmoid function prevents scores from being negative.
 
 Similarly, for sparse_vector fields, `dotProductSparse` calculates dot product
 between a given query vector and document vectors.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -187,13 +184,12 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 For dense_vector fields, `l1norm` calculates L^1^ distance
 (Manhattan distance) between a given query vector and
 document vectors.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -218,7 +214,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Unlike `cosineSimilarity` that represent similarity, `l1norm` and
 `l2norm` shown below represent distances or differences. This means, that
@@ -232,7 +227,7 @@ we added `1` in the denominator.
 For sparse_vector fields, `l1normSparse` calculates L^1^ distance
 between a given query vector and document vectors.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -257,13 +252,12 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 For dense_vector fields, `l2norm` calculates L^2^ distance
 (Euclidean distance) between a given query vector and
 document vectors.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -288,12 +282,11 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Similarly, for sparse_vector fields, `l2normSparse` calculates L^2^ distance
 between a given query vector and document vectors.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -318,7 +311,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: If a document doesn't have a value for a vector field on which
 a vector function is executed, an error will be thrown.

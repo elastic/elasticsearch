@@ -13,12 +13,10 @@ upgrade.
 ==== {api-request-title}
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
 --------------------------------------------------
-// CONSOLE
-// TEST
 // TEARDOWN
 
 //////////////////////////
@@ -31,7 +29,7 @@ POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-set-upgrade-mode-desc]]
 ==== {api-description-title}
@@ -74,22 +72,19 @@ IMPORTANT:  No new {ml} jobs can be opened while the `upgrade_mode` setting is
 
 The following example enables `upgrade_mode` for the cluster:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=true&timeout=10m
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 When the call is successful, an acknowledged response is returned. For example:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE
 
 The acknowledged response will only be returned once all {ml} jobs and {dfeeds} have
 finished writing to the {ml} internal indices. This means it is safe to reindex those
@@ -99,9 +94,7 @@ response before reindexing to ensure that all writes are completed.
 When the upgrade is complete, you must set `upgrade_mode` to `false` for
 {ml} jobs to start running again. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=false&timeout=10m
 --------------------------------------------------
-// CONSOLE
-// TEST

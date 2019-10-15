@@ -94,9 +94,11 @@ install_node_using_archive() {
     export ESHOME="$DEFAULT_ARCHIVE_ESHOME"
     export_elasticsearch_paths
 
+    assert_file_not_exist "/home/elasticsearch"
     install_archive
     set_debug_logging
     verify_archive_installation
+    assert_file_not_exist "/home/elasticsearch"
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_ARCHIVE_USER
     generate_trial_license
@@ -122,6 +124,7 @@ install_node_using_package() {
     export ESHOME="$DEFAULT_PACKAGE_ESHOME"
     export_elasticsearch_paths
 
+    assert_file_not_exist "/home/elasticsearch"
     install_package
     set_debug_logging
     verify_package_installation
@@ -379,7 +382,7 @@ DATA_SETTINGS
     testIndex=$(sudo curl -u "elastic:changeme" \
         -H "Content-Type: application/json" \
         --cacert "$ESCONFIG/certs/ca/ca.crt" \
-        -XPOST "https://127.0.0.1:9200/books/book/0?refresh" \
+        -XPOST "https://127.0.0.1:9200/books/_doc/0?refresh" \
         -d '{"title": "Elasticsearch The Definitive Guide"}')
 
     debug_collect_logs

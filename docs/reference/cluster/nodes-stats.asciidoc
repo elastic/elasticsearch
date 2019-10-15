@@ -113,25 +113,15 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 [[cluster-nodes-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-`completion_fields`::
-    (Optional, string) A comma-separated list of fields for `fielddata` and 
-    `suggest` index metric (supports wildcards).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 
-`fielddata_fields`::
-    (Optional, string) A comma-separated list of fields for `fielddata` index 
-    metric (supports wildcards).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
-`fields`::
-    (Optional, string) A comma-separated list of fields for `fielddata` and 
-    `completion` index metric (supports wildcards).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=fields]
 
-`groups`::
-    (Optional, string) A comma-separated list of search groups for `search` 
-    index metric.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=groups]
 
-`level`::
-    (Optional, string) Returns indices stats aggregated at index, node or shard 
-    level. Supported options: `indices`, `node`, `shards`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=level]
 
 `types`::
     (Optional, string) A comma-separated list of document types for the 
@@ -139,10 +129,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-`include_segment_file_sizes`::
-    (Optional, boolean) If `true`, the call reports the aggregated disk usage of 
-    each one  of the Lucene index files (only applies if segment stats are 
-    requested). Defaults to `false`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
 
 [[cluster-nodes-stats-api-response-body]]
@@ -402,7 +389,7 @@ keyed by node. For each node:
 [[cluster-nodes-stats-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # return just indices
 GET /_nodes/stats/indices
@@ -413,7 +400,6 @@ GET /_nodes/stats/os,process
 # return just process for node with IP address 10.0.0.1
 GET /_nodes/10.0.0.1/stats/process
 --------------------------------------------------
-// CONSOLE
 
 All stats can be explicitly requested via `/_nodes/stats/_all` or 
 `/_nodes/stats?metric=_all`.
@@ -421,7 +407,7 @@ All stats can be explicitly requested via `/_nodes/stats/_all` or
 You can get information about indices stats on `node`, `indices`, or `shards` 
 level.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # Fielddata summarized by node
 GET /_nodes/stats/indices/fielddata?fields=field1,field2
@@ -435,12 +421,11 @@ GET /_nodes/stats/indices/fielddata?level=shards&fields=field1,field2
 # You can use wildcards for field names
 GET /_nodes/stats/indices/fielddata?fields=field*
 --------------------------------------------------
-// CONSOLE
 
 You can get statistics about search groups for searches executed
 on this node.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # All groups with all stats
 GET /_nodes/stats?groups=_all
@@ -448,4 +433,3 @@ GET /_nodes/stats?groups=_all
 # Some groups from just the indices stats
 GET /_nodes/stats/indices?groups=foo,bar
 --------------------------------------------------
-// CONSOLE

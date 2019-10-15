@@ -153,7 +153,7 @@ request was uncompressed--even when compression is enabled.
 The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated
 by settings the level of the `org.elasticsearch.transport.TransportService.tracer` logger to `TRACE`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -162,12 +162,11 @@ PUT _cluster/settings
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 You can also control which actions will be traced, using a set of include and exclude wildcard patterns. By default every request will be traced
 except for fault detection pings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -177,6 +176,3 @@ PUT _cluster/settings
    }
 }
 --------------------------------------------------
-// CONSOLE
-
-

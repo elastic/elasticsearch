@@ -751,7 +751,7 @@ public class HttpClientTests extends ESTestCase {
     private void assertCreateUri(String uri, String expectedPath) {
         final HttpRequest request = HttpRequest.builder().fromUrl(uri).build();
         final Tuple<HttpHost, URI> tuple = HttpClient.createURI(request);
-        assertThat(tuple.v2().getPath(), is(expectedPath));
+        assertThat(tuple.v2().getRawPath(), is(expectedPath));
     }
 
     public static ClusterService mockClusterService() {

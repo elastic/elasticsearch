@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 public class PipelineProcessor extends AbstractProcessor {
 
@@ -36,12 +37,19 @@ public class PipelineProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         Pipeline pipeline = ingestService.getPipeline(pipelineName);
-        if (pipeline == null) {
-            throw new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']');
+        if (pipeline != null) {
+            ingestDocument.executePipeline(pipeline, handler);
+        } else {
+            handler.accept(null,
+                new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']'));
         }
-        return ingestDocument.executePipeline(pipeline);
+    }
+
+    @Override
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     Pipeline getPipeline(){

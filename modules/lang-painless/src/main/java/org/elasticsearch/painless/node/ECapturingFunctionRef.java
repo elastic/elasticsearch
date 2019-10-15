@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
@@ -27,6 +28,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Opcodes;
@@ -64,7 +66,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         captured = locals.getVariable(location, variable);
         if (expected == null) {
             if (captured.clazz == def.class) {
@@ -79,7 +81,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             defPointer = null;
             // static case
             if (captured.clazz != def.class) {
-                ref = FunctionRef.create(locals.getPainlessLookup(), locals.getMethods(), location,
+                ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location,
                         expected, PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
             }
             actual = expected;
@@ -87,22 +89,22 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
         if (defPointer != null) {
             // dynamic interface: push captured parameter on stack
             // TODO: don't do this: its just to cutover :)
-            writer.push((String)null);
-            writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
+            methodWriter.push((String)null);
+            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
         } else if (ref == null) {
             // typed interface, dynamic implementation
-            writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
+            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
             Type methodType = Type.getMethodType(MethodWriter.getType(expected), MethodWriter.getType(captured.clazz));
-            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, PainlessLookupUtility.typeToCanonicalTypeName(expected));
+            methodWriter.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, PainlessLookupUtility.typeToCanonicalTypeName(expected));
         } else {
             // typed interface, typed implementation
-            writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            writer.invokeLambdaCall(ref);
+            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
+            methodWriter.invokeLambdaCall(ref);
         }
     }
 

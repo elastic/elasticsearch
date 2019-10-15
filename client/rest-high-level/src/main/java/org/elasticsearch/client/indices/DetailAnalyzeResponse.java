@@ -113,8 +113,6 @@ public class DetailAnalyzeResponse {
         private final String name;
         private final AnalyzeResponse.AnalyzeToken[] tokens;
 
-        private static final String TOKENS = "tokens";
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

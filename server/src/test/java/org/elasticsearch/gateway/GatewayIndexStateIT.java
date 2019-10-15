@@ -165,7 +165,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             equalTo(test.totalNumShards));
 
         logger.info("--> trying to get the indexed document on the first index");
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> closing test index...");
@@ -204,7 +204,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             equalTo(test.totalNumShards));
 
         logger.info("--> trying to get the indexed document on the first round (before close and shutdown)");
-        getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+        getResponse = client().prepareGet("test", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> indexing a simple document");
@@ -375,7 +375,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion().id)
                 // this is invalid but should be archived
-                .put("index.similarity.BM25.type", "classic")
+                .put("index.similarity.BM25.type", "boolean")
                 // this one is not validated ahead of time and breaks allocation
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
         ).build();
@@ -397,7 +397,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().get().getState();
         assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
-        assertEquals("classic", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
+        assertEquals("boolean", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
         // try to open it with the broken setting - fail again!
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> client().admin().indices().prepareOpen("test").get());
         assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());

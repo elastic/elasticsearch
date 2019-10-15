@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -343,6 +344,8 @@ public final class TransformInternalIndex {
                 .patterns(indexTemplateMetaData.patterns())
                 .version(indexTemplateMetaData.version())
                 .settings(indexTemplateMetaData.settings())
+                // BWC: for mixed clusters with nodes < 7.5, we need the alias to make new docs visible for them
+                .alias(new Alias(".data-frame-internal-3"))
                 .mapping(SINGLE_MAPPING_NAME, XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
             ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), TRANSFORM_ORIGIN, request,

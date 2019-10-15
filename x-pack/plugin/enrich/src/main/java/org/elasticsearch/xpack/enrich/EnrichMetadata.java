@@ -82,8 +82,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
 
     @Override
     public Version getMinimalSupportedVersion() {
-        // NO RELEASE: change when merging enrich & enrich-7.x into master and 7.x respectively:
-        return Version.V_7_1_0;
+        return Version.V_7_5_0;
     }
 
     @Override

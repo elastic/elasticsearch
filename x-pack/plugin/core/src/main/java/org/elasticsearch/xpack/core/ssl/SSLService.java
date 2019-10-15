@@ -457,20 +457,21 @@ public class SSLService {
             // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
             final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".");
             if (isConfigurationValidForServerUsage(configuration) == false) {
-                throw new ElasticsearchSecurityException("invalid configuration for " + prefix +
-                    " - a server context requires a key and certificate, but these have not been configured; either [" +
-                    configurationSettings.x509KeyPair.keystorePath.getKey() + "] or [" +
-                    configurationSettings.x509KeyPair.certificatePath.getKey() + "] should be set");
+                throw new ElasticsearchSecurityException("invalid SSL configuration for " + prefix +
+                    " - server ssl configuration requires a key and certificate, but these have not been configured; you must set either " +
+                    "[" + configurationSettings.x509KeyPair.keystorePath.getKey() + "] or [" +
+                    configurationSettings.x509KeyPair.keyPath.getKey() + "] and [" +
+                    configurationSettings.x509KeyPair.certificatePath.getKey() + "]");
             }
         } else if (settings.hasValue(enabledSetting) == false) {
-            final List<String> sslKeys = settings.keySet().stream()
+            final List<String> sslSettingNames = settings.keySet().stream()
                 .filter(s -> s.startsWith(prefix))
                 .sorted()
                 .collect(Collectors.toUnmodifiableList());
-            if (sslKeys.isEmpty() == false) {
+            if (sslSettingNames.isEmpty() == false) {
                 throw new ElasticsearchSecurityException("invalid configuration for " + prefix + " - [" + enabledSetting +
                     "] is not set, but the following settings have been configured in elasticsearch.yml : [" +
-                    Strings.collectionToCommaDelimitedString(sslKeys) + "]");
+                    Strings.collectionToCommaDelimitedString(sslSettingNames) + "]");
             }
         }
     }

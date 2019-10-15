@@ -79,16 +79,18 @@ It is now an error to configure any SSL settings for
 For example, the following configuration is invalid:
 [source,yaml]
 --------------------------------------------------
-xpack.security.http.ssl.keystore.path: elastic-certificates.p12
-xpack.security.http.ssl.truststore.path: elastic-certificates.p12
+xpack.security.http.ssl.certificate: elasticsearch.crt 
+xpack.security.http.ssl.key: elasticsearch.key 
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
 --------------------------------------------------
 
 And must be configured as either:
 [source,yaml]
 --------------------------------------------------
 xpack.security.http.ssl.enabled: true <1>
-xpack.security.http.ssl.keystore.path: elastic-certificates.p12
-xpack.security.http.ssl.truststore.path: elastic-certificates.p12
+xpack.security.http.ssl.certificate: elasticsearch.crt 
+xpack.security.http.ssl.key: elasticsearch.key 
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
 --------------------------------------------------
 <1> or `false`.
 

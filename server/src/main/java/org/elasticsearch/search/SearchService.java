@@ -739,7 +739,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.from(source.from());
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
-        context.innerHits(innerHitBuilders);
         if (source.query() != null) {
             InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
             context.parsedQuery(queryShardContext.toQuery(source.query()));
@@ -750,7 +749,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (innerHitBuilders.size() > 0) {
             for (Map.Entry<String, InnerHitContextBuilder> entry : innerHitBuilders.entrySet()) {
-                entry.getValue().validate(queryShardContext);
+                try {
+                    entry.getValue().build(context, context.innerHits());
+                } catch (IOException e) {
+                    throw new SearchException(shardTarget, "failed to build inner_hits", e);
+                }
             }
         }
         if (source.sorts() != null) {

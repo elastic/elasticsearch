@@ -124,7 +124,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertBusy(() -> assertFalse(apiKeyService.isExpirationInProgress()));
         }
     }
-
+    
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47958")
     public void testCreateApiKey() {
         final Instant start = Instant.now();
         final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);

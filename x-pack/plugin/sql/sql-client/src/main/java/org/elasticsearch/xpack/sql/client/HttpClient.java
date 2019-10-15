@@ -72,7 +72,8 @@ public class HttpClient {
                 null,
                 new RequestInfo(Mode.CLI),
                 false,
-                false);
+                false,
+                Boolean.TRUE);
         return query(sqlRequest);
     }
 

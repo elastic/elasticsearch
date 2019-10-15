@@ -34,10 +34,12 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final List<SqlTypedParamValue> params;
     private final boolean fieldMultiValueLeniency;
     private final boolean indexIncludeFrozen;
+    private final Boolean binaryResponse;
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
                            TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
-                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen) {
+                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
+                           Boolean binaryResponse) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -50,11 +52,12 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.cursor = cursor;
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
         this.indexIncludeFrozen = indexIncludeFrozen;
+        this.binaryResponse = binaryResponse;
     }
 
     public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
         this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
-                null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN);
+                null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, true);
     }
 
     /**
@@ -131,6 +134,10 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         return indexIncludeFrozen;
     }
     
+    public Boolean binaryResponse() {
+        return binaryResponse;
+    }
+    
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -143,23 +150,24 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             return false;
         }
         SqlQueryRequest that = (SqlQueryRequest) o;
-        return fetchSize == that.fetchSize &&
-            Objects.equals(query, that.query) &&
-            Objects.equals(params, that.params) &&
-            Objects.equals(zoneId, that.zoneId) &&
-            Objects.equals(requestTimeout, that.requestTimeout) &&
-            Objects.equals(pageTimeout, that.pageTimeout) &&
-            Objects.equals(filter, that.filter) &&
-            Objects.equals(columnar,  that.columnar) &&
-            Objects.equals(cursor, that.cursor) &&
-            fieldMultiValueLeniency == that.fieldMultiValueLeniency &&
-            indexIncludeFrozen == that.indexIncludeFrozen;
+        return fetchSize == that.fetchSize
+                && Objects.equals(query, that.query)
+                && Objects.equals(params, that.params)
+                && Objects.equals(zoneId, that.zoneId)
+                && Objects.equals(requestTimeout, that.requestTimeout)
+                && Objects.equals(pageTimeout, that.pageTimeout)
+                && Objects.equals(filter, that.filter)
+                && Objects.equals(columnar,  that.columnar)
+                && Objects.equals(cursor, that.cursor)
+                && fieldMultiValueLeniency == that.fieldMultiValueLeniency
+                && indexIncludeFrozen == that.indexIncludeFrozen
+                && Objects.equals(binaryResponse,  that.binaryResponse);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout,
-                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen);
+                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryResponse);
     }
 
     @Override
@@ -202,6 +210,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         if (indexIncludeFrozen) {
             builder.field("index_include_frozen", indexIncludeFrozen);
+        }
+        if (binaryResponse != null) {
+            builder.field("binary_response", binaryResponse);
         }
         if (cursor != null) {
             builder.field("cursor", cursor);

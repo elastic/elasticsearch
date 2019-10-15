@@ -195,6 +195,18 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             requestContent = new StringBuilder(requestContent)
                     .insert(requestContent.length() - 1, ",\"columnar\":" + columnar).toString();
         }
+
+        // randomize binary response enforcement for drivers (ODBC/JDBC) and CLI
+        boolean binaryResponse = randomBoolean();
+        Mode m = Mode.fromString(mode);
+        if (randomBoolean()) {
+            // set it explicitly or leave the default (null) as is
+            requestContent = new StringBuilder(requestContent)
+                    .insert(requestContent.length() - 1, ",\"binary_response\":" + binaryResponse).toString();
+            binaryResponse = ((Mode.isDriver(m) && binaryResponse == true) || m == Mode.CLI);
+        } else {
+            binaryResponse = Mode.isDriver(m) || m == Mode.CLI;
+        }
         
         // send the query either as body or as request parameter
         if (randomBoolean()) {
@@ -210,6 +222,9 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
+            if (binaryResponse == true) {
+                return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);
+            }
             switch(format) {
                 case "cbor": {
                     return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);

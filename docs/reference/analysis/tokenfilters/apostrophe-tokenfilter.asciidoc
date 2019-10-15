@@ -69,8 +69,9 @@ The filter produces the following tokens:
 [[analysis-apostrophe-tokenfilter-analyzer-ex]]
 ==== Add to an analyzer
 
-The following <<indices-create-index,create index API>> request adds the
-apostrophe token filter to a <<analysis-custom-analyzer,custom analyzer>>.
+The following <<indices-create-index,create index API>> request uses the
+apostrophe token filter to configure a new 
+<<analysis-custom-analyzer,custom analyzer>>.
 
 [source,console]
 --------------------------------------------------

@@ -140,6 +140,7 @@ public class TransportStopDataFrameAnalyticsAction
                                                  Set<String> failedAnalytics) {
         for (String analyticsId : analyticsIds) {
             switch (MlTasks.getDataFrameAnalyticsState(analyticsId, tasks)) {
+                case STARTING:
                 case STARTED:
                 case REINDEXING:
                 case ANALYZING:

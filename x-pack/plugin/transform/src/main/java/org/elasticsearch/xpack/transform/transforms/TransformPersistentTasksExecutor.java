@@ -109,7 +109,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] indices = resolver.concreteIndexNames(clusterState,
             IndicesOptions.lenientExpandOpen(),
-            TransformInternalIndexConstants.INDEX_NAME_PATTERN);
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED);
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -68,11 +67,6 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
     }
 
     protected abstract Pipe createPipe(Pipe first, Pipe second, Pipe third, ZoneId zoneId);
-
-    @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
-    }
 
     @Override
     public boolean foldable() {

@@ -525,14 +525,14 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         registerAnalytics(config);
         putAnalytics(config);
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
 
         // Due to lazy start being allowed, this should succeed even though no node currently in the cluster is big enough
         startAnalytics(id);
 
         // Wait until state is STARTING, there is no node but there is an assignment explanation.
         assertBusy(() -> {
-            GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id).get(0);
+            GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
             assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STARTING));
             assertThat(stats.getNode(), is(nullValue()));
             assertThat(stats.getAssignmentExplanation(), containsString("persistent task is awaiting node assignment"));

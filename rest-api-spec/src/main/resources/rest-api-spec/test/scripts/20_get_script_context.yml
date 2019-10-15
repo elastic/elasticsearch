@@ -1,7 +1,6 @@
 "Action to get all contexts":
   - do:
       get_script_context: {}
-  - length: { contexts: 22 }
   - match: { contexts.aggregation_selector: {} }
   - match: { contexts.aggs: {} }
   - match: { contexts.aggs_combine: {} }

@@ -287,7 +287,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numTrainingRows; i++) {
-            List<Object> source = List.of(
+            List<Object> source = Arrays.asList(
                 BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
                 NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()),
                 DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size()),
@@ -298,17 +298,18 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
             List<Object> source = new ArrayList<>();
             if (BOOLEAN_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size())));
+                source.addAll(Arrays.asList(BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size())));
             }
             if (NUMERICAL_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size())));
+                source.addAll(Arrays.asList(NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size())));
             }
             if (DISCRETE_NUMERICAL_FIELD.equals(dependentVariable) == false) {
                 source.addAll(
-                    List.of(DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size())));
+                    Arrays.asList(
+                        DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size())));
             }
             if (KEYWORD_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(Arrays.asList(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
             bulkRequestBuilder.add(indexRequest);

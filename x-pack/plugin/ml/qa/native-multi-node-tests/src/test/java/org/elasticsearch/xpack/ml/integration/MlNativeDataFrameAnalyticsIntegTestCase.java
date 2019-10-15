@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -119,8 +120,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected void waitUntilAnalyticsIsStopped(String id, TimeValue waitTime) throws Exception {
-        assertBusy(() -> assertThat(getAnalyticsStats(id).get(0).getState(), equalTo(DataFrameAnalyticsState.STOPPED)),
-                waitTime.getMillis(), TimeUnit.MILLISECONDS);
+        assertBusy(() -> assertIsStopped(id), waitTime.getMillis(), TimeUnit.MILLISECONDS);
     }
 
     protected List<DataFrameAnalyticsConfig> getAnalytics(String id) {
@@ -128,11 +128,13 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return client().execute(GetDataFrameAnalyticsAction.INSTANCE, request).actionGet().getResources().results();
     }
 
-    protected List<GetDataFrameAnalyticsStatsAction.Response.Stats> getAnalyticsStats(String id) {
+    protected GetDataFrameAnalyticsStatsAction.Response.Stats getAnalyticsStats(String id) {
         GetDataFrameAnalyticsStatsAction.Request request = new GetDataFrameAnalyticsStatsAction.Request(id);
         GetDataFrameAnalyticsStatsAction.Response response = client().execute(GetDataFrameAnalyticsStatsAction.INSTANCE, request)
             .actionGet();
-        return response.getResponse().results();
+        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = response.getResponse().results();
+        assertThat("Got: " + stats.toString(), stats.size(), equalTo(1));
+        return stats.get(0);
     }
 
     protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
@@ -145,18 +147,17 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return configBuilder.build();
     }
 
-    protected void assertState(String id, DataFrameAnalyticsState state) {
-        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = getAnalyticsStats(id);
-        assertThat(stats.size(), equalTo(1));
-        assertThat(stats.get(0).getId(), equalTo(id));
-        assertThat(stats.get(0).getState(), equalTo(state));
+    protected void assertIsStopped(String id) {
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
+        assertThat(stats.getId(), equalTo(id));
+        assertThat(stats.getFailureReason(), is(nullValue()));
+        assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
     protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {
-        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = getAnalyticsStats(id);
-        List<PhaseProgress> progress = stats.get(0).getProgress();
-        assertThat(stats.size(), equalTo(1));
-        assertThat(stats.get(0).getId(), equalTo(id));
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
+        assertThat(stats.getId(), equalTo(id));
+        List<PhaseProgress> progress = stats.getProgress();
         assertThat(progress.size(), equalTo(4));
         assertThat(progress.get(0).getPhase(), equalTo("reindexing"));
         assertThat(progress.get(1).getPhase(), equalTo("loading_data"));

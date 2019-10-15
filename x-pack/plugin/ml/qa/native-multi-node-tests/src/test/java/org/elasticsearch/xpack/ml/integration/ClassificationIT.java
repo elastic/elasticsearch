@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParamsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.junit.After;
@@ -60,7 +59,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -98,7 +97,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -141,7 +140,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -179,7 +178,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Finished analysis");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/issues/712")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows_TopClassesRequested() throws Exception {
         initialize("classification_top_classes_requested");
         indexData(sourceIndex, 300, 0, NUMERICAL_FIELD_VALUES, KEYWORD_FIELD_VALUES);
@@ -195,7 +193,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);

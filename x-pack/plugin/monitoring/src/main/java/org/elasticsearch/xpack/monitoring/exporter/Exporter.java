@@ -110,7 +110,9 @@ public abstract class Exporter implements AutoCloseable {
                             @Override
                             public void validate(String value) {
                                 try {
-                                    DateFormatter.forPattern(value).withZone(ZoneOffset.UTC);
+                                    if (value != null) {
+                                        DateFormatter.forPattern(value).withZone(ZoneOffset.UTC);
+                                    }
                                 } catch (RuntimeException e) {
                                     throw new SettingsException("[" + INDEX_NAME_TIME_FORMAT_SETTING.getKey() +
                                         "] invalid index name time format: [" + value + "]", e);

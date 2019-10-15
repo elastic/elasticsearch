@@ -43,6 +43,9 @@ import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyResponse;
 import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsResponse;
 import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.SnapshotLifecycleManagementStatusRequest;
+import org.elasticsearch.client.slm.StartSLMRequest;
+import org.elasticsearch.client.slm.StopSLMRequest;
 
 import java.io.IOException;
 
@@ -540,5 +543,103 @@ public class IndexLifecycleClient {
                                                       ActionListener<GetSnapshotLifecycleStatsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecycleStats,
             options, GetSnapshotLifecycleStatsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Start the Snapshot Lifecycle Management feature.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-start-slm.html
+     * </pre> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse startSLM(StartSLMRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::startSLM, options,
+            AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously start the Snapshot Lifecycle Management feature.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-start-slm.html
+     * </pre> for more.
+     * @param request the request
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable startSLMAsync(StartSLMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::startSLM, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Stop the Snapshot Lifecycle Management feature.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-stop-slm.html
+     * </pre> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse stopSLM(StopSLMRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::stopSLM, options,
+            AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously stop the Snapshot Lifecycle Management feature.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-stop-slm.html
+     * </pre> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable stopSLMAsync(StopSLMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::stopSLM, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get the status of Snapshot Lifecycle Management.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-status.html
+     * </pre> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public LifecycleManagementStatusResponse getSLMStatus(SnapshotLifecycleManagementStatusRequest request,
+                                                          RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::snapshotLifecycleManagementStatus,
+            options, LifecycleManagementStatusResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get the status of Snapshot Lifecycle Management.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-status.html
+     * </pre> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getSLMStatusAsync(SnapshotLifecycleManagementStatusRequest request, RequestOptions options,
+                                         ActionListener<LifecycleManagementStatusResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            IndexLifecycleRequestConverters::snapshotLifecycleManagementStatus, options, LifecycleManagementStatusResponse::fromXContent,
+            listener, emptySet());
     }
 }

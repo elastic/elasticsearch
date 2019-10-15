@@ -1216,6 +1216,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().failEngine(reason, e);
     }
 
+    /**
+     * Acquire the searcher without applying the additional reader wrapper.
+     */
+    public Engine.Searcher acquireSearcherNoWrap(String source) {
+        readAllowed();
+        markSearcherAccessed();
+        return getEngine().acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
+    }
+
     public Engine.Searcher acquireSearcher(String source) {
         return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
     }

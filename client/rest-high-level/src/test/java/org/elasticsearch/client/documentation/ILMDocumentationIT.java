@@ -64,10 +64,13 @@ import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsResponse;
 import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.SnapshotInvocationRecord;
+import org.elasticsearch.client.slm.SnapshotLifecycleManagementStatusRequest;
 import org.elasticsearch.client.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.client.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.client.slm.SnapshotLifecycleStats;
 import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
+import org.elasticsearch.client.slm.StartSLMRequest;
+import org.elasticsearch.client.slm.StopSLMRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -460,7 +463,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
-    public void testStartStopStatus() throws Exception {
+    public void testILMStartStopStatus() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         stopILM(client);
@@ -776,7 +779,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
 
         //////// PUT
-        // tag::slm-put-snapshot-lifecycle-policy
+        // tag::slm-put-snapshot-lifecycle-policy-request
         Map<String, Object> config = new HashMap<>();
         config.put("indices", Collections.singletonList("idx"));
         SnapshotRetentionConfiguration retention =
@@ -786,7 +789,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             "my_repository", config, retention);
         PutSnapshotLifecyclePolicyRequest request =
             new PutSnapshotLifecyclePolicyRequest(policy);
-        // end::slm-put-snapshot-lifecycle-policy
+        // end::slm-put-snapshot-lifecycle-policy-request
 
         // tag::slm-put-snapshot-lifecycle-policy-execute
         AcknowledgedResponse resp = client.indexLifecycle()
@@ -815,16 +818,16 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::slm-put-snapshot-lifecycle-policy-execute-async
         client.indexLifecycle().putSnapshotLifecyclePolicyAsync(request,
-            RequestOptions.DEFAULT, putListener);
+            RequestOptions.DEFAULT, putListener); // <1>
         // end::slm-put-snapshot-lifecycle-policy-execute-async
 
         //////// GET
-        // tag::slm-get-snapshot-lifecycle-policy
+        // tag::slm-get-snapshot-lifecycle-policy-request
         GetSnapshotLifecyclePolicyRequest getAllRequest =
             new GetSnapshotLifecyclePolicyRequest(); // <1>
         GetSnapshotLifecyclePolicyRequest getRequest =
             new GetSnapshotLifecyclePolicyRequest("policy_id"); // <2>
-        // end::slm-get-snapshot-lifecycle-policy
+        // end::slm-get-snapshot-lifecycle-policy-request
 
         // tag::slm-get-snapshot-lifecycle-policy-execute
         GetSnapshotLifecyclePolicyResponse getResponse =
@@ -851,7 +854,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::slm-get-snapshot-lifecycle-policy-execute-async
         client.indexLifecycle().getSnapshotLifecyclePolicyAsync(getRequest,
-            RequestOptions.DEFAULT, getListener);
+            RequestOptions.DEFAULT, getListener); // <1>
         // end::slm-get-snapshot-lifecycle-policy-execute-async
 
         assertThat(getResponse.getPolicies().size(), equalTo(1));
@@ -879,10 +882,10 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         createIndex("idx", Settings.builder().put("index.number_of_shards", 1).build());
 
         //////// EXECUTE
-        // tag::slm-execute-snapshot-lifecycle-policy
+        // tag::slm-execute-snapshot-lifecycle-policy-request
         ExecuteSnapshotLifecyclePolicyRequest executeRequest =
             new ExecuteSnapshotLifecyclePolicyRequest("policy_id"); // <1>
-        // end::slm-execute-snapshot-lifecycle-policy
+        // end::slm-execute-snapshot-lifecycle-policy-request
 
         // tag::slm-execute-snapshot-lifecycle-policy-execute
         ExecuteSnapshotLifecyclePolicyResponse executeResponse =
@@ -937,7 +940,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::slm-execute-snapshot-lifecycle-policy-execute-async
         client.indexLifecycle()
             .executeSnapshotLifecyclePolicyAsync(executeRequest,
-                RequestOptions.DEFAULT, executeListener);
+                RequestOptions.DEFAULT, executeListener); // <1>
         // end::slm-execute-snapshot-lifecycle-policy-execute-async
         latch.await(5, TimeUnit.SECONDS);
 
@@ -958,42 +961,50 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             greaterThanOrEqualTo(1L));
 
         //////// DELETE
-        // tag::slm-delete-snapshot-lifecycle-policy
+        // tag::slm-delete-snapshot-lifecycle-policy-request
         DeleteSnapshotLifecyclePolicyRequest deleteRequest =
             new DeleteSnapshotLifecyclePolicyRequest("policy_id"); // <1>
-        // end::slm-delete-snapshot-lifecycle-policy
+        // end::slm-delete-snapshot-lifecycle-policy-request
 
         // tag::slm-delete-snapshot-lifecycle-policy-execute
         AcknowledgedResponse deleteResp = client.indexLifecycle()
             .deleteSnapshotLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT);
         // end::slm-delete-snapshot-lifecycle-policy-execute
+
+        // tag::slm-delete-snapshot-lifecycle-policy-response
+        boolean deleteAcknowledged = deleteResp.isAcknowledged(); // <1>
+        // end::slm-delete-snapshot-lifecycle-policy-response
+
         assertTrue(deleteResp.isAcknowledged());
 
-        ActionListener<AcknowledgedResponse> deleteListener = new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse resp) {
-                // no-op
-            }
+        // tag::slm-delete-snapshot-lifecycle-policy-execute-listener
+        ActionListener<AcknowledgedResponse> deleteListener =
+            new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse resp) {
+                    boolean deleteAcknowledged = resp.isAcknowledged(); // <1>
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                // no-op
-            }
-        };
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::slm-delete-snapshot-lifecycle-policy-execute-listener
 
         // tag::slm-delete-snapshot-lifecycle-policy-execute-async
         client.indexLifecycle()
             .deleteSnapshotLifecyclePolicyAsync(deleteRequest,
-                RequestOptions.DEFAULT, deleteListener);
+                RequestOptions.DEFAULT, deleteListener); // <1>
         // end::slm-delete-snapshot-lifecycle-policy-execute-async
 
         assertTrue(deleteResp.isAcknowledged());
 
         //////// EXECUTE RETENTION
-        // tag::slm-execute-snapshot-lifecycle-retention
+        // tag::slm-execute-snapshot-lifecycle-retention-request
         ExecuteSnapshotLifecycleRetentionRequest req =
             new ExecuteSnapshotLifecycleRetentionRequest();
-        // end::slm-execute-snapshot-lifecycle-retention
+        // end::slm-execute-snapshot-lifecycle-retention-request
 
         // tag::slm-execute-snapshot-lifecycle-retention-execute
         AcknowledgedResponse retentionResp =
@@ -1006,7 +1017,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         final boolean acked = retentionResp.isAcknowledged();
         // end::slm-execute-snapshot-lifecycle-retention-response
 
-        // tag::slm-execute-snapshot-lifecycle-policy-execute-listener
+        // tag::slm-execute-snapshot-lifecycle-retention-execute-listener
         ActionListener<AcknowledgedResponse> retentionListener =
             new ActionListener<>() {
                 @Override
@@ -1024,7 +1035,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::slm-execute-snapshot-lifecycle-retention-execute-async
         client.indexLifecycle()
             .executeSnapshotLifecycleRetentionAsync(req,
-                RequestOptions.DEFAULT, retentionListener);
+                RequestOptions.DEFAULT, retentionListener); // <1>
         // end::slm-execute-snapshot-lifecycle-retention-execute-async
     }
 
@@ -1049,6 +1060,152 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                 throw e;
             }
         });
+    }
+
+    public void testSLMStartStopStatus() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        stopSLM(client);
+
+        // tag::slm-status-request
+        SnapshotLifecycleManagementStatusRequest request =
+            new SnapshotLifecycleManagementStatusRequest();
+        // end::slm-status-request
+
+        // Check that SLM has stopped
+        {
+            // tag::slm-status-execute
+            LifecycleManagementStatusResponse response =
+                client.indexLifecycle()
+                    .getSLMStatus(request, RequestOptions.DEFAULT);
+            // end::slm-status-execute
+
+            // tag::slm-status-response
+            OperationMode operationMode = response.getOperationMode(); // <1>
+            // end::slm-status-response
+
+            assertThat(operationMode, Matchers.either(equalTo(OperationMode.STOPPING)).or(equalTo(OperationMode.STOPPED)));
+        }
+
+        startSLM(client);
+
+        // tag::slm-status-execute-listener
+        ActionListener<LifecycleManagementStatusResponse> listener =
+            new ActionListener<LifecycleManagementStatusResponse>() {
+                @Override
+                public void onResponse(
+                    LifecycleManagementStatusResponse response) {
+                    OperationMode operationMode = response
+                        .getOperationMode(); // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::slm-status-execute-listener
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::slm-status-execute-async
+        client.indexLifecycle().getSLMStatusAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::slm-status-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Check that SLM is running again
+        LifecycleManagementStatusResponse response =
+            client.indexLifecycle()
+                .getSLMStatus(request, RequestOptions.DEFAULT);
+
+        OperationMode operationMode = response.getOperationMode();
+        assertEquals(OperationMode.RUNNING, operationMode);
+    }
+
+    private void stopSLM(RestHighLevelClient client) throws IOException, InterruptedException {
+        // tag::slm-stop-slm-request
+        StopSLMRequest request = new StopSLMRequest();
+        // end::slm-stop-slm-request
+
+        // tag::slm-stop-slm-execute
+        AcknowledgedResponse response = client.indexLifecycle()
+            .stopSLM(request, RequestOptions.DEFAULT);
+        // end::slm-stop-slm-execute
+
+        // tag::slm-stop-slm-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::slm-stop-slm-response
+        assertTrue(acknowledged);
+
+        // tag::slm-stop-slm-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    boolean acknowledged = response.isAcknowledged(); // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::slm-stop-slm-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::slm-stop-slm-execute-async
+        client.indexLifecycle().stopSLMAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::slm-stop-slm-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    private void startSLM(RestHighLevelClient client) throws IOException, InterruptedException {
+        // tag::slm-start-slm-request
+        StartSLMRequest request1 = new StartSLMRequest();
+        // end::slm-start-slm-request
+
+        // tag::slm-start-slm-execute
+        AcknowledgedResponse response = client.indexLifecycle()
+            .startSLM(request1, RequestOptions.DEFAULT);
+        // end::slm-start-slm-execute
+
+        // tag::slm-start-slm-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::slm-start-slm-response
+
+        assertTrue(acknowledged);
+
+        // tag::slm-start-slm-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    boolean acknowledged = response.isAcknowledged(); // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::slm-start-slm-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::slm-start-slm-execute-async
+        client.indexLifecycle().startSLMAsync(request1,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::slm-start-slm-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

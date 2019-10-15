@@ -44,10 +44,12 @@ import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse.Pattern;
 import org.elasticsearch.client.ccr.IndicesFollowStats;
+import org.elasticsearch.client.ccr.PauseAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
+import org.elasticsearch.client.ccr.ResumeAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
@@ -670,6 +672,122 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         client.ccr().getAutoFollowPatternAsync(request,
             RequestOptions.DEFAULT, listener); // <1>
         // end::ccr-get-auto-follow-pattern-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        {
+            DeleteAutoFollowPatternRequest deleteRequest = new DeleteAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse deleteResponse = client.ccr().deleteAutoFollowPattern(deleteRequest, RequestOptions.DEFAULT);
+            assertThat(deleteResponse.isAcknowledged(), is(true));
+        }
+    }
+
+    public void testPauseAutoFollowPattern() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        {
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest("my_pattern", "local", List.of("logs-*"));
+            AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
+            assertThat(putResponse.isAcknowledged(), is(true));
+        }
+
+        // tag::ccr-pause-auto-follow-pattern-request
+        PauseAutoFollowPatternRequest request =
+            new PauseAutoFollowPatternRequest("my_pattern"); // <1>
+        // end::ccr-pause-auto-follow-pattern-request
+
+        // tag::ccr-pause-auto-follow-pattern-execute
+        AcknowledgedResponse response = client.ccr()
+            .pauseAutoFollowPattern(request, RequestOptions.DEFAULT);
+        // end::ccr-pause-auto-follow-pattern-execute
+
+        // tag::ccr-pause-auto-follow-pattern-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::ccr-pause-auto-follow-pattern-response
+
+        // tag::ccr-pause-auto-follow-pattern-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) { // <1>
+                    boolean paused = response.isAcknowledged();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-pause-auto-follow-pattern-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-pause-auto-follow-pattern-execute-async
+        client.ccr().pauseAutoFollowPatternAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-pause-auto-follow-pattern-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        {
+            DeleteAutoFollowPatternRequest deleteRequest = new DeleteAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse deleteResponse = client.ccr().deleteAutoFollowPattern(deleteRequest, RequestOptions.DEFAULT);
+            assertThat(deleteResponse.isAcknowledged(), is(true));
+        }
+    }
+
+    public void testResumeAutoFollowPattern() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        {
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest("my_pattern", "local", List.of("logs-*"));
+            AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
+            assertThat(putResponse.isAcknowledged(), is(true));
+
+            final PauseAutoFollowPatternRequest pauseRequest = new PauseAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse pauseResponse = client.ccr().pauseAutoFollowPattern(pauseRequest, RequestOptions.DEFAULT);
+            assertThat(pauseResponse.isAcknowledged(), is(true));
+        }
+
+        // tag::ccr-resume-auto-follow-pattern-request
+        ResumeAutoFollowPatternRequest request =
+            new ResumeAutoFollowPatternRequest("my_pattern"); // <1>
+        // end::ccr-resume-auto-follow-pattern-request
+
+        // tag::ccr-resume-auto-follow-pattern-execute
+        AcknowledgedResponse response = client.ccr()
+            .resumeAutoFollowPattern(request, RequestOptions.DEFAULT);
+        // end::ccr-resume-auto-follow-pattern-execute
+
+        // tag::ccr-resume-auto-follow-pattern-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::ccr-resume-auto-follow-pattern-response
+
+        // tag::ccr-resume-auto-follow-pattern-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) { // <1>
+                    boolean resumed = response.isAcknowledged();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-resume-auto-follow-pattern-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-resume-auto-follow-pattern-execute-async
+        client.ccr().resumeAutoFollowPatternAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-resume-auto-follow-pattern-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 

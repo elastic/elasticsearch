@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -56,12 +57,12 @@ public class TrainedModelIT extends ESRestTestCase {
         String modelId = "test_regression_model";
         String modelId2 = "test_regression_model-2";
         Request model1 = new Request("PUT",
-            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TrainedModelConfig.documentId(modelId, 0));
+            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + modelId);
         model1.setJsonEntity(buildRegressionModel(modelId));
         assertThat(client().performRequest(model1).getStatusLine().getStatusCode(), equalTo(201));
 
         Request model2 = new Request("PUT",
-            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TrainedModelConfig.documentId(modelId2, 0));
+            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + modelId2);
         model2.setJsonEntity(buildRegressionModel(modelId2));
         assertThat(client().performRequest(model2).getStatusLine().getStatusCode(), equalTo(201));
 
@@ -124,7 +125,7 @@ public class TrainedModelIT extends ESRestTestCase {
     public void testDeleteTrainedModels() throws IOException {
         String modelId = "test_delete_regression_model";
         Request model1 = new Request("PUT",
-            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TrainedModelConfig.documentId(modelId, 0));
+            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + modelId);
         model1.setJsonEntity(buildRegressionModel(modelId));
         assertThat(client().performRequest(model1).getStatusLine().getStatusCode(), equalTo(201));
 
@@ -143,14 +144,15 @@ public class TrainedModelIT extends ESRestTestCase {
     private static String buildRegressionModel(String modelId) throws IOException {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
             TrainedModelConfig.builder()
-                .setModelType("local")
                 .setModelId(modelId)
                 .setCreatedBy("ml_test")
                 .setDefinition(new TrainedModelDefinition.Builder()
                     .setInput(new TrainedModelDefinition.Input(Arrays.asList("col1", "col2", "col3")))
                     .setPreProcessors(Collections.emptyList())
                     .setTrainedModel(LocalModelTests.buildRegression()))
-                .build(Version.CURRENT)
+                .setVersion(Version.CURRENT)
+                .setCreateTime(Instant.now())
+                .build()
                 .toXContent(builder, ToXContent.EMPTY_PARAMS);
             return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
         }

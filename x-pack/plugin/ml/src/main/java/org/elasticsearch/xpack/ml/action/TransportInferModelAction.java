@@ -59,6 +59,6 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
             listener::onFailure
         );
 
-        this.modelLoadingService.getModel(request.getModelId(), request.getModelVersion(), getModelListener);
+        this.modelLoadingService.getModel(request.getModelId(), getModelListener);
     }
 }

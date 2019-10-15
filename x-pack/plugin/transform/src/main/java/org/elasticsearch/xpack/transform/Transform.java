@@ -222,7 +222,8 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
                                                                       transformConfigManager.get(),
                                                                       transformAuditor.get()));
 
-        return Arrays.asList(transformConfigManager.get(), transformAuditor.get(), transformCheckpointService.get());
+        return Arrays.asList(transformConfigManager.get(), transformAuditor.get(), transformCheckpointService.get(),
+                new TransformClusterStateListener(clusterService, client));
     }
 
     @Override

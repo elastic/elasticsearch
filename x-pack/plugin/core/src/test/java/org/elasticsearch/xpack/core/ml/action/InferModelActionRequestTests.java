@@ -29,12 +29,10 @@ public class InferModelActionRequestTests extends AbstractWireSerializingTestCas
         return randomBoolean() ?
             new Request(
                 randomAlphaOfLength(10),
-                randomLongBetween(1, 100),
                 Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
                 randomInferenceConfig()) :
             new Request(
                 randomAlphaOfLength(10),
-                randomLongBetween(1, 100),
                 randomMap(),
                 randomInferenceConfig());
     }

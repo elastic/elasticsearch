@@ -1,5 +1,7 @@
 package org.elasticsearch.repositories.encrypted;
 
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
+
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -14,7 +16,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.Provider;
-import java.security.SecureRandom;
 
 import static javax.crypto.Cipher.DECRYPT_MODE;
 import static javax.crypto.Cipher.ENCRYPT_MODE;
@@ -33,11 +34,11 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
 
     private boolean done = false;
     private boolean closed = false;
-    private final Provider provider;
     private final SecretKey secretKey;
     private final int mode;
-    private Cipher packetCipher;
+    private final Provider provider;
 
+    private Cipher packetCipher;
     private long packetIndex;
     private final ByteBuffer packetIV = ByteBuffer.allocate(GCM_IV_SIZE_IN_BYTES);
     // how much to read from the underlying stream before finishing the current packet and starting the next one
@@ -55,20 +56,28 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
     private long markPacketIndex;
     private int markReadLimit;
 
-    public static GCMPacketsCipherInputStream getGCMPacketsEncryptor(InputStream in, Provider provider, SecretKey secretKey) {
-        return new GCMPacketsCipherInputStream(in, provider, secretKey, ENCRYPT_MODE, 0, new SecureRandom().nextInt());
+    static GCMPacketsCipherInputStream getGCMPacketsEncryptor(InputStream in, SecretKey secretKey, int nonce, Provider provider) {
+        return new GCMPacketsCipherInputStream(in, secretKey, ENCRYPT_MODE, 0, nonce, provider);
     }
 
-    public static GCMPacketsCipherInputStream getGCMPacketsDecryptor(InputStream in, Provider provider, SecretKey secretKey) {
-        return new GCMPacketsCipherInputStream(in, provider, secretKey, DECRYPT_MODE, 0, new SecureRandom().nextInt());
+    static GCMPacketsCipherInputStream getGCMPacketsDecryptor(InputStream in, SecretKey secretKey, int nonce, Provider provider) {
+        return new GCMPacketsCipherInputStream(in, secretKey, DECRYPT_MODE, 0, nonce, provider);
     }
 
-    private GCMPacketsCipherInputStream(InputStream in, Provider provider, SecretKey secretKey, int mode, long packetIndex, int nonce) {
+    public static GCMPacketsCipherInputStream getGCMPacketsEncryptor(InputStream in, SecretKey secretKey, int nonce) {
+        return getGCMPacketsEncryptor(in, secretKey, nonce, new BouncyCastleFipsProvider());
+    }
+
+    public static GCMPacketsCipherInputStream getGCMPacketsDecryptor(InputStream in, SecretKey secretKey, int nonce) {
+        return getGCMPacketsDecryptor(in, secretKey, nonce, new BouncyCastleFipsProvider());
+    }
+
+    private GCMPacketsCipherInputStream(InputStream in, SecretKey secretKey, int mode, long packetIndex, int nonce, Provider provider) {
         super(in);
-        this.provider = provider;
         this.secretKey = secretKey;
         this.mode = mode;
         this.packetIndex = packetIndex;
+        this.provider = provider;
         // the first 8 bytes of the IV for packet encryption are the index of the packet
         packetIV.putLong(packetIndex);
         // the last 4 bytes of the IV for packet encryption are all equal (randomly generated)
@@ -78,6 +87,7 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
         } else {
             packetSizeInBytes = PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES;
         }
+        stillToReadInPacket = packetSizeInBytes;
     }
 
     private void initCipher() throws GeneralSecurityException {
@@ -200,7 +210,7 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
         }
         while (processedInputStream.available() <= 0) {
             try {
-                if( readAndProcess() == -1) {
+                if (readAndProcess() == -1) {
                     return -1;
                 }
             } catch (GeneralSecurityException e) {

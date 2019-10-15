@@ -5,5 +5,8 @@
  */
 
 grant {
-    permission java.security.SecurityPermission "putProviderProperty.BC";
+    permission java.security.SecurityPermission "putProviderProperty.BCFIPS";
+    permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.lang.RuntimePermission "accessClassInPackage.sun.security.provider";
+    permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
 };

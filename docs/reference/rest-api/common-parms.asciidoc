@@ -69,7 +69,7 @@ tag::committed[]
 If `true`,
 the segments is synced to disk. Segments that are synced can survive a hard reboot.
 +
-If `false`, 
+If `false`,
 the data from uncommitted segments is also stored in
 the transaction log so that Elasticsearch is able to replay
 changes on the next start.
@@ -113,6 +113,11 @@ Number of deleted documents in the segment, such as `0`. This number
 is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
 documents when a segment is merged.
 end::docs-deleted[]
+
+tag::enrich-policy[]
+Enrich policy name
+used to limit the request.
+end::enrich-policy[]
 
 tag::expand-wildcards[]
 `expand_wildcards`::
@@ -266,8 +271,8 @@ end::include-defaults[]
 tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
 (Optional, boolean)
-If `true`, the call reports the aggregated disk usage of 
-each one  of the Lucene index files (only applies if segment stats are 
+If `true`, the call reports the aggregated disk usage of
+each one  of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
 
@@ -491,7 +496,7 @@ end::positions[]
 
 tag::preference[]
 `preference`::
-(Optional, string) Specifies the node or shard the operation should be 
+(Optional, string) Specifies the node or shard the operation should be
 performed on. Random by default.
 end::preference[]
 
@@ -639,7 +644,7 @@ end::source_includes[]
 
 tag::stats[]
 `stats`::
-(Optional, string) Specific `tag` of the request for logging and statistical 
+(Optional, string) Specific `tag` of the request for logging and statistical
 purposes.
 end::stats[]
 

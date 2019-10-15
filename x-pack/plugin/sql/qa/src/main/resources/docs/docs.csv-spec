@@ -238,9 +238,11 @@ CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
 DATEADD          |SCALAR
+DATEDIFF         |SCALAR
 DATEPART         |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
+DATE_DIFF        |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
@@ -278,7 +280,9 @@ QUARTER          |SCALAR
 SECOND           |SCALAR         
 SECOND_OF_MINUTE |SCALAR
 TIMESTAMPADD     |SCALAR
+TIMESTAMPDIFF    |SCALAR
 TIMESTAMP_ADD    |SCALAR
+TIMESTAMP_DIFF   |SCALAR
 TODAY            |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
@@ -2471,6 +2475,57 @@ SELECT DATE_ADD('minutes', 9235, '2019-09-04'::date) AS "+9235 minutes";
 2019-09-10T09:55:00.000Z
 // end::dateAddDateMinutes
 ;
+
+dateDiffDateTimeYears
+// tag::dateDiffDateTimeYears
+SELECT DATE_DIFF('years', '2019-09-04T11:22:33.000Z'::datetime, '2032-09-04T22:33:11.000Z'::datetime) AS "diffInYears";
+
+      diffInYears
+------------------------
+13
+// end::dateDiffDateTimeYears
+;
+
+dateDiffDateTimeWeeks
+// tag::dateDiffDateTimeWeeks
+SELECT DATE_DIFF('week', '2019-09-04T11:22:33.000Z'::datetime, '2016-12-08T22:33:11.000Z'::datetime) AS "diffInWeeks";
+
+      diffInWeeks
+------------------------
+-143
+// end::dateDiffDateTimeWeeks
+;
+
+dateDiffDateTimeSeconds
+// tag::dateDiffDateTimeSeconds
+SELECT DATE_DIFF('seconds', '2019-09-04T11:22:33.123Z'::datetime, '2019-07-12T22:33:11.321Z'::datetime) AS "diffInSeconds";
+
+      diffInSeconds
+------------------------
+-4625362
+// end::dateDiffDateTimeSeconds
+;
+
+dateDiffDateQuarters
+// tag::dateDiffDateQuarters
+SELECT DATE_DIFF('qq', '2019-09-04'::date, '2025-04-25'::date) AS "diffInQuarters";
+
+      diffInQuarters
+------------------------
+23
+// end::dateDiffDateQuarters
+;
+
+dateDiffDateMinutes
+// tag::dateDiffDateMinutes
+SELECT DATE_DIFF('minutes', '2019-09-04'::date, '2015-08-17T22:33:11.567Z'::datetime) AS "diffInMinutes";
+
+      diffInMinutes
+------------------------
+-2128407
+// end::dateDiffDateMinutes
+;
+
 
 datePartDateTimeYears
 // tag::datePartDateTimeYears

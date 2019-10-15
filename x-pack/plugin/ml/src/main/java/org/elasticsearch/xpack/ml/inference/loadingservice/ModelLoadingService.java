@@ -47,26 +47,25 @@ public class ModelLoadingService implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
-    public void getModel(String modelId, long modelVersion, ActionListener<Model> modelActionListener) {
-        String key = modelKey(modelId, modelVersion);
-        MaybeModel cachedModel = loadedModels.get(key);
+    public void getModel(String modelId, ActionListener<Model> modelActionListener) {
+        MaybeModel cachedModel = loadedModels.get(modelId);
         if (cachedModel != null) {
             if (cachedModel.isSuccess()) {
                 modelActionListener.onResponse(cachedModel.getModel());
                 return;
             }
         }
-        if (loadModelIfNecessary(key, modelId, modelVersion, modelActionListener) == false) {
+        if (loadModelIfNecessary(modelId, modelActionListener) == false) {
             // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
             // by a simulated pipeline
-            logger.debug("[{}] version [{}] not actively loading, eager loading without cache", modelId, modelVersion);
-            provider.getTrainedModel(modelId, modelVersion, ActionListener.wrap(
+            logger.debug("[{}] not actively loading, eager loading without cache", modelId);
+            provider.getTrainedModel(modelId, ActionListener.wrap(
                 trainedModelConfig ->
                     modelActionListener.onResponse(new LocalModel(trainedModelConfig.getModelId(), trainedModelConfig.getDefinition())),
                 modelActionListener::onFailure
             ));
         } else {
-            logger.debug("[{}] version [{}] is currently loading, added new listener to queue", modelId, modelVersion);
+            logger.debug("[{}] is currently loading, added new listener to queue", modelId);
         }
     }
 
@@ -75,9 +74,9 @@ public class ModelLoadingService implements ClusterStateListener {
      * Returns true if the model is CURRENTLY being loaded and the listener was added to be notified when it is loaded
      * Returns false if the model is not loaded or actively being loaded
      */
-    private boolean loadModelIfNecessary(String key, String modelId, long modelVersion, ActionListener<Model> modelActionListener) {
+    private boolean loadModelIfNecessary(String modelId, ActionListener<Model> modelActionListener) {
         synchronized (loadingListeners) {
-            MaybeModel cachedModel = loadedModels.get(key);
+            MaybeModel cachedModel = loadedModels.get(modelId);
             if (cachedModel != null) {
                 if (cachedModel.isSuccess()) {
                     modelActionListener.onResponse(cachedModel.getModel());
@@ -86,42 +85,42 @@ public class ModelLoadingService implements ClusterStateListener {
                 // If the loaded model entry is there but is not present, that means the previous load attempt ran into an issue
                 // Attempt to load and cache the model if necessary
                 if (loadingListeners.computeIfPresent(
-                    key,
+                    modelId,
                     (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)) == null) {
-                    logger.debug("[{}] version [{}] attempting to load and cache", modelId, modelVersion);
-                    loadingListeners.put(key, addFluently(new ArrayDeque<>(), modelActionListener));
-                    loadModel(key, modelId, modelVersion);
+                    logger.debug("[{}] attempting to load and cache", modelId);
+                    loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
+                    loadModel(modelId);
                 }
                 return true;
             }
             // if the cachedModel entry is null, but there are listeners present, that means it is being loaded
-            return loadingListeners.computeIfPresent(key,
+            return loadingListeners.computeIfPresent(modelId,
                 (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)) != null;
         }
     }
 
-    private void loadModel(String modelKey, String modelId, long modelVersion) {
-        provider.getTrainedModel(modelId, modelVersion, ActionListener.wrap(
+    private void loadModel(String modelId) {
+        provider.getTrainedModel(modelId, ActionListener.wrap(
             trainedModelConfig -> {
-                logger.debug("[{}] successfully loaded model", modelKey);
-                handleLoadSuccess(modelKey, trainedModelConfig);
+                logger.debug("[{}] successfully loaded model", modelId);
+                handleLoadSuccess(modelId, trainedModelConfig);
             },
             failure -> {
-                logger.warn(new ParameterizedMessage("[{}] failed to load model", modelKey), failure);
-                handleLoadFailure(modelKey, failure);
+                logger.warn(new ParameterizedMessage("[{}] failed to load model", modelId), failure);
+                handleLoadFailure(modelId, failure);
             }
         ));
     }
 
-    private void handleLoadSuccess(String modelKey, TrainedModelConfig trainedModelConfig) {
+    private void handleLoadSuccess(String modelId, TrainedModelConfig trainedModelConfig) {
         Queue<ActionListener<Model>> listeners;
         Model loadedModel = new LocalModel(trainedModelConfig.getModelId(), trainedModelConfig.getDefinition());
         synchronized (loadingListeners) {
-            listeners = loadingListeners.remove(modelKey);
+            listeners = loadingListeners.remove(modelId);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such
             // Consequently, we should not store the retrieved model
             if (listeners != null) {
-                loadedModels.put(modelKey, MaybeModel.of(loadedModel));
+                loadedModels.put(modelId, MaybeModel.of(loadedModel));
             }
         }
         if (listeners != null) {
@@ -131,14 +130,14 @@ public class ModelLoadingService implements ClusterStateListener {
         }
     }
 
-    private void handleLoadFailure(String modelKey, Exception failure) {
+    private void handleLoadFailure(String modelId, Exception failure) {
         Queue<ActionListener<Model>> listeners;
         synchronized (loadingListeners) {
-            listeners = loadingListeners.remove(modelKey);
+            listeners = loadingListeners.remove(modelId);
             if (listeners != null) {
                 // If we failed to load and there were listeners present, that means that this model is referenced by a processor
                 // Add an empty entry here so that we can attempt to load and cache the model again when it is accessed again.
-                loadedModels.computeIfAbsent(modelKey, (key) -> MaybeModel.of(failure));
+                loadedModels.computeIfAbsent(modelId, (key) -> MaybeModel.of(failure));
             }
         }
         if (listeners != null) {
@@ -159,9 +158,9 @@ public class ModelLoadingService implements ClusterStateListener {
             synchronized (loadingListeners) {
                 // If we had models still loading here but are no longer referenced
                 // we should remove them from loadingListeners and alert the listeners
-                for (String modelKey : loadingListeners.keySet()) {
-                    if (allReferencedModelKeys.contains(modelKey) == false) {
-                        drainWithFailure.add(Tuple.tuple(splitModelKey(modelKey).v1(), new ArrayList<>(loadingListeners.remove(modelKey))));
+                for (String modelId : loadingListeners.keySet()) {
+                    if (allReferencedModelKeys.contains(modelId) == false) {
+                        drainWithFailure.add(Tuple.tuple(modelId, new ArrayList<>(loadingListeners.remove(modelId))));
                     }
                 }
 
@@ -194,15 +193,14 @@ public class ModelLoadingService implements ClusterStateListener {
         }
     }
 
-    private void loadModels(Set<String> modelKeys) {
-        if (modelKeys.isEmpty()) {
+    private void loadModels(Set<String> modelIds) {
+        if (modelIds.isEmpty()) {
             return;
         }
         // Execute this on a utility thread as when the callbacks occur we don't want them tying up the cluster listener thread pool
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            for (String modelKey : modelKeys) {
-                Tuple<String, Long> modelIdAndVersion = splitModelKey(modelKey);
-                this.loadModel(modelKey, modelIdAndVersion.v1(), modelIdAndVersion.v2());
+            for (String modelId : modelIds) {
+                this.loadModel(modelId);
             }
         });
     }
@@ -210,17 +208,6 @@ public class ModelLoadingService implements ClusterStateListener {
     private static <T> Queue<T> addFluently(Queue<T> queue, T object) {
         queue.add(object);
         return queue;
-    }
-
-    private static String modelKey(String modelId, long modelVersion) {
-        return modelId + "_" + modelVersion;
-    }
-
-    private static Tuple<String, Long> splitModelKey(String modelKey) {
-        int delim = modelKey.lastIndexOf('_');
-        String modelId = modelKey.substring(0, delim);
-        Long version = Long.valueOf(modelKey.substring(delim + 1));
-        return Tuple.tuple(modelId, version);
     }
 
     private static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata) {
@@ -237,7 +224,7 @@ public class ModelLoadingService implements ClusterStateListener {
                                 if (modelId != null) {
                                     assert modelId instanceof String;
                                     // TODO also read model version
-                                    allReferencedModelKeys.add(modelKey(modelId.toString(), 0));
+                                    allReferencedModelKeys.add(modelId.toString());
                                 }
                             }
                         }

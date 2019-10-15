@@ -141,17 +141,17 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             .add(new DiscoveryNode("old-data-node-1",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                 Version.V_7_2_0))
             .add(new DiscoveryNode("current-data-node-with-1-task",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                 Version.CURRENT))
             .add(new DiscoveryNode("non-data-node-1",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE),
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
                 Version.CURRENT));
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
@@ -186,12 +186,12 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             .add(new DiscoveryNode("current-data-node-with-1-task",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                 Version.CURRENT))
             .add(new DiscoveryNode("non-data-node-1",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE),
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
                 Version.CURRENT));
         csBuilder.nodes(nodes);
         cs = csBuilder.build();

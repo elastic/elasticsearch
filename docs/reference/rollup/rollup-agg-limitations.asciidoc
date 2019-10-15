@@ -24,3 +24,19 @@ And the following metrics are allowed to be specified for numeric fields:
 - Sum aggregation
 - Average aggregation
 - Value Count aggregation
+
+[float]
+==== Rollup of "late arrivals" events
+
+An existing Rollup Job is not able to roll up / aggregate data having a timestamp value older than the `current_position`.
+
+As an example: if the Rollup Job has already reached a given timestamp (`current_position`), new events added to the indices included in the `index_pattern` having a timestamp older than the `current_position`.
+
+You can cope with "late arrivals" providing a `delay` timeframe in the `date_histogram`.
+
+[float]
+==== Rollup of updated events
+
+An existing Rollup Job is not able to detect changes to data which has already been rolled up / aggregated.
+
+In order to take into account such updates, you can create a new Rollup Job with a different `rollup_index` destination.

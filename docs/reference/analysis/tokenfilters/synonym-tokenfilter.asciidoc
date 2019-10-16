@@ -163,7 +163,7 @@ PUT /test_index
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.
 
-
+[discrete]
 === Parsing synonym files
 
 Elasticsearch will use the token filters preceding the synonym filter

@@ -1,5 +1,5 @@
 [[hadoop]]
-=== ES-Hadoop and Security
+=== ES-Hadoop and security
 
 Elasticsearch for Apache Hadoop ("ES-Hadoop") is capable of using HTTP basic and
 PKI authentication and/or TLS/SSL when accessing an Elasticsearch cluster. For

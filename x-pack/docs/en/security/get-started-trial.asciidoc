@@ -17,5 +17,5 @@ major version, you cannot start a new trial. For example, if you have already
 activated a trial for v6.0, you cannot start a new trial until v7.0.
 
 At the end of the trial period, the platinum features operate in a 
-<<license-expiration,degraded mode>>. You can revert to a basic license, extend 
+{stack-ov}/license-expiration.html[degraded mode]. You can revert to a basic license, extend 
 the trial, or purchase a subscription. 

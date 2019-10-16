@@ -54,9 +54,7 @@ public final class Grok {
             "(?::(?<subname>[[:alnum:]@\\[\\]_:.-]+))?" +
             ")" +
             "(?:=(?<definition>" +
-            "(?:" +
             "(?:[^{}]+|\\.+)+" +
-            ")+" +
             ")" +
             ")?" + "\\}";
     private static final Regex GROK_PATTERN_REGEX = new Regex(GROK_PATTERN.getBytes(StandardCharsets.UTF_8), 0,

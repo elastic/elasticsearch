@@ -71,6 +71,7 @@ The response will be:
 
 Note how only the `<NUM>` token is in the output.
 
+[discrete]
 === Exclude mode settings example
 
 If the `mode` parameter is set to `exclude` like in the following example:

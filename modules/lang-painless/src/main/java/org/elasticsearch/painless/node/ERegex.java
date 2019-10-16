@@ -26,9 +26,10 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.WriterConstants;
 
+import java.lang.reflect.Modifier;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -87,8 +88,10 @@ public final class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        constant = new Constant(
-            location, MethodWriter.getType(Pattern.class), "regexAt$" + location.getOffset(), this::initializeConstant);
+        String name = scriptRoot.getNextSyntheticName("regex");
+        scriptRoot.getClassNode().addField(
+                new SField(location, Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE, name, Pattern.class, null));
+        constant = new Constant(location, MethodWriter.getType(Pattern.class), name, this::initializeConstant);
         actual = Pattern.class;
     }
 

@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -135,8 +136,18 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
+    public Set<String> getAllowedCategoricalTypes(String fieldName) {
+        return Types.categorical();
+    }
+
+    @Override
     public List<RequiredField> getRequiredFields() {
         return Collections.singletonList(new RequiredField(dependentVariable, Types.numerical()));
+    }
+
+    @Override
+    public Map<String, Long> getFieldCardinalityLimits() {
+        return Collections.emptyMap();
     }
 
     @Override

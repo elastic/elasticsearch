@@ -40,6 +40,7 @@ buildScan {
             value 'Git Branch', System.getenv('ghprbTargetBranch')
             tag System.getenv('ghprbTargetBranch')
             tag "pr/${System.getenv('ghprbPullId')}"
+            tag 'pull-request'
             link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
             link 'Pull Request', System.getenv('ghprbPullLink')
         } else {

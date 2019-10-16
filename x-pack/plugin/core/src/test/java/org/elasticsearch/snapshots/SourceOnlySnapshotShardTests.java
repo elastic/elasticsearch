@@ -150,7 +150,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(totalFileCount+4, copy.getTotalFileCount());
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
-        deleteDoc(shard, "_doc", Integer.toString(10));
+        deleteDoc(shard, Integer.toString(10));
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             SnapshotId snapshotId = new SnapshotId("test_2", "test_2");
 
@@ -187,7 +187,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             final String id = Integer.toString(i);
             if (randomBoolean()) {
                 if (rarely()) {
-                    deleteDoc(shard, "_doc", id);
+                    deleteDoc(shard, id);
                 } else {
                     indexDoc(shard, "_doc", id, randomDoc());
                 }
@@ -311,7 +311,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                            new SourceToParse(index, uid.type(), uid.id(), source, XContentHelper.xContentType(source),
+                            new SourceToParse(index, uid.id(), source, XContentHelper.xContentType(source),
                                 rootFieldsVisitor.routing()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {

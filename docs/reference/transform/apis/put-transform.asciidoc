@@ -15,7 +15,7 @@ beta[]
 [[put-transform-request]]
 ==== {api-request-title}
 
-`PUT _data_frame/transforms/<transform_id>`
+`PUT _transform/<transform_id>`
 
 [[put-transform-prereqs]]
 ==== {api-prereq-title}
@@ -139,7 +139,7 @@ delays.
 
 [source,console]
 --------------------------------------------------
-PUT _data_frame/transforms/ecommerce_transform
+PUT _transform/ecommerce_transform
 {
   "source": {
     "index": "kibana_sample_data_ecommerce",

@@ -163,28 +163,25 @@ public abstract class PackagingTestCase extends Assert {
         if (distribution.isPackage()) {
             return Packages.startElasticsearch(sh);
         } else {
-            assertThat(distribution.isArchive(), equalTo(true));
+            assertTrue(distribution.isArchive());
             return Archives.startElasticsearch(installation, sh);
         }
     }
 
     public Shell.Result startElasticsearchStandardInputPassword(String password) {
-        assertThat("Only archives support passwords on standard input", distribution().isArchive(), equalTo(true));
+        assertTrue("Only archives support passwords on standard input", distribution().isArchive());
         return Archives.startElasticsearch(installation, sh, password);
     }
 
     public Shell.Result startElasticsearchTtyPassword(String password) throws Exception {
-        assertThat("Only archives support passwords on TTY", distribution().isArchive(), equalTo(true));
+        assertTrue("Only archives support passwords on TTY", distribution().isArchive());
         return Archives.startElasticsearchWithTty(installation, sh, password);
     }
 
     public void stopElasticsearch() throws Exception {
         distribution().packagingConditional()
             .forPackage(() -> Packages.stopElasticsearch(sh))
-            .forArchive(() ->  {
-                assertThat(distribution().isArchive(), equalTo(true));
-                Archives.stopElasticsearch(installation, sh);
-            })
+            .forArchive(() -> Archives.stopElasticsearch(installation, sh))
             .forDocker(/* TODO */ Platforms.NO_ACTION)
             .run();
     }

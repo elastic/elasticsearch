@@ -38,6 +38,7 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
         super(description);
     }
 
+    /** Arbitrarily chosen maximum passphrase length */
     public static final int MAX_PASSPHRASE_LENGTH = 128;
 
     /**

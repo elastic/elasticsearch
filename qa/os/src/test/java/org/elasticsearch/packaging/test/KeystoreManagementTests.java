@@ -53,8 +53,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     private static final String PASSWORD_ERROR_MESSAGE = "Provided keystore password was incorrect";
 
-    private static final String LINE_SEP = System.lineSeparator();
-
     /** We need an initially installed package */
     public void test10InstallArchiveDistribution() throws Exception {
         assumeTrue(distribution().isArchive());
@@ -121,7 +119,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        String password = "^|<>\\&exit"; // code insertion on Windows
+        String password = "^|<>\\&exit"; // code insertion on Windows if special characters are not escaped
 
         rmKeystoreIfExists();
         createKeystore();
@@ -201,7 +199,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Files.createFile(esKeystorePassphraseFile);
         Files.write(esKeystorePassphraseFile,
-            (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
+            (password + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
             StandardOpenOption.WRITE);
 
         awaitElasticsearchStartup(startElasticsearch());
@@ -238,7 +236,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Files.createFile(esKeystorePassphraseFile);
         Files.write(esKeystorePassphraseFile,
-            ("wrongpassword" + LINE_SEP).getBytes(StandardCharsets.UTF_8),
+            ("wrongpassword" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
             StandardOpenOption.WRITE);
 
         Shell.Result result = startElasticsearch();

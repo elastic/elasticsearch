@@ -198,8 +198,6 @@ public abstract class Terminal {
 
         private BufferedReader reader;
 
-        private boolean ignoreNextNewline = false;
-
         SystemTerminal() {
             super(System.lineSeparator());
         }

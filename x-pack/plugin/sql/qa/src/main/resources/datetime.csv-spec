@@ -296,6 +296,177 @@ null    | 2004-04-30 00:00:00.000Z
 F       | 2002-05-19 00:00:00.000Z
 ;
 
+selectDiffWithDateTime
+schema::diff_year:i|diff_quarter:i|diff_month:i|diff_week:i|diff_day:i|diff_hours:i|diff_min:i|diff_sec:i|diff_millis:i|diff_mcsec:i|diff_nsec:i
+SELECT DATE_DIFF('year', '2019-09-04T11:22:33.123Z'::datetime, '2076-01-12T22:11:55.123Z'::datetime) as diff_year, DATE_DIFF('quarter', '2048-02-14T22:11:55.123Z'::datetime, '2019-09-04T11:22:33.123Z'::datetime) as diff_quarter,
+DATE_DIFF('month', '2019-09-04T11:22:33.123Z'::datetime, '2053-07-02T01:31:13.987Z'::datetime) as diff_month, DATE_DIFF('week', '2019-09-04T11:22:33.123Z'::datetime, '2001-07-14T21:41:43.321Z'::datetime) as diff_week,
+DATE_DIFF('day', '2019-09-04T11:22:33.123Z'::datetime, '2027-05-30T12:44:22.425Z'::datetime) as diff_day,
+DATE_DIFF('hours', '2019-09-04T14:10:12.432Z'::datetime, '2005-08-14T01:12:32.432Z'::datetime) as diff_hours, DATE_DIFF('minutes', '2019-03-05T11:33:22.456Z'::datetime, '2026-04-30T05:29:52.652Z'::datetime) as diff_min,
+DATE_DIFF('second', '2020-01-01T11:22:33.532Z'::datetime, '2019-09-04T15:47:56.987Z'::datetime) as diff_sec, DATE_DIFF('milliseconds', '2019-09-10T11:22:33.123Z'::datetime, '2019-09-12T20:33:22.987Z'::datetime) as diff_millis,
+DATE_DIFF('mcs', '2019-09-04T11:25:21.123456Z'::datetime, '2019-09-04T11:22:33.987654Z'::datetime) as diff_mcsec, DATE_DIFF('nanosecond', '2019-09-04T11:22:43.987654321Z'::datetime, '2019-09-04T11:22:44.123456789Z'::datetime) as diff_nsec;
+
+ diff_year | diff_quarter | diff_month | diff_week | diff_day | diff_hours | diff_min | diff_sec  | diff_millis | diff_mcsec | diff_nsec
+-----------+--------------+------------+-----------+----------+------------+----------+-----------+-------------+------------+----------
+57         | -114         | 406        | -947      | 2825     | -123228    | 3762357  | -10265677 | 205849864   | -167135802 | 135802468
+;
+
+selectDiffWithDate
+schema::diff_year:i|diff_quarter:i|diff_month:i|diff_week:i|diff_day:i|diff_hours:i|diff_min:i|diff_sec:i|diff_millis:i|diff_mcsec:i|diff_nsec:i
+SELECT DATEDIFF('year', '2010-12-10'::date, '2019-09-04'::date) as diff_year, DATEDIFF('quarter', '2042-06-12'::date,'2019-09-04'::date) as diff_quarter,
+DATEDIFF('month', '2019-09-04'::date, '2042-02-24'::date) as diff_month, DATEDIFF('week', '2031-05-17'::date, '2019-09-04'::date) as diff_week, DATEDIFF('day', '2019-09-04'::date, '2051-08-30'::date) as diff_day,
+DATEDIFF('hours', '2027-01-02'::date, '2019-09-04'::date) as diff_hours, DATEDIFF('minutes', '2019-09-04'::date, '2022-11-11'::date) as diff_min, DATEDIFF('second', '2020-02-14'::date, '2019-09-04'::date) as diff_sec,
+DATEDIFF('milliseconds', '2019-09-04'::date, '2019-09-06'::date) as diff_millis, DATEDIFF('mcs', '2019-09-04'::date, '2019-09-04'::date) as diff_mcsec, DATEDIFF('nanosecond', '2019-09-04'::date, '2019-09-04'::date) as diff_nsec;
+
+ diff_year | diff_quarter | diff_month | diff_week | diff_day | diff_hours | diff_min | diff_sec  | diff_millis | diff_mcsec | diff_nsec
+-----------+--------------+------------+-----------+----------+------------+----------+-----------+-------------+------------+----------
+9          | -91          | 269        | -611      | 11683    | -64248     | 1676160  | -14083200 | 172800000   | 0          | 0
+;
+
+selectDateDiffWithField
+schema::emp_no:i|birth_date:ts|hire_date:ts|diff_year:i|diff_quarter:i|diff_month:i|diff_week:i|diff_day:i|diff_min:i|diff_sec:i
+SELECT emp_no, birth_date, hire_date, TIMESTAMP_DIFF('year', birth_date, hire_date) as diff_year, TIMESTAMP_DIFF('quarter', hire_date, birth_date) as diff_quarter,
+TIMESTAMP_DIFF('month', birth_date, hire_date) as diff_month, TIMESTAMP_DIFF('week', hire_date, birth_date) as diff_week, TIMESTAMP_DIFF('day', birth_date, hire_date) as diff_day,
+TIMESTAMP_DIFF('minutes', hire_date, birth_date) as diff_min, TIMESTAMP_DIFF('second', birth_date, hire_date) as diff_sec
+FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
+
+ emp_no  |      birth_date          |       hire_date          |  diff_year | diff_quarter | diff_month | diff_week | diff_day | diff_min  | diff_sec
+---------+--------------------------+--------------------------+------------+--------------+------------+-----------+----------+-----------+----------
+10032    | 1960-08-09 00:00:00.000Z | 1990-06-20 00:00:00.000Z | 30         | -119         | 358        | -1559     | 10907    | -15706080 | 942364800
+10033    | 1956-11-14 00:00:00.000Z | 1987-03-18 00:00:00.000Z | 31         | -121         | 364        | -1584     | 11081    | -15956640 | 957398400
+10034    | 1962-12-29 00:00:00.000Z | 1988-09-21 00:00:00.000Z | 26         | -103         | 309        | -1343     | 9398     | -13533120 | 811987200
+10035    | 1953-02-08 00:00:00.000Z | 1988-09-05 00:00:00.000Z | 35         | -142         | 427        | -1857     | 12993    | -18709920 | 1122595200
+10036    | 1959-08-10 00:00:00.000Z | 1992-01-03 00:00:00.000Z | 33         | -130         | 389        | -1691     | 11834    | -17040960 | 1022457600
+10037    | 1963-07-22 00:00:00.000Z | 1990-12-05 00:00:00.000Z | 27         | -109         | 329        | -1429     | 9998     | -14397120 | 863827200
+10038    | 1960-07-20 00:00:00.000Z | 1989-09-20 00:00:00.000Z | 29         | -116         | 350        | -1523     | 10654    | -15341760 | 920505600
+10039    | 1959-10-01 00:00:00.000Z | 1988-01-19 00:00:00.000Z | 29         | -113         | 339        | -1477     | 10337    | -14885280 | 893116800
+10040    | null                     | 1993-02-14 00:00:00.000Z | null       | null         | null       | null      | null     | null      | null
+10041    | null                     | 1989-11-12 00:00:00.000Z | null       | null         | null       | null      | null     | null      | null
+10042    | null                     | 1993-03-21 00:00:00.000Z | null       | null         | null       | null      | null     | null      | null
+;
+
+selectDiffWithComplexExpressions1
+schema::gender:s|birth_date:ts|hire_date:ts|diff:i
+SELECT gender, birth_date, hire_date, TIMESTAMPDIFF('months', birth_date + CASE WHEN gender = 'M' THEN INTERVAL 10 years
+WHEN gender = 'F' THEN INTERVAL -10 years ELSE INTERVAL 12 years END, hire_date + INTERVAL 10 month) AS diff
+FROM test_emp WHERE (diff BETWEEN 150 AND 250) OR diff > 500 ORDER BY emp_no LIMIT 10;
+
+  gender  |      birth_date          |       hire_date          | diff
+----------+--------------------------+--------------------------+-----
+M         | 1959-12-03 00:00:00.000Z | 1986-08-28 00:00:00.000Z | 210
+F         | 1953-04-20 00:00:00.000Z | 1989-06-02 00:00:00.000Z | 564
+F         | 1957-05-23 00:00:00.000Z | 1989-02-10 00:00:00.000Z | 511
+F         | 1952-04-19 00:00:00.000Z | 1985-02-18 00:00:00.000Z | 524
+null      | 1963-06-01 00:00:00.000Z | 1989-08-24 00:00:00.000Z | 180
+null      | 1956-02-12 00:00:00.000Z | 1987-03-11 00:00:00.000Z | 239
+null      | 1959-08-19 00:00:00.000Z | 1987-07-02 00:00:00.000Z | 201
+M         | 1960-02-20 00:00:00.000Z | 1988-02-10 00:00:00.000Z | 226
+F         | 1953-09-29 00:00:00.000Z | 1989-12-17 00:00:00.000Z | 565
+F         | 1958-09-05 00:00:00.000Z | 1997-05-19 00:00:00.000Z | 594
+;
+
+selectDiffWithComplexExpressions2
+schema::languages:byte|first_name:s|gender:s|birth_date:ts|hire_date:ts|diff:l
+SELECT languages, first_name, gender, birth_date, hire_date,
+CAST(DATE_DIFF(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN NULL ELSE 'quarter' END,
+    hire_date + INTERVAL 20 month, birth_date - interval 50 month) AS long) AS diff
+FROM test_emp WHERE languages >= 3 AND first_name LIKE '%y%' ORDER BY diff ASC, languages DESC;
+
+   languages  |   first_name  |  gender  |      birth_date          |       hire_date          |  diff
+--------------+---------------+----------+--------------------------+--------------------------+------
+4             | Mayumi        | M        | 1957-04-04 00:00:00.000Z | 1995-03-13 00:00:00.000Z | -525
+5             | Georgy        | M        | 1956-06-06 00:00:00.000Z | 1992-04-27 00:00:00.000Z | -500
+4             | Jayson        | M        | 1954-09-16 00:00:00.000Z | 1990-01-14 00:00:00.000Z | -494
+5             | Mary          | null     | 1953-11-07 00:00:00.000Z | 1990-01-22 00:00:00.000Z | -168
+5             | Hironoby      | F        | 1952-05-15 00:00:00.000Z | 1988-07-21 00:00:00.000Z | null
+4             | Weiyi         | F        | null                     | 1993-02-14 00:00:00.000Z | null
+3             | Magy          | F        | null                     | 1993-03-21 00:00:00.000Z | null
+;
+
+selectDiffWithComplexExpressions3
+schema::first_name:s|gender:s|birth_date:ts|hire_date:ts|date_diff1:i|date_diff2:i
+SELECT first_name, gender, birth_date, hire_date, DATE_DIFF(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+birth_date, hire_date + INTERVAL 10 month) AS date_diff1,
+DATE_DIFF(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+hire_date + INTERVAL 10 month, birth_date - INTERVAL 20 month) AS date_diff2
+FROM test_emp WHERE (date_diff2 IS NULL OR date_diff2 < -455) AND first_name LIKE '%y%' ORDER BY date_diff1 DESC;
+
+  first_name   |     gender |      birth_date          |       hire_date          |   date_diff1  |   date_diff2
+---------------+------------+--------------------------+--------------------------+---------------+-------------
+Mayuko         | M          | 1952-12-24 00:00:00.000Z | 1991-01-26 00:00:00.000Z | 467           | -487
+Mayumi         | M          | 1957-04-04 00:00:00.000Z | 1995-03-13 00:00:00.000Z | 465           | -485
+Saniya         | M          | 1958-02-19 00:00:00.000Z | 1994-09-15 00:00:00.000Z | 449           | -469
+Georgy         | M          | 1956-06-06 00:00:00.000Z | 1992-04-27 00:00:00.000Z | 440           | -460
+Weiyi          | F          | null                     | 1993-02-14 00:00:00.000Z | null          | null
+Magy           | F          | null                     | 1993-03-21 00:00:00.000Z | null          | null
+Yishay         | M          | null                     | 1990-10-20 00:00:00.000Z | null          | null
+;
+
+selectDiffWithComplexExpressions4
+schema::first_name:s|gender:s|birth_date:ts|hire_date:ts|date_diff1:i|date_diff2:i|arithmetics:i
+SELECT first_name, gender, birth_date, hire_date, DATE_DIFF('months', birth_date - INTERVAL 40 months, hire_date + INTERVAL 40 months) AS date_diff1,
+DATE_DIFF('quarter', hire_date + INTERVAL 20 month, birth_date - INTERVAL 20 month) AS date_diff2,
+(DATE_DIFF('months', birth_date - INTERVAL 40 months, hire_date + INTERVAL 40 months) * DATE_DIFF('quarter', hire_date + INTERVAL 20 month, birth_date - INTERVAL 20 month))
+- DATE_DIFF('months', birth_date - INTERVAL 40 months, hire_date + INTERVAL 40 months) + DATE_DIFF('quarter', hire_date + INTERVAL 20 month, birth_date - INTERVAL 20 month) AS arithmetics
+FROM test_emp WHERE ((date_diff1 * date_diff2) - date_diff1 + date_diff2) < -81000 AND first_name LIKE '%y%' ORDER BY date_diff1 DESC;
+
+  first_name | gender | birth_date               | hire_date                | date_diff1 | date_diff2 | arithmetics
+-------------+--------+--------------------------+--------------------------+------------+------------+------------
+Mayuko       | M      | 1952-12-24 00:00:00.000Z | 1991-01-26 00:00:00.000Z | 537        | -165       | -89307
+Mayumi       | M      | 1957-04-04 00:00:00.000Z | 1995-03-13 00:00:00.000Z | 535        | -165       | -88975
+Saniya       | M      | 1958-02-19 00:00:00.000Z | 1994-09-15 00:00:00.000Z | 519        | -160       | -83719
+Mary         | null   | 1953-11-07 00:00:00.000Z | 1990-01-22 00:00:00.000Z | 514        | -158       | -81884
+Hironoby     | F      | 1952-05-15 00:00:00.000Z | 1988-07-21 00:00:00.000Z | 514        | -158       | -81884
+;
+
+dateDiffOrderBy
+schema::emp_no:i | birth_date:ts | hire_date:ts | diff:i
+SELECT emp_no, birth_date, hire_date, DATE_DIFF('hours', hire_date, birth_date) as diff FROM test_emp ORDER BY diff NULLS LAST, emp_no LIMIT 5;
+
+ emp_no   |      birth_date          |       hire_date          |  diff
+----------+--------------------------+--------------------------+--------
+10019     | 1953-01-23 00:00:00.000Z | 1999-04-30 00:00:00.000Z | -405552
+10022     | 1952-07-08 00:00:00.000Z | 1995-08-22 00:00:00.000Z | -378000
+10026     | 1953-04-03 00:00:00.000Z | 1995-03-20 00:00:00.000Z | -367824
+10051     | 1953-07-28 00:00:00.000Z | 1992-10-15 00:00:00.000Z | -343776
+10024     | 1958-09-05 00:00:00.000Z | 1997-05-19 00:00:00.000Z | -339264
+;
+
+dateDiffFilter
+schema::emp_no:i|birth_date:ts|hire_date:ts|diff:i
+SELECT emp_no, birth_date, hire_date, DATE_DIFF('quarter', birth_date, hire_date) as diff FROM test_emp WHERE diff > 100 ORDER BY emp_no LIMIT 5;
+
+ emp_no   |      birth_date          |       hire_date          |  diff
+---------+---------------------------+--------------------------+------
+10001     | 1953-09-02 00:00:00.000Z | 1986-06-26 00:00:00.000Z | 131
+10003     | 1959-12-03 00:00:00.000Z | 1986-08-28 00:00:00.000Z | 107
+10004     | 1954-05-01 00:00:00.000Z | 1986-12-01 00:00:00.000Z | 130
+10005     | 1955-01-21 00:00:00.000Z | 1989-09-12 00:00:00.000Z | 138
+10006     | 1953-04-20 00:00:00.000Z | 1989-06-02 00:00:00.000Z | 144
+;
+
+dateDiffGroupBy
+schema::count:l|diff:i
+SELECT count(*) as count, DATE_DIFF('weeks', birth_date, hire_date) diff FROM test_emp GROUP BY diff ORDER BY 2 LIMIT 5;
+
+  count  |  diff
+---------+------
+10       | null
+1        | 1121
+1        | 1124
+1        | 1168
+1        | 1196
+;
+
+dateDiffHaving
+schema::gender:s|diff:i
+SELECT gender, DATE_DIFF('months', max(birth_date), max(hire_date)) AS diff FROM test_emp GROUP BY gender HAVING DATE_DIFF('months', max(birth_date), max(hire_date)) > 390 ORDER BY 1;
+
+  gender   |  diff
+-----------+------
+null       | 430
+F          | 391
+;
+
 selectDateTruncWithDateTime
 schema::dt_hour:ts|dt_min:ts|dt_sec:ts|dt_millis:s|dt_micro:s|dt_nano:s
 SELECT DATE_TRUNC('hour', '2019-09-04T11:22:33.123Z'::datetime) as dt_hour, DATE_TRUNC('minute', '2019-09-04T11:22:33.123Z'::datetime) as dt_min,

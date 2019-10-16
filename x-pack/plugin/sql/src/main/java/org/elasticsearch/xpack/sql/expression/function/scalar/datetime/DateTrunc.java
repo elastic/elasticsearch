@@ -160,8 +160,8 @@ public class DateTrunc extends BinaryDateTimeFunction {
     }
 
     @Override
-    protected Pipe createPipe(Pipe left, Pipe right, ZoneId zoneId) {
-        return new DateTruncPipe(source(), this, left, right, zoneId);
+    protected Pipe createPipe(Pipe truncateTo, Pipe timestamp, ZoneId zoneId) {
+        return new DateTruncPipe(source(), this, truncateTo, timestamp, zoneId);
     }
 
     @Override

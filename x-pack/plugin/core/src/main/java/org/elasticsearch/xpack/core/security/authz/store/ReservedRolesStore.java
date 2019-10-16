@@ -248,16 +248,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("rollup_admin", new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("code_admin", new RoleDescriptor("code_admin", new String[] {},
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".code-*").privileges("all").build()
-                    }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("code_user", new RoleDescriptor("code_user", new String[] {},
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".code-*").privileges("read").build()
-                    }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("snapshot_user", new RoleDescriptor("snapshot_user", new String[] { "create_snapshot", GetRepositoriesAction.NAME },
                         new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder()
                                 .indices("*")

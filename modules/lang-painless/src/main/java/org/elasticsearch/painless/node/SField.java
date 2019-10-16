@@ -35,7 +35,7 @@ import java.util.Set;
  */
 public class SField extends ANode {
 
-    private final int access;
+    private final int modifiers;
     private final String name;
     private final Class<?> type;
     private final Object instance;
@@ -43,15 +43,15 @@ public class SField extends ANode {
     /**
      * Standard constructor.
      * @param location original location in the source
-     * @param access asm constants for field modifiers
+     * @param modifiers java modifiers for the field
      * @param name name of the field
      * @param type type of the field
      * @param instance initial value for the field
      */
-    public SField(Location location, int access, String name, Class<?> type, Object instance) {
+    public SField(Location location, int modifiers, String name, Class<?> type, Object instance) {
         super(location);
 
-        this.access = access;
+        this.modifiers = modifiers;
         this.name = name;
         this.type = type;
         this.instance = instance;
@@ -86,7 +86,8 @@ public class SField extends ANode {
     }
 
     void write(ClassWriter classWriter) {
-        classWriter.getClassVisitor().visitField(access, name, Type.getType(type).getDescriptor(), null, null).visitEnd();
+        classWriter.getClassVisitor().visitField(
+                ClassWriter.buildAccess(modifiers, true), name, Type.getType(type).getDescriptor(), null, null).visitEnd();
     }
 
     @Override

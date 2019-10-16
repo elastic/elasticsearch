@@ -19,6 +19,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 class MlInitializationService implements LocalNodeMasterListener, ClusterStateListener {
@@ -29,15 +30,18 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Client client;
+    private final MlAssignmentNotifier mlAssignmentNotifier;
     private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
 
     private volatile MlDailyMaintenanceService mlDailyMaintenanceService;
 
-    MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client) {
-        this.settings = settings;
-        this.threadPool = threadPool;
-        this.clusterService = clusterService;
-        this.client = client;
+    MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client,
+                            MlAssignmentNotifier mlAssignmentNotifier) {
+        this.settings = Objects.requireNonNull(settings);
+        this.threadPool = Objects.requireNonNull(threadPool);
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.client = Objects.requireNonNull(client);
+        this.mlAssignmentNotifier = Objects.requireNonNull(mlAssignmentNotifier);
         clusterService.addListener(this);
         clusterService.addLocalNodeMasterListener(this);
     }
@@ -83,7 +87,8 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
 
     private synchronized void installDailyMaintenanceService() {
         if (mlDailyMaintenanceService == null) {
-            mlDailyMaintenanceService = new MlDailyMaintenanceService(clusterService.getClusterName(), threadPool, client);
+            mlDailyMaintenanceService =
+                new MlDailyMaintenanceService(clusterService.getClusterName(), threadPool, client, clusterService, mlAssignmentNotifier);
             mlDailyMaintenanceService.start();
             clusterService.addLifecycleListener(new LifecycleListener() {
                 @Override

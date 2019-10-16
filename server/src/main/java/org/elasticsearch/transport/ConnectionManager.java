@@ -150,13 +150,13 @@ public class ConnectionManager implements Closeable {
                         } else {
                             logger.debug("connected to node [{}]", node);
                             try {
-                                connectionListener.onNodeConnected(node);
+                                connectionListener.onNodeConnected(node, conn);
                             } finally {
                                 final Transport.Connection finalConnection = conn;
                                 conn.addCloseListener(ActionListener.wrap(() -> {
                                     logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                     connectedNodes.remove(node, finalConnection);
-                                    connectionListener.onNodeDisconnected(node);
+                                    connectionListener.onNodeDisconnected(node, conn);
                                 }));
                             }
                         }
@@ -218,10 +218,7 @@ public class ConnectionManager implements Closeable {
         return connectedNodes.size();
     }
 
-    /**
-     * Returns the set of nodes this manager is connected to.
-     */
-    public Set<DiscoveryNode> connectedNodes() {
+    public Set<DiscoveryNode> getAllConnectedNodes() {
         return Collections.unmodifiableSet(connectedNodes.keySet());
     }
 
@@ -283,16 +280,16 @@ public class ConnectionManager implements Closeable {
         private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onNodeDisconnected(DiscoveryNode key) {
+        public void onNodeDisconnected(DiscoveryNode key, Transport.Connection connection) {
             for (TransportConnectionListener listener : listeners) {
-                listener.onNodeDisconnected(key);
+                listener.onNodeDisconnected(key, connection);
             }
         }
 
         @Override
-        public void onNodeConnected(DiscoveryNode node) {
+        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
             for (TransportConnectionListener listener : listeners) {
-                listener.onNodeConnected(node);
+                listener.onNodeConnected(node, connection);
             }
         }
 

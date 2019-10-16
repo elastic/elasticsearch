@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -55,6 +56,17 @@ public class RepositoryDataTests extends ESTestCase {
         RepositoryData repositoryData2 = repositoryData1.copy();
         assertEquals(repositoryData1, repositoryData2);
         assertEquals(repositoryData1.hashCode(), repositoryData2.hashCode());
+    }
+
+    public void testIndicesToUpdateAfterRemovingSnapshot() {
+        final RepositoryData repositoryData = generateRandomRepoData();
+        final List<IndexId> indicesBefore = List.copyOf(repositoryData.getIndices().values());
+        final SnapshotId randomSnapshot = randomFrom(repositoryData.getSnapshotIds());
+        final IndexId[] indicesToUpdate = indicesBefore.stream().filter(index -> {
+            final Set<SnapshotId> snapshotIds = repositoryData.getSnapshots(index);
+            return snapshotIds.contains(randomSnapshot) && snapshotIds.size() > 1;
+        }).toArray(IndexId[]::new);
+        assertThat(repositoryData.indicesToUpdateAfterRemovingSnapshot(randomSnapshot), containsInAnyOrder(indicesToUpdate));
     }
 
     public void testXContent() throws IOException {

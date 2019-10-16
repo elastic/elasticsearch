@@ -68,7 +68,7 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             listener.onFailure(ExceptionsHelper.badRequestException("Cannot create calendar with id [" +
                                     calendar.getId() + "] as it already exists"));
                         } else {

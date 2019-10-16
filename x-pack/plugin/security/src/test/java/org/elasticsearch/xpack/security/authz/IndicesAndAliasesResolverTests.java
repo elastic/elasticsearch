@@ -45,7 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
@@ -195,7 +195,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testDashIndicesAreAllowedInShardLevelRequests() {
         //indices with names starting with '-' or '+' can be created up to version  2.x and can be around in 5.x
         //aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x
-        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[]{"-index10", "-index20", "+index30"});
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
                 .getLocal();
@@ -205,7 +205,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testWildcardsAreNotAllowedInShardLevelRequests() {
-        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[]{"index*"});
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
@@ -215,7 +215,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testAllIsNotAllowedInShardLevelRequests() {
-        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
         if (randomBoolean()) {
             when(request.indices()).thenReturn(new String[]{"_all"});
         } else {

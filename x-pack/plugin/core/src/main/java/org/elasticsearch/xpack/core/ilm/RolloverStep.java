@@ -49,6 +49,13 @@ public class RolloverStep extends AsyncActionStep {
             return;
         }
 
+        if (indexMetaData.getRolloverInfos().get(rolloverAlias) != null) {
+            logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
+                indexMetaData.getIndex().getName(), rolloverAlias);
+            listener.onResponse(true);
+            return;
+        }
+
         if (indexMetaData.getAliases().containsKey(rolloverAlias) == false) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,

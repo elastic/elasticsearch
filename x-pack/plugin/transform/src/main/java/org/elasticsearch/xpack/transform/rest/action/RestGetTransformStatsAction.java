@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
@@ -27,19 +27,19 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(TransformField.ID.getPreferredName());
-        GetTransformsStatsAction.Request request = new GetTransformsStatsAction.Request(id);
+        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(id);
         request.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
                 new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        return channel -> client.execute(GetTransformsStatsAction.INSTANCE, request,
+        return channel -> client.execute(GetTransformStatsAction.INSTANCE, request,
                 new RestToXContentListener<>(channel));
     }
 
     @Override
     public String getName() {
-        return "data_frame_get_transforms_stats_action";
+        return "transform_get_transform_stats_action";
     }
 }

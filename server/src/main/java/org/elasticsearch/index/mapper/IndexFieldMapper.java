@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -38,7 +37,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 
 public class IndexFieldMapper extends MetadataFieldMapper {
@@ -172,20 +170,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             } else {
                 return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName() +
                     "] doesn't match the provided prefix [" + value + "].");
-            }
-        }
-
-        @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            String indexName = context.getFullyQualifiedIndex().getName();
-            Pattern pattern = Regex.compile(value, Regex.flagsToString(flags));
-
-            if (pattern.matcher(indexName).matches()) {
-                return Queries.newMatchAllQuery();
-            } else {
-                return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName()
-                    + "] doesn't match the provided pattern [" + value + "].");
             }
         }
 

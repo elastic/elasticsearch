@@ -64,6 +64,8 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -857,9 +859,15 @@ public class StoreTests extends ESTestCase {
 
     public void testStreamStoreFilesMetaData() throws Exception {
         Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
+        int numOfLeases = randomIntBetween(0, 10);
+        List<RetentionLease> peerRecoveryRetentionLeases = new ArrayList<>();
+        for (int i = 0; i < numOfLeases; i++) {
+            peerRecoveryRetentionLeases.add(new RetentionLease(ReplicationTracker.getPeerRecoveryRetentionLeaseId(UUIDs.randomBase64UUID()),
+                randomNonNegativeLong(), randomNonNegativeLong(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+        }
         TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData =
             new TransportNodesListShardStoreMetaData.StoreFilesMetaData(new ShardId("test", "_na_", 0),
-                metadataSnapshot);
+                metadataSnapshot, peerRecoveryRetentionLeases);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.elasticsearch.Version targetNodeVersion = randomVersion(random());
@@ -875,6 +883,7 @@ public class StoreTests extends ESTestCase {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
         }
         assertThat(outStoreFileMetaData.syncId(), equalTo(inStoreFileMetaData.syncId()));
+        assertThat(outStoreFileMetaData.peerRecoveryRetentionLeases(), equalTo(peerRecoveryRetentionLeases));
     }
 
     public void testMarkCorruptedOnTruncatedSegmentsFile() throws IOException {
@@ -1027,38 +1036,6 @@ public class StoreTests extends ESTestCase {
         } catch (IndexFormatTooNewException e) {
         }
         store.close();
-    }
-
-    public void testEnsureIndexHasHistoryUUID() throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
-
-            store.createEmpty(Version.LATEST);
-
-            // remove the history uuid
-            IndexWriterConfig iwc = new IndexWriterConfig(null)
-                .setCommitOnClose(false)
-                // we don't want merges to happen here - we call maybe merge on the engine
-                // later once we stared it up otherwise we would need to wait for it here
-                // we also don't specify a codec here and merges should use the engines for this index
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-            try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
-                Map<String, String> newCommitData = new HashMap<>();
-                for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
-                    if (entry.getKey().equals(Engine.HISTORY_UUID_KEY) == false) {
-                        newCommitData.put(entry.getKey(), entry.getValue());
-                    }
-                }
-                writer.setLiveCommitData(newCommitData.entrySet());
-                writer.commit();
-            }
-
-            store.ensureIndexHasHistoryUUID();
-
-            SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
-            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
-        }
     }
 
     public void testHistoryUUIDCanBeForced() throws IOException {

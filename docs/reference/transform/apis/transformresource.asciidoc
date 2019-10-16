@@ -5,8 +5,7 @@
 
 {transform-cap} resources relate to the <<transform-apis>>.
 
-For more information, see
-{stack-ov}/ecommerce-dataframes.html[Transforming your data with {dataframes}].
+For more information, see <<transforms>>.
 
 [discrete]
 [[transform-properties]]
@@ -101,8 +100,7 @@ pivot function `group by` fields and the aggregation to reduce the data.
 * {ref}/search-aggregations-pipeline-bucket-selector-aggregation.html[Bucket Selector]
 
 IMPORTANT: {transforms-cap} support a subset of the functionality in
-composite aggregations. See
-{stack-ov}/dataframe-limitations.html[{dataframe-cap} limitations].
+composite aggregations. See <<transform-limitations>>.
 
 --
 

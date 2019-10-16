@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,7 +50,7 @@ public class TransformAuditorIT extends TransformRestTestCase {
         createReviewsIndex();
         indicesCreated = true;
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupUser(TEST_USER_NAME, Arrays.asList("data_frame_transforms_admin", DATA_ACCESS_ROLE));
+        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
     }
 
     @SuppressWarnings("unchecked")
@@ -63,15 +65,16 @@ public class TransformAuditorIT extends TransformRestTestCase {
         startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         // Make sure we wrote to the audit
-        final Request request = new Request("GET", TransformInternalIndex.AUDIT_INDEX + "/_search");
+        final Request request = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search");
         request.setJsonEntity("{\"query\":{\"term\":{\"transform_id\":\"simple_pivot_for_audit\"}}}");
         assertBusy(() -> {
-            assertTrue(indexExists(TransformInternalIndex.AUDIT_INDEX));
+            assertTrue(indexExists(TransformInternalIndexConstants.AUDIT_INDEX));
+            assertTrue(aliasExists(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS));
         });
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short DF job), all without the audit being fully written.
         assertBusy(() -> {
-            refreshIndex(TransformInternalIndex.AUDIT_INDEX);
+            refreshIndex(TransformInternalIndexConstants.AUDIT_INDEX);
             Map<String, Object> response = entityAsMap(client().performRequest(request));
             List<?> hitList = ((List<?>) ((Map<?, ?>)response.get("hits")).get("hits"));
             assertThat(hitList, is(not(empty())));
@@ -84,5 +87,17 @@ public class TransformAuditorIT extends TransformRestTestCase {
             assertThat(source.get("timestamp"), is(notNullValue()));
         });
 
+    }
+
+    public void testAliasCreatedforBWCIndexes() throws Exception {
+        Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+
+        createIndex(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED, settings.build());
+        assertBusy(() -> {
+            assertTrue(aliasExists(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED,
+                    TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS));
+        });
     }
 }

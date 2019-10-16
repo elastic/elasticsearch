@@ -71,7 +71,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -158,7 +157,6 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSourceExistsWithType() throws IOException {
-        String type = frequently() ? randomAlphaOfLengthBetween(3, 10) : MapperService.SINGLE_MAPPING_NAME;
         doTestSourceExists((index, id) -> new GetRequest(index, id));
     }
 
@@ -289,18 +287,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
-    public void testDeleteWithType() {
-        String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
-        String id = randomAlphaOfLengthBetween(3, 10);
-        DeleteRequest deleteRequest = new DeleteRequest(index, type, id);
-
-        Request request = RequestConverters.delete(deleteRequest);
-        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
-        assertNull(request.getEntity());
-    }
-
     public void testExists() {
         getAndExistsTest(RequestConverters::exists, HttpHead.METHOD_NAME);
     }
@@ -362,17 +348,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(method, request.getMethod());
     }
 
-    private static void getAndExistsWithTypeTest(Function<GetRequest, Request> requestConverter, String method) {
-        String index = randomAlphaOfLengthBetween(3, 10);
-        String id = randomAlphaOfLengthBetween(3, 10);
-        GetRequest getRequest = new GetRequest(index, id);
-
-        Request request = requestConverter.apply(getRequest);
-        assertEquals("/" + index + "/" + id, request.getEndpoint());
-        assertNull(request.getEntity());
-        assertEquals(method, request.getMethod());
-    }
-
     public void testReindex() throws IOException {
         ReindexRequest reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices("source_idx");
@@ -392,9 +367,6 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             reindexRequest.setSourceBatchSize(randomInt(100));
-        }
-        if (randomBoolean()) {
-            reindexRequest.setDestDocType("tweet_and_doc");
         }
         if (randomBoolean()) {
             reindexRequest.setDestOpType("create");
@@ -659,49 +631,6 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testIndexWithType() throws IOException {
-        String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
-        IndexRequest indexRequest = new IndexRequest(index, type);
-        String id = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
-        indexRequest.id(id);
-
-        String method = HttpPost.METHOD_NAME;
-        if (id != null) {
-            method = HttpPut.METHOD_NAME;
-            if (randomBoolean()) {
-                indexRequest.opType(DocWriteRequest.OpType.CREATE);
-            }
-        }
-        XContentType xContentType = randomFrom(XContentType.values());
-        int nbFields = randomIntBetween(0, 10);
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject();
-            for (int i = 0; i < nbFields; i++) {
-                builder.field("field_" + i, i);
-            }
-            builder.endObject();
-            indexRequest.source(builder);
-        }
-
-        Request request = RequestConverters.index(indexRequest);
-        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
-            assertEquals("/" + index + "/" + type + "/" + id + "/_create", request.getEndpoint());
-        } else if (id != null) {
-            assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
-        } else {
-            assertEquals("/" + index + "/" + type, request.getEndpoint());
-        }
-        assertEquals(method, request.getMethod());
-
-        HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof NByteArrayEntity);
-        assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
-        try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
-            assertEquals(nbFields, parser.map().size());
-        }
-    }
-
     public void testUpdate() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
 
@@ -810,23 +739,6 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testUpdateWithType() throws IOException {
-        String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
-        String id = randomAlphaOfLengthBetween(3, 10);
-
-        UpdateRequest updateRequest = new UpdateRequest(index, type, id);
-
-        XContentType xContentType = XContentType.JSON;
-        BytesReference source = RandomObjects.randomSource(random(), xContentType);
-        updateRequest.doc(new IndexRequest().source(source, xContentType));
-
-        Request request = RequestConverters.update(updateRequest);
-        assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertToXContentBody(updateRequest, request.getEntity());
-    }
-
     public void testUpdateWithDifferentContentTypes() {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
             UpdateRequest updateRequest = new UpdateRequest();
@@ -919,7 +831,6 @@ public class RequestConvertersTests extends ESTestCase {
 
             assertEquals(originalRequest.opType(), parsedRequest.opType());
             assertEquals(originalRequest.index(), parsedRequest.index());
-            assertEquals(originalRequest.type(), parsedRequest.type());
             assertEquals(originalRequest.id(), parsedRequest.id());
             assertEquals(originalRequest.routing(), parsedRequest.routing());
             assertEquals(originalRequest.version(), parsedRequest.version());

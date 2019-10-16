@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
 
@@ -42,15 +42,15 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             Request req = new Request("PUT",
-                    TransformInternalIndex.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName));
+                    TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName));
             req.setEntity(entity);
             client().performRequest(req);
         }
 
         // refresh the index
-        assertOK(client().performRequest(new Request("POST", TransformInternalIndex.LATEST_INDEX_NAME + "/_refresh")));
+        assertOK(client().performRequest(new Request("POST", TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_refresh")));
 
-        Request deleteRequest = new Request("DELETE", TRANSFORM_ENDPOINT + fakeTransformName);
+        Request deleteRequest = new Request("DELETE", getTransformEndpoint() + fakeTransformName);
         Response deleteResponse = client().performRequest(deleteRequest);
         assertOK(deleteResponse);
         assertTrue((boolean)XContentMapValues.extractValue("acknowledged", entityAsMap(deleteResponse)));

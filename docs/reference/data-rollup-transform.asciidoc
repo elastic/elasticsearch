@@ -9,8 +9,12 @@
 * <<xpack-rollup,Rolling up your historical data>>
 +
 include::rollup/index.asciidoc[tag=rollup-intro]
-* {stack-ov}/ml-dataframes.html[Transforming your data]
+* <<transforms,Transforming your data>>
++
+include::transform/index.asciidoc[tag=transform-intro]
 
 --
 
 include::rollup/index.asciidoc[]
+
+include::transform/index.asciidoc[]

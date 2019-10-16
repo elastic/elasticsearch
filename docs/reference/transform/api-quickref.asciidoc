@@ -1,12 +1,12 @@
 [role="xpack"]
-[[df-api-quickref]]
-== API quick reference
+[[transform-api-quickref]]
+=== API quick reference
 
 All {transform} endpoints have the following base:
 
 [source,js]
 ----
-/_data_frame/transforms/
+_transform/
 ----
 // NOTCONSOLE
 

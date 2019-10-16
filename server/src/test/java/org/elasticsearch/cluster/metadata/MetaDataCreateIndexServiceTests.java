@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
@@ -247,16 +248,18 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         versions.sort(Comparator.comparingLong(l -> l.id));
         final Version version = versions.get(0);
         final Version upgraded = versions.get(1);
-        final Settings indexSettings =
+        final Settings.Builder indexSettingsBuilder =
                 Settings.builder()
                         .put("index.version.created", version)
                         .put("index.version.upgraded", upgraded)
                         .put("index.similarity.default.type", "BM25")
                         .put("index.analysis.analyzer.default.tokenizer", "keyword")
-                        .put("index.soft_deletes.enabled", "true")
-                        .build();
+                        .put("index.soft_deletes.enabled", "true");
+        if (randomBoolean()) {
+            indexSettingsBuilder.put("index.allocation.max_retries", randomIntBetween(1, 1000));
+        }
         runPrepareResizeIndexSettingsTest(
-                indexSettings,
+                indexSettingsBuilder.build(),
                 Settings.EMPTY,
                 Collections.emptyList(),
                 randomBoolean(),
@@ -267,7 +270,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                             settings.get("index.analysis.analyzer.default.tokenizer"),
                             equalTo("keyword"));
                     assertThat(settings.get("index.routing.allocation.initial_recovery._id"), equalTo("node1"));
-                    assertThat(settings.get("index.allocation.max_retries"), equalTo("1"));
+                    assertThat(settings.get("index.allocation.max_retries"), nullValue());
                     assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
                     assertThat(settings.getAsVersion("index.version.upgraded", null), equalTo(upgraded));
                     assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"));
@@ -454,7 +457,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testShardLimit() {
-        int nodesInCluster = randomIntBetween(2,100);
+        int nodesInCluster = randomIntBetween(2,90);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
         Settings clusterSettings = Settings.builder()
             .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())

@@ -196,9 +196,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final BlobPath basePath;
 
-    // Maximum number of concurrent file writes that should be scheduled on the SNAPSHOT thread-pool
-    private final int maxConcurrentWrites;
-
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
@@ -227,7 +224,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             IndexMetaData::fromXContent, namedXContentRegistry, compress);
         snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
             SnapshotInfo::fromXContentInternal, namedXContentRegistry, compress);
-        maxConcurrentWrites = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
     }
 
     @Override
@@ -1104,7 +1100,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-            final int workers = Math.min(maxConcurrentWrites, indexIncrementalFileCount);
+            // Start as many workers as fit into the snapshot pool at once at the most
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), indexIncrementalFileCount);
             final ActionListener<Void> filesListener = ActionListener.delegateResponse(
                 new GroupedActionListener<>(allFilesUploadedListener, workers), (l, e) -> {
                 filesToSnapshot.clear(); // Stop uploading the remaining files if we run into any exception

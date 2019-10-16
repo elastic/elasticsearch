@@ -49,7 +49,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mockThreadPool(), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
             final String blobName = randomAlphaOfLength(10);
@@ -69,7 +69,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mockThreadPool(), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
             final String blobName = randomAlphaOfLength(10);
@@ -85,7 +85,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mockThreadPool(), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
             final String blobName = randomAlphaOfLength(10);
@@ -103,7 +103,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mockThreadPool(), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer container = repository.blobStore().blobContainer(repository.basePath());
             final String blobName = randomAlphaOfLength(10);
@@ -120,7 +120,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mockThreadPool(), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer container =
                 repository.blobStore().blobContainer(repository.basePath().add("indices").add("someindex").add("0"));
@@ -136,8 +136,10 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
 
     public void testOverwriteSnapshotInfoBlob() {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
-        final ThreadPool threadPool = mockThreadPool();
+        final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
+        when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
+            new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, 1));
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), threadPool, blobStoreContext)) {
@@ -168,13 +170,6 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
                 0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), future2);
             future2.actionGet();
         }
-    }
-
-    private static ThreadPool mockThreadPool() {
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
-            new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, 1));
-        return threadPool;
     }
 
     private static void assertThrowsOnInconsistentRead(BlobContainer blobContainer, String blobName) {

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="trial"]
 [[security-getting-started]]
 == Tutorial: Getting started with security
 

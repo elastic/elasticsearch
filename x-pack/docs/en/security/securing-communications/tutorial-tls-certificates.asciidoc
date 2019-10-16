@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="trial"]
 [[encrypting-communications-certificates]]
 === Generate certificates
 

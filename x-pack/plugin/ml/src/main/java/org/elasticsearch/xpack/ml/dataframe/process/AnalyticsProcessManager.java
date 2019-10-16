@@ -367,7 +367,7 @@ public class AnalyticsProcessManager {
 
         private AnalyticsProcessConfig createProcessConfig(DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor) {
             DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-            Set<String> categoricalFields = dataExtractor.getCategoricalFields();
+            Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
             AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(config.getId(), dataSummary.rows, dataSummary.cols,
                 config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), categoricalFields, config.getAnalysis());
             return processConfig;

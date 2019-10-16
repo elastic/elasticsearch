@@ -127,8 +127,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-few-docs-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-few-docs-results]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
@@ -183,8 +182,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testOutlierDetectionWithMoreFieldsThanDocValueFieldLimit() throws Exception {
@@ -265,8 +263,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testStopOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
@@ -391,8 +388,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-multiple-source-indices-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-multiple-source-indices-results]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testOutlierDetectionWithPreExistingDestIndex() throws Exception {
@@ -450,8 +446,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started analytics",
             "Using existing destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() throws Exception {
@@ -706,7 +701,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-custom-params-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-custom-params-results]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 }

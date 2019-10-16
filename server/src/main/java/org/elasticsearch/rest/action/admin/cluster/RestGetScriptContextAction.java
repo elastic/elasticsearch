@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
@@ -42,6 +43,8 @@ public class RestGetScriptContextAction extends BaseRestHandler {
     }
 
     @Override protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return channel -> client.execute(GetScriptContextAction.INSTANCE, new GetScriptContextRequest());
+        return channel -> client.execute(GetScriptContextAction.INSTANCE,
+            new GetScriptContextRequest(),
+            new RestToXContentListener<>(channel));
     }
 }

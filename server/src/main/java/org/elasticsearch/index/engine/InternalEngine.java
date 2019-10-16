@@ -675,8 +675,12 @@ public class InternalEngine extends Engine {
                             trackTranslogLocation.set(true);
                         }
                     }
-                    assert versionValue.seqNo >= 0 : versionValue;
-                    refreshIfNeeded("realtime_get", versionValue.seqNo);
+                    if (versionValue.seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        assert versionValue.seqNo >= 0 : versionValue;
+                        refreshIfNeeded("realtime_get", versionValue.seqNo);
+                    } else {
+                        refresh("realtime_get", SearcherScope.INTERNAL);
+                    }
                 }
                 scope = SearcherScope.INTERNAL;
             } else {

@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.CREAT
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.DELETE_OPERATION;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_INDEX_PREFIX;
 import static org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT.getStepKeyForIndex;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -441,7 +442,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         assertNotNull(slm);
         assertTrue((boolean) slm.get("available"));
         assertTrue((boolean) slm.get("enabled"));
-        assertNull(slm.get("policy_count"));
+        assertThat(slm.get("policy_count"), anyOf(equalTo(null), equalTo(0)));
 
         // Create a snapshot repo
         initializeRepo("repo");

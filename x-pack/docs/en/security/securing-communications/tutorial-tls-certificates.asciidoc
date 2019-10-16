@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="trial"]
 [[encrypting-communications-certificates]]
 === Generate certificates
 
@@ -57,7 +56,6 @@ Then run the following command:
 ----------------------------------------------------------------------
 ./bin/elasticsearch-certutil cert --in test-cluster.yml --keep-ca-key
 ----------------------------------------------------------------------
-// NOTCONSOLE
 
 It prompts you for passwords to secure each output file. 
 
@@ -83,7 +81,6 @@ Archive:  certificate-bundle.zip
    creating: node-3/
   inflating: node-3/node-3.p12  
 ----------------------------------------------------------------------
-// NOTCONSOLE
   
 The `certificate-bundle.zip` file contains a folder for each of your nodes and a
 `ca` folder.
@@ -117,7 +114,6 @@ For example:
 --dns <domain_name> \ <3>
 --ip <ip_addresses> <4>
 ----------------------------------------------------------------------
-// NOTCONSOLE
 <1> The certificate authority that you generated for this cluster.
 <2> The name of the generated certificate. Ideally this value matches the new
 node's `node.name` value in its `elasticsearch.yml` file.

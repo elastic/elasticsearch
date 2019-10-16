@@ -333,7 +333,6 @@ public final class RepositoryData {
                 if (SNAPSHOTS.equals(field)) {
                     if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            final SnapshotId snapshotId;
                             String name = null;
                             String uuid = null;
                             SnapshotState state = null;
@@ -348,7 +347,7 @@ public final class RepositoryData {
                                     state = SnapshotState.fromValue(parser.numberValue().byteValue());
                                 }
                             }
-                            snapshotId = new SnapshotId(name, uuid);
+                            final SnapshotId snapshotId = new SnapshotId(name, uuid);
                             if (state != null) {
                                 snapshotStates.put(uuid, state);
                             }

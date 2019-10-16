@@ -33,6 +33,8 @@ public final class XPackField {
     public static final String ROLLUP = "rollup";
     /** Name constant for the index lifecycle feature. */
     public static final String INDEX_LIFECYCLE = "ilm";
+    /** Name constant for the snapshot lifecycle management feature. */
+    public static final String SNAPSHOT_LIFECYCLE = "slm";
     /** Name constant for the CCR feature. */
     public static final String CCR = "ccr";
     /** Name constant for the transform feature. */

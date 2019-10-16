@@ -76,7 +76,7 @@ class JavaDateFormatter implements DateFormatter {
             throw new IllegalArgumentException("formatters must have the same locale");
         }
         this.printer = printer;
-        this.format = "8" + format;
+        this.format = format.startsWith("8") ? format : "8" + format;
 
         if (parsers.length == 0) {
             this.parsers = Collections.singletonList(printer);

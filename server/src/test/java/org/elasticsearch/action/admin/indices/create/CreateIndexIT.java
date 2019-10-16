@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.hamcrest.Matchers;
 
 import java.util.HashMap;
 import java.util.List;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.mockito.Matchers.contains;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
@@ -385,21 +387,35 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateIndexWithJava8Date() throws Exception {
-        String jodaIncompatibleFormat = "8yyyy-MM-dd HH:mm:ssXX";
+        BiFunction<XContentBuilder, String, List<Object>> createIndex = (xContentBuilder, propertyToBeReturned) -> {
+            String indexName = "test" + xContentBuilder.hashCode();
+            CreateIndexRequestBuilder requestBuilder = client().admin().indices().prepareCreate(indexName);
+            assertAcked(requestBuilder.addMapping("doc", xContentBuilder).get());
+
+            GetMappingsResponse response = client().admin().indices().prepareGetMappings(indexName).get();
+            List<Object> formats =
+                XContentMapValues.extractRawValues(propertyToBeReturned, response.getMappings().get(indexName).get("doc").getSourceAsMap());
+            return formats;
+        };
+
         XContentBuilder builder = jsonBuilder().startObject().startObject("properties")
-            .startObject("time")
-            .field("type", "date")
-            .field("format", jodaIncompatibleFormat)
-            .endObject().endObject().endObject();
+                                               .startObject("time")
+                                               .field("type", "date")
+                                               .field("format", "8yyyy-MM-dd-MM-dd HH:mm:ssXX")
+                                               .endObject()
+                                               .endObject().endObject();
 
-        CreateIndexRequestBuilder requestBuilder = client().admin().indices().prepareCreate("test");
-        assertAcked(requestBuilder.addMapping("doc", builder).get());
+        assertThat(createIndex.apply(builder, "properties.time.format"), Matchers.contains("8yyyy-MM-dd-MM-dd HH:mm:ssXX"));
 
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
-        List<Object> formats =
-            XContentMapValues.extractRawValues("properties.time.format", response.getMappings().get("test").get("doc").getSourceAsMap());
-        assertThat(formats, hasSize(1));
-        assertThat(formats.get(0), is(jodaIncompatibleFormat));
+
+        builder = jsonBuilder().startObject().startObject("properties")
+                                               .startObject("time")
+                                               .field("type", "date")
+                                               .field("format", "8yyyy-MM-dd-MM-dd HH:mm:ssXX")
+                                               .field("locale", "de")
+                                               .endObject()
+                                               .endObject().endObject();
+        assertThat(createIndex.apply(builder, "properties.time.locale"), Matchers.contains("de"));
     }
 
 }

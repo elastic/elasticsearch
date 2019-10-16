@@ -21,7 +21,6 @@ file or updated dynamically on a live cluster with the
     to prevent Elasticsearch from allocating shards if less than the specified
     amount of space is available. This setting has no effect on the primary
     shards of newly-created indices but will prevent their replicas from being allocated.
-    shards can't be re-allocated or re-balanced to a node with low watermark.
 
 `cluster.routing.allocation.disk.watermark.high`::
 

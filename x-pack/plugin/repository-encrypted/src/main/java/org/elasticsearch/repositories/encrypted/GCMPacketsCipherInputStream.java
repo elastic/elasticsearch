@@ -25,11 +25,114 @@ import static javax.crypto.Cipher.ENCRYPT_MODE;
  */
 public class GCMPacketsCipherInputStream extends FilterInputStream {
 
-    static class GCMPacketsMarkDecorator extends GCMPacketsCipherInputStream {
+    static class GCMPacketsWithMarkCipherInputStream extends GCMPacketsCipherInputStream {
 
-        private GCMPacketsMarkDecorator(InputStream in, SecretKey secretKey, int mode, long packetIndex, int nonce,
-                                        Provider provider) {
+        private GCMPacketsWithMarkCipherInputStream(InputStream in, SecretKey secretKey, int mode, long packetIndex, int nonce,
+                                                    Provider provider) {
             super(in, secretKey, mode, packetIndex, nonce, provider);
+        }
+
+        private ByteArrayOutputStream markWriteBuffer = null;
+        private ByteArrayInputStream markReadBuffer = new ByteArrayInputStream(new byte[0]);
+        private boolean markTriggeredForCurrentPacket = false;
+        private long markPacketIndex;
+        private int markReadLimit;
+
+        @Override
+        public int read() throws IOException {
+            ensureOpen();
+            // in case this is a reseted stream that has buffered part of the ciphertext
+            if (markReadBuffer.available() > 0) {
+                return markReadBuffer.read();
+            }
+            int cipherByte = super.read();
+            // if buffering of the ciphertext is required
+            if (markTriggeredForCurrentPacket && cipherByte != -1) {
+                markWriteBuffer.write(cipherByte);
+            }
+            return cipherByte;
+        }
+
+        @Override
+        public int read(byte b[], int off, int len) throws IOException {
+            ensureOpen();
+            // in case this is a reseted stream that has buffered part of the ciphertext
+            int bytesReadFromMarkBuffer = markReadBuffer.read(b, off, len);
+            if (bytesReadFromMarkBuffer != -1) {
+                return bytesReadFromMarkBuffer;
+            }
+            int cipherBytesCount = super.read(b, off, len);
+            // if buffering of the ciphertext is required
+            if (markTriggeredForCurrentPacket && cipherBytesCount != -1) {
+                markWriteBuffer.write(b, off, cipherBytesCount );
+            }
+            return cipherBytesCount;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            ensureOpen();
+            if (markReadBuffer.available() > 0) {
+                return markReadBuffer.skip(n);
+            }
+            int bytesAvailable = super.available();
+            bytesAvailable = Math.min(bytesAvailable, Math.toIntExact(n));
+            if (markTriggeredForCurrentPacket) {
+                byte[] temp = new byte[bytesAvailable];
+                int bytesRead = super.read(temp);
+                markWriteBuffer.write(temp);
+                return bytesRead;
+            } else {
+                return super.skip(n);
+            }
+        }
+
+        @Override
+        public int available() throws IOException {
+            ensureOpen();
+            return markReadBuffer.available() + super.available();
+        }
+
+        @Override
+        public boolean markSupported() {
+            return in.markSupported();
+        }
+
+        @Override
+        public void mark(int readLimit) {
+            markTriggeredForCurrentPacket = true;
+            markWriteBuffer = new ByteArrayOutputStream();
+            markPacketIndex = getPacketIndex();
+            markReadLimit = readLimit;
+        }
+
+        @Override
+        public void reset() throws IOException {
+            if (markWriteBuffer == null) {
+                throw new IOException("mark not called");
+            }
+            // mark triggered before the packet boundary has been read over
+            if (false == markTriggeredForCurrentPacket) {
+                if (markPacketIndex >= getPacketIndex()) {
+                    throw new IllegalStateException();
+                }
+                in.reset();
+                setPacketIndex(markPacketIndex);
+            }
+            if (markPacketIndex != getPacketIndex()) {
+                throw new IllegalStateException();
+            }
+            // make any cached ciphertext available to read
+            markReadBuffer = new ByteArrayInputStream(markWriteBuffer.toByteArray());
+        }
+
+        @Override
+        void readAtTheStartOfPacketHandler() {
+            if (markTriggeredForCurrentPacket) {
+                markTriggeredForCurrentPacket = false;
+                // mark the underlying stream at the start of the packet
+                in.mark(markReadLimit);
+            }
         }
     }
 
@@ -51,25 +154,19 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
     private final ByteBuffer packetIV = ByteBuffer.allocate(GCM_IV_SIZE_IN_BYTES);
     // how much to read from the underlying stream before finishing the current packet and starting the next one
     private int stillToReadInPacket;
-    private int packetSizeInBytes;
+    private final int packetSizeInBytes;
 
-    private byte[] inputByteBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES];
-    private byte[] processedByteBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES];
-    private ByteArrayInputStream processedInputStream = new ByteArrayInputStream(new byte[0]);
+    private final byte[] inputByteBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES];
+    private final byte[] processedByteBuffer = new byte[READ_BUFFER_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES];
+    private InputStream processedInputStream = InputStream.nullInputStream();
     private int bytesBufferedInsideTheCipher = 0;
 
-    private ByteArrayOutputStream markWriteBuffer = null;
-    private ByteArrayInputStream markReadBuffer = new ByteArrayInputStream(new byte[0]);
-    private boolean markTriggered = false;
-    private long markPacketIndex;
-    private int markReadLimit;
-
     static GCMPacketsCipherInputStream getGCMPacketsEncryptor(InputStream in, SecretKey secretKey, int nonce, Provider provider) {
-        return new GCMPacketsCipherInputStream(in, secretKey, ENCRYPT_MODE, 0, nonce, provider);
+        return new GCMPacketsWithMarkCipherInputStream(in, secretKey, ENCRYPT_MODE, 0, nonce, provider);
     }
 
     static GCMPacketsCipherInputStream getGCMPacketsDecryptor(InputStream in, SecretKey secretKey, int nonce, Provider provider) {
-        return new GCMPacketsCipherInputStream(in, secretKey, DECRYPT_MODE, 0, nonce, provider);
+        return new GCMPacketsWithMarkCipherInputStream(in, secretKey, DECRYPT_MODE, 0, nonce, provider);
     }
 
     public static GCMPacketsCipherInputStream getGCMPacketsEncryptor(InputStream in, SecretKey secretKey, int nonce) {
@@ -114,17 +211,20 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
         stillToReadInPacket = packetSizeInBytes;
     }
 
-    private void initCipher() throws GeneralSecurityException {
+    private void reinitPacketCipher() throws GeneralSecurityException {
         Cipher cipher;
         if (provider != null) {
             cipher = Cipher.getInstance(GCM_ENCRYPTION_SCHEME, provider);
         } else {
             cipher = Cipher.getInstance(GCM_ENCRYPTION_SCHEME);
         }
+        // construct IV and increment packet index
         packetIV.putLong(0, packetIndex++);
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_SIZE_IN_BYTES * Byte.SIZE, packetIV.array());
         cipher.init(mode, secretKey, gcmParameterSpec);
         packetCipher = cipher;
+        // the new cipher has no bytes buffered inside
+        bytesBufferedInsideTheCipher = 0;
     }
 
     private int readAndProcess() throws IOException, GeneralSecurityException {
@@ -136,8 +236,12 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
         if (done) {
             return -1;
         }
+        // starting to read a new packet
         if (stillToReadInPacket == packetSizeInBytes) {
-            readAtTheStartOfPacket();
+            // reinit cipher for this following packet
+            reinitPacketCipher();
+            // call handler to notify subclasses that the processing of a new packet has started
+            readAtTheStartOfPacketHandler();
         }
         int bytesToRead = Math.min(inputByteBuffer.length - bytesBufferedInsideTheCipher, stillToReadInPacket);
         if (bytesToRead <= 0) {
@@ -200,7 +304,7 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
                 bytesBufferedInsideTheCipher += (bytesRead - bytesProcessed);
             }
         }
-        // the "if" is just an "optimization"
+        // the "if" here is just an "optimization"
         if (bytesProcessed != 0) {
             processedInputStream = new ByteArrayInputStream(processedByteBuffer, 0, bytesProcessed);
         }
@@ -209,10 +313,6 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
 
     @Override
     public int read() throws IOException {
-        // first try read from the buffered bytes after the mark inside the packet
-        if (markReadBuffer.available() > 0) {
-            return markReadBuffer.read();
-        }
         while (processedInputStream.available() <= 0) {
             try {
                 if (readAndProcess() == -1) {
@@ -222,19 +322,11 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
                 throw new IOException(e);
             }
         }
-        int cipherByte = processedInputStream.read();
-        if (markTriggered && cipherByte != -1) {
-            markWriteBuffer.write(cipherByte);
-        }
-        return cipherByte;
+        return processedInputStream.read();
     }
 
     @Override
     public int read(byte b[], int off, int len) throws IOException {
-        int bytesReadFromMarkBuffer = markReadBuffer.read(b, off, len);
-        if (bytesReadFromMarkBuffer != -1) {
-            return bytesReadFromMarkBuffer;
-        }
         while (processedInputStream.available() <= 0) {
             try {
                 if (readAndProcess() == -1) {
@@ -244,40 +336,17 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
                 throw new IOException(e);
             }
         }
-        int bytesReadFromCipherBuffer = processedInputStream.read(b, off, len);
-        if (markTriggered && bytesReadFromCipherBuffer != -1) {
-            markWriteBuffer.write(b, off, bytesReadFromCipherBuffer);
-        }
-        return bytesReadFromCipherBuffer;
+        return processedInputStream.read(b, off, len);
     }
 
     @Override
     public long skip(long n) throws IOException {
-        if (markReadBuffer.available() > 0) {
-            return markReadBuffer.skip(n);
-        }
-        // if mark is triggered bytes cannot be discarded because they might be read later
-        if (markTriggered) {
-            // mark
-            processedInputStream.mark(packetSizeInBytes);
-            // skip
-            int skipAheadBytes = Math.toIntExact(processedInputStream.skip(n));
-            // reset
-            processedInputStream.reset();
-            byte[] temp = new byte[skipAheadBytes];
-            // re-read the skipped bytes
-            processedInputStream.read(temp);
-            // do not discard the skipped bytes
-            markWriteBuffer.write(temp);
-            return skipAheadBytes;
-        } else {
-            return processedInputStream.skip(n);
-        }
+        return processedInputStream.skip(n);
     }
 
     @Override
     public int available() throws IOException {
-        return markReadBuffer.available() + processedInputStream.available();
+        return processedInputStream.available();
     }
 
     @Override
@@ -286,7 +355,7 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
             return;
         }
         closed = true;
-        processedInputStream = new ByteArrayInputStream(new byte[0]);
+        processedInputStream = InputStream.nullInputStream();
         in.close();
         // Throw away the unprocessed data and throw no crypto exceptions.
         // Normally the GCM cipher is fully readed before closing, so any authentication
@@ -303,37 +372,37 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
 
     @Override
     public boolean markSupported() {
-        return in.markSupported();
+        return false;
     }
 
     @Override
     public void mark(int readLimit) {
-        markTriggered = true;
-        markWriteBuffer = new ByteArrayOutputStream();
-        markPacketIndex = packetIndex;
-        markReadLimit = readLimit;
     }
 
     @Override
     public void reset() throws IOException {
-        if (markWriteBuffer == null) {
-            throw new IOException();
-        }
-        if (false == markTriggered) {
-            in.reset();
-            processedInputStream = new ByteArrayInputStream(new byte[0]);
-        }
-        markReadBuffer = new ByteArrayInputStream(markWriteBuffer.toByteArray());
-        packetIndex = markPacketIndex;
+        throw new IOException("mark/reset not supported");
     }
 
-    private void readAtTheStartOfPacket() throws GeneralSecurityException {
-        // re init cipher for this following packet
-        initCipher();
-        if (markTriggered) {
-            markTriggered = false;
-            // mark the underlying stream at the start of the packet
-            in.mark(markReadLimit);
+    /**
+     * Sets the packet index and clears the transitory state from processing of the previous packet
+     */
+    void setPacketIndex(long packetIndex) {
+        processedInputStream = InputStream.nullInputStream();
+        stillToReadInPacket = packetSizeInBytes;
+        this.packetIndex = packetIndex;
+    }
+
+    long getPacketIndex() {
+        return packetIndex;
+    }
+
+    void readAtTheStartOfPacketHandler() {
+    }
+
+    void ensureOpen() throws IOException {
+        if (closed) {
+            throw new IOException("Stream closed");
         }
     }
 }

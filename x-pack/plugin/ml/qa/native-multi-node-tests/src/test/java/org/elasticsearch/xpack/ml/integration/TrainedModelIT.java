@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests;
 import org.junit.After;
@@ -153,7 +154,7 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setVersion(Version.CURRENT)
                 .setCreateTime(Instant.now())
                 .build()
-                .toXContent(builder, ToXContent.EMPTY_PARAMS);
+                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));
             return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
         }
     }

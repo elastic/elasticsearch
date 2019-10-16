@@ -328,7 +328,7 @@ using the native realm. You learned how to create user IDs and roles that
 prevent unauthorized access to the {stack}. 
 
 Next, you'll want to try other features that are unlocked by your trial license, 
-such as {ml}. See <<ml-getting-started,Getting started with {ml}>>. 
+such as {ml}. See {stack-ov}/ml-getting-started.html[Getting started with {ml}]. 
 
 Later, when you're ready to increase the number of nodes in your cluster or set 
 up an production environment, you'll want to encrypt communications across the 
@@ -336,7 +336,7 @@ up an production environment, you'll want to encrypt communications across the
 
 For more detailed information about securing the {stack}, see:
 
-* {ref}/configuring-security.html[Configuring security in {es}]. Encrypt 
+* <<configuring-security>>. Encrypt 
 inter-node communications, set passwords for the built-in users, and manage your 
 users and roles.  
 

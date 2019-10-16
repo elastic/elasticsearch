@@ -63,10 +63,13 @@
         model_id: "unused-regression-model"
   - match: { acknowledged: true }
 
+---
+"Test delete with missing model":
   - do:
       catch: missing
       ml.delete_trained_model:
-        model_id: "trained-model"
+        model_id: "missing-trained-model"
+
 ---
 "Test delete given used trained model":
   - do:

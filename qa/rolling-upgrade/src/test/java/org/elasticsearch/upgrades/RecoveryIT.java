@@ -455,9 +455,15 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 updates.put(docId, value);
             }
         }
-        client().performRequest(new Request("POST", index + "/_refresh"));
+        boolean refreshed = randomBoolean();
+        if (refreshed) {
+            client().performRequest(new Request("POST", index + "/_refresh"));
+        }
         for (int docId : updates.keySet()) {
             Request get = new Request("GET", index + "/test/" + docId);
+            if (refreshed && randomBoolean()) {
+                get.addParameter("realtime", "false");
+            }
             Map<String, Object> doc = entityAsMap(client().performRequest(get));
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }

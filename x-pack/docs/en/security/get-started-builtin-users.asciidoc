@@ -1,0 +1,26 @@
+There are built-in users that you can use for specific administrative purposes:
+`elastic`, `kibana`, `logstash_system`, and `beats_system`. 
+
+Before you can use them, you must set their passwords:
+
+. Restart {es}. For example, if you installed {es} with a `.tar.gz` package, run 
+the following command from the {es} directory:
++
+--
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/elasticsearch
+----------------------------------------------------------------------
+
+See {ref}/starting-elasticsearch.html[Starting {es}].
+--
+
+. Set the built-in users' passwords. Run the following command from the {es} 
+directory:
++
+--
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/elasticsearch-setup-passwords interactive
+----------------------------------------------------------------------
+--

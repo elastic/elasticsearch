@@ -45,7 +45,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class GetIndexIT extends ESIntegTestCase {
@@ -243,7 +242,7 @@ public class GetIndexIT extends ESIntegTestCase {
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
         MappingMetaData indexMappings = mappings.get(indexName);
-        assertThat(indexMappings, nullValue());
+        assertEquals(indexMappings, MappingMetaData.EMPTY_MAPPINGS);
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {

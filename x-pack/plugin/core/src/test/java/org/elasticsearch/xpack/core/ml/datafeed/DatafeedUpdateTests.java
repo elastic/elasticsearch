@@ -302,7 +302,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
             DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap());
 
-            assertThat(datafeed, not(equalTo(updatedDatafeed)));
+            assertThat("update was " + update, datafeed, not(equalTo(updatedDatafeed)));
         }
     }
 

@@ -170,7 +170,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                                 .trigger(schedule(interval("5s")))
                                 .input(searchInput(inputRequest))
                                 .transform(searchTransform(transformRequest))
-                                .addAction("_id", indexAction("output1", "result"))
+                                .addAction("_id", indexAction("output1"))
                 ).get();
         assertThat(putWatchResponse.isCreated(), is(true));
         putWatchResponse = new PutWatchRequestBuilder(client(), "_id2")

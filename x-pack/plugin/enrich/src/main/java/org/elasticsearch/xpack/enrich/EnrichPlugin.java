@@ -35,6 +35,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorStatsAction;
+import org.elasticsearch.xpack.enrich.action.EnrichInfoTransportAction;
 import org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportEnrichStatsAction;
@@ -115,10 +117,13 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
-            return List.of();
+            return List.of(
+                new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class)
+            );
         }
 
         return List.of(
+            new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
             new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
             new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
@@ -185,6 +190,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
+            ENRICH_ENABLED_SETTING,
             ENRICH_FETCH_SIZE_SETTING,
             ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS,
             ENRICH_CLEANUP_PERIOD,

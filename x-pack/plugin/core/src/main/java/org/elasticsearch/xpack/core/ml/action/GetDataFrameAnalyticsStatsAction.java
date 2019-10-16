@@ -232,6 +232,10 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return state;
             }
 
+            public String getFailureReason() {
+                return failureReason;
+            }
+
             public List<PhaseProgress> getProgress() {
                 return progress;
             }
@@ -340,6 +344,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return Objects.equals(id, other.id)
                         && Objects.equals(this.state, other.state)
                         && Objects.equals(this.failureReason, other.failureReason)
+                        && Objects.equals(this.progress, other.progress)
                         && Objects.equals(this.node, other.node)
                         && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
             }

@@ -290,77 +290,51 @@ public class Archives {
         final Path stdout = installation.home.resolve("output.out");
         final Path stderr = installation.home.resolve("output.err");
 
-        Shell.Result result;
-        // this starts the server in the background. the -d flag is unsupported on windows
+
+        String powerShellProcessUserSetup;
         if (System.getenv("username").equals("vagrant")) {
-            // these tests run as Administrator in vagrant.
+            // the tests will run as Administrator in vagrant.
             // we don't want to run the server as Administrator, so we provide the current user's
             // username and password to the process which has the effect of starting it not as Administrator.
-            result = sh.run(
+            powerShellProcessUserSetup =
                 "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
-                    "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
-                    "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
-                    "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
-                    "$processInfo.Username = 'vagrant'; " +
-                    "$processInfo.Password = $password; " +
-                    "$processInfo.RedirectStandardOutput = $true; " +
-                    "$processInfo.RedirectStandardError = $true; " +
-                    "$processInfo.RedirectStandardInput = $true; " +
-                    sh.env.entrySet().stream()
-                        .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
-                        .collect(joining()) +
-                    "$processInfo.UseShellExecute = $false; " +
-                    "$process = New-Object System.Diagnostics.Process; " +
-                    "$process.StartInfo = $processInfo; " +
-
-                    // set up some asynchronous output handlers
-                    "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stdout + "' }; " +
-                    "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stderr + "' }; " +
-                    "$stdOutEvent = Register-ObjectEvent -InputObject $process " +
-                    "-Action $outScript -EventName 'OutputDataReceived'; " +
-                    "$stdErrEvent = Register-ObjectEvent -InputObject $process " +
-                    "-Action $errScript -EventName 'ErrorDataReceived'; " +
-
-                    "$process.Start() | Out-Null; " +
-                    "$process.BeginOutputReadLine(); " +
-                    "$process.BeginErrorReadLine(); " +
-                    "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
-                    "Wait-Process -Timeout " + ES_STARTUP_SLEEP_TIME_SECONDS + " -Id $process.Id; " +
-                    "$process.Id;"
-            );
+                "$processInfo.Username = 'vagrant'; " +
+                "$processInfo.Password = $password; ";
         } else {
-            result = sh.run(
-                    "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
-                    "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
-                    "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
-                    "$processInfo.RedirectStandardOutput = $true; " +
-                    "$processInfo.RedirectStandardError = $true; " +
-                    "$processInfo.RedirectStandardInput = $true; " +
-                    sh.env.entrySet().stream()
-                        .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
-                        .collect(joining()) +
-                    "$processInfo.UseShellExecute = $false; " +
-                    "$process = New-Object System.Diagnostics.Process; " +
-                    "$process.StartInfo = $processInfo; " +
-
-                    // set up some asynchronous output handlers
-                    "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stdout + "' }; " +
-                    "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stderr + "' }; " +
-                    "$stdOutEvent = Register-ObjectEvent -InputObject $process " +
-                        "-Action $outScript -EventName 'OutputDataReceived'; " +
-                    "$stdErrEvent = Register-ObjectEvent -InputObject $process " +
-                        "-Action $errScript -EventName 'ErrorDataReceived'; " +
-
-                    "$process.Start() | Out-Null; " +
-                    "$process.BeginOutputReadLine(); " +
-                    "$process.BeginErrorReadLine(); " +
-                    "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
-                    "Wait-Process -Timeout 15 -Id $process.Id; " +
-                    "$process.Id;"
-            );
+            powerShellProcessUserSetup = "";
         }
 
-        return result;
+        // this starts the server in the background. the -d flag is unsupported on windows
+        return sh.run(
+            "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
+                "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
+                "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
+                powerShellProcessUserSetup +
+                "$processInfo.RedirectStandardOutput = $true; " +
+                "$processInfo.RedirectStandardError = $true; " +
+                "$processInfo.RedirectStandardInput = $true; " +
+                sh.env.entrySet().stream()
+                    .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
+                    .collect(joining()) +
+                "$processInfo.UseShellExecute = $false; " +
+                "$process = New-Object System.Diagnostics.Process; " +
+                "$process.StartInfo = $processInfo; " +
+
+                // set up some asynchronous output handlers
+                "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stdout + "' }; " +
+                "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stderr + "' }; " +
+                "$stdOutEvent = Register-ObjectEvent -InputObject $process " +
+                "-Action $outScript -EventName 'OutputDataReceived'; " +
+                "$stdErrEvent = Register-ObjectEvent -InputObject $process " +
+                "-Action $errScript -EventName 'ErrorDataReceived'; " +
+
+                "$process.Start() | Out-Null; " +
+                "$process.BeginOutputReadLine(); " +
+                "$process.BeginErrorReadLine(); " +
+                "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
+                "Wait-Process -Timeout " + ES_STARTUP_SLEEP_TIME_SECONDS + " -Id $process.Id; " +
+                "$process.Id;"
+            );
     }
 
     public static void assertElasticsearchStarted(Installation installation, Shell sh) throws Exception {

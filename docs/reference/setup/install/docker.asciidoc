@@ -148,6 +148,9 @@ https://docs.docker.com/compose/install/#install-using-pip[Docker Compose webpag
 
 The node `es01` listens on `localhost:9200` while `es02`
 talks to `es01` over a Docker network.
+Please note that Docker exposes 9200 to the public, ignoring potential firewall 
+settings. If you don't want to expose port 9200 and instead use a reverse proxy,
+replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
 
 This example also uses
 https://docs.docker.com/engine/tutorials/dockervolumes[Docker named volumes],

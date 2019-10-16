@@ -698,12 +698,14 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
 
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
-                Document document = new Document();
+                List<Document> documents = new ArrayList<>();
                 for (Map<String, List<Object>> fields : dataset) {
+                    Document document = new Document();
                     addToDocument(document, fields);
-                    indexWriter.addDocument(document);
-                    document.clear();
+                    documents.add(document);
                 }
+                indexWriter.addDocuments(documents);
+                indexWriter.commit();
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
@@ -713,11 +715,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     indexSettings, bucketConsumer, FIELD_TYPES);
                 a.preCollection();
                 indexSearcher.search(query, a);
-                a.postCollection();
 
                 // check start doc id filtered and early terminated
                 assertEquals(a.getStartDocId(), 2);
                 assertTrue(a.getQueue().isEarlyTerminate());
+                a.postCollection();
 
                 final InternalComposite result = (InternalComposite)a.buildAggregation(0L);
                 assertEquals(2, result.getBuckets().size());

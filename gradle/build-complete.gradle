@@ -17,16 +17,18 @@ if (buildNumber) {
         }
 
         ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
-            fileset(dir: projectDir, followsymlinks: false) {
-                include(name: "**/*.hprof")
-                include(name: "**/reaper.log")
-                include(name: "**/journalctl.log")
-                include(name: "**/build/testclusters/**")
-                exclude(name: "**/build/testclusters/**/data/**")
-                exclude(name: "**/build/testclusters/**/distro/**")
-                exclude(name: "**/build/testclusters/**/repo/**")
-                exclude(name: "**/build/testclusters/**/extract/**")
-            }
+            fileTree(projectDir)
+                    .include("**/*.hprof")
+                    .include("**/reaper.log")
+                    .include("**/journalctl.log")
+                    .include("**/build/testclusters/**")
+                    .exclude("**/build/testclusters/**/data/**")
+                    .exclude("**/build/testclusters/**/distro/**")
+                    .exclude("**/build/testclusters/**/repo/**")
+                    .exclude("**/build/testclusters/**/extract/**")
+                    .filter { Files.isRegularFile(it.toPath()) }
+                    .each { fileset(file: it) }
+
 
             fileset(dir: "${gradle.gradleUserHomeDir}/daemon", followsymlinks: false) {
                 include(name: "**/*.log")

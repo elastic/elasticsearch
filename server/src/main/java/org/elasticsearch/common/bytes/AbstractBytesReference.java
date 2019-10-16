@@ -29,27 +29,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.function.ToIntBiFunction;
 
-/**
- * A reference to bytes.
- */
 public abstract class AbstractBytesReference implements BytesReference {
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
 
-    /**
-     * Returns the integer read from the 4 bytes (BE) starting at the given index.
-     */
     @Override
     public int getInt(int index) {
         return (get(index) & 0xFF) << 24 | (get(index + 1) & 0xFF) << 16 | (get(index + 2) & 0xFF) << 8 | get(index + 3) & 0xFF;
     }
 
-    /**
-     * Finds the index of the first occurrence of the given marker between within the given bounds.
-     * @param marker marker byte to search
-     * @param from lower bound for the index to check (inclusive)
-     * @return first index of the marker or {@code -1} if not found
-     */
     @Override
     public int indexOf(byte marker, int from) {
         final int to = length();
@@ -61,17 +49,11 @@ public abstract class AbstractBytesReference implements BytesReference {
         return -1;
     }
 
-    /**
-     * A stream input of the bytes.
-     */
     @Override
     public StreamInput streamInput() throws IOException {
         return new MarkSupportingStreamInputWrapper(this);
     }
 
-    /**
-     * Writes the bytes directly to the output stream.
-     */
     @Override
     public void writeTo(OutputStream os) throws IOException {
         final BytesRefIterator iterator = iterator();
@@ -81,19 +63,11 @@ public abstract class AbstractBytesReference implements BytesReference {
         }
     }
 
-    /**
-     * Interprets the referenced bytes as UTF8 bytes, returning the resulting string
-     */
     @Override
     public String utf8ToString() {
         return toBytesRef().utf8ToString();
     }
 
-    /**
-     * Returns a BytesRefIterator for this BytesReference. This method allows
-     * access to the internal pages of this reference without copying them. Use with care!
-     * @see BytesRefIterator
-     */
     @Override
     public BytesRefIterator iterator() {
         return new BytesRefIterator() {

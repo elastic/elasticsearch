@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
@@ -31,7 +32,12 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
+
+/**
+ * A reference to bytes.
+ */
 public interface BytesReference extends Comparable<BytesReference>, ToXContentFragment {
+
     /**
      * Convert an {@link XContentBuilder} into a BytesReference. This method closes the builder,
      * so no further fields may be added.
@@ -101,8 +107,17 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      */
     byte get(int index);
 
+    /**
+     * Returns the integer read from the 4 bytes (BE) starting at the given index.
+     */
     int getInt(int index);
 
+    /**
+     * Finds the index of the first occurrence of the given marker between within the given bounds.
+     * @param marker marker byte to search
+     * @param from lower bound for the index to check (inclusive)
+     * @return first index of the marker or {@code -1} if not found
+     */
     int indexOf(byte marker, int from);
 
     /**
@@ -120,10 +135,19 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      */
     long ramBytesUsed();
 
+    /**
+     * A stream input of the bytes.
+     */
     StreamInput streamInput() throws IOException;
 
+    /**
+     * Writes the bytes directly to the output stream.
+     */
     void writeTo(OutputStream os) throws IOException;
 
+    /**
+     * Interprets the referenced bytes as UTF8 bytes, returning the resulting string
+     */
     String utf8ToString();
 
     /**
@@ -131,5 +155,10 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      */
     BytesRef toBytesRef();
 
+    /**
+     * Returns a BytesRefIterator for this BytesReference. This method allows
+     * access to the internal pages of this reference without copying them. Use with care!
+     * @see BytesRefIterator
+     */
     BytesRefIterator iterator();
 }

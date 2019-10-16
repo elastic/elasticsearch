@@ -226,40 +226,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DATE_TRUNC('yyyz', keyword) FROM test"));
     }
 
-    public void testDateTruncValidArgs() {
-        accept("SELECT DATE_TRUNC('decade', date) FROM test");
-        accept("SELECT DATE_TRUNC('decades', date) FROM test");
-        accept("SELECT DATE_TRUNC('day', date) FROM test");
-        accept("SELECT DATE_TRUNC('days', date) FROM test");
-        accept("SELECT DATE_TRUNC('dd', date) FROM test");
-        accept("SELECT DATE_TRUNC('d', date) FROM test");
-
-    }
-
-    public void testDatePartInvalidArgs() {
-        assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
-            error("SELECT DATE_PART(int, date) FROM test"));
-        assertEquals("1:8: second argument of [DATE_PART(keyword, keyword)] must be [date or datetime], found value [keyword] " +
-            "type [keyword]", error("SELECT DATE_PART(keyword, keyword) FROM test"));
-        assertEquals("1:8: first argument of [DATE_PART('invalid', keyword)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
-            "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, TZOFFSET] " +
-                "or their aliases; found value ['invalid']",
-            error("SELECT DATE_PART('invalid', keyword) FROM test"));
-        assertEquals("1:8: Unknown value ['tzofset'] for first argument of [DATE_PART('tzofset', keyword)]; " +
-                "did you mean [tzoffset]?",
-            error("SELECT DATE_PART('tzofset', keyword) FROM test"));
-        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_PART('dz', keyword)]; " +
-                "did you mean [dd, tz, dw, dy, d]?",
-            error("SELECT DATE_PART('dz', keyword) FROM test"));
-    }
-
-    public void testDatePartValidArgs() {
-        accept("SELECT DATE_PART('weekday', date) FROM test");
-        accept("SELECT DATE_PART('dw', date) FROM test");
-        accept("SELECT DATE_PART('tz', date) FROM test");
-        accept("SELECT DATE_PART('dayofyear', date) FROM test");
-        accept("SELECT DATE_PART('dy', date) FROM test");
-        accept("SELECT DATE_PART('ms', date) FROM test");
+    public void testDateAddValidArgs() {
+        accept("SELECT DATE_ADD('weekday', 0, date) FROM test");
+        accept("SELECT DATEADD('dw', 20, date) FROM test");
+        accept("SELECT TIMESTAMP_ADD('years', -10, date) FROM test");
+        accept("SELECT TIMESTAMPADD('dayofyear', 123, date) FROM test");
+        accept("SELECT DATE_ADD('dy', 30, date) FROM test");
+        accept("SELECT DATE_ADD('ms', 1, date::date) FROM test");
     }
 
     public void testDateAddInvalidArgs() {
@@ -281,13 +254,67 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DATE_ADD('dz', int, date) FROM test"));
     }
 
-    public void testDateAddValidArgs() {
-        accept("SELECT DATE_ADD('weekday', 0, date) FROM test");
-        accept("SELECT DATEADD('dw', 20, date) FROM test");
-        accept("SELECT TIMESTAMP_ADD('years', -10, date) FROM test");
-        accept("SELECT TIMESTAMPADD('dayofyear', 123, date) FROM test");
-        accept("SELECT DATE_ADD('dy', 30, date) FROM test");
-        accept("SELECT DATE_ADD('ms', 1, date::date) FROM test");
+    public void testDateDiffValidArgs() {
+        accept("SELECT DATE_DIFF('weekday', date, date) FROM test");
+        accept("SELECT DATEDIFF('dw', date::date, date) FROM test");
+        accept("SELECT TIMESTAMP_DIFF('years', date, date) FROM test");
+        accept("SELECT TIMESTAMPDIFF('dayofyear', date, date::date) FROM test");
+        accept("SELECT DATE_DIFF('dy', date, date) FROM test");
+        accept("SELECT DATE_DIFF('ms', date::date, date::date) FROM test");
+    }
+
+    public void testDateDiffInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_DIFF(int, date, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_DIFF(int, date, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_DIFF(keyword, keyword, date)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_DIFF(keyword, keyword, date) FROM test"));
+        assertEquals("1:8: third argument of [DATE_DIFF(keyword, date, keyword)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_DIFF(keyword, date, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_DIFF('invalid', int, date)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
+                "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
+                "or their aliases; found value ['invalid']",
+            error("SELECT DATE_DIFF('invalid', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['sacinds'] for first argument of [DATE_DIFF('sacinds', int, date)]; " +
+                "did you mean [seconds, second]?",
+            error("SELECT DATE_DIFF('sacinds', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_DIFF('dz', int, date)]; " +
+                "did you mean [dd, dw, dy, d]?",
+            error("SELECT DATE_DIFF('dz', int, date) FROM test"));
+    }
+
+    public void testDateTruncValidArgs() {
+        accept("SELECT DATE_TRUNC('decade', date) FROM test");
+        accept("SELECT DATE_TRUNC('decades', date) FROM test");
+        accept("SELECT DATETRUNC('day', date) FROM test");
+        accept("SELECT DATETRUNC('days', date) FROM test");
+        accept("SELECT DATE_TRUNC('dd', date) FROM test");
+        accept("SELECT DATE_TRUNC('d', date) FROM test");
+    }
+
+    public void testDatePartInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_PART(int, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_PART(keyword, keyword)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_PART(keyword, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_PART('invalid', keyword)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
+            "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, TZOFFSET] " +
+                "or their aliases; found value ['invalid']",
+            error("SELECT DATE_PART('invalid', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['tzofset'] for first argument of [DATE_PART('tzofset', keyword)]; " +
+                "did you mean [tzoffset]?",
+            error("SELECT DATE_PART('tzofset', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_PART('dz', keyword)]; " +
+                "did you mean [dd, tz, dw, dy, d]?",
+            error("SELECT DATE_PART('dz', keyword) FROM test"));
+    }
+
+    public void testDatePartValidArgs() {
+        accept("SELECT DATE_PART('weekday', date) FROM test");
+        accept("SELECT DATEPART('dw', date) FROM test");
+        accept("SELECT DATEPART('tz', date) FROM test");
+        accept("SELECT DATE_PART('dayofyear', date) FROM test");
+        accept("SELECT DATE_PART('dy', date) FROM test");
+        accept("SELECT DATE_PART('ms', date) FROM test");
     }
 
     public void testValidDateTimeFunctionsOnTime() {

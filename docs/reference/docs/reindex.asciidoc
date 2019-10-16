@@ -522,8 +522,8 @@ reindex timed out.
 (integer) The number of documents that were successfully processed.
 
 `updated`::
-
-(integer) The number of documents that were successfully updated.
+(integer) The number of documents that were successfully updated,
+i.e. a document with same ID already existed prior to reindex updating it.
 
 `created`::
 

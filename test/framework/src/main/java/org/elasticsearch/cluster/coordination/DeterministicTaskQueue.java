@@ -30,7 +30,9 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
@@ -286,6 +288,8 @@ public class DeterministicTaskQueue {
      * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */
     public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
+
+        final Map<String, ThreadPool.Info> infos = new HashMap<>();
         return new ThreadPool(settings) {
 
             {
@@ -309,7 +313,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public Info info(String name) {
-                return new Info(name, ThreadPoolType.FIXED, 1);
+                return infos.computeIfAbsent(name, n -> new Info(n, ThreadPoolType.FIXED, random.nextInt(10) + 1));
             }
 
             @Override

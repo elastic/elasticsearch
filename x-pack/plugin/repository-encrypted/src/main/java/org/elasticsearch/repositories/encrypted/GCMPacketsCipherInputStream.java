@@ -25,6 +25,14 @@ import static javax.crypto.Cipher.ENCRYPT_MODE;
  */
 public class GCMPacketsCipherInputStream extends FilterInputStream {
 
+    static class GCMPacketsMarkDecorator extends GCMPacketsCipherInputStream {
+
+        private GCMPacketsMarkDecorator(InputStream in, SecretKey secretKey, int mode, long packetIndex, int nonce,
+                                        Provider provider) {
+            super(in, secretKey, mode, packetIndex, nonce, provider);
+        }
+    }
+
     private static final int GCM_TAG_SIZE_IN_BYTES = 16;
     private static final int GCM_IV_SIZE_IN_BYTES = 12;
     private static final String GCM_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
@@ -73,11 +81,17 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
     }
 
     public static int getEncryptionSizeFromPlainSize(int size) {
+        if (size < 0) {
+            throw new IllegalArgumentException();
+        }
         return (size / PACKET_SIZE_IN_BYTES) * (PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES)
                 + (size % PACKET_SIZE_IN_BYTES) + GCM_TAG_SIZE_IN_BYTES;
     }
 
     public static int getDecryptionSizeFromCipherSize(int size) {
+        if (size < GCM_TAG_SIZE_IN_BYTES) {
+            throw new IllegalArgumentException();
+        }
         return (size / (PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES)) * PACKET_SIZE_IN_BYTES
                 + (size % (PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES)) - GCM_TAG_SIZE_IN_BYTES;
     }
@@ -253,7 +267,7 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
             byte[] temp = new byte[skipAheadBytes];
             // re-read the skipped bytes
             processedInputStream.read(temp);
-            // cache the skipped bytes
+            // do not discard the skipped bytes
             markWriteBuffer.write(temp);
             return skipAheadBytes;
         } else {

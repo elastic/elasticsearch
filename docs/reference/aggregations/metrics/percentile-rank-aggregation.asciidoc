@@ -51,8 +51,8 @@ The response will look like this:
    "aggregations": {
       "load_time_ranks": {
          "values" : {
-            "500.0": 55.00000000000001,
-            "600.0": 64.0
+            "500.0": 90.01,
+            "600.0": 100.0
          }
       }
    }

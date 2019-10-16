@@ -211,7 +211,6 @@ The API returns the following result:
         "successful" : 2
     },
     "_index" : "twitter",
-    "_type" : "_doc",
     "_id" : "W0tpsmIBdwcYyG50zbta",
     "_version" : 1,
     "_seq_no" : 0,
@@ -470,7 +469,6 @@ The API returns the following result:
         "successful" : 2
     },
     "_index" : "twitter",
-    "_type" : "_doc",
     "_id" : "1",
     "_version" : 1,
     "_seq_no" : 0,

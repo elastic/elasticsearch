@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
@@ -202,14 +203,35 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("- 6");
         assertEquals(Literal.class, expr.getClass());
         assertEquals("- 6", expr.sourceText());
+        assertEquals(-6, expr.fold());
 
-        expr = parser.createExpression("- ( 6 )");
+        expr = parser.createExpression("- ( 6.134 )");
         assertEquals(Literal.class, expr.getClass());
-        assertEquals("- ( 6 )", expr.sourceText());
+        assertEquals("- ( 6.134 )", expr.sourceText());
+        assertEquals(-6.134, expr.fold());
 
         expr = parser.createExpression("- ( ( (1.25) )    )");
         assertEquals(Literal.class, expr.getClass());
         assertEquals("- ( ( (1.25) )    )", expr.sourceText());
+        assertEquals(-1.25, expr.fold());
+
+        int numberOfParentheses = randomIntBetween(3, 10);
+        double value = randomDouble();
+        StringBuilder sb = new StringBuilder("-");
+        for (int i = 0; i < numberOfParentheses; i++) {
+            sb.append("(").append(TestUtils.randomWhitespaces());
+        }
+        sb.append(value);
+        for (int i = 0; i < numberOfParentheses; i++) {
+            sb.append(")");
+            if (i < numberOfParentheses - 1) {
+                sb.append(TestUtils.randomWhitespaces());
+            }
+        }
+        expr = parser.createExpression(sb.toString());
+        assertEquals(Literal.class, expr.getClass());
+        assertEquals(sb.toString(), expr.sourceText());
+        assertEquals(- value, expr.fold());
     }
 
     public void testComplexArithmetic() {

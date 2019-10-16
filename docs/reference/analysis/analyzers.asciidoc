@@ -56,21 +56,20 @@ If you do not find an analyzer suitable for your needs, you can create a
 
 include::analyzers/configuring.asciidoc[]
 
-include::analyzers/standard-analyzer.asciidoc[]
-
-include::analyzers/simple-analyzer.asciidoc[]
-
-include::analyzers/whitespace-analyzer.asciidoc[]
-
-include::analyzers/stop-analyzer.asciidoc[]
+include::analyzers/fingerprint-analyzer.asciidoc[]
 
 include::analyzers/keyword-analyzer.asciidoc[]
 
-include::analyzers/pattern-analyzer.asciidoc[]
-
 include::analyzers/lang-analyzer.asciidoc[]
 
-include::analyzers/fingerprint-analyzer.asciidoc[]
+include::analyzers/pattern-analyzer.asciidoc[]
+
+include::analyzers/simple-analyzer.asciidoc[]
+
+include::analyzers/standard-analyzer.asciidoc[]
+
+include::analyzers/stop-analyzer.asciidoc[]
+
+include::analyzers/whitespace-analyzer.asciidoc[]
 
 include::analyzers/custom-analyzer.asciidoc[]
-

@@ -10,6 +10,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
@@ -22,6 +23,12 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      * @return {@code true} if this analysis supports fields with categorical values (i.e. text, keyword, ip)
      */
     boolean supportsCategoricalFields();
+
+    /**
+     * @param fieldName field for which the allowed categorical types should be returned
+     * @return The types treated as categorical for the given field
+     */
+    Set<String> getAllowedCategoricalTypes(String fieldName);
 
     /**
      * @return The names and types of the fields that analyzed documents must have for the analysis to operate

@@ -538,6 +538,10 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
     }
 
+    public Set<String> getContextNames() {
+        return contexts.keySet();
+    }
+
     public ScriptStats stats() {
         return scriptMetrics.stats();
     }

@@ -233,7 +233,7 @@ public abstract class FileRestoreContext {
             // restore the files from the snapshot to the Lucene store
             for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
                 logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
-                executor.execute(ActionRunnable.wrap(allFilesListener, l -> restoreFile(fileToRecover, store, l)));
+                executor.execute(ActionRunnable.run(allFilesListener, () -> restoreFile(fileToRecover, store)));
             }
         }
     }
@@ -250,8 +250,7 @@ public abstract class FileRestoreContext {
      *
      * @param fileInfo file to be restored
      */
-    private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store, ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
+    private void restoreFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo, final Store store) throws IOException {
             boolean success = false;
 
             try (InputStream stream = fileInputStream(fileInfo)) {
@@ -280,7 +279,5 @@ public abstract class FileRestoreContext {
                     }
                 }
             }
-            return null;
-        });
     }
 }

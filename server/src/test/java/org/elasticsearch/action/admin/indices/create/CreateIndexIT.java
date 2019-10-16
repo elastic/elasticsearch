@@ -57,11 +57,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
-import static org.mockito.Matchers.contains;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
@@ -393,8 +390,11 @@ public class CreateIndexIT extends ESIntegTestCase {
             assertAcked(requestBuilder.addMapping("doc", xContentBuilder).get());
 
             GetMappingsResponse response = client().admin().indices().prepareGetMappings(indexName).get();
-            List<Object> formats =
-                XContentMapValues.extractRawValues(propertyToBeReturned, response.getMappings().get(indexName).get("doc").getSourceAsMap());
+            List<Object> formats = XContentMapValues.extractRawValues(propertyToBeReturned, response
+                .getMappings()
+                .get(indexName)
+                .get("doc")
+                .getSourceAsMap());
             return formats;
         };
 

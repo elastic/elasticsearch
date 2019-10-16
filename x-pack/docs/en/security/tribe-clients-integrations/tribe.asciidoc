@@ -1,7 +1,7 @@
 [[tribe-node-configuring]]
-=== Tribe Nodes and Security
+=== Tribe nodes and security
 
-{ref}/modules-tribe.html[Tribe nodes] act as a federated client across multiple
+<<modules-tribe,Tribe nodes>> act as a federated client across multiple
 clusters. When using tribe nodes with secured clusters, all clusters must have
 {security} enabled and share the same security configuration (users, roles,
 user-role mappings, SSL/TLS CA). The tribe node itself also must be configured

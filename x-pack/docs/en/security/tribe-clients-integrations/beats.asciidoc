@@ -1,5 +1,5 @@
 [[beats]]
-=== Beats and Security
+=== Beats and security
 
 See:
 

@@ -2,7 +2,7 @@
 [[security-troubleshooting]]
 == Troubleshooting security
 ++++
-<titleabbrev>Security</titleabbrev>
+<titleabbrev>Troubleshooting</titleabbrev>
 ++++
 
 Use the information in this section to troubleshoot common problems and find

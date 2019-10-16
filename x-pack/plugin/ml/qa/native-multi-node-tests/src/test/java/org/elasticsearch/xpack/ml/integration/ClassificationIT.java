@@ -258,7 +258,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         initialize("cardinality_too_high");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
         // Index one more document with a class different than the two already used.
-        client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox"));
+        client().execute(
+            IndexAction.INSTANCE,
+            new IndexRequest(sourceIndex).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).source(KEYWORD_FIELD, "fox")).actionGet();
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
         registerAnalytics(config);

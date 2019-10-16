@@ -52,7 +52,7 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
     private final List<Double> weights;
 
     LogisticRegression() {
-        this.weights = null;
+        this((List<Double>) null);
     }
 
     public LogisticRegression(List<Double> weights) {

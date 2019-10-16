@@ -51,7 +51,7 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
     private final List<Double> weights;
 
     WeightedMode() {
-        this.weights = null;
+        this((List<Double>) null);
     }
 
     public WeightedMode(List<Double> weights) {

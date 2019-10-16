@@ -33,7 +33,7 @@ public class StatisticsTests extends ESTestCase {
 
     public void testSigmoid() {
         double eps = 0.000001;
-        List<Tuple<Double, Double>> expectations = Arrays.asList(
+        List<Tuple<Double, Double>> paramsAndExpectedReturns = Arrays.asList(
             Tuple.tuple(0.0, 0.5),
             Tuple.tuple(0.5, 0.62245933),
             Tuple.tuple(1.0, 0.73105857),
@@ -42,7 +42,7 @@ public class StatisticsTests extends ESTestCase {
             Tuple.tuple(-1.0, 0.2689414),
             Tuple.tuple(-10000.0, 0.0)
         );
-        for (Tuple<Double, Double> expectation : expectations) {
+        for (Tuple<Double, Double> expectation : paramsAndExpectedReturns) {
             assertThat(Statistics.sigmoid(expectation.v1()), closeTo(expectation.v2(), eps));
         }
     }

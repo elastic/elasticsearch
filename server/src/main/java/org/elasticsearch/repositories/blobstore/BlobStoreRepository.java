@@ -1125,7 +1125,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         filesToSnapshot.clear(); // Stop uploading the remaining files if we run into any exception
                         throw e;
                     }
-                    filesListener.onResponse(null);
                 }));
             }
         } catch (Exception e) {

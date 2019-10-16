@@ -305,7 +305,6 @@ public class RoleDescriptorTests extends ESTestCase {
 
         final String json = "{ \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"], \"field_security\" : { " +
             "\"grant\" : [" + grant + "], \"except\" : [" + except + "] } }] }";
-        System.out.println(json);
         final RoleDescriptor rd = RoleDescriptor.parse("test",
             new BytesArray(json), false, XContentType.JSON);
         assertEquals("test", rd.getName());

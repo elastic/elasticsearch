@@ -124,9 +124,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
@@ -1150,11 +1147,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public void getStoredScript(final GetStoredScriptRequest request, final ActionListener<GetStoredScriptResponse> listener) {
             execute(GetStoredScriptAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public void getScriptContext(final GetScriptContextRequest request, final ActionListener<GetScriptContextResponse> listener) {
-            execute(GetScriptContextAction.INSTANCE, request, listener);
         }
 
         @Override

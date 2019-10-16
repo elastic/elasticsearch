@@ -32,11 +32,13 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
+import static org.elasticsearch.common.xcontent.XContentParser.Token.START_OBJECT;
 
 public class GetScriptContextResponse extends ActionResponse implements StatusToXContentObject {
 
@@ -60,8 +62,8 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
             (p, c, n) ->
             {
                 // advance empty object
-                p.nextToken();
-                p.nextToken();
+                assert(p.nextToken() == START_OBJECT);
+                assert(p.nextToken() == END_OBJECT);
                 return n;
             },
             CONTEXTS
@@ -113,14 +115,18 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetScriptContextResponse that = (GetScriptContextResponse) o;
-        return new HashSet<>(contextNames).equals(new HashSet<>(that.contextNames));
+        return contextNames.equals(that.contextNames);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(new HashSet<>(contextNames));
+        return Objects.hash(contextNames);
     }
 }

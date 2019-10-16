@@ -53,4 +53,13 @@ public class GetScriptContextResponseTests extends AbstractSerializingTestCase<G
     protected GetScriptContextResponse doParseInstance(XContentParser parser) throws IOException {
         return GetScriptContextResponse.fromXContent(parser);
     }
+
+    @Override
+    protected GetScriptContextResponse mutateInstance(GetScriptContextResponse instance) throws IOException {
+        Map<String,Object> items = new HashMap<>();
+        for (int i = randomIntBetween(1, 10); i > 0; i--) {
+            items.put(randomAsciiLettersOfLengthBetween(1, 16), new Object());
+        }
+        return new GetScriptContextResponse(items);
+    }
 }

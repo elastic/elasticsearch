@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class GetScriptContextRequest extends MasterNodeReadRequest<GetScriptContextRequest> {
+public class GetScriptContextRequest extends ActionRequest {
     public GetScriptContextRequest() {
         super();
     }

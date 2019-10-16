@@ -15,10 +15,13 @@ import java.io.InputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Random;
 
 public class GCMPacketsCipherInputStreamTests extends ESTestCase {
 
+    private static int TEST_ARRAY_SIZE = 5 * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES;
+    private static byte[] testPlaintextArray;
     private static BouncyCastleFipsProvider bcFipsProvider;
     private SecretKey secretKey;
 
@@ -26,11 +29,10 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     static void setupProvider() {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             GCMPacketsCipherInputStreamTests.bcFipsProvider = new BouncyCastleFipsProvider();
-//            for (Object o : this.bcFipsProvider.keySet()) {
-//                System.out.println(o);
-//            }
             return null;
         });
+        testPlaintextArray = new byte[TEST_ARRAY_SIZE];
+        new Random().nextBytes(testPlaintextArray);
     }
 
     @Before
@@ -67,21 +69,21 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     }
 
     public void testEncryptDecryptMultipleOfPacketSize() throws Exception {
-        for (int i = 1; i < 10; i++) {
+        for (int i = 1; i <= 5; i++) {
             testEncryptDecryptRandomOfLength(i * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES, secretKey);
         }
     }
 
     private void testEncryptDecryptRandomOfLength(int length, SecretKey secretKey) throws Exception {
         Random random = new Random();
-        byte[] plaintextArray = new byte[length];
-        random.nextBytes(plaintextArray);
         int nonce = random.nextInt();
         ByteArrayOutputStream cipherTextOutput;
         ByteArrayOutputStream plainTextOutput;
+        int startIndex =  randomIntBetween(0, testPlaintextArray.length - length);
         // encrypt
-        try (InputStream cipherInputStream = GCMPacketsCipherInputStream.getGCMPacketsEncryptor(new ByteArrayInputStream(plaintextArray),
-                secretKey, nonce, bcFipsProvider)) {
+        try (InputStream cipherInputStream =
+                     GCMPacketsCipherInputStream.getGCMPacketsEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
+                             secretKey, nonce, bcFipsProvider)) {
             cipherTextOutput = readAllInputStream(cipherInputStream, GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length));
         }
         //decrypt
@@ -91,7 +93,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
             plainTextOutput = readAllInputStream(plainInputStream,
                     GCMPacketsCipherInputStream.getDecryptionSizeFromCipherSize(cipherTextOutput.size()));
         }
-        assertThat(plainTextOutput.toByteArray(), Matchers.is(plaintextArray));
+        assertTrue(Arrays.equals(plainTextOutput.toByteArray(), 0, length, testPlaintextArray, startIndex, startIndex + length));
     }
 
     private SecretKey generateSecretKey() throws Exception {
@@ -106,6 +108,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
         });
     }
 
+    // read "adversarily" in small random pieces
     private ByteArrayOutputStream readAllInputStream(InputStream inputStream, int size) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream(size);
         byte[] temp = new byte[randomIntBetween(1, size != 0 ? size : 1)];

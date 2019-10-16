@@ -303,16 +303,6 @@ public final class SClass extends AStatement {
         if (false == globals.getConstantInitializers().isEmpty()) {
             Collection<Constant> inits = globals.getConstantInitializers().values();
 
-            // Fields
-            for (Constant constant : inits) {
-                classVisitor.visitField(
-                        Opcodes.ACC_FINAL | Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
-                        constant.name,
-                        constant.type.getDescriptor(),
-                        null,
-                        null).visitEnd();
-            }
-
             // Initialize the constants in a static initializer
             final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC,
                     WriterConstants.CLINIT, classVisitor, globals.getStatements(), settings);

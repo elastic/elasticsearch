@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -286,10 +287,8 @@ public class Archives {
             return sh.runIgnoreExitCode("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile +
                 " <<<'" + keystorePassword + "'");
         }
-
-        final Path stdout = installation.home.resolve("output.out");
-        final Path stderr = installation.home.resolve("output.err");
-
+        final Path stdout = getPowershellOutputPath(installation);
+        final Path stderr = getPowershellErrorPath(installation);
 
         String powerShellProcessUserSetup;
         if (System.getenv("username").equals("vagrant")) {
@@ -364,6 +363,14 @@ public class Archives {
         if (Files.exists(pidFile)) {
             Files.delete(pidFile);
         }
+    }
+
+    public static Path getPowershellErrorPath(Installation installation) {
+        return installation.logs.resolve("output.err");
+    }
+
+    private static Path getPowershellOutputPath(Installation installation) {
+        return installation.logs.resolve("output.out");
     }
 
 }

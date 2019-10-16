@@ -221,7 +221,7 @@ public abstract class PackagingTestCase extends Assert {
             sh.runIgnoreExitCode("Get-EventSubscriber | " +
                 "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |" +
                 "Unregister-EventSubscriber -Force");
-            assertThat(FileUtils.slurp(installation.home.resolve("output.err")), containsString(expectedMessage));
+            assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), containsString(expectedMessage));
 
         } else {
 

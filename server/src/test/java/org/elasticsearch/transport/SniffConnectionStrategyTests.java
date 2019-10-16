@@ -414,7 +414,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 });
 
                 Tuple<String, Supplier<DiscoveryNode>> tuple = Tuple.tuple(accessibleNode.toString(), () -> unaddressableSeedNode);
-                List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = Collections.singletonList(tuple);
+                List<String> seedNodes = Collections.singletonList(accessibleNode.toString());
                 TransportAddress proxyAddress = accessibleNode.getAddress();
                 ConnectionManager connectionManager = new ConnectionManager(profile, transport);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -438,9 +438,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    private static List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes(final DiscoveryNode... seedNodes) {
-        return Arrays.stream(seedNodes)
-            .map(s -> Tuple.tuple(s.getAddress().toString(), (Supplier<DiscoveryNode>) () -> s))
-            .collect(Collectors.toList());
+    private static List<String> seedNodes(final DiscoveryNode... seedNodes) {
+        return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toList());
     }
 }

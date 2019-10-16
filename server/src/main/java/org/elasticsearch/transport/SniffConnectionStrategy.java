@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -52,8 +51,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -77,23 +74,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             connectionManager,
             RemoteClusterAware.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings),
             RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER.get(settings),
-            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            getNodePredicate(settings));
+            getNodePredicate(settings),
+            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
     SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                             String proxyAddress, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
-                            List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes) {
-        super(clusterAlias, transportService, connectionManager);
-        this.proxyAddress = proxyAddress;
-        this.maxNumRemoteConnections = maxNumRemoteConnections;
-        this.nodePredicate = nodePredicate;
-        this.seedNodes = seedNodes.stream().map(Tuple::v1).collect(Collectors.toList());
-    }
-
-    private SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                                    String proxyAddress, int maxNumRemoteConnections, List<String> seedNodes,
-                                    Predicate<DiscoveryNode> nodePredicate) {
+                            List<String> seedNodes) {
         super(clusterAlias, transportService, connectionManager);
         this.proxyAddress = proxyAddress;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
@@ -213,6 +200,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     List<String> getSeedNodes() {
         return seedNodes;
+    }
+
+    int getMaxConnections() {
+        return maxNumRemoteConnections;
     }
 
     /* This class handles the _state response from the remote cluster when sniffing nodes to connect to */

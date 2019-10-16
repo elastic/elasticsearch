@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,10 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
@@ -68,39 +64,15 @@ final class RemoteClusterConnection implements Closeable {
      * Creates a new {@link RemoteClusterConnection}
      * @param settings the nodes settings object
      * @param clusterAlias the configured alias of the cluster to connect to
-     * @param seedNodes a list of seed nodes to discover eligible nodes from
      * @param transportService the local nodes transport service
-     * @param maxNumRemoteConnections the maximum number of connections to the remote cluster
-     * @param nodePredicate a predicate to filter eligible remote nodes to connect to
-     * @param proxyAddress the proxy address
-     * @param connectionProfile the connection profile to use
      */
-    RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
-                            TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
-                            String proxyAddress, ConnectionProfile connectionProfile) {
-        this(settings, clusterAlias, seedNodes, transportService, maxNumRemoteConnections, nodePredicate, proxyAddress,
-            createConnectionManager(connectionProfile, transportService));
-    }
-
-    // Public for tests to pass a StubbableConnectionManager
-    RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
-                            TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
-                            String proxyAddress, ConnectionManager connectionManager) {
-        this.transportService = transportService;
-        this.clusterAlias = clusterAlias;
-        this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-        this.connectionStrategy = new SniffConnectionStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
-        // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
-        connectionManager.addListener(transportService);
-        this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
-            .getConcreteSettingForNamespace(clusterAlias).get(settings);
-        this.threadPool = transportService.threadPool;
-        initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
-    }
-
     RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
-        ConnectionManager connectionManager = createConnectionManager(buildConnectionProfileFromSettings(settings, clusterAlias),
-            transportService);
+        this(settings, clusterAlias, transportService,
+            createConnectionManager(buildConnectionProfileFromSettings(settings, clusterAlias), transportService));
+    }
+
+    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService,
+                            ConnectionManager connectionManager) {
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
         this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -240,7 +212,7 @@ final class RemoteClusterConnection implements Closeable {
             return new RemoteConnectionInfo(
                 clusterAlias,
                 sniffStrategy.getSeedNodes(),
-                0,
+                sniffStrategy.getMaxConnections(),
                 getNumNodesConnected(),
                 initialConnectionTimeout,
                 skipUnavailable);

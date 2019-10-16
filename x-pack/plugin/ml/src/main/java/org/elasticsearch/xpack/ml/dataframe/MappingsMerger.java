@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -82,10 +81,6 @@ public final class MappingsMerger {
     }
 
     private static MappingMetaData createMappingMetaData(String type, Map<String, Object> mappings) {
-        try {
-            return new MappingMetaData(type, Collections.singletonMap("properties", mappings));
-        } catch (IOException e) {
-            throw ExceptionsHelper.serverError("Failed to parse mappings: " + mappings);
-        }
+        return new MappingMetaData(type, Collections.singletonMap("properties", mappings));
     }
 }

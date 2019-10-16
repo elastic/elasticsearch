@@ -93,12 +93,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
 
     private static MappingMetaData createMappingsForIndex() {
         int typeCount = rarely() ? 0 : 1;
-        MappingMetaData mmd;
-        try {
-            mmd = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        MappingMetaData mmd = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
         for (int i = 0; i < typeCount; i++) {
             if (rarely() == false) { // rarely have no fields
                 Map<String, Object> mappings = new HashMap<>();
@@ -107,12 +102,8 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
                     mappings.put("field2-" + i, randomFieldMapping());
                 }
 
-                try {
-                    String typeName = MapperService.SINGLE_MAPPING_NAME;
-                    mmd = new MappingMetaData(typeName, mappings);
-                } catch (IOException e) {
-                    fail("shouldn't have failed " + e);
-                }
+                String typeName = MapperService.SINGLE_MAPPING_NAME;
+                mmd = new MappingMetaData(typeName, mappings);
             }
         }
         return mmd;

@@ -65,11 +65,7 @@ public class GetMappingsResponseTests
             }
         }
 
-        try {
-            return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappings);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappings);
     }
 
     private static Map<String, Object> randomFieldMapping() {

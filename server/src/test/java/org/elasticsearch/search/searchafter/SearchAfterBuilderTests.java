@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,10 +39,13 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Collections;
 
 import static org.elasticsearch.search.searchafter.SearchAfterBuilder.extractSortType;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterBuilderTests extends ESTestCase {
@@ -184,6 +188,36 @@ public class SearchAfterBuilderTests extends ESTestCase {
                 assertEquals(searchAfterBuilder, secondSearchAfterBuilder);
                 assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());
             }
+        }
+    }
+
+    public void testFromXContentIllegalType() throws Exception {
+        XContentBuilder xContent = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        xContent.startObject()
+            .startArray("search_after")
+                .value(new BigInteger("9223372036854776000"))
+            .endArray()
+            .endObject();
+        try (XContentParser parser = createParser(shuffleXContent(xContent))) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> SearchAfterBuilder.fromXContent(parser));
+            assertThat(exc.getMessage(), containsString("BIG_INTEGER"));
+        }
+
+        xContent = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        xContent.startObject()
+            .startArray("search_after")
+                .value(new BigDecimal("9223372036854776000.35"))
+            .endArray()
+            .endObject();
+        try (XContentParser parser = createParser(shuffleXContent(xContent))) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> SearchAfterBuilder.fromXContent(parser));
+            assertThat(exc.getMessage(), containsString("BIG_DECIMAL"));
         }
     }
 

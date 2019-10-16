@@ -53,9 +53,11 @@ have the required privileges on the source and destination indices, the
 
 IMPORTANT:  You must use {kib} or this API to create a {transform}.
             Do not put a {transform} directly into any
-            `.data-frame-internal*` indices using the Elasticsearch index API.
+            `.transform-internal*` indices using the Elasticsearch index API.
             If {es} {security-features} are enabled, do not give users any
-            privileges on `.data-frame-internal*` indices.
+            privileges on `.transform-internal*` indices. If you used transforms
+            prior 7.5, also do not give users any privileges on
+            `.data-frame-internal*` indices.
 
 [[put-transform-path-parms]]
 ==== {api-path-parms-title}

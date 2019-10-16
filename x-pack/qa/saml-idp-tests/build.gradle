@@ -14,8 +14,8 @@ testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
 task copyIdpFiles(type: Copy) {
-    from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml',
-    'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
+    from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml', 
+            'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
     into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpFiles)

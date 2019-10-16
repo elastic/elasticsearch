@@ -32,7 +32,7 @@
     <!-- Don't turn these up unless you want a *lot* of noise. -->
     <variable name="idp.loglevel.spring" value="${idp.loglevel.spring:-ERROR}" />
     <variable name="idp.loglevel.container" value="${idp.loglevel.container:-ERROR}" />
-    <variable name="idp.loglevel.xmlsec" value="${idp.loglevel.xmlsec:-DEBUG}" />
+    <variable name="idp.loglevel.xmlsec" value="${idp.loglevel.xmlsec:-INFO}" />
 
     <!-- =========================================================== -->
     <!-- ============== Logging Categories and Levels ============== -->
@@ -42,7 +42,7 @@
     <logger name="net.shibboleth.idp" level="${idp.loglevel.idp}"/>
 
     <!-- Logs OpenSAML, but not IdP, messages -->
-    <logger name="org.opensaml.saml" level="DEBUG"/>
+    <logger name="org.opensaml.saml" level="${idp.loglevel.opensaml}"/>
     
     <!-- Logs LDAP related messages -->
     <logger name="org.ldaptive" level="${idp.loglevel.ldap}"/>
@@ -61,7 +61,7 @@
 
     <!-- Especially chatty. -->
     <logger name="net.shibboleth.idp.saml.attribute.mapping" level="INFO" />
-    <logger name="org.apache.xml.security" level="DEBUG" />
+    <logger name="org.apache.xml.security" level="${idp.loglevel.xmlsec}" />
     <logger name="org.springframework" level="${idp.loglevel.spring}"/>
     <logger name="org.apache.catalina" level="${idp.loglevel.container}"/>
     <logger name="org.eclipse.jetty" level="${idp.loglevel.container}"/>

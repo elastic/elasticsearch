@@ -47,6 +47,10 @@ Grants `monitor_data_fram_transforms` cluster privileges, which enable you to
 use {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
+[[built-in-roles-enrich-user]] `enrich_user` ::
+Grants access to manage *all* enrich indices (`.enrich-*`) and *all* operations on
+ingest node pipelines.
+
 [[built-in-roles-ingest-user]] `ingest_admin` ::
 Grants access to manage *all* index templates and *all* ingest pipeline configurations.
 +

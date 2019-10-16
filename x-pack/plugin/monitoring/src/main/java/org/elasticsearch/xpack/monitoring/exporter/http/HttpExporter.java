@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -269,7 +270,15 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<Settings> SSL_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","ssl",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.groupSetting(
+                        key + ".",
+                        settings -> {
+                            validateSslSettings(key, settings);
+                            configureSslStrategy(settings, null, XPackPlugin.getSharedSslService().createDynamicSSLService());
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope,
+                        Property.Filtered));
     /**
      * Proxy setting to allow users to send requests to a remote cluster that requires a proxy base path.
      */
@@ -447,17 +456,26 @@ public class HttpExporter extends Exporter {
             (ignoreKey, ignoreSettings) -> {
             // no-op update. We only care about the validator
             },
-            (namespace, settings) -> {
-                final List<String> secureSettings = SSLConfigurationSettings.withoutPrefix()
-                    .getSecureSettingsInUse(settings)
-                    .stream()
-                    .map(Setting::getKey)
-                    .collect(Collectors.toList());
-                if (secureSettings.isEmpty() == false) {
-                    throw new IllegalStateException("Cannot dynamically update SSL settings for the exporter [" + namespace
-                        + "] as it depends on the secure setting(s) [" + Strings.collectionToCommaDelimitedString(secureSettings) + "]");
-                }
-            });
+            HttpExporter::validateSslSettings);
+    }
+
+    /**
+     * Validates that secure settings are not being used to rebuild the {@link SSLIOSessionStrategy}.
+     *
+     * @param exporter Name of the exporter to validate
+     * @param settings Settings for the exporter
+     * @throws IllegalStateException if any secure settings are used in the SSL configuration
+     */
+    private static void validateSslSettings(String exporter, Settings settings) {
+        final List<String> secureSettings = SSLConfigurationSettings.withoutPrefix()
+            .getSecureSettingsInUse(settings)
+            .stream()
+            .map(Setting::getKey)
+            .collect(Collectors.toList());
+        if (secureSettings.isEmpty() == false) {
+            throw new IllegalStateException("Cannot dynamically update SSL settings for the exporter [" + exporter
+                + "] as it depends on the secure setting(s) [" + Strings.collectionToCommaDelimitedString(secureSettings) + "]");
+        }
     }
 
     /**
@@ -618,6 +636,30 @@ public class HttpExporter extends Exporter {
     private static void configureSecurity(final RestClientBuilder builder, final Config config, final SSLService sslService) {
         final Setting<Settings> concreteSetting = SSL_SETTING.getConcreteSettingForNamespace(config.name());
         final Settings sslSettings = concreteSetting.get(config.settings());
+        final SSLIOSessionStrategy sslStrategy = configureSslStrategy(sslSettings, concreteSetting, sslService);
+        final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
+        List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        // sending credentials in plaintext!
+        if (credentialsProvider != null && hostList.stream().findFirst().orElse("").startsWith("https") == false) {
+            logger.warn("exporter [{}] is not using https, but using user authentication with plaintext " +
+                    "username/password!", config.name());
+        }
+
+        if (sslStrategy != null) {
+            builder.setHttpClientConfigCallback(new SecurityHttpClientConfigCallback(sslStrategy, credentialsProvider));
+        }
+    }
+
+    /**
+     * Configures the {@link SSLIOSessionStrategy} to use. Relies on {@link #registerSettingValidators(ClusterService)}
+     * to prevent invalid usage of secure settings in the SSL strategy.
+     * @param sslSettings The exporter's SSL settings
+     * @param concreteSetting Settings to use for {@link SSLConfiguration} if secure settings are used
+     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @return Appropriately configured instance of {@link SSLIOSessionStrategy}
+     */
+    private static SSLIOSessionStrategy configureSslStrategy(final Settings sslSettings, final Setting<Settings> concreteSetting,
+                                                             final SSLService sslService) {
         final SSLIOSessionStrategy sslStrategy;
         if (SSLConfigurationSettings.withoutPrefix().getSecureSettingsInUse(sslSettings).isEmpty()) {
             // This configuration does not use secure settings, so it is possible that is has been dynamically updated.
@@ -630,17 +672,7 @@ public class HttpExporter extends Exporter {
             final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
             sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
         }
-        final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
-        List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        // sending credentials in plaintext!
-        if (credentialsProvider != null && hostList.stream().findFirst().orElse("").startsWith("https") == false) {
-            logger.warn("exporter [{}] is not using https, but using user authentication with plaintext " +
-                    "username/password!", config.name());
-        }
-
-        if (sslStrategy != null) {
-            builder.setHttpClientConfigCallback(new SecurityHttpClientConfigCallback(sslStrategy, credentialsProvider));
-        }
+        return sslStrategy;
     }
 
     /**

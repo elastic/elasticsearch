@@ -121,41 +121,34 @@ path, splits on the path separator, and emits a term for each component in the
 tree, e.g. `/foo/bar/baz` -> `[/foo, /foo/bar, /foo/bar/baz ]`.
 
 
+include::tokenizers/chargroup-tokenizer.asciidoc[]
 
+include::tokenizers/classic-tokenizer.asciidoc[]
 
+include::tokenizers/edgengram-tokenizer.asciidoc[]
 
-include::tokenizers/standard-tokenizer.asciidoc[]
+include::tokenizers/keyword-tokenizer.asciidoc[]
 
 include::tokenizers/letter-tokenizer.asciidoc[]
 
 include::tokenizers/lowercase-tokenizer.asciidoc[]
 
-include::tokenizers/whitespace-tokenizer.asciidoc[]
-
-include::tokenizers/uaxurlemail-tokenizer.asciidoc[]
-
-include::tokenizers/classic-tokenizer.asciidoc[]
-
-include::tokenizers/thai-tokenizer.asciidoc[]
-
-
 include::tokenizers/ngram-tokenizer.asciidoc[]
-
-include::tokenizers/edgengram-tokenizer.asciidoc[]
-
-
-include::tokenizers/keyword-tokenizer.asciidoc[]
-
-include::tokenizers/pattern-tokenizer.asciidoc[]
-
-include::tokenizers/chargroup-tokenizer.asciidoc[]
-
-include::tokenizers/simplepattern-tokenizer.asciidoc[]
-
-include::tokenizers/simplepatternsplit-tokenizer.asciidoc[]
 
 include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
 
 include::tokenizers/pathhierarchy-tokenizer-examples.asciidoc[]
 
+include::tokenizers/pattern-tokenizer.asciidoc[]
 
+include::tokenizers/simplepattern-tokenizer.asciidoc[]
+
+include::tokenizers/simplepatternsplit-tokenizer.asciidoc[]
+
+include::tokenizers/standard-tokenizer.asciidoc[]
+
+include::tokenizers/thai-tokenizer.asciidoc[]
+
+include::tokenizers/uaxurlemail-tokenizer.asciidoc[]
+
+include::tokenizers/whitespace-tokenizer.asciidoc[]

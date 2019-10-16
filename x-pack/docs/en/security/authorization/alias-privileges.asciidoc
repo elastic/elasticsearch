@@ -29,7 +29,7 @@ The user attempts to retrieve a document from `current_year`:
 -------------------------------------------------------------------------------
 GET /current_year/_doc/1
 -------------------------------------------------------------------------------
-// TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/event\/1\n{}\n/]
+// TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/_doc\/1\n{}\n/]
 
 The above request gets rejected, although the user has `read` privilege on the
 concrete index that the `current_year` alias points to. The correct permission

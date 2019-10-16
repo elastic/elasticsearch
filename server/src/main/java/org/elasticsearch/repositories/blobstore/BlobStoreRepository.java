@@ -1105,25 +1105,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             final int workers = Math.min(maxConcurrentWrites, indexIncrementalFileCount);
-            final GroupedActionListener<Void> filesListener = new GroupedActionListener<>(allFilesUploadedListener, workers);
+            final ActionListener<Void> filesListener = ActionListener.delegateResponse(
+                new GroupedActionListener<>(allFilesUploadedListener, workers), (l, e) -> {
+                filesToSnapshot.clear(); // Stop uploading the remaining files if we run into any exception
+                l.onFailure(e);
+            });
             for (int i = 0; i < workers; ++i) {
                 executor.execute(ActionRunnable.run(filesListener, () -> {
-                    try {
-                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
-                        if (snapshotFileInfo != null) {
-                            store.incRef();
-                            try {
-                                do {
-                                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
-                                    snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
-                                } while (snapshotFileInfo != null);
-                            } finally {
-                                store.decRef();
-                            }
+                    BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
+                    if (snapshotFileInfo != null) {
+                        store.incRef();
+                        try {
+                            do {
+                                snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
+                                snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
+                            } while (snapshotFileInfo != null);
+                        } finally {
+                            store.decRef();
                         }
-                    } catch (Exception e) {
-                        filesToSnapshot.clear(); // Stop uploading the remaining files if we run into any exception
-                        throw e;
                     }
                 }));
             }

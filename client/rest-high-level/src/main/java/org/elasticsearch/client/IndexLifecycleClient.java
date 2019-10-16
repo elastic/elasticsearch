@@ -234,10 +234,9 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
      */
-    public Cancellable stopILMAsync(StopILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::stopILM, options,
+    public void stopILMAsync(StopILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::stopILM, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 

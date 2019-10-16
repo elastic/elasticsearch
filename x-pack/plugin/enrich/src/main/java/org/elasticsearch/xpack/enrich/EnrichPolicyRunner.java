@@ -121,7 +121,7 @@ public class EnrichPolicyRunner implements Runnable {
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
         ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.mappings();
         MappingMetaData indexMapping = mappings.get(sourceIndexName);
-        if (indexMapping == null) {
+        if (indexMapping == null || indexMapping == MappingMetaData.EMPTY_MAPPINGS) {
             throw new ElasticsearchException(
                 "Enrich policy execution for [{}] failed. No mapping available on source [{}] included in [{}]",
                 policyName, sourceIndexName, policy.getIndices());

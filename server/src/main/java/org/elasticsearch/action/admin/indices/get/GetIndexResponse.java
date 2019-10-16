@@ -249,7 +249,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     builder.endObject();
 
                     MappingMetaData indexMappings = mappings.get(index);
-                    builder.field("mappings", indexMappings.sourceAsMap());
+                    if (indexMappings == null) {
+                        builder.startObject("mappings").endObject();
+                    } else {
+                        builder.field("mappings", indexMappings.sourceAsMap());
+                    }
 
                     builder.startObject("settings");
                     Settings indexSettings = settings.get(index);

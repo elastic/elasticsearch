@@ -21,6 +21,7 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -53,7 +54,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         createIndex("index");
         GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
         assertThat(response.mappings().containsKey("index"), equalTo(true));
-        assertNull(response.mappings().get("index"));
+        assertEquals(MappingMetaData.EMPTY_MAPPINGS, response.mappings().get("index"));
     }
 
     private XContentBuilder getMappingForType(String type) throws IOException {

@@ -288,9 +288,9 @@ public class DeterministicTaskQueue {
      * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */
     public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
-
-        final Map<String, ThreadPool.Info> infos = new HashMap<>();
         return new ThreadPool(settings) {
+
+            private final Map<String, ThreadPool.Info> infos = new HashMap<>();
 
             {
                 stopCachedTimeThread();

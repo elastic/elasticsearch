@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDa
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
@@ -197,6 +198,7 @@ public class FunctionRegistry {
                 def(DayOfWeek.class, DayOfWeek::new, "DAY_OF_WEEK", "DAYOFWEEK", "DOW"),
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
+                def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
                 def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),

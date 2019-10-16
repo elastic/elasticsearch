@@ -24,7 +24,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -46,16 +45,11 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        if (context.innerHits().isEmpty()) {
+        if ((context.innerHits() != null && context.innerHits().getInnerHits().size() > 0) == false) {
             return;
         }
 
-        final InnerHitsContext innerHitsContext = new InnerHitsContext();
-        for (Map.Entry<String, InnerHitContextBuilder> entry : context.innerHits().entrySet()) {
-            entry.getValue().build(context, innerHitsContext);
-        }
-
-        for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHitsContext.getInnerHits().entrySet()) {
+        for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : context.innerHits().getInnerHits().entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHits = entry.getValue();
             TopDocsAndMaxScore[] topDocs = innerHits.topDocs(hits);
             for (int i = 0; i < hits.length; i++) {

@@ -44,7 +44,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     // the list of snapshot deletion request entries
     private final List<Entry> entries;
 
-    private SnapshotDeletionsInProgress(List<Entry> entries) {
+    public SnapshotDeletionsInProgress(List<Entry> entries) {
         this.entries = Collections.unmodifiableList(entries);
     }
 

@@ -81,6 +81,8 @@
   - is_true:    features.monitoring.available
   - is_true:    features.analytics.enabled
   - is_true:    features.analytics.available
+  - is_true:    features.enrich.available
+  - is_true:    features.enrich.enabled
   - is_true:    tagline
 
   - do:

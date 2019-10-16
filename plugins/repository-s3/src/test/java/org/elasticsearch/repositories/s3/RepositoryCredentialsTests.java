@@ -24,52 +24,27 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.AbstractRestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ACCESS_KEY_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.SECRET_KEY_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
 
-@SuppressForbidden(reason = "test requires to set a System property to allow insecure settings when running in IDE")
 public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
-
-    static {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            // required for client settings overwriting when running in IDE
-            System.setProperty("es.allow_insecure_settings", "true");
-            return null;
-        });
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -95,52 +70,11 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             .build();
     }
 
-    public void testRepositoryCredentialsOverrideSecureCredentials() {
-        final String repositoryName = "repo-creds-override";
-        final Settings.Builder repositorySettings = Settings.builder()
-            // repository settings for credentials override node secure settings
-            .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
-            .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret");
-
-        final String clientName = randomFrom("default", "other", null);
-        if (clientName != null) {
-            repositorySettings.put(S3Repository.CLIENT_NAME.getKey(), clientName);
-        }
-        createRepository(repositoryName, repositorySettings.build());
-
-        final RepositoriesService repositories = getInstanceFromNode(RepositoriesService.class);
-        assertThat(repositories.repository(repositoryName), notNullValue());
-        assertThat(repositories.repository(repositoryName), instanceOf(S3Repository.class));
-
-        final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
-        final AmazonS3 client = repository.createBlobStore().clientReference().client();
-        assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
-
-        final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
-        assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
-        assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
-
-        assertWarnings(
-            "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                + " See the breaking changes documentation for the next major version.",
-            "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the elasticsearch keystore for secure settings.",
-            "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                + " See the breaking changes documentation for the next major version.");
-    }
-
     public void testReinitSecureCredentials() {
         final String clientName = randomFrom("default", "other");
 
         final Settings.Builder repositorySettings = Settings.builder();
-        final boolean hasInsecureSettings = randomBoolean();
-        if (hasInsecureSettings) {
-            // repository settings for credentials override node secure settings
-            repositorySettings.put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key");
-            repositorySettings.put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret");
-        } else {
-            repositorySettings.put(S3Repository.CLIENT_NAME.getKey(), clientName);
-        }
+        repositorySettings.put(S3Repository.CLIENT_NAME.getKey(), clientName);
 
         final String repositoryName = "repo-reinit-creds";
         createRepository(repositoryName, repositorySettings.build());
@@ -155,10 +89,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
             final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
-            if (hasInsecureSettings) {
-                assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
-                assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
-            } else if ("other".equals(clientName)) {
+            if ("other".equals(clientName)) {
                 assertThat(credentials.getAWSAccessKeyId(), is("secure_other_key"));
                 assertThat(credentials.getAWSSecretKey(), is("secure_other_secret"));
             } else {
@@ -177,10 +108,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             plugin.reload(newSettings);
 
             // check the not-yet-closed client reference still has the same credentials
-            if (hasInsecureSettings) {
-                assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
-                assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
-            } else if ("other".equals(clientName)) {
+            if ("other".equals(clientName)) {
                 assertThat(credentials.getAWSAccessKeyId(), is("secure_other_key"));
                 assertThat(credentials.getAWSSecretKey(), is("secure_other_secret"));
             } else {
@@ -195,62 +123,9 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
             final AWSCredentials newCredentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
-            if (hasInsecureSettings) {
-                assertThat(newCredentials.getAWSAccessKeyId(), is("insecure_aws_key"));
-                assertThat(newCredentials.getAWSSecretKey(), is("insecure_aws_secret"));
-            } else {
-                assertThat(newCredentials.getAWSAccessKeyId(), is("new_secret_aws_key"));
-                assertThat(newCredentials.getAWSSecretKey(), is("new_secret_aws_secret"));
-            }
+            assertThat(newCredentials.getAWSAccessKeyId(), is("new_secret_aws_key"));
+            assertThat(newCredentials.getAWSSecretKey(), is("new_secret_aws_secret"));
         }
-
-        if (hasInsecureSettings) {
-            assertWarnings(
-                "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version.",
-                "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                    + " the elasticsearch keystore for secure settings.",
-                "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version.");
-        }
-    }
-
-    public void testInsecureRepositoryCredentials() throws Exception {
-        final String repositoryName = "repo-insecure-creds";
-        createRepository(repositoryName, Settings.builder()
-            .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
-            .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
-            .build());
-
-        final RestRequest fakeRestRequest = new FakeRestRequest();
-        fakeRestRequest.params().put("repository", repositoryName);
-        final RestGetRepositoriesAction action =
-            new RestGetRepositoriesAction(mock(RestController.class), getInstanceFromNode(SettingsFilter.class));
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<AssertionError> error = new AtomicReference<>();
-        action.handleRequest(fakeRestRequest, new AbstractRestChannel(fakeRestRequest, true) {
-            @Override
-            public void sendResponse(RestResponse response) {
-                try {
-                    String responseAsString = response.content().utf8ToString();
-                    assertThat(responseAsString, containsString(repositoryName));
-                    assertThat(responseAsString, not(containsString("insecure_")));
-                } catch (final AssertionError ex) {
-                    error.set(ex);
-                }
-                latch.countDown();
-            }
-        }, getInstanceFromNode(NodeClient.class));
-
-        latch.await();
-        if (error.get() != null) {
-            throw error.get();
-        }
-
-        assertWarnings(
-            "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the elasticsearch keystore for secure settings.");
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {

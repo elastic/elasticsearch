@@ -61,6 +61,10 @@ public abstract class InnerHitContextBuilder {
         doBuild(parentSearchContext, innerHitsContext);
     }
 
+    public InnerHitBuilder innerHitBuilder() {
+        return innerHitBuilder;
+    }
+
     protected abstract void doBuild(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException;
 
     public static void extractInnerHits(QueryBuilder query, Map<String, InnerHitContextBuilder> innerHitBuilders) {

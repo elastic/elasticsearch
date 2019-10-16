@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -77,42 +78,50 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
+    public void finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+                                 List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
+                                 MetaData metaData, Map<String, Object> userMetadata, ActionListener<SnapshotInfo> listener) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
         try {
-            MetaData.Builder builder = MetaData.builder(metaData);
-            for (IndexId indexId : indices) {
-                IndexMetaData index = metaData.index(indexId.getName());
-                IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(index);
-                // for a minimal restore we basically disable indexing on all fields and only create an index
-                // that is valid from an operational perspective. ie. it will have all metadata fields like version/
-                // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
-                ImmutableOpenMap<String, MappingMetaData> mappings = index.getMappings();
-                Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = mappings.iterator();
-                while (iterator.hasNext()) {
-                    ObjectObjectCursor<String, MappingMetaData> next = iterator.next();
-                    // we don't need to obey any routing here stuff is read-only anyway and get is disabled
-                    final String mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string()
-                        + " } }";
-                    indexMetadataBuilder.putMapping(next.key, mapping);
-                }
-                indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
-                    .put(SOURCE_ONLY.getKey(), true)
-                    .put("index.blocks.write", true)); // read-only!
-                indexMetadataBuilder.settingsVersion(1 + indexMetadataBuilder.settingsVersion());
-                builder.put(indexMetadataBuilder);
-            }
-            super.initializeSnapshot(snapshotId, indices, builder.build());
+            super.finalizeSnapshot(snapshotId, indices, startTime, failure, totalShards, shardFailures, repositoryStateId,
+                includeGlobalState, metadataToSnapshot(indices, metaData), userMetadata, listener);
         } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
+            listener.onFailure(ex);
         }
     }
 
+    private static MetaData metadataToSnapshot(List<IndexId> indices, MetaData metaData) throws IOException {
+        MetaData.Builder builder = MetaData.builder(metaData);
+        for (IndexId indexId : indices) {
+            IndexMetaData index = metaData.index(indexId.getName());
+            IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(index);
+            // for a minimal restore we basically disable indexing on all fields and only create an index
+            // that is valid from an operational perspective. ie. it will have all metadata fields like version/
+            // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
+            ImmutableOpenMap<String, MappingMetaData> mappings = index.getMappings();
+            Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = mappings.iterator();
+            while (iterator.hasNext()) {
+                ObjectObjectCursor<String, MappingMetaData> next = iterator.next();
+                // we don't need to obey any routing here stuff is read-only anyway and get is disabled
+                final String mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string()
+                    + " } }";
+                indexMetadataBuilder.putMapping(next.key, mapping);
+            }
+            indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
+                .put(SOURCE_ONLY.getKey(), true)
+                .put("index.blocks.write", true)); // read-only!
+            indexMetadataBuilder.settingsVersion(1 + indexMetadataBuilder.settingsVersion());
+            builder.put(indexMetadataBuilder);
+        }
+        return builder.build();
+    }
+
+
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             listener.onFailure(

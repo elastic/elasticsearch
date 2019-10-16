@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.FIPS_MODE_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TOKEN_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
@@ -77,6 +78,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         Map<String, Object> auditUsage = auditUsage(settings);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
+        Map<String, Object> fips140Usage = fips140Usage(settings);
 
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
@@ -87,7 +89,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
                 boolean enabled = enabledInSettings && licenseState.isSecurityDisabledByLicenseDefaults() == false;
                 var usage = new SecurityFeatureSetUsage(licenseState.isSecurityAvailable(), enabled,
                         realmsUsageRef.get(), rolesUsageRef.get(), roleMappingUsageRef.get(), sslUsage, auditUsage,
-                        ipFilterUsage, anonymousUsage, tokenServiceUsage, apiKeyServiceUsage);
+                        ipFilterUsage, anonymousUsage, tokenServiceUsage, apiKeyServiceUsage, fips140Usage);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             }
         };
@@ -167,5 +169,9 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
             return IPFilter.DISABLED_USAGE_STATS;
         }
         return ipFilter.usageStats();
+    }
+
+    static Map<String, Object> fips140Usage(Settings settings) {
+        return singletonMap("enabled", FIPS_MODE_ENABLED.get(settings));
     }
 }

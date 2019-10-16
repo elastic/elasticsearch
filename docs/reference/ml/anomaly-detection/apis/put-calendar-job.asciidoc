@@ -18,7 +18,7 @@ Adds an {anomaly-job} to a calendar.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-put-calendar-job-path-parms]]
 ==== {api-path-parms-title}
@@ -33,16 +33,15 @@ Adds an {anomaly-job} to a calendar.
 [[ml-put-calendar-job-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/calendars/planned-outages/jobs/total-requests
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:calendar_outages_openjob]
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "calendar_id": "planned-outages",
@@ -51,4 +50,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE

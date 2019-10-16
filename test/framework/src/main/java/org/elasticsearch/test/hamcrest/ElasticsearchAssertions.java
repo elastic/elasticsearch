@@ -221,8 +221,8 @@ public class ElasticsearchAssertions {
         Set<String> idsSet = new HashSet<>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(
-                    "id [" + hit.getId() + "] was found in search results but wasn't expected (type [" + hit.getType()
-                        + "], index [" + hit.getIndex() + "])" + shardStatus, idsSet.remove(hit.getId()),
+                    "id [" + hit.getId() + "] was found in search results but wasn't expected (index ["
+                        + hit.getIndex() + "])" + shardStatus, idsSet.remove(hit.getId()),
                     equalTo(true));
         }
         assertThat("Some expected ids were not found in search results: " + Arrays.toString(idsSet.toArray(new String[idsSet.size()])) + "."
@@ -257,8 +257,8 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertExists(GetResponse response) {
-        String message = String.format(Locale.ROOT, "Expected %s/%s/%s to exist, but does not",
-                response.getIndex(), response.getType(), response.getId());
+        String message = String.format(Locale.ROOT, "Expected %s/%s to exist, but does not",
+                response.getIndex(), response.getId());
         assertThat(message, response.isExists(), is(true));
     }
 
@@ -456,10 +456,6 @@ public class ElasticsearchAssertions {
      */
     public static Matcher<SearchHit> hasId(final String id) {
         return new ElasticsearchMatchers.SearchHitHasIdMatcher(id);
-    }
-
-    public static Matcher<SearchHit> hasType(final String type) {
-        return new ElasticsearchMatchers.SearchHitHasTypeMatcher(type);
     }
 
     public static Matcher<SearchHit> hasIndex(final String index) {

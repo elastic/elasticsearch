@@ -27,6 +27,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     public static final ParseField LEVEL = new ParseField("level");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField NODE_NAME = new ParseField("node_name");
+    public static final ParseField JOB_TYPE = new ParseField("job_type");
 
     protected static final <T extends AbstractAuditMessage> ConstructingObjectParser<T, Void> createParser(
             String name, AbstractAuditMessageFactory<T> messageFactory, ParseField resourceField) {
@@ -99,13 +100,17 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
         if (nodeName != null) {
             builder.field(NODE_NAME.getPreferredName(), nodeName);
         }
+        String jobType = getJobType();
+        if (jobType != null) {
+            builder.field(JOB_TYPE.getPreferredName(), jobType);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resourceId, message, level, timestamp, nodeName);
+        return Objects.hash(resourceId, message, level, timestamp, nodeName, getJobType());
     }
 
     @Override
@@ -122,8 +127,17 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
             Objects.equals(message, other.message) &&
             Objects.equals(level, other.level) &&
             Objects.equals(timestamp, other.timestamp) &&
-            Objects.equals(nodeName, other.nodeName);
+            Objects.equals(nodeName, other.nodeName) &&
+            Objects.equals(getJobType(), other.getJobType());
     }
 
+    /**
+     * @return job type string used to tell apart jobs of different types stored in the same index
+     */
+    public abstract String getJobType();
+
+    /**
+     * @return resource id field name used when storing a new message
+     */
     protected abstract String getResourceField();
 }

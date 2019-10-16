@@ -57,9 +57,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[cluster-nodes-hot-threads-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_nodes/hot_threads
 GET /_nodes/nodeId1,nodeId2/hot_threads
 --------------------------------------------------
-// CONSOLE

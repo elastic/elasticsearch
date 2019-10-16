@@ -97,7 +97,7 @@ public class SSLService {
     private final Map<String, SSLConfiguration> sslConfigurations;
 
     /**
-     * A mapping from a SSLConfiguration to a pre-built context.
+     * A mapping from an SSLConfiguration to a pre-built context.
      * <p>
      * This is managed separately to the {@link #sslConfigurations} map, so that a single configuration (by object equality)
      * always maps to the same {@link SSLContextHolder}, even if it is being used within a different context-name.
@@ -249,7 +249,7 @@ public class SSLService {
         String[] supportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
         if (configuration.verificationMode().isHostnameVerificationEnabled() && host != null) {
-            // By default, a SSLEngine will not perform hostname verification. In order to perform hostname verification
+            // By default, an SSLEngine will not perform hostname verification. In order to perform hostname verification
             // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
             // man in the middle attacks for all of our connections.
             parameters.setEndpointIdentificationAlgorithm("HTTPS");
@@ -299,7 +299,7 @@ public class SSLService {
         Objects.requireNonNull(sslConfiguration, "SSL Configuration cannot be null");
         SSLContextHolder holder = sslContexts.get(sslConfiguration);
         if (holder == null) {
-            throw new IllegalArgumentException("did not find a SSLContext for [" + sslConfiguration.toString() + "]");
+            throw new IllegalArgumentException("did not find an SSLContext for [" + sslConfiguration.toString() + "]");
         }
         return holder;
     }
@@ -632,7 +632,7 @@ public class SSLService {
         while (sessionIds.hasMoreElements()) {
             byte[] sessionId = sessionIds.nextElement();
             SSLSession session = sslSessionContext.getSession(sessionId);
-            // a SSLSession could be null as there is no lock while iterating, the session cache
+            // an SSLSession could be null as there is no lock while iterating, the session cache
             // could have evicted a value, the session could be timed out, or the session could
             // have already been invalidated, which removes the value from the session cache in the
             // sun implementation

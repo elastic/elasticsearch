@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
 import org.junit.Before;
 
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class FlatObjectSearchTests extends ESSingleNodeTestCase {
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FlattenedMapperPlugin.class, XPackPlugin.class);
+        return pluginList(FlattenedMapperPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     @Before
@@ -233,7 +233,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(2, 100);
         int precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
 
-        BulkRequestBuilder bulkRequest = client().prepareBulk("test", "_doc")
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
         // Add a random number of documents containing a flat object field, plus
@@ -300,7 +300,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testTermsAggregation() throws IOException {
-        BulkRequestBuilder bulkRequest = client().prepareBulk("test", "_doc")
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 5; i++) {
             bulkRequest.add(client().prepareIndex()

@@ -25,7 +25,7 @@ An example of using this processor for nesting pipelines would be:
 
 Define an inner pipeline:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/pipelineA
 {
@@ -40,11 +40,10 @@ PUT _ingest/pipeline/pipelineA
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Define another pipeline that uses the previously defined inner pipeline:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/pipelineB
 {
@@ -64,29 +63,26 @@ PUT _ingest/pipeline/pipelineB
   ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Now indexing a document while applying the outer pipeline will see the inner pipeline executed
 from the outer pipeline:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /myindex/_doc/1?pipeline=pipelineB
 {
   "field": "value"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Response from the index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "myindex",
-  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "result": "created",

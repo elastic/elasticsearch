@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
@@ -72,11 +73,11 @@ public class RetryTests extends ESTestCase {
 
     private BulkRequest createBulkRequest() {
         BulkRequest request = new BulkRequest();
-        request.add(new UpdateRequest("shop", "products", "1"));
-        request.add(new UpdateRequest("shop", "products", "2"));
-        request.add(new UpdateRequest("shop", "products", "3"));
-        request.add(new UpdateRequest("shop", "products", "4"));
-        request.add(new UpdateRequest("shop", "products", "5"));
+        request.add(new UpdateRequest("shop", "1"));
+        request.add(new UpdateRequest("shop", "2"));
+        request.add(new UpdateRequest("shop", "3"));
+        request.add(new UpdateRequest("shop", "4"));
+        request.add(new UpdateRequest("shop", "5"));
         return request;
     }
 
@@ -226,11 +227,12 @@ public class RetryTests extends ESTestCase {
         }
 
         private BulkItemResponse successfulResponse() {
-            return new BulkItemResponse(1, OpType.DELETE, new DeleteResponse(null, null, null, 0, 0, 0, false));
+            return new BulkItemResponse(1, OpType.DELETE, new DeleteResponse(
+                new ShardId("test", "test", 0), "test", 0, 0, 0, false));
         }
 
         private BulkItemResponse failedResponse() {
-            return new BulkItemResponse(1, OpType.INDEX, new BulkItemResponse.Failure("test", "test", "1",
+            return new BulkItemResponse(1, OpType.INDEX, new BulkItemResponse.Failure("test", "1",
                 new EsRejectedExecutionException("pool full")));
         }
     }

@@ -98,7 +98,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             refresh();
         }
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(14L));
+            assertThat(client().prepareGet("test", "1").get().getVersion(), equalTo(14L));
         }
 
         // deleting with a lower version fails.
@@ -146,7 +146,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             refresh();
         }
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(14L));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().getVersion(), equalTo(14L));
         }
 
         // deleting with a lower version fails.
@@ -256,7 +256,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            final GetResponse response = client().prepareGet("test", "type", "1").get();
+            final GetResponse response = client().prepareGet("test", "1").get();
             assertThat(response.getSeqNo(), equalTo(1L));
             assertThat(response.getPrimaryTerm(), equalTo(1L));
         }
@@ -313,7 +313,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(0).setIfPrimaryTerm(1), VersionConflictEngineException.class);
 
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(2L));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().getVersion(), equalTo(2L));
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -467,8 +467,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                     sb.append(deleteResponse.getIndex());
                     sb.append(" id=");
                     sb.append(deleteResponse.getId());
-                    sb.append(" type=");
-                    sb.append(deleteResponse.getType());
                     sb.append(" version=");
                     sb.append(deleteResponse.getVersion());
                     sb.append(" found=");
@@ -479,8 +477,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                     sb.append(indexResponse.getIndex());
                     sb.append(" id=");
                     sb.append(indexResponse.getId());
-                    sb.append(" type=");
-                    sb.append(indexResponse.getType());
                     sb.append(" version=");
                     sb.append(indexResponse.getVersion());
                     sb.append(" created=");
@@ -667,7 +663,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             } else {
                 expected = -1;
             }
-            long actualVersion = client().prepareGet("test", "type", id).execute().actionGet().getVersion();
+            long actualVersion = client().prepareGet("test", id).execute().actionGet().getVersion();
             if (actualVersion != expected) {
                 logger.error("--> FAILED: idVersion={} actualVersion= {}", idVersion, actualVersion);
                 failed = true;
@@ -735,7 +731,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // Real-time get should reflect delete:
         assertThat("doc should have been deleted",
                 client()
-                        .prepareGet("test", "type", "id")
+                        .prepareGet("test", "id")
                         .execute()
                         .actionGet()
                         .getVersion(),
@@ -756,7 +752,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // Real-time get should still reflect delete:
         assertThat("doc should have been deleted",
                 client()
-                        .prepareGet("test", "type", "id")
+                        .prepareGet("test", "id")
                         .execute()
                         .actionGet()
                         .getVersion(),
@@ -804,7 +800,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // Real-time get should reflect delete even though index.gc_deletes is 0:
         assertThat("doc should have been deleted",
                 client()
-                        .prepareGet("test", "type", "id")
+                        .prepareGet("test", "id")
                         .execute()
                         .actionGet()
                         .getVersion(),

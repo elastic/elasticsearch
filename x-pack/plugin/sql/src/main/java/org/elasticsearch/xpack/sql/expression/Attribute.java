@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
 import java.util.Objects;
@@ -87,19 +88,33 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withLocation(Source source) {
-        return Objects.equals(source(), source) ? this : clone(source, name(), qualifier(), nullable(), id(), synthetic());
+        return Objects.equals(source(), source) ? this : clone(source, name(), dataType(), qualifier(), nullable(), id(), synthetic());
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier(), qualifier) ? this : clone(source(), name(), qualifier, nullable(), id(), synthetic());
+        return Objects.equals(qualifier(), qualifier) ? this : clone(source(), name(), dataType(), qualifier, nullable(), id(),
+                synthetic());
+    }
+
+    public Attribute withName(String name) {
+        return Objects.equals(name(), name) ? this : clone(source(), name, dataType(), qualifier(), nullable(), id(), synthetic());
     }
 
     public Attribute withNullability(Nullability nullability) {
-        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), qualifier(), nullability, id(), synthetic());
+        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), dataType(), qualifier(), nullability, id(),
+                synthetic());
     }
 
-    protected abstract Attribute clone(Source source, String name, String qualifier, Nullability nullability, ExpressionId id,
-                                       boolean synthetic);
+    public Attribute withDataType(DataType type) {
+        return Objects.equals(dataType(), type) ? this : clone(source(), name(), type, qualifier(), nullable(), id(), synthetic());
+    }
+
+    public Attribute withId(ExpressionId id) {
+        return clone(source(), name(), dataType(), qualifier(), nullable(), id, synthetic());
+    }
+
+    protected abstract Attribute clone(Source source, String name, DataType type, String qualifier, Nullability nullability,
+            ExpressionId id, boolean synthetic);
 
     @Override
     public Attribute toAttribute() {

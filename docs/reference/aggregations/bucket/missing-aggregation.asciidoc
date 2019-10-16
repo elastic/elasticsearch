@@ -5,7 +5,7 @@ A field data based single bucket aggregation, that creates a bucket of all docum
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -16,14 +16,13 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 In the above example, we get the total number of products that do not have a price.
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

@@ -104,8 +104,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -194,6 +196,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final BlobPath basePath;
 
+    // Maximum number of concurrent file writes that should be scheduled on the SNAPSHOT thread-pool
+    private final int maxConcurrentWrites;
+
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
@@ -222,6 +227,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             IndexMetaData::fromXContent, namedXContentRegistry, compress);
         snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
             SnapshotInfo::fromXContentInternal, namedXContentRegistry, compress);
+        maxConcurrentWrites = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
     }
 
     @Override
@@ -953,11 +959,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
-        final StepListener<String> snapshotDoneListener = new StepListener<>();
-        snapshotDoneListener.whenComplete(listener::onResponse, e -> {
+        final ActionListener<String> snapshotDoneListener = ActionListener.wrap(listener::onResponse, e -> {
             snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.stackTrace(e));
-            listener.onFailure(e instanceof IndexShardSnapshotFailedException ? (IndexShardSnapshotFailedException) e
-                : new IndexShardSnapshotFailedException(store.shardId(), e));
+            listener.onFailure(e instanceof IndexShardSnapshotFailedException ? e : new IndexShardSnapshotFailedException(shardId, e));
         });
         try {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
@@ -980,7 +984,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
-            ArrayList<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
+            final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new LinkedBlockingQueue<>();
             store.incRef();
             final Collection<String> fileNames;
             final Store.MetadataSnapshot metadataFromStore;
@@ -1099,42 +1103,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
             }
-            final GroupedActionListener<Void> filesListener =
-                new GroupedActionListener<>(allFilesUploadedListener, indexIncrementalFileCount);
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-            // Flag to signal that the snapshot has been aborted/failed so we can stop any further blob uploads from starting
-            final AtomicBoolean alreadyFailed = new AtomicBoolean();
-            for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
-                executor.execute(new ActionRunnable<>(filesListener) {
-                    @Override
-                    protected void doRun() {
-                        try {
-                            if (alreadyFailed.get() == false) {
-                                if (store.tryIncRef()) {
-                                    try {
-                                        snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
-                                    } finally {
-                                        store.decRef();
-                                    }
-                                } else if (snapshotStatus.isAborted()) {
-                                    throw new IndexShardSnapshotFailedException(shardId, "Aborted");
-                                } else {
-                                    assert false : "Store was closed before aborting the snapshot";
-                                    throw new IllegalStateException("Store is closed already");
-                                }
+            final int workers = Math.min(maxConcurrentWrites, indexIncrementalFileCount);
+            final GroupedActionListener<Void> filesListener = new GroupedActionListener<>(allFilesUploadedListener, workers);
+            for (int i = 0; i < workers; ++i) {
+                executor.execute(ActionRunnable.run(filesListener, () -> {
+                    try {
+                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
+                        if (snapshotFileInfo != null) {
+                            store.incRef();
+                            try {
+                                do {
+                                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
+                                    snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
+                                } while (snapshotFileInfo != null);
+                            } finally {
+                                store.decRef();
                             }
-                            filesListener.onResponse(null);
-                        } catch (IOException e) {
-                            throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
                         }
+                    } catch (Exception e) {
+                        filesToSnapshot.clear(); // Stop uploading the remaining files if we run into any exception
+                        throw e;
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        alreadyFailed.set(true);
-                        super.onFailure(e);
-                    }
-                });
+                    filesListener.onResponse(null);
+                }));
             }
         } catch (Exception e) {
             snapshotDoneListener.onFailure(e);

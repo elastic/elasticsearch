@@ -309,7 +309,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public Info info(String name) {
-                throw new UnsupportedOperationException();
+                return new Info(name, ThreadPoolType.FIXED, 1);
             }
 
             @Override

@@ -9,6 +9,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -20,21 +21,26 @@ public class AnalyticsResult implements ToXContentObject {
     public static final ParseField TYPE = new ParseField("analytics_result");
 
     public static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
+    public static final ParseField INFERENCE_MODEL = new ParseField("inference_model");
 
     public static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new AnalyticsResult((RowResults) a[0], (Integer) a[1]));
+            a -> new AnalyticsResult((RowResults) a[0], (Integer) a[1], (TrainedModelDefinition) a[2]));
 
     static {
         PARSER.declareObject(optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
         PARSER.declareInt(optionalConstructorArg(), PROGRESS_PERCENT);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TrainedModelDefinition.STRICT_PARSER.apply(p, null).build(),
+            INFERENCE_MODEL);
     }
 
     private final RowResults rowResults;
     private final Integer progressPercent;
+    private final TrainedModelDefinition inferenceModel;
 
-    public AnalyticsResult(RowResults rowResults, Integer progressPercent) {
+    public AnalyticsResult(RowResults rowResults, Integer progressPercent, TrainedModelDefinition inferenceModel) {
         this.rowResults = rowResults;
         this.progressPercent = progressPercent;
+        this.inferenceModel = inferenceModel;
     }
 
     public RowResults getRowResults() {
@@ -45,6 +51,10 @@ public class AnalyticsResult implements ToXContentObject {
         return progressPercent;
     }
 
+    public TrainedModelDefinition getInferenceModel() {
+        return inferenceModel;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -53,6 +63,9 @@ public class AnalyticsResult implements ToXContentObject {
         }
         if (progressPercent != null) {
             builder.field(PROGRESS_PERCENT.getPreferredName(), progressPercent);
+        }
+        if (inferenceModel != null) {
+            builder.field(INFERENCE_MODEL.getPreferredName(), inferenceModel);
         }
         builder.endObject();
         return builder;
@@ -68,11 +81,13 @@ public class AnalyticsResult implements ToXContentObject {
         }
 
         AnalyticsResult that = (AnalyticsResult) other;
-        return Objects.equals(rowResults, that.rowResults) && Objects.equals(progressPercent, that.progressPercent);
+        return Objects.equals(rowResults, that.rowResults)
+            && Objects.equals(progressPercent, that.progressPercent)
+            && Objects.equals(inferenceModel, that.inferenceModel);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rowResults, progressPercent);
+        return Objects.hash(rowResults, progressPercent, inferenceModel);
     }
 }

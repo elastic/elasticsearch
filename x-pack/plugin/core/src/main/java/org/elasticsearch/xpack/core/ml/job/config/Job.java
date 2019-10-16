@@ -77,6 +77,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField MODEL_SNAPSHOT_MIN_VERSION = new ParseField("model_snapshot_min_version");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
     public static final ParseField DELETING = new ParseField("deleting");
+    public static final ParseField ALLOW_LAZY_OPEN = new ParseField("allow_lazy_open");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
@@ -127,6 +128,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         parser.declareStringOrNull(Builder::setModelSnapshotMinVersion, MODEL_SNAPSHOT_MIN_VERSION);
         parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
         parser.declareBoolean(Builder::setDeleting, DELETING);
+        parser.declareBoolean(Builder::setAllowLazyOpen, ALLOW_LAZY_OPEN);
 
         return parser;
     }
@@ -159,13 +161,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final Version modelSnapshotMinVersion;
     private final String resultsIndexName;
     private final boolean deleting;
+    private final boolean allowLazyOpen;
 
     private Job(String jobId, String jobType, Version jobVersion, List<String> groups, String description,
                 Date createTime, Date finishedTime,
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
-                String modelSnapshotId, Version modelSnapshotMinVersion, String resultsIndexName, boolean deleting) {
+                String modelSnapshotId, Version modelSnapshotMinVersion, String resultsIndexName, boolean deleting, boolean allowLazyOpen) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -187,6 +190,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;
         this.resultsIndexName = resultsIndexName;
         this.deleting = deleting;
+        this.allowLazyOpen = allowLazyOpen;
     }
 
     public Job(StreamInput in) throws IOException {
@@ -229,6 +233,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
         resultsIndexName = in.readString();
         deleting = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            allowLazyOpen = in.readBoolean();
+        } else {
+            allowLazyOpen = false;
+        }
     }
 
     /**
@@ -398,6 +407,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return deleting;
     }
 
+    public boolean allowLazyOpen() {
+        return allowLazyOpen;
+    }
+
     /**
      * Get all input data fields mentioned in the job configuration,
      * namely analysis fields and the time field.
@@ -495,6 +508,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
         out.writeString(resultsIndexName);
         out.writeBoolean(deleting);
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            out.writeBoolean(allowLazyOpen);
+        }
     }
 
     @Override
@@ -559,6 +575,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (deleting) {
             builder.field(DELETING.getPreferredName(), deleting);
         }
+        builder.field(ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
         return builder;
     }
 
@@ -592,7 +609,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                 && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
                 && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-                && Objects.equals(this.deleting, that.deleting);
+                && Objects.equals(this.deleting, that.deleting)
+                && Objects.equals(this.allowLazyOpen, that.allowLazyOpen);
     }
 
     @Override
@@ -600,7 +618,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting);
+                modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen);
     }
 
     // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -648,6 +666,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private Version modelSnapshotMinVersion;
         private String resultsIndexName;
         private boolean deleting;
+        private boolean allowLazyOpen;
 
         public Builder() {
         }
@@ -677,6 +696,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.modelSnapshotMinVersion = job.getModelSnapshotMinVersion();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
             this.deleting = job.isDeleting();
+            this.allowLazyOpen = job.allowLazyOpen();
         }
 
         public Builder(StreamInput in) throws IOException {
@@ -718,6 +738,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
             resultsIndexName = in.readOptionalString();
             deleting = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+                allowLazyOpen = in.readBoolean();
+            }
         }
 
         public Builder setId(String id) {
@@ -838,6 +861,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
+        public Builder setAllowLazyOpen(boolean allowLazyOpen) {
+            this.allowLazyOpen = allowLazyOpen;
+            return this;
+        }
+
         /**
          * Return the list of fields that have been set and are invalid to
          * be set when the job is created e.g. model snapshot Id should not
@@ -912,6 +940,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
             out.writeOptionalString(resultsIndexName);
             out.writeBoolean(deleting);
+            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+                out.writeBoolean(allowLazyOpen);
+            }
         }
 
         @Override
@@ -972,6 +1003,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (deleting) {
                 builder.field(DELETING.getPreferredName(), deleting);
             }
+            if (allowLazyOpen) {
+                builder.field(ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
+            }
 
             builder.endObject();
             return builder;
@@ -1002,7 +1036,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                     && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
                     && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-                    && Objects.equals(this.deleting, that.deleting);
+                    && Objects.equals(this.deleting, that.deleting)
+                    && Objects.equals(this.allowLazyOpen, that.allowLazyOpen);
         }
 
         @Override
@@ -1010,7 +1045,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription,
                     createTime, finishedTime, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
-                    modelSnapshotMinVersion, resultsIndexName, deleting);
+                    modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen);
         }
 
         /**
@@ -1137,7 +1172,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     id, jobType, jobVersion, groups, description, createTime, finishedTime,
                     analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                    modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting);
+                    modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen);
         }
 
         private void checkValidBackgroundPersistInterval() {

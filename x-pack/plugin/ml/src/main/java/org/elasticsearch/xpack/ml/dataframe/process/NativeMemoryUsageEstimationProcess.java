@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 
 import java.io.InputStream;
@@ -23,7 +24,7 @@ public class NativeMemoryUsageEstimationProcess extends AbstractNativeAnalyticsP
                                                  OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
                                                  Consumer<String> onProcessCrash) {
         super(NAME, MemoryUsageEstimationResult.PARSER, jobId, logStream, processInStream, processOutStream, processRestoreStream,
-            numberOfFields, filesToDelete, onProcessCrash);
+            numberOfFields, filesToDelete, onProcessCrash, NamedXContentRegistry.EMPTY);
     }
 
     @Override

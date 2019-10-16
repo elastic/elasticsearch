@@ -146,6 +146,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             // doCreateTestQueryBuilder)
             queryBuilder = (HasParentQueryBuilder) queryBuilder.rewrite(context);
 
+            assertNotNull(context);
             Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
             assertTrue(innerHitBuilders.containsKey(queryBuilder.innerHit().getName()));

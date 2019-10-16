@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -43,6 +43,10 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
+import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
@@ -436,8 +440,13 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteTransformAction.INSTANCE,
                 GetTransformAction.INSTANCE,
                 GetTransformStatsAction.INSTANCE,
-                PreviewTransformAction.INSTANCE
-        );
+                PreviewTransformAction.INSTANCE,
+                // enrich
+                DeleteEnrichPolicyAction.INSTANCE,
+                ExecuteEnrichPolicyAction.INSTANCE,
+                GetEnrichPolicyAction.INSTANCE,
+                PutEnrichPolicyAction.INSTANCE
+            );
     }
 
     @Override
@@ -613,7 +622,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         TransformState::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(TransformField.TASK_NAME),
                         TransformState::fromXContent)
-            );
+        );
     }
 
     @Override

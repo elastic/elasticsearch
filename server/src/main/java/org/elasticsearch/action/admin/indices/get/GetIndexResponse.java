@@ -31,8 +31,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -41,8 +39,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response for a get index action.
@@ -93,10 +89,9 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
                     mappingsMapBuilder.put(index, new MappingMetaData(in));
                 }
-            }
-            else {
+            } else {
                 boolean hasMapping = in.readBoolean();
-                mappingsMapBuilder.put(index, hasMapping ? new MappingMetaData(in) : null);
+                mappingsMapBuilder.put(index, hasMapping ? new MappingMetaData(in) : MappingMetaData.EMPTY_MAPPINGS);
             }
         }
         mappings = mappingsMapBuilder.build();
@@ -205,15 +200,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         for (ObjectObjectCursor<String, MappingMetaData> indexEntry : mappings) {
             out.writeString(indexEntry.key);
             if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(indexEntry.value == null ? 0 : 1);
+                out.writeVInt(indexEntry.value == MappingMetaData.EMPTY_MAPPINGS ? 0 : 1);
                 if (indexEntry.value != null) {
                     out.writeString(MapperService.SINGLE_MAPPING_NAME);
                     indexEntry.value.writeTo(out);
                 }
-            }
-            else {
-                out.writeBoolean(indexEntry.value != null);
-                if (indexEntry.value != null) {
+            } else {
+                out.writeBoolean(indexEntry.value != MappingMetaData.EMPTY_MAPPINGS);
+                if (indexEntry.value != MappingMetaData.EMPTY_MAPPINGS) {
                     indexEntry.value.writeTo(out);
                 }
             }
@@ -255,12 +249,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     builder.endObject();
 
                     MappingMetaData indexMappings = mappings.get(index);
-                    if (indexMappings != null) {
-                        builder.field("mappings", indexMappings.sourceAsMap());
-                    }
-                    else {
-                        builder.startObject("mappings").endObject();
-                    }
+                    builder.field("mappings", indexMappings.sourceAsMap());
 
                     builder.startObject("settings");
                     Settings indexSettings = settings.get(index);
@@ -281,64 +270,6 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
         builder.endObject();
         return builder;
-    }
-
-    private static List<AliasMetaData> parseAliases(XContentParser parser) throws IOException {
-        List<AliasMetaData> indexAliases = new ArrayList<>();
-        // We start at START_OBJECT since parseIndexEntry ensures that
-        while (parser.nextToken() != Token.END_OBJECT) {
-            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-            indexAliases.add(AliasMetaData.Builder.fromXContent(parser));
-        }
-        return indexAliases;
-    }
-
-    private static IndexEntry parseIndexEntry(XContentParser parser) throws IOException {
-        List<AliasMetaData> indexAliases = null;
-        MappingMetaData indexMappings = null;
-        Settings indexSettings = null;
-        Settings indexDefaultSettings = null;
-        // We start at START_OBJECT since fromXContent ensures that
-        while (parser.nextToken() != Token.END_OBJECT) {
-            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-            parser.nextToken();
-            if (parser.currentToken() == Token.START_OBJECT) {
-                switch (parser.currentName()) {
-                    case "aliases":
-                        indexAliases = parseAliases(parser);
-                        break;
-                    case "mappings":
-                        indexMappings = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, parser.map());
-                        break;
-                    case "settings":
-                        indexSettings = Settings.fromXContent(parser);
-                        break;
-                    case "defaults":
-                        indexDefaultSettings = Settings.fromXContent(parser);
-                        break;
-                    default:
-                        parser.skipChildren();
-                }
-            } else if (parser.currentToken() == Token.START_ARRAY) {
-                parser.skipChildren();
-            }
-        }
-        return new IndexEntry(indexAliases, indexMappings, indexSettings, indexDefaultSettings);
-    }
-
-    // This is just an internal container to make stuff easier for returning
-    private static class IndexEntry {
-        List<AliasMetaData> indexAliases = new ArrayList<>();
-        MappingMetaData indexMappings = null;
-        Settings indexSettings = Settings.EMPTY;
-        Settings indexDefaultSettings = Settings.EMPTY;
-        IndexEntry(List<AliasMetaData> indexAliases, MappingMetaData indexMappings,
-                   Settings indexSettings, Settings indexDefaultSettings) {
-            if (indexAliases != null) this.indexAliases = indexAliases;
-            if (indexMappings != null) this.indexMappings = indexMappings;
-            if (indexSettings != null) this.indexSettings = indexSettings;
-            if (indexDefaultSettings != null) this.indexDefaultSettings = indexDefaultSettings;
-        }
     }
 
     @Override

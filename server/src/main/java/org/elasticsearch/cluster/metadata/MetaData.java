@@ -393,8 +393,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     @SuppressWarnings("unchecked")
-    private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) throws IOException {
-        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE || mappingMetaData == null) {
+    private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) {
+        if (mappingMetaData == null) {
+            return MappingMetaData.EMPTY_MAPPINGS;
+        }
+        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
             return mappingMetaData;
         }
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetaData.source().compressedReference(), true).v2();

@@ -56,20 +56,16 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
     }
 
     public static MappingMetaData createMappingsForIndex() {
-        try {
-            Map<String, Object> mappings = new HashMap<>();
-            if (rarely() == false) { // rarely have no fields
-                mappings.put("field", randomFieldMapping());
-                if (randomBoolean()) {
-                    mappings.put("field2", randomFieldMapping());
-                }
-                String typeName = MapperService.SINGLE_MAPPING_NAME;
-                return new MappingMetaData(typeName, mappings);
+        Map<String, Object> mappings = new HashMap<>();
+        if (rarely() == false) { // rarely have no fields
+            mappings.put("field", randomFieldMapping());
+            if (randomBoolean()) {
+                mappings.put("field2", randomFieldMapping());
             }
-            return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappings);
-        } catch (IOException e) {
-            throw new AssertionError("shouldn't have failed " + e);
+            String typeName = MapperService.SINGLE_MAPPING_NAME;
+            return new MappingMetaData(typeName, mappings);
         }
+        return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappings);
     }
 
     @Override

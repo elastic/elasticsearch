@@ -57,14 +57,12 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                     String type = in.readString();
                     assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got [" + type + "]";
                     indexMapBuilder.put(index, new MappingMetaData(in));
+                } else {
+                    indexMapBuilder.put(index, MappingMetaData.EMPTY_MAPPINGS);
                 }
-                else {
-                    indexMapBuilder.put(index, null);
-                }
-            }
-            else {
+            } else {
                 boolean hasMapping = in.readBoolean();
-                indexMapBuilder.put(index, hasMapping ? new MappingMetaData(in) : null);
+                indexMapBuilder.put(index, hasMapping ? new MappingMetaData(in) : MappingMetaData.EMPTY_MAPPINGS);
             }
         }
         mappings = indexMapBuilder.build();
@@ -84,15 +82,14 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         for (ObjectObjectCursor<String, MappingMetaData> indexEntry : mappings) {
             out.writeString(indexEntry.key);
             if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(indexEntry.value == null ? 0 : 1);
+                out.writeVInt(indexEntry.value == MappingMetaData.EMPTY_MAPPINGS ? 0 : 1);
                 if (indexEntry.value != null) {
                     out.writeString(MapperService.SINGLE_MAPPING_NAME);
                     indexEntry.value.writeTo(out);
                 }
-            }
-            else {
-                out.writeBoolean(indexEntry.value != null);
-                if (indexEntry.value != null) {
+            } else {
+                out.writeBoolean(indexEntry.value != MappingMetaData.EMPTY_MAPPINGS);
+                if (indexEntry.value != MappingMetaData.EMPTY_MAPPINGS) {
                     indexEntry.value.writeTo(out);
                 }
             }
@@ -101,18 +98,9 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-
         for (final ObjectObjectCursor<String, MappingMetaData> indexEntry : getMappings()) {
             builder.startObject(indexEntry.key);
-            {
-                MappingMetaData mappings = indexEntry.value;
-                if (mappings == null) {
-                    // no mappings yet
-                    builder.startObject(MAPPINGS.getPreferredName()).endObject();
-                } else {
-                    builder.field(MAPPINGS.getPreferredName(), mappings.sourceAsMap());
-                }
-            }
+            builder.field(MAPPINGS.getPreferredName(), indexEntry.value.sourceAsMap());
             builder.endObject();
         }
         return builder;

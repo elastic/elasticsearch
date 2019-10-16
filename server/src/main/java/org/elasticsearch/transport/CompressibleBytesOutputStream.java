@@ -19,8 +19,9 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -37,7 +38,7 @@ import java.util.zip.DeflaterOutputStream;
  *
  * {@link CompressibleBytesOutputStream#materializeBytes()} should be called when all the bytes have been
  * written to this stream. If compression is enabled, the proper EOS bytes will be written at that point.
- * The underlying {@link BytesReference} will be returned.
+ * The underlying {@link AbstractBytesReference} will be returned.
  *
  * {@link CompressibleBytesOutputStream#close()} will NOT close the underlying stream. The byte stream passed
  * in the constructor must be closed individually.

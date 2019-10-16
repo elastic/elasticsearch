@@ -56,11 +56,11 @@ final class JvmErgonomics {
         final Map<String, Optional<String>> finalJvmOptions = finalJvmOptions(userDefinedJvmOptions);
         final long heapSize = extractHeapSize(finalJvmOptions);
         final Map<String, String> systemProperties = extractSystemProperties(userDefinedJvmOptions);
-        if (systemProperties.containsKey("io.netty.allocator.type") == false) {
+        if (systemProperties.containsKey("es.unsafe.use_unpooled_allocator") == false) {
             if (heapSize <= 1 << 30) {
-                ergonomicChoices.add("-Dio.netty.allocator.type=unpooled");
+                ergonomicChoices.add("-Des.unsafe.use_unpooled_allocator=true");
             } else {
-                ergonomicChoices.add("-Dio.netty.allocator.type=pooled");
+                ergonomicChoices.add("-Des.unsafe.use_unpooled_allocator=false");
             }
         }
         final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);

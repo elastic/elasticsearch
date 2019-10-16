@@ -30,12 +30,15 @@ public class NettyAllocator {
 
     public static final ByteBufAllocator ALLOCATOR;
 
+    private static final String USE_UNPOOLED = "es.unsafe.use_unpooled_allocator";
+    private static final String USE_NETTY_DEFAULT = "es.unsafe.use_netty_default_allocator";
+
     static {
-        if (Booleans.parseBoolean(System.getProperty("es.unsafe.use_netty_default_allocator"), false)) {
+        if (Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT), false)) {
             ALLOCATOR = ByteBufAllocator.DEFAULT;
         } else {
             ByteBufAllocator delegate;
-            if ("unpooled".equals(System.getProperty("io.netty.allocator.type"))) {
+            if (Booleans.parseBoolean(System.getProperty(USE_UNPOOLED), false)) {
                 delegate = UnpooledByteBufAllocator.DEFAULT;
             } else {
                 int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();

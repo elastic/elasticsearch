@@ -24,11 +24,7 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.io.StringReader;
 
 import static org.elasticsearch.cli.Terminal.SystemTerminal.readLineToCharArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -175,39 +171,28 @@ public class TerminalTests extends ESTestCase {
     }
 
     public void testSystemTerminalLineExceedsMaxCharacters() throws Exception {
-        Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
         expectedException.expect(RuntimeException.class);
         expectedException.expectMessage("Input exceeded maximum length of 10");
         // read from an input stream to a character array
-        byte[] source = "hellohellohello!\n".getBytes(StandardCharsets.UTF_8);
-        try (InputStream stream = new ByteArrayInputStream(source);
-             InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+        try (StringReader reader = new StringReader("hellohellohello!\n")) {
             readLineToCharArray(reader, 10);
         }
     }
 
     private void assertRead(String source, String expected) {
-        Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
-        try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
-             InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+        try (StringReader reader = new StringReader(source)) {
             char[] result = readLineToCharArray(reader, 10);
             assertThat(result, equalTo(expected.toCharArray()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
     private void assertReadLines(String source, String... expected) {
-        Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
-        try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
-             InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+        try (StringReader reader = new StringReader(source)) {
             char[] result;
             for (String exp : expected) {
                 result = readLineToCharArray(reader, 10);
                 assertThat(result, equalTo(exp.toCharArray()));
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 

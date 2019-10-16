@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48085")
 public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String NUMERICAL_FEATURE_FIELD = "feature";
@@ -81,7 +83,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -141,7 +143,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -199,7 +201,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -259,14 +261,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
 
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
-            DataFrameAnalyticsState state = getAnalyticsStats(jobId).get(0).getState();
+            DataFrameAnalyticsState state = getAnalyticsStats(jobId).getState();
             assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
                 equalTo(DataFrameAnalyticsState.STOPPED))));
         });

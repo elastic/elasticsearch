@@ -310,6 +310,23 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=quarter}, {v=int}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
     }
 
+    public void testTranslateDateDiff_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT int FROM test WHERE DATE_DIFF('week',date, date) > '2018-09-04'::date");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.dateDiff(" +
+                "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1),InternalSqlScriptUtils.docValue(doc,params.v2)," +
+                "params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))",
+            sc.script().toString());
+        assertEquals("[{v=week}, {v=date}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
+    }
+
     public void testTranslateDateTrunc_WhereClause_Painless() {
         LogicalPlan p = plan("SELECT int FROM test WHERE DATE_TRUNC('month', date) > '2018-09-04'::date");
         assertTrue(p instanceof Project);

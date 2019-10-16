@@ -32,7 +32,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -696,7 +695,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     /**
      * Attempts to a decode a message from the provided bytes. If a full message is not available, null is
-     * returned. If the message is a ping, an empty {@link AbstractBytesReference} will be returned.
+     * returned. If the message is a ping, an empty {@link BytesReference} will be returned.
      *
      * @param networkBytes the will be read
      * @return the message decoded

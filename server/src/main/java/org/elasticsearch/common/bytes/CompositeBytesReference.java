@@ -29,7 +29,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * A composite {@link AbstractBytesReference} that allows joining multiple bytes references
+ * A composite {@link BytesReference} that allows joining multiple bytes references
  * into one without copying.
  *
  * Note, {@link #toBytesRef()} will materialize all pages in this BytesReference.

@@ -63,7 +63,6 @@ public class DataFrameAnalyticsConfigProvider {
 
     static {
         Map<String, String> modifiable = new HashMap<>();
-        modifiable.put(ToXContentParams.INCLUDE_TYPE, "true");
         modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
         TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
     }

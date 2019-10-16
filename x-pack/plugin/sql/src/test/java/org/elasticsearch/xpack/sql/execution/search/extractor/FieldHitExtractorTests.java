@@ -289,6 +289,12 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         assertEquals(value, fe.extractFromSource(map));
     }
 
+    public void testEmptyArrayOfValues() {
+        FieldHitExtractor fe = new FieldHitExtractor("test_field", null, UTC, false, randomBoolean());
+        Map<String, Object> map = singletonMap("test_field", Collections.emptyList());
+        assertNull(fe.extractFromSource(map));
+    }
+
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testNestedFieldsWithDotsAndRandomHiearachy() {
         String[] path = new String[100];

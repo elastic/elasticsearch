@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Supplier;
 
 public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTestCase<UpdateSettingsRequest> {
 
@@ -39,9 +41,10 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
     protected UpdateSettingsRequest mutateInstance(UpdateSettingsRequest request) {
         UpdateSettingsRequest mutation = copyRequest(request);
         List<Runnable> mutators = new ArrayList<>();
+        Supplier<TimeValue> timeValueSupplier = () -> TimeValue.parseTimeValue(ESTestCase.randomTimeValue(), "_setting");
         mutators.add(() -> mutation
-                .masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout().getStringRep(), ESTestCase::randomTimeValue)));
-        mutators.add(() -> mutation.timeout(randomValueOtherThan(request.timeout().getStringRep(), ESTestCase::randomTimeValue)));
+                .masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout(), timeValueSupplier)));
+        mutators.add(() -> mutation.timeout(randomValueOtherThan(request.timeout(), timeValueSupplier)));
         mutators.add(() -> mutation.settings(mutateSettings(request.settings())));
         mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(request.indicesOptions(),

@@ -740,4 +740,19 @@ public class UpdateRequestTests extends ESTestCase {
             () -> updateHelper.prepare(request, null, false, ESTestCase::randomNonNegativeLong));
         assertThat(error.getMessage(), equalTo("ifSeqNo [" + ifSeqNo + "], ifPrimaryTerm [" + ifPrimaryTerm + "]"));
     }
+
+    public void testFallbackUsingVersionIfCurrentDocumentDoesNotHaveSeqNo() throws Exception {
+        ShardId shardId = new ShardId("test", "", 0);
+        long version = randomNonNegativeLong();
+        long primaryTerm = randomBoolean() ? UNASSIGNED_PRIMARY_TERM : randomNonNegativeLong();
+        GetResult getResult = new GetResult("test", "type", "1", UNASSIGNED_SEQ_NO, primaryTerm, version, true,
+            new BytesArray("{\"body\": \"bar\"}"), null);
+        UpdateRequest updateRequest = new UpdateRequest("test", "type1", "1").fromXContent(
+            createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}")));
+        IndexRequest indexRequest = updateHelper.prepare(
+            shardId, updateRequest, randomBoolean(), getResult, ESTestCase::randomNonNegativeLong).action();
+        assertThat(indexRequest.ifSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(indexRequest.ifPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+        assertThat(indexRequest.version(), equalTo(version));
+    }
 }

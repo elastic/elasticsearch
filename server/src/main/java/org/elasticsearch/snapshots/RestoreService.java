@@ -58,6 +58,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -117,6 +118,7 @@ import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 public class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
             SETTING_NUMBER_OF_SHARDS,
@@ -288,6 +290,10 @@ public class RestoreService implements ClusterStateApplier {
                                 indexMdBuilder.settings(Settings.builder()
                                                                 .put(snapshotIndexMetaData.getSettings())
                                                                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
+                                MetaDataCreateIndexService.checkShardLimit(
+                                    snapshotIndexMetaData.getSettings(),
+                                    currentState,
+                                    deprecationLogger);
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();

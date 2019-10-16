@@ -77,6 +77,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -131,6 +132,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
@@ -264,7 +266,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testSegments() throws Exception {
+    public void testSegmentsWithoutSoftDeletes() throws Exception {
         Settings settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
@@ -591,6 +593,68 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             assertThat(engine.segmentsStats(true).getFileSizes().get(firstEntry.key), greaterThan(firstEntry.value));
+        }
+    }
+
+    public void testSegmentsWithSoftDeletes() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null,
+                 null, globalCheckpoint::get))) {
+            assertThat(engine.segments(false), empty());
+            int numDocsFirstSegment = randomIntBetween(5, 50);
+            Set<String> liveDocsFirstSegment = new HashSet<>();
+            for (int i = 0; i < numDocsFirstSegment; i++) {
+                String id = Integer.toString(i);
+                ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
+                engine.index(indexForDoc(doc));
+                liveDocsFirstSegment.add(id);
+            }
+            engine.refresh("test");
+            List<Segment> segments = engine.segments(randomBoolean());
+            assertThat(segments, hasSize(1));
+            assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertFalse(segments.get(0).committed);
+            int deletes = 0;
+            int updates = 0;
+            int appends = 0;
+            int iterations = scaledRandomIntBetween(1, 50);
+            for (int i = 0; i < iterations && liveDocsFirstSegment.isEmpty() == false; i++) {
+                String idToUpdate = randomFrom(liveDocsFirstSegment);
+                liveDocsFirstSegment.remove(idToUpdate);
+                ParsedDocument doc = testParsedDocument(idToUpdate, null, testDocument(), B_1, null);
+                if (randomBoolean()) {
+                    engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc), primaryTerm.get()));
+                    deletes++;
+                } else {
+                    engine.index(indexForDoc(doc));
+                    updates++;
+                }
+                if (randomBoolean()) {
+                    engine.index(indexForDoc(testParsedDocument(UUIDs.randomBase64UUID(), null, testDocument(), B_1, null)));
+                    appends++;
+                }
+            }
+            boolean committed = randomBoolean();
+            if (committed) {
+                engine.flush();
+            }
+            engine.refresh("test");
+            segments = engine.segments(randomBoolean());
+            assertThat(segments, hasSize(2));
+            assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(updates + deletes));
+            assertThat(segments.get(0).committed, equalTo(committed));
+
+            assertThat(segments.get(1).getNumDocs(), equalTo(updates + appends));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(deletes)); // delete tombstones
+            assertThat(segments.get(1).committed, equalTo(committed));
         }
     }
 
@@ -2806,19 +2870,15 @@ public class InternalEngineTests extends EngineTestCase {
         // test that we can force start the engine , even if the translog is missing.
         engine.close();
         // fake a new translog, causing the engine to point to a missing one.
-        final long primaryTerm = randomNonNegativeLong();
-        Translog translog = createTranslog(() -> primaryTerm);
+        final long newPrimaryTerm = randomLongBetween(0L, primaryTerm.get());
+        final Translog translog = createTranslog(() -> newPrimaryTerm);
         long id = translog.currentFileGeneration();
         translog.close();
         IOUtils.rm(translog.location().resolve(Translog.getFilename(id)));
-        try {
-            engine = createEngine(store, primaryTranslogDir);
-            fail("engine shouldn't start without a valid translog id");
-        } catch (EngineCreationFailureException ex) {
-            // expected
-        }
+        expectThrows(EngineCreationFailureException.class, "engine shouldn't start without a valid translog id",
+            () -> createEngine(store, primaryTranslogDir));
         // when a new translog is created it should be ok
-        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, UNASSIGNED_SEQ_NO, shardId, primaryTerm);
+        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, UNASSIGNED_SEQ_NO, shardId, newPrimaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null);
         engine = new InternalEngine(config);
@@ -3256,8 +3316,8 @@ public class InternalEngineTests extends EngineTestCase {
             AtomicReference<ThrowingIndexWriter> throwingIndexWriter = new AtomicReference<>();
             try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
                 (directory, iwc) -> {
-                  throwingIndexWriter.set(new ThrowingIndexWriter(directory, iwc));
-                  return throwingIndexWriter.get();
+                    throwingIndexWriter.set(new ThrowingIndexWriter(directory, iwc));
+                    return throwingIndexWriter.get();
                 })
             ) {
                 // test document failure while indexing
@@ -3280,22 +3340,6 @@ public class InternalEngineTests extends EngineTestCase {
                 assertNull(indexResult.getFailure());
                 assertNotNull(indexResult.getTranslogLocation());
                 engine.index(indexForDoc(doc2));
-
-                // test failure while deleting
-                // all these simulated exceptions are not fatal to the IW so we treat them as document failures
-                final Engine.DeleteResult deleteResult;
-                if (randomBoolean()) {
-                    throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
-                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1), primaryTerm.get()));
-                    assertThat(deleteResult.getFailure(), instanceOf(IOException.class));
-                } else {
-                    throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
-                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1), primaryTerm.get()));
-                    assertThat(deleteResult.getFailure(),
-                        instanceOf(IllegalArgumentException.class));
-                }
-                assertThat(deleteResult.getVersion(), equalTo(2L));
-                assertThat(deleteResult.getSeqNo(), equalTo(3L));
 
                 // test non document level failure is thrown
                 if (randomBoolean()) {
@@ -5585,6 +5629,61 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    /**
+     * Simulate a bug in https://github.com/elastic/elasticsearch/pull/38879 where the max_seq_no
+     * of the index commit can be smaller than seq_no of some documents in the commit.
+     */
+    public void testAlwaysRebuildLocalCheckpointForOldIndex() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_6_5_0, Version.V_6_6_1))
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        Path translogPath = createTempDir();
+        List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            final List<DocIdSeqNoAndTerm> docs;
+            try (InternalEngine engine = createEngine(config)) {
+                for (Engine.Operation op : operations) {
+                    applyOperation(engine, op);
+                    if (randomInt(100) < 10) {
+                        engine.flush();
+                        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                    }
+                }
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                engine.syncTranslog();
+                docs = getDocIds(engine, true);
+            }
+            trimUnsafeCommits(config);
+            // Simulate a bug in https://github.com/elastic/elasticsearch/pull/38879 where max_seq_no is smaller than seq_no of some docs.
+            if (randomBoolean()) {
+                IndexWriterConfig iwc = new IndexWriterConfig(null)
+                    .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                    .setCommitOnClose(false)
+                    .setMergePolicy(NoMergePolicy.INSTANCE)
+                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+                try (IndexWriter writer = new IndexWriter(config.getStore().directory(), iwc)) {
+                    Map<String, String> userData = new HashMap<>();
+                    writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
+                    SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
+                    long maxSeqNo = randomLongBetween(commitInfo.localCheckpoint, commitInfo.maxSeqNo);
+                    userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+                    writer.setLiveCommitData(userData.entrySet());
+                    writer.commit();
+                }
+            }
+            try (InternalEngine engine = new InternalEngine(config)) {
+                engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
+                engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+                assertThat(getDocIds(engine, true), equalTo(docs));
+            }
+        }
+    }
+
     public void testOpenSoftDeletesIndexWithSoftDeletesDisabled() throws Exception {
         try (Store store = createStore()) {
             Path translogPath = createTempDir();
@@ -5722,4 +5821,79 @@ public class InternalEngineTests extends EngineTestCase {
         }
         assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
     }
+
+    public void testNoOpFailure() throws IOException {
+        engine.close();
+        final Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+        try (Store store = createStore();
+             Engine engine = createEngine(
+                 (dir, iwc) -> new IndexWriter(dir, iwc) {
+
+                     @Override
+                     public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                         throw new IllegalArgumentException("fatal");
+                     }
+
+                 },
+                 null,
+                 null,
+                 config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
+            final Engine.NoOp op = new Engine.NoOp(0, 0, PRIMARY, System.currentTimeMillis(), "test");
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException. class, () -> engine.noOp(op));
+            assertThat(e.getMessage(), equalTo("fatal"));
+            assertTrue(engine.isClosed.get());
+            assertThat(engine.failedEngine.get(), not(nullValue()));
+            assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
+            assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
+        }
+    }
+
+    public void testDeleteFailureSoftDeletesEnabledDocAlreadyDeleted() throws IOException {
+        runTestDeleteFailure(true, InternalEngine::delete);
+    }
+
+    public void testDeleteFailureSoftDeletesEnabled() throws IOException {
+        runTestDeleteFailure(true, (engine, op) -> {});
+    }
+
+    public void testDeleteFailureSoftDeletesDisabled() throws IOException {
+        runTestDeleteFailure(false, (engine, op) -> {});
+    }
+
+    private void runTestDeleteFailure(
+        final boolean softDeletesEnabled,
+        final CheckedBiConsumer<InternalEngine, Engine.Delete, IOException> consumer) throws IOException {
+        engine.close();
+        final Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+        final AtomicReference<ThrowingIndexWriter> iw = new AtomicReference<>();
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(
+                 (dir, iwc) -> {
+                     iw.set(new ThrowingIndexWriter(dir, iwc));
+                     return iw.get();
+                 },
+                 null,
+                 null,
+                 config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
+            engine.index(new Engine.Index(newUid("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", null)));
+            final Engine.Delete op = new Engine.Delete("_doc", "0", newUid("0"), primaryTerm.get());
+            consumer.accept(engine, op);
+            iw.get().setThrowFailure(() -> new IllegalArgumentException("fatal"));
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException. class, () -> engine.delete(op));
+            assertThat(e.getMessage(), equalTo("fatal"));
+            assertTrue(engine.isClosed.get());
+            assertThat(engine.failedEngine.get(), not(nullValue()));
+            assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
+            assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
+        }
+    }
+
 }

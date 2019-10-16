@@ -10,7 +10,7 @@ under the CCA-ShareAlike 4.0 license. For more details see, http://dev.maxmind.c
 
 The `geoip` processor can run with other GeoIP2 databases from Maxmind. The files must be copied into the `ingest-geoip` config directory,
 and the `database_file` option should be used to specify the filename of the custom database. Custom database files must be stored
-uncompressed. The `ingest-geoip` config directory is located at `$ES_HOME/config/ingest-geoip`.
+uncompressed. The `ingest-geoip` config directory is located at `$ES_CONFIG/ingest-geoip`.
 
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline

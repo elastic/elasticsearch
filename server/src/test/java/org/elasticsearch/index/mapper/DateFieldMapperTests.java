@@ -96,6 +96,23 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
+    public void testSimple() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", "date").endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "2016-03")
+                .endObject()),
+            XContentType.JSON));
+    }
+
     public void testNotIndexed() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").field("index", false).endObject().endObject()

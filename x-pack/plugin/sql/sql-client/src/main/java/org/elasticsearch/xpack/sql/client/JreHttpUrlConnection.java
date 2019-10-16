@@ -35,6 +35,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.sql.rowset.serial.SerialException;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 
 /**
@@ -52,7 +53,7 @@ public class JreHttpUrlConnection implements Closeable {
             + "] contains unrecognized parameter: [mode]";
 
     public static <R> R http(String path, String query, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
-        final URI uriPath = cfg.baseUri().resolve(path);  // update path if needed
+        final URI uriPath = appendSegmentToPath(cfg.baseUri(), path);  // update path if needed
         final String uriQuery = query == null ? uriPath.getQuery() : query; // update query if needed
         final URL url;
         try {

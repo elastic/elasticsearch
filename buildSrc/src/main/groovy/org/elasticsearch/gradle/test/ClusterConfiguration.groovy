@@ -31,6 +31,16 @@ class ClusterConfiguration {
     @Input
     String distribution = 'zip'
 
+    public String getDistribution() {
+        // Never version call this 'default' and 'oss' create an alias so we 
+        // understand those names
+        if (distribution == 'default') {
+            return 'zip'
+        } else {
+            return distribution
+        }
+    }
+
     @Input
     int numNodes = 1
 

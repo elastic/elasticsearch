@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -44,10 +46,13 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -56,6 +61,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -105,12 +111,21 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     @Override
-    protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
+    protected void masterOperation(RolloverRequest request, ClusterState state,
+                                   ActionListener<RolloverResponse> listener) throws Exception {
+        throw new UnsupportedOperationException("The task parameter is required");
+    }
+
+    @Override
+    protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) {
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
         final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
         final IndexMetaData indexMetaData = alias.getWriteIndex();
+        if (IndexMetaData.State.CLOSE.equals(indexMetaData.getState())) {
+            throw new IndexClosedException(indexMetaData.getIndex());
+        }
         final boolean explicitWriteIndex = Boolean.TRUE.equals(indexMetaData.getAliases().get(alias.getAliasName()).writeIndex());
         final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
             indexMetaData.getIndex().getName());
@@ -121,7 +136,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias());
-        client.admin().indices().prepareStats(rolloverRequest.getAlias()).clear().setDocs(true).execute(
+        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getAlias())
+            .clear()
+            .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
+            .docs(true);
+        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        client.execute(IndicesStatsAction.INSTANCE, statsRequest,
             new ActionListener<IndicesStatsResponse>() {
                 @Override
                 public void onResponse(IndicesStatsResponse statsResponse) {
@@ -239,7 +259,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition> conditions,
-                                                   final DocsStats docsStats, final IndexMetaData metaData) {
+                                                   @Nullable final DocsStats docsStats,
+                                                   @Nullable final IndexMetaData metaData) {
+        if (metaData == null) {
+            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
+        }
         final long numDocs = docsStats == null ? 0 : docsStats.getCount();
         final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
         final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate(), new ByteSizeValue(indexSize));
@@ -248,9 +272,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
     }
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition> conditions, final IndexMetaData metaData,
-                                                    final IndicesStatsResponse statsResponse) {
-        return evaluateConditions(conditions, statsResponse.getIndex(metaData.getIndex().getName()).getPrimaries().getDocs(), metaData);
+    static Map<String, Boolean> evaluateConditions(final Collection<Condition> conditions,
+                                                   @Nullable final IndexMetaData metaData,
+                                                   @Nullable final IndicesStatsResponse statsResponse) {
+        if (metaData == null) {
+            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
+        } else {
+            final DocsStats docsStats = Optional.ofNullable(statsResponse)
+                .map(stats -> stats.getIndex(metaData.getIndex().getName()))
+                .map(indexStats -> indexStats.getPrimaries().getDocs())
+                .orElse(null);
+            return evaluateConditions(conditions, docsStats, metaData);
+        }
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {

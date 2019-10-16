@@ -7,7 +7,7 @@ produces a single token.
 
 The `normalizer` is applied prior to indexing the keyword, as well as at
 search-time when the `keyword` field is searched via a query parser such as
-the <<query-dsl-match-query,`match`>> query or via a term level query 
+the <<query-dsl-match-query,`match`>> query or via a term-level query 
 such as the <<query-dsl-term-query,`term`>> query.
 
 [source,js]

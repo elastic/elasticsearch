@@ -16,7 +16,7 @@ FROM centos:7 AS builder
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 ENV JAVA_HOME /opt/jdk-${jdkVersion}
 
-RUN curl --retry 8 -s ${jdkUrl} | tar -C /opt -zxf -
+RUN curl -L --retry 8 -s ${jdkUrl} | tar -C /opt -zxf -
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.
@@ -52,9 +52,9 @@ ENV JAVA_HOME /opt/jdk-${jdkVersion}
 
 COPY --from=builder /opt/jdk-${jdkVersion} /opt/jdk-${jdkVersion}
 
-RUN for iter in {1..10}; do yum update -y && \
-    yum install -y nc unzip wget which && \
-    yum clean all && exit_code=0 && break || exit_code=$? && echo "yum error: retry $iter in 10s" && sleep 10; done; \
+RUN for iter in {1..10}; do yum update  --setopt=tsflags=nodocs -y && \
+    yum install -y  --setopt=tsflags=nodocs nc unzip wget which && \
+    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
     (exit $exit_code)
 
 RUN groupadd -g 1000 elasticsearch && \
@@ -76,13 +76,25 @@ RUN chgrp 0 /usr/local/bin/docker-entrypoint.sh && \
 
 EXPOSE 9200 9300
 
-LABEL org.label-schema.schema-version="1.0" \
-  org.label-schema.vendor="Elastic" \
-  org.label-schema.name="elasticsearch" \
-  org.label-schema.version="${version}" \
+LABEL org.label-schema.build-date="${build_date}" \
+  org.label-schema.license="${license}" \
+  org.label-schema.name="Elasticsearch" \
+  org.label-schema.schema-version="1.0" \
   org.label-schema.url="https://www.elastic.co/products/elasticsearch" \
+  org.label-schema.usage="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \
+  org.label-schema.vcs-ref="${git_revision}" \
   org.label-schema.vcs-url="https://github.com/elastic/elasticsearch" \
-  license="${license}"
+  org.label-schema.vendor="Elastic" \
+  org.label-schema.version="${version}" \
+  org.opencontainers.image.created="${build_date}" \
+  org.opencontainers.image.documentation="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \
+  org.opencontainers.image.licenses="${license}" \
+  org.opencontainers.image.revision="${git_revision}" \
+  org.opencontainers.image.source="https://github.com/elastic/elasticsearch" \
+  org.opencontainers.image.title="Elasticsearch" \
+  org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \
+  org.opencontainers.image.vendor="Elastic" \
+  org.opencontainers.image.version="${version}"
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint

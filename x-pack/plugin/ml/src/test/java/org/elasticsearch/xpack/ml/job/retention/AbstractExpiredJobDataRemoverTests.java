@@ -95,6 +95,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     public void testRemoveGivenNoJobs() throws IOException {
         SearchResponse response = createSearchResponse(Collections.emptyList());
 
+        @SuppressWarnings("unchecked")
         ActionFuture<SearchResponse> future = mock(ActionFuture.class);
         when(future.actionGet()).thenReturn(response);
         when(client.search(any())).thenReturn(future);
@@ -104,15 +105,14 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         TestListener listener = new TestListener();
         ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client, clusterService);
-        remover.remove(listener);
+        remover.remove(listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
-        assertEquals(remover.getRetentionDaysCallCount, 0);
+        assertEquals(0, remover.getRetentionDaysCallCount);
     }
 
-
-    public void testRemoveGivenMulipleBatches() throws IOException {
+    public void testRemoveGivenMultipleBatches() throws IOException {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         when(clusterService.state()).thenReturn(clusterState);
@@ -139,18 +139,48 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         AtomicInteger searchCount = new AtomicInteger(0);
 
+        @SuppressWarnings("unchecked")
         ActionFuture<SearchResponse> future = mock(ActionFuture.class);
         doAnswer(invocationOnMock -> responses.get(searchCount.getAndIncrement())).when(future).actionGet();
         when(client.search(any())).thenReturn(future);
 
         TestListener listener = new TestListener();
         ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client, clusterService);
-        remover.remove(listener);
+        remover.remove(listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
-        assertEquals(searchCount.get(), 3);
-        assertEquals(remover.getRetentionDaysCallCount, 7);
+        assertEquals(3, searchCount.get());
+        assertEquals(7, remover.getRetentionDaysCallCount);
+    }
+
+    public void testRemoveGivenTimeOut() throws IOException {
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        int totalHits = 3;
+        SearchResponse response = createSearchResponse(Arrays.asList(
+                JobTests.buildJobBuilder("job1").build(),
+                JobTests.buildJobBuilder("job2").build(),
+                JobTests.buildJobBuilder("job3").build()
+            ), totalHits);
+
+        final int timeoutAfter = randomIntBetween(0, totalHits - 1);
+        AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
+
+        @SuppressWarnings("unchecked")
+        ActionFuture<SearchResponse> future = mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(response);
+        when(client.search(any())).thenReturn(future);
+
+        TestListener listener = new TestListener();
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client, clusterService);
+        remover.remove(listener, () -> (attemptsLeft.getAndDecrement() <= 0));
+
+        listener.waitToCompletion();
+        assertThat(listener.success, is(false));
+        assertEquals(timeoutAfter, remover.getRetentionDaysCallCount);
     }
 
     public void testIterateOverClusterStateJobs() throws IOException {
@@ -173,7 +203,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         TestListener listener = new TestListener();
         ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client, clusterService);
-        remover.remove(listener);
+        remover.remove(listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
@@ -196,7 +226,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
             latch.countDown();
         }
 
-        public void waitToCompletion() {
+        void waitToCompletion() {
             try {
                 latch.await(3, TimeUnit.SECONDS);
             } catch (InterruptedException e) {

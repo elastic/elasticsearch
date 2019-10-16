@@ -3,7 +3,7 @@
 :request: StartILMRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Start Index Lifecycle Management API
 

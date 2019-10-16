@@ -281,6 +281,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
             Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 
+    public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT =
+        Setting.timeSetting("xpack.ml.process_connect_timeout", TimeValue.timeValueSeconds(10),
+            TimeValue.timeValueSeconds(5), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
 
     private final Settings settings;
@@ -309,6 +313,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
                 Arrays.asList(MachineLearningField.AUTODETECT_PROCESS,
+                        PROCESS_CONNECT_TIMEOUT,
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
@@ -423,11 +428,16 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     nativeController,
                     client,
                     clusterService);
-                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
+                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
             } catch (IOException e) {
-                // This also should not happen in production, as the MachineLearningFeatureSet should have
-                // hit the same error first and brought down the node with a friendlier error message
-                throw new ElasticsearchException("Failed to create native process factories for Machine Learning", e);
+                // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
+                // only log this at the lowest level of detail.  It's almost always "file not found" on a named pipe we expect to be
+                // able to connect to, but the thing we really need to know is what stopped the native process creating the named pipe.
+                logger.trace("Failed to connect to ML native controller", e);
+                throw new ElasticsearchException("Failure running machine learning native code. This could be due to running "
+                    + "on an unsupported OS or distribution, missing OS libraries, or a problem with the temp directory. To "
+                    + "bypass this problem by running Elasticsearch without machine learning functionality set ["
+                    + XPackSettings.MACHINE_LEARNING_ENABLED.getKey() + ": false].");
             }
         } else {
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
@@ -442,7 +452,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 normalizerFactory, xContentRegistry, auditor, clusterService);
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, settings, xContentRegistry,
-                auditor, System::currentTimeMillis);
+                auditor, System::currentTimeMillis, clusterService.getNodeName());
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
@@ -777,8 +787,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             if (containerLimitStr != null) {
                 BigInteger containerLimit = new BigInteger(containerLimitStr);
                 if ((containerLimit.compareTo(BigInteger.valueOf(mem)) < 0 && containerLimit.compareTo(BigInteger.ZERO) > 0)
-                        // mem < 0 means the value couldn't be obtained for some reason
-                        || (mem < 0 && containerLimit.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) < 0)) {
+                        // mem <= 0 means the value couldn't be obtained for some reason
+                        || (mem <= 0 && containerLimit.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) < 0)) {
                     mem = containerLimit.longValue();
                 }
             }

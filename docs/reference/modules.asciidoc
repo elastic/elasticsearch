@@ -94,7 +94,6 @@ include::modules/network.asciidoc[]
 
 include::modules/node.asciidoc[]
 
-:edit_url:
 include::modules/plugins.asciidoc[]
 
 include::modules/snapshots.asciidoc[]

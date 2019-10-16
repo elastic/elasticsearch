@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -133,12 +134,16 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                     }
                 }
             );
+            if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
+                getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
+            } else {
+                executeAsyncWithOrigin(client,
+                    ML_ORIGIN,
+                    GetRollupIndexCapsAction.INSTANCE,
+                    new GetRollupIndexCapsAction.Request(indices),
+                    getRollupIndexCapsActionHandler);
+            }
 
-            executeAsyncWithOrigin(client,
-                ML_ORIGIN,
-                GetRollupIndexCapsAction.INSTANCE,
-                new GetRollupIndexCapsAction.Request(indices),
-                getRollupIndexCapsActionHandler);
         } else {
             putDatafeed(request, threadPool.getThreadContext().getHeaders(), listener);
         }

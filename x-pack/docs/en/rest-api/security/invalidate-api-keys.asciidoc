@@ -31,11 +31,11 @@ pertain to invalidating api keys:
 
 `realm_name` (optional)::
 (string) The name of an authentication realm. This parameter cannot be used with
-either `api_key_id` or `api_key_name`.
+either `id` or `name`.
 
 `username` (optional)::
 (string) The username of a user. This parameter cannot be used with either
-`api_key_id` or `api_key_name`.
+`id` or `name`.
 
 NOTE: While all parameters are optional, at least one of them is required.
 
@@ -47,8 +47,7 @@ If you create an API key as follows:
 ------------------------------------------------------------
 POST /_security/api_key
 {
-  "name": "my-api-key",
-  "role_descriptors": {}
+  "name": "my-api-key"
 }
 ------------------------------------------------------------
 // CONSOLE

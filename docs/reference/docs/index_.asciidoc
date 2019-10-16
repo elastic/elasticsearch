@@ -367,7 +367,7 @@ PUT twitter/_doc/1?version=2&version_type=external
 near real time aspects of search operations. If no version is provided,
 then the operation is executed without any version checks.
 
-The above will succeed since the the supplied version of 2 is higher than
+The above will succeed since the supplied version of 2 is higher than
 the current document version of 1. If the document was already updated
 and its version was set to 2 or higher, the indexing command will fail
 and result in a conflict (409 http status code).

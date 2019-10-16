@@ -70,9 +70,9 @@ import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
-import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetaData;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
@@ -2083,7 +2083,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "      \"type\": \"text\"\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", 
+                    "}",
                 XContentType.JSON);
             // end::put-template-request-mappings-json
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2098,7 +2098,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     message.put("type", "text");
                     properties.put("message", message);
                 }
-                jsonMap.put("properties", properties);                
+                jsonMap.put("properties", properties);
             }
             request.mapping(jsonMap); // <1>
             //end::put-template-request-mappings-map
@@ -2455,7 +2455,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             DetailAnalyzeResponse detail = response.detail();                   // <1>
             // end::analyze-response-detail
 
-            assertNull(tokens);
+            assertEquals(0, tokens.size());
             assertNotNull(detail.tokenizer());
         }
 

@@ -1119,6 +1119,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        expectedParams.put(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
         if (randomBoolean()) {
             multiSearchRequest.maxConcurrentSearchRequests(randomIntBetween(1, 8));
             expectedParams.put("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
@@ -1733,6 +1734,7 @@ public class RequestConvertersTests extends ESTestCase {
             searchRequest.scroll(randomTimeValue());
             expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
+        expectedParams.put(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
     }
 
     static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,

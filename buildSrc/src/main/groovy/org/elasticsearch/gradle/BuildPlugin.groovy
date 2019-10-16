@@ -22,8 +22,6 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.eclipse.jgit.lib.Constants
-import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -39,7 +37,6 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.artifacts.repositories.ArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.execution.TaskExecutionGraph
@@ -59,9 +56,15 @@ import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.util.function.Supplier
 import java.util.regex.Matcher
+import java.util.regex.Pattern
+import java.util.stream.Stream
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -133,9 +136,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
 
-            String javaVendor = System.getProperty('java.vendor')
+            String javaVendorVersion = System.getProperty('java.vendor.version', System.getProperty('java.vendor'))
             String gradleJavaVersion = System.getProperty('java.version')
-            String gradleJavaVersionDetails = "${javaVendor} ${gradleJavaVersion}" +
+            String gradleJavaVersionDetails = "${javaVendorVersion} ${gradleJavaVersion}" +
                 " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
 
             String compilerJavaVersionDetails = gradleJavaVersionDetails
@@ -222,6 +225,8 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
             project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
             project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
+            project.rootProject.ext.gitRevision = gitRevision(project)
+            project.rootProject.ext.buildDate = ZonedDateTime.now(ZoneOffset.UTC);
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -234,6 +239,8 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
         project.ext.javaVersions = project.rootProject.ext.javaVersions
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
+        project.ext.gitRevision = project.rootProject.ext.gitRevision
+        project.ext.buildDate = project.rootProject.ext.buildDate
         project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
         project.ext.java9Home = project.rootProject.ext.java9Home
     }
@@ -440,8 +447,10 @@ class BuildPlugin implements Plugin<Project> {
     /** Finds printable java version of the given JAVA_HOME */
     private static String findJavaVersionDetails(Project project, String javaHome) {
         String versionInfoScript = 'print(' +
-            'java.lang.System.getProperty("java.vendor") + " " + java.lang.System.getProperty("java.version") + ' +
-            '" [" + java.lang.System.getProperty("java.vm.name") + " " + java.lang.System.getProperty("java.vm.version") + "]");'
+            'java.lang.System.getProperty("java.vendor.version", java.lang.System.getProperty("java.vendor")) + " " + ' +
+            'java.lang.System.getProperty("java.version") + " [" +' +
+            'java.lang.System.getProperty("java.vm.name") + " " + ' +
+            'java.lang.System.getProperty("java.vm.version") + "]");'
         return runJavaAsScript(project, javaHome, versionInfoScript).trim()
     }
 
@@ -452,7 +461,7 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String findJavaVendor(Project project, String javaHome) {
-        String vendorScript = 'print(java.lang.System.getProperty("java.vendor"));'
+        String vendorScript = 'print(java.lang.System.getProperty("java.vendor.version", System.getProperty("java.vendor"));'
         return runJavaAsScript(project, javaHome, vendorScript)
     }
 
@@ -564,11 +573,11 @@ class BuildPlugin implements Plugin<Project> {
         project.getRepositories().all { repository ->
             if (repository instanceof MavenArtifactRepository) {
                 final MavenArtifactRepository maven = (MavenArtifactRepository) repository
-                assertRepositoryURIUsesHttps(maven, project, maven.getUrl())
-                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(project, uri) }
+                assertRepositoryURIIsSecure(maven.name, project.path, maven.getUrl())
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIIsSecure(maven.name, project.path, uri) }
             } else if (repository instanceof IvyArtifactRepository) {
                 final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
-                assertRepositoryURIUsesHttps(ivy, project, ivy.getUrl())
+                assertRepositoryURIIsSecure(ivy.name, project.path, ivy.getUrl())
             }
         }
         RepositoryHandler repos = project.repositories
@@ -594,9 +603,15 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static void assertRepositoryURIUsesHttps(final ArtifactRepository repository, final Project project, final URI uri) {
-        if (uri != null && uri.toURL().getProtocol().equals("http")) {
-            throw new GradleException("repository [${repository.name}] on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
+    static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
+        if (uri != null && ["file", "https", "s3"].contains(uri.getScheme()) == false) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
+                    repositoryName,
+                    projectPath,
+                    uri.toURL())
+            throw new GradleException(message)
         }
     }
 
@@ -841,26 +856,13 @@ class BuildPlugin implements Plugin<Project> {
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
+                        // TODO: remove using the short hash
+                        'Change': ((String)project.gitRevision).substring(0, 7),
                         'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch.replace("-SNAPSHOT", ""),
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
-                        'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
+                        'Build-Date': project.buildDate,
                         'Build-Java-Version': project.compilerJavaVersion)
-                if (jarTask.manifest.attributes.containsKey('Change') == false) {
-                    logger.warn('Building without git revision id.')
-                    jarTask.manifest.attributes('Change': 'Unknown')
-                } else {
-                    /*
-                     * The info-scm plugin assumes that if GIT_COMMIT is set it was set by Jenkins to the commit hash for this build.
-                     * However, that assumption is wrong as this build could be a sub-build of another Jenkins build for which GIT_COMMIT
-                     * is the commit hash for that build. Therefore, if GIT_COMMIT is set we calculate the commit hash ourselves.
-                     */
-                    if (System.getenv("GIT_COMMIT") != null) {
-                        final String hash = new RepositoryBuilder().findGitDir(project.buildDir).build().resolve(Constants.HEAD).name
-                        final String shortHash = hash?.substring(0, 7)
-                        jarTask.manifest.attributes('Change': shortHash)
-                    }
-                }
                 // Force manifest entries that change by nature to a constant to be able to compare builds more effectively
                 if (System.properties.getProperty("build.compare_friendly", "false") == "true") {
                     jarTask.manifest.getAttributes().clear()
@@ -1073,6 +1075,99 @@ class BuildPlugin implements Plugin<Project> {
             return stdout.toString('UTF-8').trim();
         }
         return 'auto';
+    }
+
+    private static String gitRevision(final Project project) {
+        try {
+            /*
+             * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The
+             * documentation for this follows from https://git-scm.com/docs/gitrepository-layout and https://git-scm.com/docs/git-worktree.
+             *
+             * There are two cases to consider:
+             *  - a plain repository with .git directory at the root of the working tree
+             *  - a worktree with a plain text .git file at the root of the working tree
+             *
+             * In each case, our goal is to parse the HEAD file to get either a ref or a bare revision (in the case of being in detached
+             * HEAD state).
+             *
+             * In the case of a plain repository, we can read the HEAD file directly, resolved directly from the .git directory.
+             *
+             * In the case of a worktree, we read the gitdir from the plain text .git file. This resolves to a directory from which we read
+             * the HEAD file and resolve commondir to the plain git repository.
+             */
+            final Path dotGit = project.getRootProject().getRootDir().toPath().resolve(".git");
+            String revision;
+            if (Files.exists(dotGit) == false) {
+                return "unknown";
+            }
+            final Path head;
+            final Path gitDir;
+            if (Files.isDirectory(dotGit)) {
+                // this is a git repository, we can read HEAD directly
+                head = dotGit.resolve("HEAD");
+                gitDir = dotGit;
+            } else {
+                // this is a git worktree, follow the pointer to the repository
+                final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                head = workTree.resolve("HEAD");
+                final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
+                if (commonDir.isAbsolute()) {
+                    gitDir = commonDir;
+                } else {
+                    // this is the common case
+                    gitDir = workTree.resolve(commonDir);
+                }
+            }
+            final String ref = readFirstLine(head);
+            if (ref.startsWith("ref:")) {
+                String refName = ref.substring("ref:".length()).trim()
+                Path refFile = gitDir.resolve(refName)
+                if (Files.exists(refFile)) {
+                    revision = readFirstLine(refFile)
+                } else if (Files.exists(dotGit.resolve("packed-refs"))) {
+                    // Check packed references for commit ID
+                    Pattern p = Pattern.compile("^([a-f1-9]{40}) " + refName + "\$")
+                    Stream<String> lines = Files.lines(dotGit.resolve("packed-refs"));
+                    try {
+                        revision = lines.map( { s -> p.matcher(s) })
+                                .filter( { m -> m.matches() })
+                                .map({ m -> m.group(1) })
+                                .findFirst()
+                                .orElseThrow({ -> new IOException("Packed reference not found for refName " + refName) });
+                    } finally {
+                        lines.close()
+                    }
+                } else {
+                    throw new GradleException("Can't find revision for refName " + refName);
+                }
+            } else {
+                // we are in detached HEAD state
+                revision = ref;
+            }
+            return revision;
+        } catch (final IOException e) {
+            // for now, do not be lenient until we have better understanding of real-world scenarios where this happens
+            throw new GradleException("unable to read the git revision", e);
+        }
+    }
+
+    private static String readFirstLine(final Path path) throws IOException {
+        Stream lines =  Files.lines(path, StandardCharsets.UTF_8)
+        try {
+            return Files.lines(path, StandardCharsets.UTF_8)
+                    .findFirst()
+                    .orElseThrow(
+                            new Supplier<IOException>() {
+
+                                @Override
+                                IOException get() {
+                                    return new IOException("file [" + path + "] is empty");
+                                }
+
+                            });
+        } finally {
+            lines.close()
+        }
     }
 
     /** Configures the test task */

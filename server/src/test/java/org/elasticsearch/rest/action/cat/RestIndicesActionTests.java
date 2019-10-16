@@ -133,7 +133,7 @@ public class RestIndicesActionTests extends ESTestCase {
         }
     }
 
-    private IndicesStatsResponse randomIndicesStatsResponse(final Index[] indices) {
+    public static IndicesStatsResponse randomIndicesStatsResponse(final Index[] indices) {
         List<ShardStats> shardStats = new ArrayList<>();
         for (final Index index : indices) {
             int numShards = randomInt(5);

@@ -1,0 +1,162 @@
+[role="xpack"]
+[[encrypting-communications-hosts]]
+=== Add nodes to your cluster
+
+Up to this point, we have used a cluster with a single {es} node to get up and
+running with the {stack}. An {es} _node_ is a single server that is part of your
+cluster and stores pieces of your data called _shards_. 
+
+You can add more nodes to your cluster and optionally designate specific purposes
+for each node. For example, you can allocate master nodes, data nodes, ingest
+nodes, machine learning nodes, and dedicated coordinating nodes. For details
+about each node type, see <<modules-node>>.
+
+In a single cluster, you can have as many nodes as you want but they must be
+able to communicate with each other. The communication between nodes in a
+cluster is handled by the <<modules-transport,transport module>>. To
+secure your cluster, you must ensure that the internode communications are
+encrypted.
+
+NOTE: In this tutorial, we add more nodes by installing more copies of {es} on
+the same machine. By default, {es} binds to loopback addresses for HTTP and
+transport communication. That is fine for the purposes of this tutorial and for
+downloading and experimenting with {es} in a test or development environment.
+When you are deploying a production environment, however, you are generally
+adding nodes on different machines so that your cluster is resilient to outages
+and avoids data loss.  In a production scenario, there are additional
+requirements that are not covered in this tutorial. See
+<<dev-vs-prod-mode>> and
+<<add-elasticsearch-nodes>>.
+
+Let's add two nodes to our cluster!
+
+. Install two additional copies of {es}. It's possible to run multiple {es}
+nodes using a shared installation. In this tutorial, however, we're keeping
+things simple by using the `zip` or `tar.gz` packages and by putting each copy
+in a separate folder. You can simply repeat the steps that you used to install
+{es} in the 
+{stack-gs}/get-started-elastic-stack.html#install-elasticsearch[Getting started with the {stack}]
+tutorial.
+
+. Update the `ES_PATH_CONF/elasticsearch.yml` file on each node:
++
+--
+.. Enable the {es} {security-features}. 
+.. Ensure that the nodes share the same <<cluster.name,`cluster.name`>>.
+.. Give each node a unique <<node.name,`node.name`>>.
+.. Specify the minimum number of master-eligible nodes that must be available to
+form a cluster. By default, each node is eligible to be elected as the
+<<master-node,master node>> and control the cluster. To
+avoid a _split brain_ scenario where multiple nodes elect themselves as the
+master, use the `discovery.zen.minimum_master_nodes` setting.
+
+By default, if you run multiple {es} nodes on the same machine, it
+automatically uses free ports in the range 9200-9300 for HTTP and 9300-9400 for
+transport. If you want to assign specific port numbers to each node, however,
+you can add <<modules-transport,TCP transport settings>>. You can then
+provide a list of these <<discovery-seed-nodes,seed nodes>>,
+which is used to discover the nodes in your cluster.
+
+For example, add the following settings to the `ES_PATH_CONF/elasticsearch.yml`
+file on the first node:
+
+[source,yaml]
+----
+xpack.security.enabled: true
+cluster.name: test-cluster
+node.name: node-1
+discovery.zen.minimum_master_nodes: 2
+transport.tcp.port: 9301
+discovery.zen.ping.unicast.hosts: ["localhost:9302", "localhost:9303"]
+----
+
+Add the following settings to the `ES_PATH_CONF/elasticsearch.yml`
+file on the second node:
+
+[source,yaml]
+----
+xpack.security.enabled: true
+cluster.name: test-cluster
+node.name: node-2
+discovery.zen.minimum_master_nodes: 2
+transport.tcp.port: 9302
+discovery.zen.ping.unicast.hosts: ["localhost:9301", "localhost:9303"]
+----
+
+Add the following settings to the `ES_PATH_CONF/elasticsearch.yml`
+file on the third node:
+
+[source,yaml]
+----
+xpack.security.enabled: true
+cluster.name: test-cluster
+node.name: node-3
+discovery.zen.minimum_master_nodes: 2
+transport.tcp.port: 9303
+discovery.zen.ping.unicast.hosts: ["localhost:9301", "localhost:9302"]
+----
+
+TIP: In these examples, we have not specified the `transport.host`,
+`transport.bind_host`, or `transport.publish_host` settings, so they default to
+the `network.host` value. If you have not specified the `network.host` setting,
+it defaults to `_local_`, which represents the loopback addresses for the system. 
+
+If you choose different cluster names, node names, host names, or ports, you
+must substitute the appropriate values in subsequent steps as well. 
+--
+
+. Start each {es} node. For example, if you installed {es} with a `.tar.gz`
+package, run the following command from each {es} directory:
++
+--
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/elasticsearch
+----------------------------------------------------------------------
+
+See <<starting-elasticsearch>>.
+
+--
+
+. (Optional) Restart {kib}. For example, if you installed 
+{kib} with a `.tar.gz` package, run the following command from the {kib} 
+directory:
++
+--
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/kibana
+----------------------------------------------------------------------
+
+See {kibana-ref}/start-stop.html[Starting and stopping {kib}]. 
+--
+
+. Verify that your cluster now contains three nodes. For example, use the
+<<cluster-health,cluster health API>>:
++
+--
+[source,js]
+----------------------------------
+GET _cluster/health
+----------------------------------
+// CONSOLE 
+
+Confirm the `number_of_nodes` in the response from this API.
+
+You can also use the <<cat-nodes,cat nodes API>> to identify the master
+node:
+
+[source,js]
+----------------------------------
+GET _cat/nodes?v
+----------------------------------
+// CONSOLE 
+
+The node that has an asterisk(*) in the `master` column is the elected master
+node. 
+--
+
+Now that you have multiple nodes, your data can be distributed across the
+cluster in multiple primary and replica shards. For more information about the
+concepts of clusters, nodes, and shards, see
+<<getting-started>>.

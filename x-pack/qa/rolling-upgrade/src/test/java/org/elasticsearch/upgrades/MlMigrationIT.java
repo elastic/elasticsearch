@@ -93,7 +93,8 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
                 "}}}}");
         client().performRequest(createTestIndex);
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44621")
     public void testConfigMigration() throws Exception {
         if (UPGRADED_FROM_VERSION.onOrAfter(Version.V_6_6_0)) {
             // We are testing migration of ml config defined in the clusterstate

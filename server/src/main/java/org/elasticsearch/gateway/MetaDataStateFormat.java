@@ -299,7 +299,7 @@ public abstract class MetaDataStateFormat<T> {
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
                 logger.debug(() -> new ParameterizedMessage(
-                        "{}: failed to read [{}], ignoring...", pathAndStateId.file.toAbsolutePath(), prefix), e);
+                        "{}: failed to read [{}], ignoring...", pathAndStateId.file, prefix), e);
             }
         }
         // if we reach this something went wrong
@@ -343,7 +343,7 @@ public abstract class MetaDataStateFormat<T> {
 
         @Override
         public String toString() {
-            return "[id:" + id + ", file:" + file.toAbsolutePath() + "]";
+            return "[id:" + id + ", file:" + file + "]";
         }
     }
 

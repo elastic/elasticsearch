@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -74,7 +75,7 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testSingleProcessorWithException() throws Exception {
-        TestProcessor processor = new TestProcessor(ingestDocument -> {throw new RuntimeException("error");});
+        TestProcessor processor = new TestProcessor(new RuntimeException("error"));
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
         CompoundProcessor compoundProcessor = new CompoundProcessor(relativeTimeProvider, processor);
@@ -93,7 +94,7 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testIgnoreFailure() throws Exception {
-        TestProcessor processor1 = new TestProcessor(ingestDocument -> {throw new RuntimeException("error");});
+        TestProcessor processor1 = new TestProcessor(new RuntimeException("error"));
         TestProcessor processor2 = new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue("field", "value");});
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
@@ -108,7 +109,7 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testSingleProcessorWithOnFailureProcessor() throws Exception {
-        TestProcessor processor1 = new TestProcessor("id", "first", ingestDocument -> {throw new RuntimeException("error");});
+        TestProcessor processor1 = new TestProcessor("id", "first", new RuntimeException("error"));
         TestProcessor processor2 = new TestProcessor(ingestDocument -> {
             Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
             assertThat(ingestMetadata.size(), equalTo(3));
@@ -130,7 +131,7 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testSingleProcessorWithOnFailureDropProcessor() throws Exception {
-        TestProcessor processor1 = new TestProcessor("id", "first", ingestDocument -> {throw new RuntimeException("error");});
+        TestProcessor processor1 = new TestProcessor("id", "first", new RuntimeException("error"));
         Processor processor2 = new Processor() {
             @Override
             public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
@@ -159,8 +160,8 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testSingleProcessorWithNestedFailures() throws Exception {
-        TestProcessor processor = new TestProcessor("id", "first", ingestDocument -> {throw new RuntimeException("error");});
-        TestProcessor processorToFail = new TestProcessor("id2", "second", ingestDocument -> {
+        TestProcessor processor = new TestProcessor("id", "first", new RuntimeException("error"));
+        TestProcessor processorToFail = new TestProcessor("id2", "second", (Consumer<IngestDocument>) ingestDocument -> {
             Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
             assertThat(ingestMetadata.size(), equalTo(3));
             assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD), equalTo("error"));
@@ -189,7 +190,7 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testCompoundProcessorExceptionFailWithoutOnFailure() throws Exception {
-        TestProcessor firstProcessor = new TestProcessor("id1", "first", ingestDocument -> {throw new RuntimeException("error");});
+        TestProcessor firstProcessor = new TestProcessor("id1", "first", new RuntimeException("error"));
         TestProcessor secondProcessor = new TestProcessor("id3", "second", ingestDocument -> {
             Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
             assertThat(ingestMetadata.entrySet(), hasSize(3));
@@ -212,9 +213,9 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testCompoundProcessorExceptionFail() throws Exception {
-        TestProcessor firstProcessor = new TestProcessor("id1", "first", ingestDocument -> {throw new RuntimeException("error");});
+        TestProcessor firstProcessor = new TestProcessor("id1", "first", new RuntimeException("error"));
         TestProcessor failProcessor =
-            new TestProcessor("tag_fail", "fail", ingestDocument -> {throw new RuntimeException("custom error message");});
+            new TestProcessor("tag_fail", "fail", new RuntimeException("custom error message"));
         TestProcessor secondProcessor = new TestProcessor("id3", "second", ingestDocument -> {
             Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
             assertThat(ingestMetadata.entrySet(), hasSize(3));
@@ -238,9 +239,9 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testCompoundProcessorExceptionFailInOnFailure() throws Exception {
-        TestProcessor firstProcessor = new TestProcessor("id1", "first", ingestDocument -> {throw new RuntimeException("error");});
+        TestProcessor firstProcessor = new TestProcessor("id1", "first", new RuntimeException("error"));
         TestProcessor failProcessor =
-            new TestProcessor("tag_fail", "fail", ingestDocument -> {throw new RuntimeException("custom error message");});
+            new TestProcessor("tag_fail", "fail", new RuntimeException("custom error message"));
         TestProcessor secondProcessor = new TestProcessor("id3", "second", ingestDocument -> {
             Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
             assertThat(ingestMetadata.entrySet(), hasSize(3));
@@ -264,8 +265,8 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testBreakOnFailure() throws Exception {
-        TestProcessor firstProcessor = new TestProcessor("id1", "first", ingestDocument -> {throw new RuntimeException("error1");});
-        TestProcessor secondProcessor = new TestProcessor("id2", "second", ingestDocument -> {throw new RuntimeException("error2");});
+        TestProcessor firstProcessor = new TestProcessor("id1", "first", new RuntimeException("error1"));
+        TestProcessor secondProcessor = new TestProcessor("id2", "second", new RuntimeException("error2"));
         TestProcessor onFailureProcessor = new TestProcessor("id2", "on_failure", ingestDocument -> {});
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);

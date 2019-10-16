@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class WatcherUpgradeIT extends AbstractUpgradeTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46929")
     public void testWatchesKeepRunning() throws Exception {
         if (UPGRADED_FROM_VERSION.before(Version.V_6_0_0)) {
             logger.info("Skipping test. Upgrading from before 6.0 makes this test too complicated.");

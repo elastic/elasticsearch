@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 package org.elasticsearch.cluster.shards;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;

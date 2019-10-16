@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -84,7 +85,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return builder.append("]").toString();
     }
 
-    public static class Entry {
+    public static class Entry implements ToXContent {
         private final State state;
         private final Snapshot snapshot;
         private final boolean includeGlobalState;
@@ -211,7 +212,50 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public String toString() {
-            return snapshot.toString();
+            return Strings.toString(this);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(REPOSITORY, snapshot.getRepository());
+            builder.field(SNAPSHOT, snapshot.getSnapshotId().getName());
+            builder.field(UUID, snapshot.getSnapshotId().getUUID());
+            builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState());
+            builder.field(PARTIAL, partial);
+            builder.field(STATE, state);
+            builder.startArray(INDICES);
+            {
+                for (IndexId index : indices) {
+                    index.toXContent(builder, params);
+                }
+            }
+            builder.endArray();
+            builder.humanReadableField(START_TIME_MILLIS, START_TIME, new TimeValue(startTime));
+            builder.field(REPOSITORY_STATE_ID, repositoryStateId);
+            builder.startArray(SHARDS);
+            {
+                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : shards) {
+                    ShardId shardId = shardEntry.key;
+                    ShardSnapshotStatus status = shardEntry.value;
+                    builder.startObject();
+                    {
+                        builder.field(INDEX, shardId.getIndex());
+                        builder.field(SHARD, shardId.getId());
+                        builder.field(STATE, status.state());
+                        builder.field(NODE, status.nodeId());
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean isFragment() {
+            return false;
         }
 
         // package private for testing
@@ -527,7 +571,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startArray(SNAPSHOTS);
         for (Entry entry : entries) {
-            toXContent(entry, builder, params);
+            entry.toXContent(builder, params);
         }
         builder.endArray();
         return builder;

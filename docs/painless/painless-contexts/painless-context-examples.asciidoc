@@ -5,7 +5,7 @@ To run the examples, index the sample seat data into Elasticsearch. The examples
 must be run sequentially to work correctly.
 
 . Download the
-https://download.elastic.co/demos/painless/contexts/seats.json[seat data]. This
+https://download.elastic.co/demos/painless/contexts/seats-init.json[seat data]. This
 data set contains booking information for a collection of plays. Each document
 represents a single seat for a play at a particular theater on a specific date
 and time.
@@ -74,7 +74,7 @@ seat data is indexed.
 +
 [source,js]
 ----
-curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
+curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats-init.json"
 ----
 // NOTCONSOLE
 

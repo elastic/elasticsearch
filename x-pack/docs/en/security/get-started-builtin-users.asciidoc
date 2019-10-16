@@ -1,0 +1,27 @@
+There are <<built-in-users,built-in users>> that you can use for specific
+administrative purposes: `apm_system`, `beats_system`, `elastic`, `kibana`,
+`logstash_system`,  and `remote_monitoring_user`. 
+
+Before you can use them, you must set their passwords:
+
+. Restart {es}. For example, if you installed {es} with a `.tar.gz` package, run 
+the following command from the {es} directory:
++
+--
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/elasticsearch
+----------------------------------------------------------------------
+
+See <<starting-elasticsearch>>.
+--
+
+. Set the built-in users' passwords. Run the following command from the {es} 
+directory:
++
+--
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/elasticsearch-setup-passwords interactive
+----------------------------------------------------------------------
+--

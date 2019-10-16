@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.JdkJarHellCheck;
 import org.gradle.api.DefaultTask;
@@ -47,6 +48,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -64,6 +66,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private static final Pattern VIOLATION_PATTERN = Pattern.compile(
         "\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)"
+    );
+    private static final int SIG_KILL_EXIT_VALUE = 137;
+    private static final List<Integer> EXPECTED_EXIT_CODES = Arrays.asList(
+        CliMain.EXIT_SUCCESS,
+        CliMain.EXIT_VIOLATION,
+        CliMain.EXIT_UNSUPPORTED_JDK
     );
 
     private Set<String> missingClassExcludes = new TreeSet<>();
@@ -319,7 +327,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-        getProject().javaexec(spec -> {
+        ExecResult result = getProject().javaexec(spec -> {
             if (javaHome != null) {
                 spec.setExecutable(javaHome + "/bin/java");
             }
@@ -328,6 +336,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 getRuntimeConfiguration(),
                 getProject().getConfigurations().getByName("compileOnly")
             );
+            spec.jvmArgs("-Xmx1g");
             spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args(
                 "-f", getSignatureFile().getAbsolutePath(),
@@ -340,9 +349,17 @@ public class ThirdPartyAuditTask extends DefaultTask {
             }
             spec.setIgnoreExitValue(true);
         });
+        if (result.getExitValue() == SIG_KILL_EXIT_VALUE) {
+            throw new IllegalStateException(
+                "Third party audit was killed buy SIGKILL, could be a victim of the Linux OOM killer"
+            );
+        }
         final String forbiddenApisOutput;
         try (ByteArrayOutputStream outputStream = errorOut) {
             forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
+        }
+        if (EXPECTED_EXIT_CODES.contains(result.getExitValue()) == false) {
+            throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
         }
         return forbiddenApisOutput;
     }

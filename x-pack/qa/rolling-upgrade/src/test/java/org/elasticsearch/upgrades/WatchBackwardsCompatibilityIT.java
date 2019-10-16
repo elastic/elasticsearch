@@ -9,6 +9,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -19,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
 import org.junit.Before;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-@TestLogging("org.elasticsearch.client:TRACE")
+@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/44814")
 public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private final StringEntity entity = new StringEntity(watchBuilder()
@@ -171,6 +171,7 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 .build();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/44814")
     public void testWatcherStats() throws Exception {
         executeAgainstAllNodes(client ->
             assertOK(client.performRequest("GET", "/_xpack/watcher/stats"))
@@ -189,6 +190,7 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         ensureWatcherStartedOnExpectedNodes();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/44814")
     public void testWatchCrudApis() throws Exception {
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
 

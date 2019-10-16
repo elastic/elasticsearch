@@ -188,8 +188,9 @@ applies the required changes and publishes the updated cluster state to all the
 other nodes in the cluster. Each node receives the publish message, acknowledges
 it, but does *not* yet apply it. If the master does not receive acknowledgement
 from at least `discovery.zen.minimum_master_nodes` nodes within a certain time
-(controlled by the `discovery.zen.commit_timeout` setting and defaults to 30
-seconds) the cluster state change is rejected.
+(controlled by the `discovery.zen.commit_timeout` setting which defaults to 30
+seconds, with negative values treated as 0 seconds) the cluster state change is
+rejected.
 
 Once enough nodes have responded, the cluster state is committed and a message
 will be sent to all the nodes. The nodes then proceed to apply the new cluster

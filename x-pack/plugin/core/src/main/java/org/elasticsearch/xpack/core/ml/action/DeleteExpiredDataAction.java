@@ -75,6 +75,10 @@ public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Requ
             deleted = in.readBoolean();
         }
 
+        public boolean isDeleted() {
+            return deleted;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

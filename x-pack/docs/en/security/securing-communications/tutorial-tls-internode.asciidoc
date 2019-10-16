@@ -1,0 +1,109 @@
+[role="xpack"]
+[[encrypting-internode]]
+=== Encrypt internode communications  
+
+Now that you've generated a certificate authority and certificates for each node,
+you must update your cluster to use these files. 
+
+. Stop each {es} node. For example, if you installed {es} from an archive
+distribution, enter `Ctrl-C` on the command line. See 
+<<stopping-elasticsearch>>.
+
+. On each node, enable Transport Layer Security (TLS/SSL) for transport
+(internode) communications. You must also configure each node to identify itself
+using its signed certificate.
++
+--
+For example, add the following settings in each `ES_PATH_CONF/elasticsearch.yml`
+file:
+
+[source,yaml]
+----
+xpack.security.transport.ssl.enabled: true  
+xpack.security.transport.ssl.keystore.path: certs/${node.name}.p12 <1>
+xpack.security.transport.ssl.truststore.path: certs/${node.name}.p12
+----
+<1> If the file name for your certificate does not match the `node.name` value,
+you must put the appropriate file name in each `elasticsearch.yml` file. 
+
+NOTE: The PKCS#12 keystore that is output by the `elasticsearch-certutil` can be
+used as both a keystore and a truststore. If you use other tools to manage and 
+generate your certificates, you might have different values for these settings,
+but that scenario is not covered in this tutorial.
+
+For more information about these settings, see
+<<transport-tls-ssl-settings>>.
+--
+
+. On each node, store the password for PKCS#12 file in the {es} keystore.
++
+--
+For example, run the following commands on each node: 
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/elasticsearch-keystore create <1>
+./bin/elasticsearch-keystore add xpack.security.transport.ssl.keystore.secure_password
+./bin/elasticsearch-keystore add xpack.security.transport.ssl.truststore.secure_password
+----------------------------------------------------------------------
+<1> If the {es} keystore already exists, this command asks whether you want to
+overwrite it. You do not need to overwrite it; you can simply add settings to
+your existing {es} keystore.
+
+You are prompted to supply the password value. As you saw in the previous step,
+we are using the same file for both the transport TLS keystore and truststore,
+therefore you supply the same password for both of these settings.
+--
+
+. Start each {es} node. For example, if you installed {es} with a `.tar.gz`
+package, run the following command from each {es} directory:
++
+--
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/elasticsearch
+----------------------------------------------------------------------
+
+See <<starting-elasticsearch>>.
+--
+
+. (Optional) Restart {kib}. For example, if you installed 
+{kib} with a `.tar.gz` package, run the following command from the {kib} 
+directory:
++
+--
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/kibana
+----------------------------------------------------------------------
+
+See {kibana-ref}/start-stop.html[Starting and stopping {kib}]. 
+--
+
+. Verify that your cluster is healthy. For example, use the
+<<cluster-health,cluster health API>>:
++
+--
+[source,js]
+----------------------------------
+GET _cluster/health
+----------------------------------
+// CONSOLE 
+
+Confirm the `status` of your cluster is `green` in the response from this API.
+
+If you encounter errors, you can see some common problems and solutions in
+<<trb-security-ssl>>.  
+--
+
+[float]
+[[encrypting-internode-nextsteps]]
+=== What's next?
+
+Congratulations! You've encrypted communications between the nodes in your
+cluster and can pass the 
+<<bootstrap-checks-tls,TLS bootstrap check>>.
+
+If you want to encrypt communications between other products in the {stack}, see
+<<encrypting-communications>>.
+

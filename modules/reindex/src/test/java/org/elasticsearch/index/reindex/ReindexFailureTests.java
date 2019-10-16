@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +37,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  * Tests failure capturing and abort-on-failure behavior of reindex.
  */
-@TestLogging("_root:DEBUG")
 public class ReindexFailureTests extends ReindexTestCase {
     public void testFailuresCauseAbortDefault() throws Exception {
         /*

@@ -1,0 +1,128 @@
+[role="xpack"]
+[[encrypting-communications-certificates]]
+=== Generate certificates
+
+In a secured cluster, {es} nodes use certificates to identify themselves when
+communicating with other nodes. 
+
+The cluster must validate the authenticity of these certificates. The 
+recommended approach is to trust a specific certificate authority (CA). Thus 
+when nodes are added to your cluster they just need to use a certificate signed 
+by the same CA. 
+
+. Use the `elasticsearch-certutil` command to generate a CA and certificates and
+private keys for each node in your cluster. 
++
+--
+You can let the tool prompt you for information about each node in your cluster,
+or you can supply that information in an input file. For example, create a
+`test-cluster.yml` file in one of your {es} nodes:
+
+[source,yaml]
+----
+instances:
+  - name: "node-1" <1>
+    dns: 
+      - "localhost"
+    ip:
+      - "127.0.0.1"
+      - "::1"
+  - name: "node-2"
+    dns:
+      - "localhost"
+    ip:
+      - "127.0.0.1"
+      - "::1"
+  - name: "node-3"
+    dns:
+      - "localhost"
+    ip:
+      - "127.0.0.1"
+      - "::1"
+----
+<1> If these `name` values match the values you specified for `node.name` in
+each `elasticsearch.yml` file, you can use a shortcut in a subsequent step. 
+
+TIP: In this tutorial, all three nodes exist on the same machine and share the
+same IP address and hostname. In general, clusters are more resilient when they
+contain nodes from multiple servers and this list would reflect that diversity.
+
+For information about all of the possible fields in this file, see 
+<<certutil-silent>>.
+
+Then run the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/elasticsearch-certutil cert --in test-cluster.yml --keep-ca-key
+----------------------------------------------------------------------
+
+It prompts you for passwords to secure each output file. 
+
+TIP: Ideally, you should use a different password for each file and store the
+files securely--especially the CA, since it holds the key to your cluster.
+
+--
+
+. Decompress the `certificate-bundle.zip` file. For example:
++
+--
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+unzip certificate-bundle.zip 
+
+Archive:  certificate-bundle.zip
+   creating: ca/
+  inflating: ca/ca.p12               
+   creating: node-1/
+  inflating: node-1/node-1.p12       
+   creating: node-2/
+  inflating: node-2/node-2.p12       
+   creating: node-3/
+  inflating: node-3/node-3.p12  
+----------------------------------------------------------------------
+  
+The `certificate-bundle.zip` file contains a folder for each of your nodes and a
+`ca` folder.
+
+The `ca` folder contains a `ca.p12` file, which is a PKCS#12 keystore. This file
+contains the public certificate for your certificate authority and the private
+key that is used to sign the node certificates.
+
+Each node folder contains a single PKCS#12 keystore that includes a node 
+certificate, node key, and CA certificate.
+--
+
+. Create a folder to contain certificates in the configuration
+directory on each {es} node. For example, create a `certs` folder in the `config`
+directory on each node.
+
+. Copy the appropriate certificate to the configuration directory on each {es} 
+node. For example, copy the `node-1.p12` file into the `config/certs` directory
+on the first node. Copy the `node-2.p12` file to the second node and the
+`node-3.p12` to the third.
+
+If you later add more nodes, they just need to use a certificate signed by the
+same CA. For this reason, make sure you store your CA in a safe place and don't
+forget its password!
+
+For example: 
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+./bin/elasticsearch-certutil cert --ca ca/ca.p12 \ <1>
+--name <node-name> \ <2>
+--dns <domain_name> \ <3>
+--ip <ip_addresses> <4>
+----------------------------------------------------------------------
+<1> The certificate authority that you generated for this cluster.
+<2> The name of the generated certificate. Ideally this value matches the new
+node's `node.name` value in its `elasticsearch.yml` file.
+<3> A comma-separated list of DNS names for the new node.
+<4> A comma-separated list of IP addresses for the new node.
+
+TIP: The <<certutil,elasticsearch-certutil>> command has a lot more
+options. For example, it can generate Privacy Enhanced Mail (PEM) formatted
+certificates and keys. It can also generate certificate signing requests (CSRs)
+that you can use to obtain signed certificates from a commercial or
+organization-specific certificate authority. However, those options are not
+covered in this tutorial. 

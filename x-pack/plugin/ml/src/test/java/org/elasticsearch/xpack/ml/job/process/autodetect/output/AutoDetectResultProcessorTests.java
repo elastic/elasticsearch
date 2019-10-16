@@ -223,7 +223,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
         processorUnderTest.processResult(context, result);
 
-        verify(flushListener, times(1)).acknowledgeFlush(flushAcknowledgement);
+        verify(flushListener, times(1)).acknowledgeFlush(flushAcknowledgement, null);
         verify(persister, times(1)).commitResultWrites(JOB_ID);
         verify(bulkBuilder, times(1)).executeRequest();
         verifyNoMoreInteractions(persister);
@@ -248,7 +248,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         inOrder.verify(persister, times(1)).persistCategoryDefinition(categoryDefinition);
         inOrder.verify(bulkBuilder, times(1)).executeRequest();
         inOrder.verify(persister, times(1)).commitResultWrites(JOB_ID);
-        inOrder.verify(flushListener, times(1)).acknowledgeFlush(flushAcknowledgement);
+        inOrder.verify(flushListener, times(1)).acknowledgeFlush(flushAcknowledgement, null);
         verifyNoMoreInteractions(persister);
         assertTrue(context.deleteInterimRequired);
     }
@@ -496,7 +496,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verify(persister, times(2)).persistModelSnapshot(any(), eq(WriteRequest.RefreshPolicy.IMMEDIATE));
     }
 
-    public void testParsingErrorSetsFailed() throws InterruptedException {
+    public void testParsingErrorSetsFailed() throws Exception {
         @SuppressWarnings("unchecked")
         Iterator<AutodetectResult> iterator = mock(Iterator.class);
         when(iterator.hasNext()).thenThrow(new ElasticsearchParseException("this test throws"));

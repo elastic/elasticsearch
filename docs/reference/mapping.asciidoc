@@ -5,7 +5,7 @@
 --
 
 Mapping is the process of defining how a document, and the fields it contains,
-are stored and indexed.  For instance, use mappings to define:
+are stored and indexed. For instance, use mappings to define:
 
 * which string fields should be treated as full text fields.
 * which fields contain numbers, dates, or geolocations.
@@ -22,7 +22,7 @@ are stored and indexed.  For instance, use mappings to define:
 Each index has one _mapping type_ which determines how the document will be
 indexed.
 
-deprecated[6.0.0,See <<removal-of-types>>].
+deprecated::[6.0.0,See <<removal-of-types>>]
 
 A mapping type has:
 
@@ -136,10 +136,10 @@ PUT my_index <1>
     "_doc": { <2>
       "properties": { <3>
         "title":    { "type": "text"  }, <4>
-        "name":     { "type": "text"  }, <4>
-        "age":      { "type": "integer" },  <4>
+        "name":     { "type": "text"  }, <5>
+        "age":      { "type": "integer" },  <6>
         "created":  {
-          "type":   "date", <4>
+          "type":   "date", <7>
           "format": "strict_date_optional_time||epoch_millis"
         }
       }
@@ -151,7 +151,10 @@ PUT my_index <1>
 <1> Create an index called `my_index`.
 <2> Add a mapping type called `_doc`.
 <3> Specify fields or _properties_.
-<4> Specify the data `type` and mapping for each field.
+<4> Specify that the `title` field contains `text` values.
+<5> Specify that the `name` field contains `text` values.
+<6> Specify that the `age` field contains `integer` values.
+<7> Specify that the `created` field contains `date` values in two possible formats.
 
 
 --

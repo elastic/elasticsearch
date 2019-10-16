@@ -71,7 +71,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) == false) {
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) == false && request.method().equals(GET)) {
             deprecationLogger.deprecatedAndMaybeLog("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();

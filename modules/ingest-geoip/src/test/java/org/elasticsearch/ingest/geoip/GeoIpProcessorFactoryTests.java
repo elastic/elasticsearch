@@ -55,6 +55,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     @BeforeClass
     public static void loadDatabaseReaders() throws IOException {
+        // there are still problems on windows
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44552", Constants.WINDOWS);
+
         // Skip setup because Windows cannot cleanup these files properly. The reason is that they are using
         // a MappedByteBuffer which will keep the file mappings active until it is garbage-collected. As a consequence,
         // the corresponding file appears to be still in use and Windows cannot delete it.

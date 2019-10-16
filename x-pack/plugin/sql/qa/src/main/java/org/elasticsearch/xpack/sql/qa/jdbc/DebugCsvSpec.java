@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
 import java.sql.Connection;
@@ -20,7 +18,6 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
 
-@TestLogging("org.elasticsearch.xpack.sql:TRACE")
 public abstract class DebugCsvSpec extends SpecBaseIntegrationTestCase {
     private final CsvTestCase testCase;
 

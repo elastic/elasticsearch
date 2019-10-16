@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -233,7 +234,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     }
 
     public List<AnalyzeToken> getTokens() {
-        return this.tokens;
+        return this.tokens != null ? this.tokens : Collections.emptyList();
     }
 
     public DetailAnalyzeResponse detail() {
@@ -253,6 +254,10 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             for (AnalyzeToken token : tokens) {
                 token.toXContent(builder, params);
             }
+            builder.endArray();
+        } else if (detail == null) {
+            // at least write an empty list
+            builder.startArray(Fields.TOKENS);
             builder.endArray();
         }
 

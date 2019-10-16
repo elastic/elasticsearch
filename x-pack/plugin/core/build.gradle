@@ -65,7 +65,7 @@ processResources {
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
   } else if (snapshot) {
-    licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
+      licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')
   }

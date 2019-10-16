@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -160,32 +161,37 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             weight = searchContext.searcher().createNormalizedWeight(query, true);
         }
         for (Entry entry : entries) {
-            final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
-            DocIdSetIterator docIt = null;
-            if (needsScores && entry.docDeltas.size() > 0) {
-                Scorer scorer = weight.scorer(entry.context);
-                // We don't need to check if the scorer is null
-                // since we are sure that there are documents to replay (entry.docDeltas it not empty).
-                docIt = scorer.iterator();
-                leafCollector.setScorer(scorer);
-            }
-            final PackedLongValues.Iterator docDeltaIterator = entry.docDeltas.iterator();
-            final PackedLongValues.Iterator buckets = entry.buckets.iterator();
-            int doc = 0;
-            for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
-                doc += docDeltaIterator.next();
-                final long bucket = buckets.next();
-                final long rebasedBucket = hash.find(bucket);
-                if (rebasedBucket != -1) {
-                    if (needsScores) {
-                        if (docIt.docID() < doc) {
-                            docIt.advance(doc);
-                        }
-                        // aggregations should only be replayed on matching documents
-                        assert docIt.docID() == doc;
-                    }
-                    leafCollector.collect(doc, rebasedBucket);
+            try {
+                final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
+                DocIdSetIterator docIt = null;
+                if (needsScores && entry.docDeltas.size() > 0) {
+                    Scorer scorer = weight.scorer(entry.context);
+                    // We don't need to check if the scorer is null
+                    // since we are sure that there are documents to replay (entry.docDeltas it not empty).
+                    docIt = scorer.iterator();
+                    leafCollector.setScorer(scorer);
                 }
+                final PackedLongValues.Iterator docDeltaIterator = entry.docDeltas.iterator();
+                final PackedLongValues.Iterator buckets = entry.buckets.iterator();
+                int doc = 0;
+                for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
+                    doc += docDeltaIterator.next();
+                    final long bucket = buckets.next();
+                    final long rebasedBucket = hash.find(bucket);
+                    if (rebasedBucket != -1) {
+                        if (needsScores) {
+                            if (docIt.docID() < doc) {
+                                docIt.advance(doc);
+                            }
+                            // aggregations should only be replayed on matching documents
+                            assert docIt.docID() == doc;
+                        }
+                        leafCollector.collect(doc, rebasedBucket);
+                    }
+                }
+            } catch (CollectionTerminatedException e) {
+                // collection was terminated prematurely
+                // continue with the following leaf
             }
         }
 

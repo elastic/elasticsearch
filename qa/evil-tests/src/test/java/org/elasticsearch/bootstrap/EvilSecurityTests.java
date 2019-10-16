@@ -136,6 +136,7 @@ public class EvilSecurityTests extends ESTestCase {
     }
 
     public void testDuplicateDataPaths() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44558", Constants.WINDOWS);
         final Path path = createTempDir();
         final Path home = path.resolve("home");
         final Path data = path.resolve("data");

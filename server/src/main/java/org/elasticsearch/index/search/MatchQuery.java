@@ -472,8 +472,8 @@ public class MatchQuery {
             }
             SpanQuery[] spanQueries = new SpanQuery[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                spanQueries[i] = prefix ? new SpanTermQuery(terms[i]) :
-                    fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context);
+                spanQueries[i] = prefix ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context) :
+                    new SpanTermQuery(terms[i]);
             }
             return new SpanOrQuery(spanQueries);
         }

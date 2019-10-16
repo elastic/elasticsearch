@@ -32,6 +32,8 @@ PUT my_index
 --------------------------------
 // CONSOLE
 
+[[text-multi-fields]]
+==== Use a field as both text and keyword
 Sometimes it is useful to have both a full text (`text`) and a keyword
 (`keyword`) version of the same field: one for full text search and the
 other for aggregations and sorting. This can be achieved with

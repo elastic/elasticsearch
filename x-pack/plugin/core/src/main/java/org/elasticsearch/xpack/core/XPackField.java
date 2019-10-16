@@ -51,6 +51,8 @@ public final class XPackField {
     public static final String SPATIAL = "spatial";
     /** Name constant for the data science plugin. */
     public static final String ANALYTICS = "analytics";
+    /** Name constant for the enrich plugin. */
+    public static final String ENRICH = "enrich";
 
     private XPackField() {}
 

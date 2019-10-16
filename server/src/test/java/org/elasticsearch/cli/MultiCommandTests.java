@@ -214,13 +214,12 @@ public class MultiCommandTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), equalTo("ERROR: Dummy error\n"));
     }
 
-    public void testNoErrorDisplayedWithOverride() throws Exception {
+    public void testNullErrorMessageSuppressesErrorOutput() throws Exception {
         MockTerminal terminal = new MockTerminal();
         MultiCommand mc = new ErrorHandlingMultiCommand();
         mc.subcommands.put("throw", new ErrorThrowingSubCommand() {
             @Override
             protected void execute(Terminal terminal, OptionSet options) throws Exception {
-                terminal.errorPrintln(Terminal.Verbosity.NORMAL, "Dummy error");
                 throw new UserException(1, null);
             }
         });

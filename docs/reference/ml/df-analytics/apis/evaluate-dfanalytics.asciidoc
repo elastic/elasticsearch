@@ -254,9 +254,6 @@ calculated by the {reganalysis}.
 
 ===== {classification-cap}
 
-In the first example, `size` is not provided. The full matrix returns in the 
-response as the actual size is less than the maximum size (1000). 
-
 
 [source,console]
 --------------------------------------------------
@@ -288,157 +285,15 @@ The API returns the following result:
    "classification" : {
       "multiclass_confusion_matrix" : {
          "confusion_matrix" : {
-            "ant" : {
-               "mouse" : 2,
-               "horse" : 1,
-               "dog" : 3,
-               "ant" : 5,
-               "cat" : 4
-            },
             "cat" : {
-               "ant" : 4,
-               "cat" : 5,
+               "cat" : 12,
                "dog" : 3,
-               "horse" : 1,
-               "mouse" : 2
             },
             "dog" : {
-               "dog" : 5,
+               "dog" : 11,
                "cat" : 4,
-               "ant" : 3,
-               "mouse" : 2,
-               "horse" : 1
-            },
-            "horse" : {
-               "mouse" : 2,
-               "horse" : 5,
-               "dog" : 3,
-               "ant" : 1,
-               "cat" : 4
-            },
-            "mouse" : {
-               "mouse" : 5,
-               "horse" : 1,
-               "dog" : 3,
-               "ant" : 2,
-               "cat" : 4
             }
          }
-      }
-   }
-}
---------------------------------------------------
-
-
-In the second example the `size` is still not provided, but this time the 
-response contains only the restricted matrix as the actual size is grater than 
-the maximum size (1000).
-
-[source,console]
---------------------------------------------------
-POST _ml/data_frame/_evaluate
-{ 
-   "index": "my-index",
-   "evaluation": { 
-      "classification": { 
-         "actual_field": "a",
-         "predicted_field": "b"
-      }
-   }
-}
---------------------------------------------------
-// TEST[skip:TBD]
-
-
-The API returns the following result:
-
-[source,console-result]
---------------------------------------------------
-{
-   "classification" : {
-      "multiclass_confusion_matrix" : {
-         "confusion_matrix" : {
-            "class_1" : {
-               "class_1" : 5, <1>
-               ...
-               "class_100" : 4, <2>
-               "_other_": 6 <3>
-            },
-            "class_2" : {
-               "class_1" : 5,
-               ...
-               "class_100" : 3,
-               "_other_": 7
-            },
-            ...
-            "class_100" : {
-               "class_1" : 15,
-               ...
-               "class_100" : 30,
-            }
-         },
-         "_other_" : 25 <4>
-      }
-   }
-}
---------------------------------------------------
-<1> Number of datapoints that are classified correctly as class_1.
-<2> Number of datapoints that are misclassified as class_100.
-<3> Number of datapoints that are misclassified as one of the classes that 
-doesn't fit into the response specifically.
-<4> Number of actual classes that doesn't fit into the response specifically.
-
-
-In the third example, the `size` is provided, the response only contains the 
-restricted matrix as the actual size is greater than the maximum size (1000).
-
-[source,console]
---------------------------------------------------
-POST _ml/data_frame/_evaluate
-{ 
-   "index": "my-index",
-   "evaluation": { 
-      "classification": { 
-         "actual_field": "a",
-         "predicted_field": "b",
-         "metrics": {
-           "multiclass_confusion_matrix": {
-             "size": 3
-           }
-         }
-      }
-   }
-}
---------------------------------------------------
-
-
-The API returns the following results:
-
-[source,console-result]
---------------------------------------------------
-{
-   "classification" : {
-      "multiclass_confusion_matrix" : {
-         "confusion_matrix" : {
-            "ant" : {
-               "ant" : 5,
-               "cat" : 4,
-               "dog" : 0,
-               "_other_": 6
-            },
-            "cat" : {
-               "ant" : 0,
-               "cat" : 5,
-               "dog" : 3,
-               "_other_": 7
-            },
-            "dog" : {
-               "ant" : 0,
-               "cat" : 0,
-               "dog" : 15
-            }
-         },
-         "_other_" : 2
       }
    }
 }

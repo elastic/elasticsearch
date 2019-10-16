@@ -27,7 +27,7 @@ example, http://127.0.0.1:5601[http://127.0.0.1:5601].
 [[get-started-license]]
 === Install a trial license
 
-include::{docdir}/get-started-trial.asciidoc[]
+include::get-started-trial.asciidoc[]
 
 [role="xpack"]
 [[get-started-enable-security]]

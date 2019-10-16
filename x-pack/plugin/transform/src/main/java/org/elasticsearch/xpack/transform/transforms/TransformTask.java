@@ -296,40 +296,11 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             getTransformId(),
             shouldStopAtCheckpoint,
             getState());
-        if (taskState.get() == TransformTaskState.STARTED == false ||
-            getIndexer() == null ||
-            getIndexer().shouldStopAtCheckpoint() == shouldStopAtCheckpoint ||
-            getIndexer().getState() == IndexerState.STOPPED ||
-            getIndexer().getState() == IndexerState.STOPPING) {
+        if (taskState.get() != TransformTaskState.STARTED || getIndexer() == null) {
             shouldStopAtCheckpointListener.onResponse(null);
             return;
         }
-        TransformState state = new TransformState(
-            taskState.get(),
-            indexer.get().getState(),
-            indexer.get().getPosition(),
-            currentCheckpoint.get(),
-            stateReason.get(),
-            getIndexer().getProgress(),
-            null, //Node attributes
-            shouldStopAtCheckpoint);
-        getIndexer().doSaveState(state,
-            ActionListener.wrap(
-                r -> {
-                    // We only want to update this internal value if it is persisted as such
-                    getIndexer().setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-                    logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]",
-                        getTransformId(),
-                        shouldStopAtCheckpoint);
-                    shouldStopAtCheckpointListener.onResponse(null);
-                },
-                statsExc -> {
-                    logger.warn("[{}] failed to persist should_stop_at_checkpoint update [{}]",
-                        getTransformId(),
-                        shouldStopAtCheckpoint);
-                    shouldStopAtCheckpointListener.onFailure(statsExc);
-                }
-            ));
+        getIndexer().persistShouldStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
     }
 
     public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {

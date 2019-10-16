@@ -111,6 +111,41 @@ class ClientTransformIndexer extends TransformIndexer {
         this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
     }
 
+    void persistShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+        if (this.shouldStopAtCheckpoint == shouldStopAtCheckpoint ||
+            getState() == IndexerState.STOPPED ||
+            getState() == IndexerState.STOPPING) {
+            shouldStopAtCheckpointListener.onResponse(null);
+            return;
+        }
+        TransformState state = new TransformState(
+            transformTask.getTaskState(),
+            getState(),
+            getPosition(),
+            transformTask.getCheckpoint(),
+            transformTask.getStateReason(),
+            getProgress(),
+            null, //Node attributes
+            shouldStopAtCheckpoint);
+        doSaveState(state,
+            ActionListener.wrap(
+                r -> {
+                    // We only want to update this internal value if it is persisted as such
+                    this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+                    logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]",
+                        getJobId(),
+                        shouldStopAtCheckpoint);
+                    shouldStopAtCheckpointListener.onResponse(null);
+                },
+                statsExc -> {
+                    logger.warn("[{}] failed to persist should_stop_at_checkpoint update [{}]",
+                        getJobId(),
+                        shouldStopAtCheckpoint);
+                    shouldStopAtCheckpointListener.onFailure(statsExc);
+                }
+            ));
+    }
+
     @Override
     protected void onStart(long now, ActionListener<Boolean> listener) {
         if (transformTask.getTaskState() == TransformTaskState.FAILED) {
@@ -376,7 +411,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ));
     }
 
-    protected void doSaveState(TransformState state, ActionListener<Void> listener) {
+    private void doSaveState(TransformState state, ActionListener<Void> listener) {
 
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = transformTask.getSeqNoPrimaryTermAndIndex();

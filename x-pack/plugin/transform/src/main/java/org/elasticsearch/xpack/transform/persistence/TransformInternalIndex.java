@@ -54,7 +54,8 @@ public final class TransformInternalIndex {
      *                  progress::docs_processed, progress::docs_indexed,
      *                  stats::exponential_avg_checkpoint_duration_ms, stats::exponential_avg_documents_indexed,
      *                  stats::exponential_avg_documents_processed
-     * version 3 (7.6): state::should_stop_at_checkpoint
+     *
+     * version 4 (7.6): state::should_stop_at_checkpoint
      */
 
     // constants for mappings

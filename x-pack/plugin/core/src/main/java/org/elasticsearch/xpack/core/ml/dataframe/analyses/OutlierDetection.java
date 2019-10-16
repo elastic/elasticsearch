@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class OutlierDetection implements DataFrameAnalysis {
 
@@ -211,6 +212,11 @@ public class OutlierDetection implements DataFrameAnalysis {
     @Override
     public boolean supportsCategoricalFields() {
         return false;
+    }
+
+    @Override
+    public Set<String> getAllowedCategoricalTypes(String fieldName) {
+        return Collections.emptySet();
     }
 
     @Override

@@ -232,7 +232,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
                 XContentType.JSON).get();
 
         assertThat(((SimulateDocumentBaseResult) response.getResults().get(0)).getFailure().getMessage(),
-            containsString("Could not find trained model [test_classification_missing] with version [0]"));
+            containsString("Could not find trained model [test_classification_missing]"));
     }
 
     private static final String REGRESSION_MODEL = "{" +

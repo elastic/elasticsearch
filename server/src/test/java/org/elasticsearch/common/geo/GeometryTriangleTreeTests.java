@@ -60,40 +60,48 @@ public class GeometryTriangleTreeTests extends ESTestCase {
             assertThat(reader.getCentroidY(), equalTo((double) ((minY + maxY)/2)));
 
             // box-query touches bottom-left corner
-            assertTrue(reader.intersects(minX - randomIntBetween(1, 10), minX, minY - randomIntBetween(1, 10), minY));
+            assertTrue(reader.intersects(minX - randomIntBetween(1, 10), minX,
+                minY - randomIntBetween(1, 10), minY));
             // box-query touches bottom-right corner
-            assertTrue(reader.intersects(maxX, maxX + randomIntBetween(1, 10), minY - randomIntBetween(1, 10),  minY));
+            assertTrue(reader.intersects(maxX, maxX + randomIntBetween(1, 10),
+                minY - randomIntBetween(1, 10),  minY));
             // box-query touches top-right corner
-            assertTrue(reader.intersects(maxX, maxX + randomIntBetween(1, 10), maxY, maxY + randomIntBetween(1, 10)));
+            assertTrue(reader.intersects(maxX, maxX + randomIntBetween(1, 10),
+                maxY, maxY + randomIntBetween(1, 10)));
             // box-query touches top-left corner
-            assertTrue(reader.intersects(minX - randomIntBetween(1, 10), minX, maxY, maxY + randomIntBetween(1, 10)));
+            assertTrue(reader.intersects(minX - randomIntBetween(1, 10), minX,
+                maxY, maxY + randomIntBetween(1, 10)));
             // box-query fully-enclosed inside rectangle
-            assertTrue(reader.intersects((3 * minX + maxX) / 4, (3 * maxX + minX) / 4, (3 * minY + maxY) / 4,
-                (3 * maxY + minY) / 4));
+            assertTrue(reader.intersects((3 * minX + maxX) / 4, (3 * maxX + minX) / 4,
+                (3 * minY + maxY) / 4, (3 * maxY + minY) / 4));
             // box-query fully-contains poly
             assertTrue(reader.intersects(minX - randomIntBetween(1, 10), maxX + randomIntBetween(1, 10),
                 minY - randomIntBetween(1, 10), maxY + randomIntBetween(1, 10)));
             // box-query half-in-half-out-right
-            assertTrue(reader.intersects((3 * minX + maxX) / 4, maxX + randomIntBetween(1, 10), (3 * minY + maxY) / 4,
-                (3 * maxY + minY) / 4));
+            assertTrue(reader.intersects((3 * minX + maxX) / 4, maxX + randomIntBetween(1, 10),
+                (3 * minY + maxY) / 4, (3 * maxY + minY) / 4));
             // box-query half-in-half-out-left
-            assertTrue(reader.intersects(minX - randomIntBetween(1, 10), (3 * maxX + minX) / 4, (3 * minY + maxY) / 4,
-                (3 * maxY + minY) / 4));
+            assertTrue(reader.intersects(minX - randomIntBetween(1, 10), (3 * maxX + minX) / 4,
+                (3 * minY + maxY) / 4, (3 * maxY + minY) / 4));
             // box-query half-in-half-out-top
-            assertTrue(reader.intersects((3 * minX + maxX) / 4, maxX + randomIntBetween(1, 10), (3 * minY + maxY) / 4,
-                maxY + randomIntBetween(1, 10)));
+            assertTrue(reader.intersects((3 * minX + maxX) / 4, maxX + randomIntBetween(1, 10),
+                (3 * minY + maxY) / 4, maxY + randomIntBetween(1, 10)));
             // box-query half-in-half-out-bottom
             assertTrue(reader.intersects((3 * minX + maxX) / 4, maxX + randomIntBetween(1, 10),
                 minY - randomIntBetween(1, 10), (3 * maxY + minY) / 4));
 
             // box-query outside to the right
-            assertFalse(reader.intersects(maxX + randomIntBetween(1, 4), maxX + randomIntBetween(5, 10), minY, maxY));
+            assertFalse(reader.intersects(maxX + randomIntBetween(1, 4), maxX + randomIntBetween(5, 10),
+                minY, maxY));
             // box-query outside to the left
-            assertFalse(reader.intersects(maxX - randomIntBetween(5, 10), minX - randomIntBetween(1, 4), minY, maxY));
+            assertFalse(reader.intersects(maxX - randomIntBetween(5, 10), minX - randomIntBetween(1, 4),
+                minY, maxY));
             // box-query outside to the top
-            assertFalse(reader.intersects(minX, maxX, maxY + randomIntBetween(1, 4), maxY + randomIntBetween(5, 10)));
+            assertFalse(reader.intersects(minX, maxX, maxY + randomIntBetween(1, 4),
+                maxY + randomIntBetween(5, 10)));
             // box-query outside to the bottom
-            assertFalse(reader.intersects(minX, maxX, minY - randomIntBetween(5, 10), minY - randomIntBetween(1, 4)));
+            assertFalse(reader.intersects(minX, maxX, minY - randomIntBetween(5, 10),
+                minY - randomIntBetween(1, 4)));
         }
     }
 
@@ -105,7 +113,8 @@ public class GeometryTriangleTreeTests extends ESTestCase {
         CoordinateEncoder encoder = TestCoordinateEncoder.INSTANCE;
 
         // test cell crossing poly
-        TriangleTreeWriter writer = new TriangleTreeWriter(new Polygon(new LinearRing(py, px), Collections.emptyList()), encoder);
+        TriangleTreeWriter writer = new TriangleTreeWriter(
+            new Polygon(new LinearRing(py, px), Collections.emptyList()), encoder);
         //System.out.println(writer.node.size(false, writer.node.minX, writer.node.minY));
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
@@ -129,18 +138,25 @@ public class GeometryTriangleTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         TriangleTreeReader reader = new TriangleTreeReader(output.bytes().toBytesRef(),  encoder);
-        assertFalse(reader.intersects(encoder.encodeX(2),  encoder.encodeX(11), encoder.encodeY(-1), encoder.encodeY(1)));
-        assertTrue(reader.intersects(encoder.encodeX(-12), encoder.encodeX(12), encoder.encodeY(-12), encoder.encodeY(12)));
-        assertTrue(reader.intersects(encoder.encodeX(-2),  encoder.encodeX(2), encoder.encodeY(-1), encoder.encodeY(0)));
-        assertTrue(reader.intersects(encoder.encodeX(-2),  encoder.encodeX(0.5), encoder.encodeY(0.5), encoder.encodeY(1.5)));
-        assertFalse(reader.intersects(encoder.encodeX(-5), encoder.encodeX( 2), encoder.encodeY(-6), encoder.encodeY(-2)));
+        assertFalse(reader.intersects(encoder.encodeX(2),  encoder.encodeX(11),
+            encoder.encodeY(-1), encoder.encodeY(1)));
+        assertTrue(reader.intersects(encoder.encodeX(-12), encoder.encodeX(12),
+            encoder.encodeY(-12), encoder.encodeY(12)));
+        assertTrue(reader.intersects(encoder.encodeX(-2),  encoder.encodeX(2),
+            encoder.encodeY(-1), encoder.encodeY(0)));
+        assertTrue(reader.intersects(encoder.encodeX(-2),  encoder.encodeX(0.5),
+            encoder.encodeY(0.5), encoder.encodeY(1.5)));
+        assertFalse(reader.intersects(encoder.encodeX(-5), encoder.encodeX( 2),
+            encoder.encodeY(-6), encoder.encodeY(-2)));
     }
 
 
 
     public void testPolygonWithHole() throws Exception {
-        Polygon polyWithHole = new Polygon(new LinearRing(new double[] { -50, 50, 50, -50, -50 }, new double[] { -50, -50, 50, 50, -50 }),
-            Collections.singletonList(new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 })));
+        Polygon polyWithHole = new Polygon(new LinearRing(new double[] { -50, 50, 50, -50, -50 },
+            new double[] { -50, -50, 50, 50, -50 }),
+            Collections.singletonList(new LinearRing(new double[] { -10, 10, 10, -10, -10 },
+                new double[] { -10, -10, 10, 10, -10 })));
 
         CoordinateEncoder encoder = TestCoordinateEncoder.INSTANCE;
 
@@ -150,12 +166,18 @@ public class GeometryTriangleTreeTests extends ESTestCase {
         output.close();
         TriangleTreeReader reader = new TriangleTreeReader(output.bytes().toBytesRef(), encoder);
 
-        assertFalse(reader.intersects(encoder.encodeX(6), encoder.encodeX(6), encoder.encodeY(-6), encoder.encodeY(-6))); // in the hole
-        assertTrue(reader.intersects(encoder.encodeX(25), encoder.encodeX(25), encoder.encodeY(-25), encoder.encodeY(-25))); // on the mainland
-        assertFalse(reader.intersects(encoder.encodeX(51), encoder.encodeX(52), encoder.encodeY(51), encoder.encodeY(52))); // outside of mainland
-        assertTrue(reader.intersects(encoder.encodeX(-60), encoder.encodeX(60), encoder.encodeY(-60), encoder.encodeY(60))); // enclosing us completely
-        assertTrue(reader.intersects(encoder.encodeX(49), encoder.encodeX(51), encoder.encodeY(49), encoder.encodeY(51))); // overlapping the mainland
-        assertTrue(reader.intersects(encoder.encodeX(9), encoder.encodeX(11), encoder.encodeY(9), encoder.encodeY(11))); // overlapping the hole
+        assertFalse(reader.intersects(encoder.encodeX(6), encoder.encodeX(6),
+            encoder.encodeY(-6), encoder.encodeY(-6))); // in the hole
+        assertTrue(reader.intersects(encoder.encodeX(25), encoder.encodeX(25),
+            encoder.encodeY(-25), encoder.encodeY(-25))); // on the mainland
+        assertFalse(reader.intersects(encoder.encodeX(51), encoder.encodeX(52),
+            encoder.encodeY(51), encoder.encodeY(52))); // outside of mainland
+        assertTrue(reader.intersects(encoder.encodeX(-60), encoder.encodeX(60),
+            encoder.encodeY(-60), encoder.encodeY(60))); // enclosing us completely
+        assertTrue(reader.intersects(encoder.encodeX(49), encoder.encodeX(51),
+            encoder.encodeY(49), encoder.encodeY(51))); // overlapping the mainland
+        assertTrue(reader.intersects(encoder.encodeX(9), encoder.encodeX(11),
+            encoder.encodeY(9), encoder.encodeY(11))); // overlapping the hole
     }
 
     public void testCombPolygon() throws Exception {
@@ -166,16 +188,19 @@ public class GeometryTriangleTreeTests extends ESTestCase {
         double[] hy = {1, 20, 20, 1, 1};
 
         CoordinateEncoder encoder = TestCoordinateEncoder.INSTANCE;
-        Polygon polyWithHole = new Polygon(new LinearRing(px, py),  Collections.singletonList(new LinearRing(hx, hy)));
+        Polygon polyWithHole = new Polygon(new LinearRing(px, py), Collections.singletonList(new LinearRing(hx, hy)));
         // test cell crossing poly
         TriangleTreeWriter writer = new TriangleTreeWriter(polyWithHole, encoder);
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
         TriangleTreeReader reader = new TriangleTreeReader(output.bytes().toBytesRef(), encoder);
-        assertTrue(reader.intersects(encoder.encodeX(5), encoder.encodeX(5), encoder.encodeY(10), encoder.encodeY(10)));
-        assertFalse(reader.intersects(encoder.encodeX(15), encoder.encodeX(15), encoder.encodeY(10), encoder.encodeY(10)));
-        assertFalse(reader.intersects(encoder.encodeX(25), encoder.encodeX(25), encoder.encodeY(10), encoder.encodeY(10)));
+        assertTrue(reader.intersects(encoder.encodeX(5), encoder.encodeX(5),
+            encoder.encodeY(10), encoder.encodeY(10)));
+        assertFalse(reader.intersects(encoder.encodeX(15), encoder.encodeX(15),
+            encoder.encodeY(10), encoder.encodeY(10)));
+        assertFalse(reader.intersects(encoder.encodeX(25), encoder.encodeX(25),
+            encoder.encodeY(10), encoder.encodeY(10)));
 
     }
 
@@ -191,10 +216,14 @@ public class GeometryTriangleTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         TriangleTreeReader reader = new TriangleTreeReader(output.bytes().toBytesRef(), encoder);
-        assertTrue(reader.intersects(encoder.encodeX(2), encoder.encodeX(11), encoder.encodeY(-1), encoder.encodeY(1)));
-        assertTrue(reader.intersects(encoder.encodeX(-12), encoder.encodeX(12), encoder.encodeY(-12), encoder.encodeY(12)));
-        assertTrue(reader.intersects(encoder.encodeX(-2), encoder.encodeX(2), encoder.encodeY(-1), encoder.encodeY(0)));
-        assertFalse(reader.intersects(encoder.encodeX(-5), encoder.encodeX(2), encoder.encodeY(-6), encoder.encodeY(-2)));
+        assertTrue(reader.intersects(encoder.encodeX(2), encoder.encodeX(11),
+            encoder.encodeY(-1), encoder.encodeY(1)));
+        assertTrue(reader.intersects(encoder.encodeX(-12), encoder.encodeX(12),
+            encoder.encodeY(-12), encoder.encodeY(12)));
+        assertTrue(reader.intersects(encoder.encodeX(-2), encoder.encodeX(2),
+            encoder.encodeY(-1), encoder.encodeY(0)));
+        assertFalse(reader.intersects(encoder.encodeX(-5), encoder.encodeX(2),
+            encoder.encodeY(-6), encoder.encodeY(-2)));
     }
 
     public void testPacManLineString() throws Exception {
@@ -210,10 +239,14 @@ public class GeometryTriangleTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         TriangleTreeReader reader = new TriangleTreeReader(output.bytes().toBytesRef(), encoder);
-        assertTrue(reader.intersects(encoder.encodeX(2), encoder.encodeX(11), encoder.encodeY(-1), encoder.encodeY(1)));
-        assertTrue(reader.intersects(encoder.encodeX(-12), encoder.encodeX(12), encoder.encodeY(-12), encoder.encodeY(12)));
-        assertTrue(reader.intersects(encoder.encodeX(-2), encoder.encodeX(2), encoder.encodeY(-1), encoder.encodeY(0)));
-        assertFalse(reader.intersects(encoder.encodeX(-5), encoder.encodeX(2), encoder.encodeY(-6), encoder.encodeY(-2)));
+        assertTrue(reader.intersects(encoder.encodeX(2), encoder.encodeX(11),
+            encoder.encodeY(-1), encoder.encodeY(1)));
+        assertTrue(reader.intersects(encoder.encodeX(-12), encoder.encodeX(12),
+            encoder.encodeY(-12), encoder.encodeY(12)));
+        assertTrue(reader.intersects(encoder.encodeX(-2), encoder.encodeX(2),
+            encoder.encodeY(-1), encoder.encodeY(0)));
+        assertFalse(reader.intersects(encoder.encodeX(-5), encoder.encodeX(2),
+            encoder.encodeY(-6), encoder.encodeY(-2)));
     }
 
     public void testPacManPoints() throws Exception {

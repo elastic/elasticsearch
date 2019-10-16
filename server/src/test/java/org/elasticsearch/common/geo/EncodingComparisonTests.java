@@ -43,7 +43,8 @@ public class EncodingComparisonTests extends ESTestCase {
     public void testRandomRectangle() throws Exception {
         for (int i =0; i < 100; i++) {
             org.apache.lucene.geo.Rectangle random = GeoTestUtil.nextBox();
-            compareWriters(new Rectangle(random.minLon, random.maxLon, random.maxLat, random.minLat), new GeoShapeCoordinateEncoder());
+            compareWriters(new Rectangle(random.minLon, random.maxLon, random.maxLat, random.minLat),
+                new GeoShapeCoordinateEncoder());
         }
     }
 
@@ -58,7 +59,8 @@ public class EncodingComparisonTests extends ESTestCase {
                     random = GeoTestUtil.nextPolygon();
                 }
             }
-            compareWriters(new Polygon(new LinearRing(random.getPolyLons(), random.getPolyLats()), Collections.emptyList()), new GeoShapeCoordinateEncoder());
+            compareWriters(new Polygon(new LinearRing(random.getPolyLons(), random.getPolyLats()),
+                Collections.emptyList()), new GeoShapeCoordinateEncoder());
         }
     }
 
@@ -76,7 +78,8 @@ public class EncodingComparisonTests extends ESTestCase {
                         random = GeoTestUtil.nextPolygon();
                     }
                 }
-                polygons.add(new Polygon(new LinearRing(random.getPolyLons(), random.getPolyLats()), Collections.emptyList()));
+                polygons.add(new Polygon(new LinearRing(random.getPolyLons(), random.getPolyLats()),
+                    Collections.emptyList()));
             }
             MultiPolygon multiPolygon = new MultiPolygon(polygons);
             compareWriters(multiPolygon, new GeoShapeCoordinateEncoder());
@@ -110,7 +113,8 @@ public class EncodingComparisonTests extends ESTestCase {
 
     public void testRandomPoint() throws Exception {
         for (int i =0; i < 100; i++) {
-            compareWriters(new Point(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()), new GeoShapeCoordinateEncoder());
+            compareWriters(new Point(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()),
+                new GeoShapeCoordinateEncoder());
         }
     }
 

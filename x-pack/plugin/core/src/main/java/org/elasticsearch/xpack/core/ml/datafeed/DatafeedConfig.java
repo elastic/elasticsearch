@@ -223,8 +223,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
-        // TODO: change version in backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             maxEmptySearches = in.readOptionalVInt();
         } else {
             maxEmptySearches = null;
@@ -429,8 +428,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         out.writeOptionalWriteable(chunkingConfig);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(delayedDataCheckConfig);
-        // TODO: change version in backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalVInt(maxEmptySearches);
         }
     }

@@ -144,8 +144,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
-        // TODO: change version in backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             maxEmptySearches = in.readOptionalInt();
         } else {
             maxEmptySearches = null;
@@ -193,8 +192,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
         out.writeOptionalWriteable(delayedDataCheckConfig);
-        // TODO: change version in backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalInt(maxEmptySearches);
         }
     }
@@ -412,7 +410,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
                 && (delayedDataCheckConfig == null || Objects.equals(delayedDataCheckConfig, datafeed.getDelayedDataCheckConfig()))
                 && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()))
-                && (maxEmptySearches == null || Objects.equals(maxEmptySearches, datafeed.getMaxEmptySearches()));
+                && (maxEmptySearches == null || Objects.equals(maxEmptySearches, datafeed.getMaxEmptySearches())
+                        || (maxEmptySearches == -1 && datafeed.getMaxEmptySearches() == null));
     }
 
     public static class Builder {

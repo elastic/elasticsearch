@@ -26,10 +26,14 @@ import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 
-public class ReindexVersioningTests extends ReindexTestCase {
+public class ReindexVersioningTests extends ReindexRunAsJobAndTaskTestCase {
     private static final int SOURCE_VERSION = 4;
     private static final int OLDER_VERSION = 1;
     private static final int NEWER_VERSION = 10;
+
+    public ReindexVersioningTests(String name) {
+        super(name);
+    }
 
     public void testExternalVersioningCreatesWhenAbsentAndSetsVersion() throws Exception {
         setupSourceAbsent();

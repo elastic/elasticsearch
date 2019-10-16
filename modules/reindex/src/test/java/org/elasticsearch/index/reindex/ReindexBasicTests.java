@@ -34,7 +34,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ReindexBasicTests extends ReindexTestCase {
+public class ReindexBasicTests extends ReindexRunAsJobAndTaskTestCase {
+
+    public ReindexBasicTests(String name) {
+        super(name);
+    }
+
     public void testFiltering() throws Exception {
         indexRandom(true, client().prepareIndex("source", "test", "1").setSource("foo", "a"),
                 client().prepareIndex("source", "test", "2").setSource("foo", "a"),
@@ -191,8 +196,9 @@ public class ReindexBasicTests extends ReindexTestCase {
     }
 
     public void testMissingSources() {
-        BulkByScrollResponse response = updateByQuery()
+        BulkByScrollResponse response = reindex()
             .source("missing-index-*")
+            .destination("dest")
             .refresh(true)
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
             .get();

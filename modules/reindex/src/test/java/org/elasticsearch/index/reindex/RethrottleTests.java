@@ -49,17 +49,23 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * too but this is the only place that tests running against multiple nodes so it is the only integration tests that checks for
  * serialization.
  */
-public class RethrottleTests extends ReindexTestCase {
+public class RethrottleTests extends ReindexRunAsJobAndTaskTestCase {
+
+    public RethrottleTests(String name) {
+        super(name);
+    }
 
     public void testReindex() throws Exception {
         testCase(reindex().source("test").destination("dest"), ReindexAction.NAME);
     }
 
     public void testUpdateByQuery() throws Exception {
+        assumeTaskTest();
         testCase(updateByQuery().source("test"), UpdateByQueryAction.NAME);
     }
 
     public void testDeleteByQuery() throws Exception {
+        assumeTaskTest();
         testCase(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()), DeleteByQueryAction.NAME);
     }
 
@@ -68,10 +74,12 @@ public class RethrottleTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryWithWorkers() throws Exception {
+        assumeTaskTest();
         testCase(updateByQuery().source("test").setSlices(randomSlices()), UpdateByQueryAction.NAME);
     }
 
     public void testDeleteByQueryWithWorkers() throws Exception {
+        assumeTaskTest();
         testCase(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).setSlices(randomSlices()), DeleteByQueryAction.NAME);
     }
 
@@ -209,7 +217,8 @@ public class RethrottleTests extends ReindexTestCase {
     private TaskGroup findTaskToRethrottle(String actionName, int sliceCount) {
         long start = System.nanoTime();
         do {
-            ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(actionName).setDetailed(true).get();
+            ListTasksResponse tasks = client().admin().cluster().prepareListTasks()
+                .setActions(actionName, ReindexTask.NAME+"[c]").setDetailed(true).get();
             tasks.rethrowFailures("Finding tasks to rethrottle");
             assertThat("tasks are left over from the last execution of this test",
                 tasks.getTaskGroups(), hasSize(lessThan(2)));

@@ -675,8 +675,7 @@ public class InternalEngine extends Engine {
                             trackTranslogLocation.set(true);
                         }
                     }
-                    assert versionValue.seqNo >= 0 : versionValue;
-                    refreshIfNeeded("realtime_get", versionValue.seqNo);
+                    refresh("realtime_get", SearcherScope.INTERNAL);
                 }
                 scope = SearcherScope.INTERNAL;
             } else {

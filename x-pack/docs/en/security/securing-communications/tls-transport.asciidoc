@@ -35,7 +35,7 @@ CA certificate as a trusted certificate entry. This allows for the keystore to
 also be used as a truststore. In this case, the path value should match
 the `keystore.path` value.
 Note, however, that this is not the general rule. There are keystores that cannot be
-used as trustores, only 
+used as truststores, only 
 {ref}/security-settings.html#pkcs12-truststore-note[specifically crafted ones can]
 --
 

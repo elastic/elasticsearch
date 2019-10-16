@@ -20,6 +20,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -57,6 +60,11 @@ public class Classification implements DataFrameAnalysis {
     public static Classification fromXContent(XContentParser parser, boolean ignoreUnknownFields) {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
+
+    private static final Set<String> ALLOWED_DEPENDENT_VARIABLE_TYPES =
+        Stream.of(Types.categorical(), Types.discreteNumerical(), Types.bool())
+            .flatMap(Set::stream)
+            .collect(Collectors.toUnmodifiableSet());
 
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
@@ -148,8 +156,16 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
+    public Set<String> getAllowedCategoricalTypes(String fieldName) {
+        if (dependentVariable.equals(fieldName)) {
+            return ALLOWED_DEPENDENT_VARIABLE_TYPES;
+        }
+        return Types.categorical();
+    }
+
+    @Override
     public List<RequiredField> getRequiredFields() {
-        return Collections.singletonList(new RequiredField(dependentVariable, Types.categorical()));
+        return Collections.singletonList(new RequiredField(dependentVariable, ALLOWED_DEPENDENT_VARIABLE_TYPES));
     }
 
     @Override

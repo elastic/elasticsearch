@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
@@ -211,6 +212,22 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         assertThat(e.getMessage(), equalTo("invalid types [keyword] for required field [foo]; " +
             "expected types are [byte, double, float, half_float, integer, long, scaled_float, short]"));
+    }
+
+    public void testDetect_GivenClassificationAndRequiredFieldHasInvalidType() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("some_float", "float")
+            .addAggregatableField("some_long", "long")
+            .addAggregatableField("some_keyword", "keyword")
+            .addAggregatableField("foo", "keyword")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildClassificationConfig("some_float"), RESULTS_FIELD, false, 100, fieldCapabilities);
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+
+        assertThat(e.getMessage(), equalTo("invalid types [float] for required field [some_float]; " +
+            "expected types are [boolean, byte, integer, ip, keyword, long, short, text]"));
     }
 
     public void testDetect_GivenIgnoredField() {
@@ -467,7 +484,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             contains(equalTo(ExtractedField.ExtractionMethod.SOURCE)));
     }
 
-    public void testDetect_GivenBooleanField() {
+    public void testDetect_GivenBooleanField_BooleanMappedAsInteger() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField("some_boolean", "boolean")
             .build();
@@ -483,19 +500,38 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(booleanField.getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
 
         SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
-        Object[] values = booleanField.value(hit);
-        assertThat(values.length, equalTo(1));
-        assertThat(values[0], equalTo(1));
+        assertThat(booleanField.value(hit), arrayContaining(1));
 
         hit = new SearchHitBuilder(42).addField("some_boolean", false).build();
-        values = booleanField.value(hit);
-        assertThat(values.length, equalTo(1));
-        assertThat(values[0], equalTo(0));
+        assertThat(booleanField.value(hit), arrayContaining(0));
 
         hit = new SearchHitBuilder(42).addField("some_boolean", Arrays.asList(false, true, false)).build();
-        values = booleanField.value(hit);
-        assertThat(values.length, equalTo(3));
-        assertThat(values, arrayContaining(0, 1, 0));
+        assertThat(booleanField.value(hit), arrayContaining(0, 1, 0));
+    }
+
+    public void testDetect_GivenBooleanField_BooleanMappedAsString() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("some_boolean", "boolean")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildClassificationConfig("some_boolean"), RESULTS_FIELD, false, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = extractedFields.getAllFields();
+        assertThat(allFields.size(), equalTo(1));
+        ExtractedField booleanField = allFields.get(0);
+        assertThat(booleanField.getTypes(), contains("boolean"));
+        assertThat(booleanField.getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+
+        SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
+        assertThat(booleanField.value(hit), arrayContaining("true"));
+
+        hit = new SearchHitBuilder(42).addField("some_boolean", false).build();
+        assertThat(booleanField.value(hit), arrayContaining("false"));
+
+        hit = new SearchHitBuilder(42).addField("some_boolean", Arrays.asList(false, true, false)).build();
+        assertThat(booleanField.value(hit), arrayContaining("false", "true", "false"));
     }
 
     private static DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
@@ -523,6 +559,15 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
             .setAnalysis(new Regression(dependentVariable))
+            .build();
+    }
+
+    private static DataFrameAnalyticsConfig buildClassificationConfig(String dependentVariable) {
+        return new DataFrameAnalyticsConfig.Builder()
+            .setId("foo")
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
+            .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
+            .setAnalysis(new Classification(dependentVariable))
             .build();
     }
 

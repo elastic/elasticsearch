@@ -101,3 +101,11 @@ it may take a while to return a response.
 `<enrich-policy>`::
 (Required, string)
 Enrich policy to execute.
+
+[[execute-enrich-policy-api-request-body]]
+==== {api-request-body-title}
+
+`wait_for_completion`::
+(Required, boolean)
+If `true`, the request blocks other enrich policy execution requests until
+complete. Defaults to `true`.

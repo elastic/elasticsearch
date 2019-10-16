@@ -105,7 +105,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
-            assertConcreteMappingsOnAll("test", type, fieldName);
+            assertConcreteMappingsOnAll("test", fieldName);
         }
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(
@@ -295,7 +295,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
      * Waits until mappings for the provided fields exist on all nodes. Note, this waits for the current
      * started shards and checks for concrete mappings.
      */
-    private void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) {
+    private void assertConcreteMappingsOnAll(final String index, final String... fieldNames) {
         Set<String> nodes = internalCluster().nodesInclude(index);
         assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
         for (String node : nodes) {
@@ -308,17 +308,17 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
             }
         }
-        assertMappingOnMaster(index, type, fieldNames);
+        assertMappingOnMaster(index, fieldNames);
     }
 
     /**
      * Waits for the given mapping type to exists on the master node.
      */
-    private void assertMappingOnMaster(final String index, final String type, final String... fieldNames) {
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
+    private void assertMappingOnMaster(final String index, final String... fieldNames) {
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).get();
         ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
         assertThat(mappings, notNullValue());
-        MappingMetaData mappingMetaData = mappings.get(type);
+        MappingMetaData mappingMetaData = mappings.get(MapperService.SINGLE_MAPPING_NAME);
         assertThat(mappingMetaData, notNullValue());
 
         Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();

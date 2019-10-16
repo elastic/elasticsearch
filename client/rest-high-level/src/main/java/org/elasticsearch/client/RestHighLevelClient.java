@@ -257,6 +257,7 @@ public class RestHighLevelClient implements Closeable {
     private final RollupClient rollupClient = new RollupClient(this);
     private final CcrClient ccrClient = new CcrClient(this);
     private final TransformClient transformClient = new TransformClient(this);
+    private final EnrichClient enrichClient = new EnrichClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -479,6 +480,10 @@ public class RestHighLevelClient implements Closeable {
      */
     public TransformClient transform() {
         return transformClient;
+    }
+
+    public EnrichClient enrich() {
+        return enrichClient;
     }
 
     /**

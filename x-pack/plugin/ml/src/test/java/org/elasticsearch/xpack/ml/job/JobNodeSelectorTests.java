@@ -611,13 +611,13 @@ public class JobNodeSelectorTests extends ESTestCase {
 
     static void addDataFrameAnalyticsJobTask(String id, String nodeId, DataFrameAnalyticsState state,
                                              PersistentTasksCustomMetaData.Builder builder) {
-        addDataFrameAnalyticsJobTask(id, nodeId, state, builder, false);
+        addDataFrameAnalyticsJobTask(id, nodeId, state, builder, false, false);
     }
 
     static void addDataFrameAnalyticsJobTask(String id, String nodeId, DataFrameAnalyticsState state,
-                                             PersistentTasksCustomMetaData.Builder builder, boolean isStale) {
+                                             PersistentTasksCustomMetaData.Builder builder, boolean isStale, boolean allowLazyStart) {
         builder.addTask(MlTasks.dataFrameAnalyticsTaskId(id), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT, Collections.emptyList()),
+            new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT, Collections.emptyList(), allowLazyStart),
             new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
         if (state != null) {
             builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(id),

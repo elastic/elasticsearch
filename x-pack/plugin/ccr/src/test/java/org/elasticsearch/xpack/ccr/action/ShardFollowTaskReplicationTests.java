@@ -115,7 +115,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 // Deletes should be replicated to the follower
                 List<String> deleteDocIds = randomSubsetOf(indexedDocIds);
                 for (String deleteId : deleteDocIds) {
-                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest(index.getName(), "type", deleteId));
+                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest(index.getName(), deleteId));
                     assertThat(resp.getResponse().getResult(), equalTo(DocWriteResponse.Result.DELETED));
                 }
                 leaderGroup.syncGlobalCheckpoint();
@@ -278,7 +278,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     }
                 }
                 for (String deleteId : randomSubsetOf(IndexShardTestCase.getShardDocUIDs(leaderGroup.getPrimary()))) {
-                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", "type", deleteId));
+                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", deleteId));
                     assertThat(resp.getFailure(), nullValue());
                 }
                 leaderGroup.syncGlobalCheckpoint();
@@ -335,7 +335,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final int numDocs = between(1, 100);
         final List<Translog.Operation> operations = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
-            operations.add(new Translog.Index("type", Integer.toString(i), i, primaryTerm, 0, source, null, -1));
+            operations.add(new Translog.Index(Integer.toString(i), i, primaryTerm, 0, source, null, -1));
         }
         Future<Void> recoveryFuture = null;
         Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)

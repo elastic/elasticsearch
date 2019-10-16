@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -93,6 +94,7 @@ public final class TransformInternalIndex {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
+            .putAlias(AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))
             .build();
         return transformTemplate;
     }

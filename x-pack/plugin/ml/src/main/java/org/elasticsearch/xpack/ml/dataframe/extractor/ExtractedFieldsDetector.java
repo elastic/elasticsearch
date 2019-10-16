@@ -264,7 +264,14 @@ public class ExtractedFieldsDetector {
         List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
         for (ExtractedField field : extractedFields.getAllFields()) {
             if (isBoolean(field.getTypes())) {
-                adjusted.add(new BooleanAsInteger(field));
+                if (config.getAnalysis().getAllowedCategoricalTypes(field.getAlias()).contains(BooleanFieldMapper.CONTENT_TYPE)) {
+                    // We convert boolean field to string if it is a categorical dependent variable
+                    adjusted.add(new BooleanMapper<>(field, Boolean.TRUE.toString(), Boolean.FALSE.toString()));
+                } else {
+                    // We convert boolean fields to integers with values 0, 1 as this is the preferred
+                    // way to consume such features in the analytics process.
+                    adjusted.add(new BooleanMapper<>(field, 1, 0));
+                }
             } else {
                 adjusted.add(field);
             }
@@ -277,21 +284,24 @@ public class ExtractedFieldsDetector {
     }
 
     /**
-     * We convert boolean fields to integers with values 0, 1 as this is the preferred
-     * way to consume such features in the analytics process.
+     * {@link BooleanMapper} makes boolean field behave as a field of different type.
      */
-    private static class BooleanAsInteger extends ExtractedField {
+    private static final class BooleanMapper<T> extends ExtractedField {
 
-        protected BooleanAsInteger(ExtractedField field) {
+        private final T trueValue;
+        private final T falseValue;
+
+        BooleanMapper(ExtractedField field, T trueValue, T falseValue) {
             super(field.getAlias(), field.getName(), Collections.singleton(BooleanFieldMapper.CONTENT_TYPE), ExtractionMethod.DOC_VALUE);
+            this.trueValue = trueValue;
+            this.falseValue = falseValue;
         }
 
         @Override
         public Object[] value(SearchHit hit) {
             DocumentField keyValue = hit.field(name);
             if (keyValue != null) {
-                List<Object> values = keyValue.getValues().stream().map(v -> Boolean.TRUE.equals(v) ? 1 : 0).collect(Collectors.toList());
-                return values.toArray(new Object[0]);
+                return keyValue.getValues().stream().map(v -> Boolean.TRUE.equals(v) ? trueValue : falseValue).toArray();
             }
             return new Object[0];
         }

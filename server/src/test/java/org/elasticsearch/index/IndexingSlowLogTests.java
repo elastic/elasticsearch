@@ -55,7 +55,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             .startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1),
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
-            "test", "routingValue", null, source, XContentType.JSON, null);
+            "routingValue", null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
         ESLogMessage p =  IndexingSlowLogMessage.of(index, pd, 10, true, 0);
@@ -63,7 +63,6 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertThat(p.get("message"),equalTo("[foo/123]"));
         assertThat(p.get("took"),equalTo("10nanos"));
         assertThat(p.get("took_millis"),equalTo("0"));
-        assertThat(p.get("doc_type"),equalTo("test"));
         assertThat(p.get("id"),equalTo("id"));
         assertThat(p.get("routing"),equalTo("routingValue"));
         assertThat(p.get("source"), is(emptyOrNullString()));
@@ -77,8 +76,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder()
             .startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
-                "test", null, null, source, XContentType.JSON, null);
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id", null, null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
         ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
@@ -100,8 +98,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         // Throwing a error if source cannot be converted
         source = new BytesArray("invalid");
         ParsedDocument doc = new ParsedDocument(new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
-            "test", null, null, source, XContentType.JSON, null);
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id", null, null, source, XContentType.JSON, null);
 
         final UncheckedIOException e = expectThrows(UncheckedIOException.class,
             () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3));

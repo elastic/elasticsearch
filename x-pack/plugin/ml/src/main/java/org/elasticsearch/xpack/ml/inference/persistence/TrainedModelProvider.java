@@ -131,14 +131,14 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(deleteResponse -> {
             if (deleteResponse.getDeleted() == 0) {
                 listener.onFailure(new ResourceNotFoundException(
-                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId, 0L)));
+                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                 return;
             }
             listener.onResponse(true);
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(new ResourceNotFoundException(
-                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId, 0L)));
+                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
             } else {
                 listener.onFailure(e);
             }

@@ -42,8 +42,7 @@ import java.util.Set;
 
 /**
  * The action is a master node action to ensure it reads an up-to-date cluster
- * state in order to determine whether there is a persistent task for the analytics
- * to delete.
+ * state in order to determine if there is a processor referencing the trained model
  */
 public class TransportDeleteTrainedModelAction
     extends TransportMasterNodeAction<DeleteTrainedModelAction.Request, AcknowledgedResponse> {
@@ -87,7 +86,7 @@ public class TransportDeleteTrainedModelAction
         Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata);
 
         if (referencedModels.contains(id)) {
-            listener.onFailure(new ElasticsearchStatusException("Cannot delete mode [{}] as it is still referenced by ingest processors",
+            listener.onFailure(new ElasticsearchStatusException("Cannot delete model [{}] as it is still referenced by ingest processors",
                 RestStatus.CONFLICT,
                 id));
             return;
@@ -104,23 +103,24 @@ public class TransportDeleteTrainedModelAction
 
     private Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata) {
         Set<String> allReferencedModelKeys = new HashSet<>();
-        if (ingestMetadata != null) {
-            for(Map.Entry<String, PipelineConfiguration> entry : ingestMetadata.getPipelines().entrySet()) {
-                String pipelineId = entry.getKey();
-                Map<String, Object> config = entry.getValue().getConfigAsMap();
-                try {
-                    Pipeline pipeline = Pipeline.create(pipelineId,
-                        config,
-                        ingestService.getProcessorFactories(),
-                        ingestService.getScriptService());
-                    pipeline.getProcessors().stream()
-                        .filter(p -> p instanceof InferenceProcessor)
-                        .map(p -> (InferenceProcessor) p)
-                        .map(InferenceProcessor::getModelId)
-                        .forEach(allReferencedModelKeys::add);
-                } catch (Exception ex) {
-                    LOGGER.warn(new ParameterizedMessage("failed to load pipeline [{}]", pipelineId), ex);
-                }
+        if (ingestMetadata == null) {
+            return allReferencedModelKeys;
+        }
+        for(Map.Entry<String, PipelineConfiguration> entry : ingestMetadata.getPipelines().entrySet()) {
+            String pipelineId = entry.getKey();
+            Map<String, Object> config = entry.getValue().getConfigAsMap();
+            try {
+                Pipeline pipeline = Pipeline.create(pipelineId,
+                    config,
+                    ingestService.getProcessorFactories(),
+                    ingestService.getScriptService());
+                pipeline.getProcessors().stream()
+                    .filter(p -> p instanceof InferenceProcessor)
+                    .map(p -> (InferenceProcessor) p)
+                    .map(InferenceProcessor::getModelId)
+                    .forEach(allReferencedModelKeys::add);
+            } catch (Exception ex) {
+                LOGGER.warn(new ParameterizedMessage("failed to load pipeline [{}]", pipelineId), ex);
             }
         }
         return allReferencedModelKeys;

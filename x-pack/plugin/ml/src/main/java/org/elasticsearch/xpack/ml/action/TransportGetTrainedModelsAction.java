@@ -9,10 +9,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -43,7 +46,7 @@ public class TransportGetTrainedModelsAction extends AbstractTransportGetResourc
 
     @Override
     protected String[] getIndices() {
-        return new String[] {InferenceIndexConstants.INDEX_PATTERN };
+        return new String[] { InferenceIndexConstants.INDEX_PATTERN };
     }
 
     @Override
@@ -78,5 +81,10 @@ public class TransportGetTrainedModelsAction extends AbstractTransportGetResourc
     @Override
     protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder) {
         return searchSourceBuilder.sort("_index", SortOrder.DESC);
+    }
+
+    @Nullable
+    protected QueryBuilder additionalQuery() {
+        return QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelConfig.NAME);
     }
 }

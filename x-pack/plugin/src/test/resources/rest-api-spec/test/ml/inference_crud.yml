@@ -9,18 +9,6 @@
 
   - do:
       ml.get_trained_models:
-        model_id: "_all"
-  - match: { count: 0 }
-  - match: { trained_model_configs: [] }
-
-  - do:
-      ml.get_trained_models:
-        model_id: "*"
-  - match: { count: 0 }
-  - match: { trained_model_configs: [] }
-
-  - do:
-      ml.get_trained_models:
         model_id: "*"
   - match: { count: 0 }
   - match: { trained_model_configs: [] }
@@ -57,7 +45,6 @@
       index:
         id: trained_model_config-unused-regression-model-0
         index: .ml-inference-000001
-        type: _doc
         body: >
           {
             "model_id": "unused-regression-model",
@@ -86,7 +73,6 @@
       index:
         id: trained_model_config-used-regression-model-0
         index: .ml-inference-000001
-        type: _doc
         body: >
           {
             "model_id": "used-regression-model",
@@ -102,7 +88,7 @@
 
   - do:
       ingest.put_pipeline:
-        id: "regression-mode-pipeline"
+        id: "regression-model-pipeline"
         body:  >
           {
             "processors": [

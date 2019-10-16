@@ -58,8 +58,8 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             super(in);
         }
 
-        public Response(QueryPage<TrainedModelConfig> analytics) {
-            super(analytics);
+        public Response(QueryPage<TrainedModelConfig> trainedModels) {
+            super(trainedModels);
         }
 
         @Override

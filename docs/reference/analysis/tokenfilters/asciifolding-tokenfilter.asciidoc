@@ -109,7 +109,7 @@ Defaults to `false`.
 ==== Customize
 
 To customize the ASCII folding token filter, duplicate it to create the basis
-for a new custom token filter. You can modify the filter using its configure
+for a new custom token filter. You can modify the filter using its configurable
 parameters.
 
 [source,console]

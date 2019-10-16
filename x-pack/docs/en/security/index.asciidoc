@@ -9,13 +9,14 @@ measures such as encrypting communications, role-based access control,
 IP filtering, and auditing.
 
 * <<elasticsearch-security>>
+* <<encrypting-communications>>
 * <<configuring-security>>
 * <<setting-up-authentication>>
 * <<saml-guide>>
 * <<oidc-guide>>
 * <<authorization>>
-* <<enable-audit-logging>>
 * <<encrypting-communications>>
+* <<enable-audit-logging>>
 * <<ccs-clients-integrations>>
 * <<security-getting-started>>
 * <<encrypting-internode-communications>>
@@ -32,9 +33,9 @@ include::authentication/index.asciidoc[]
 
 include::authorization/index.asciidoc[]
 
-include::auditing/index.asciidoc[]
-
 include::securing-communications/index.asciidoc[]
+
+include::auditing/index.asciidoc[]
 
 include::using-ip-filtering.asciidoc[]
 

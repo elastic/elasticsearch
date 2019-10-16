@@ -9,8 +9,7 @@ WARNING: Clusters that do not have encryption enabled send all data in plain tex
 including passwords. If the {es} {security-features} are enabled, unless you have a trial license, you must configure SSL/TLS for internode-communication.
 
 The following steps describe how to enable encryption across the various
-components of the {stack}. You must perform each of the steps that are
-applicable to your cluster.
+components of the {stack}. 
 
 . Generate a private key and X.509 certificate for each of your {es} nodes. See
 <<node-certificates>>.
@@ -21,17 +20,26 @@ enable TLS on the HTTP layer. See
 <<tls-transport>> and
 <<tls-http>>. 
 
-. Configure the {monitor-features} to use encrypted connections. See <<secure-monitoring>>.
+* Configure the Java transport client to use encrypted communications.
+See <<java-clients>>.
 
-. Configure {kib} to encrypt communications between the browser and
++
+NOTE: <<tls-http[Encrypting HTTP client communications>> is strongly recommended
+if you want to enable TLS encryption for Kibana, Logstash and Beats.
+
+Now you can proceed with the configurations that are applicable to your cluster.
+
+* Configure the {monitor-features} to use encrypted connections. See <<secure-monitoring>>.
+
+* Configure {kib} to encrypt communications between the browser and
 the {kib} server and to connect to {es} via HTTPS. See
 {kibana-ref}/using-kibana-with-security.html[Configuring security in {kib}].
 
-. Configure Logstash to use TLS encryption. See
+* Configure Logstash to use TLS encryption. See
 {logstash-ref}/ls-security.html[Configuring security in {ls}].
 
 . Configure Beats to use encrypted connections. For example, see
 {filebeat-ref}/securing-beats.html[Configure {filebeat} to use {security-features}].
 
-. Configure {es} for Apache Hadoop to use secured transport. See
+* Configure {es} for Apache Hadoop to use secured transport. See
 {hadoop-ref}/security.html[{es} for Apache Hadoop Security].

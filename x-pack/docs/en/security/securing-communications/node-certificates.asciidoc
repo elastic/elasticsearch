@@ -86,6 +86,10 @@ For each additional Elastic product that you want to configure, copy the
 certificates to the relevant configuration directory. 
 --
 
+WARNING: The `.p12` certificate has to be placed at least under the `config`
+directory of your {es} installation, otherwise permissions checks will fail at
+the node start up.
+
 NOTE: If you choose not to use `elasticsearch-certutil`, the certificates that
 you obtain must allow for both `clientAuth` and `serverAuth` if the extended key
 usage extension is present. The certificates need to be in PEM or PKCS#12

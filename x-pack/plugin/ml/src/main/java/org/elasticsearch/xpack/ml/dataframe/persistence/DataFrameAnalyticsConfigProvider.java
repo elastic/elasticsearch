@@ -61,11 +61,7 @@ public class DataFrameAnalyticsConfigProvider {
 
     private static final Map<String, String> TO_XCONTENT_PARAMS;
 
-    static {
-        Map<String, String> modifiable = new HashMap<>();
-        modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
-        TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
-    }
+    private static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;

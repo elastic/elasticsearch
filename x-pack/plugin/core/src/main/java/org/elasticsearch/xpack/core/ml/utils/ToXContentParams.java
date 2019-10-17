@@ -14,7 +14,7 @@ public final class ToXContentParams {
     /**
      * Parameter to indicate whether we are serialising to X Content for
      * internal storage. Certain fields need to be persisted but should
-     * not be visible everywhere
+     * not be visible everywhere.
      */
     public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
 

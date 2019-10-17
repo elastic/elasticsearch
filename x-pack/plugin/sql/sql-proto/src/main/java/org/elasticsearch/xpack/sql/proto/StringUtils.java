@@ -52,7 +52,7 @@ public final class StringUtils {
         .appendValue(SECOND_OF_MINUTE, 2)
         .appendFraction(NANO_OF_SECOND, 3, 9, true)
         .appendOffsetId()
-        .toFormatter(IsoLocale.ROOT);
+        .toFormatter(Locale.ROOT);
 
     public static final DateTimeFormatter ISO_TIME_WITH_MILLIS = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()

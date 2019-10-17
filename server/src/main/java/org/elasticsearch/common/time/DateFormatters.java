@@ -38,6 +38,7 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
+import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
 import java.time.temporal.TemporalQuery;
 import java.time.temporal.WeekFields;
@@ -1853,7 +1854,7 @@ public class DateFormatters {
         LocalTime localTime = accessor.query(TemporalQueries.localTime());
         boolean isLocalDateSet = localDate != null;
         boolean isLocalTimeSet = localTime != null;
-
+        WeekFields ISO = WeekFields.of(DayOfWeek.MONDAY, 4);
         // the first two cases are the most common, so this allows us to exit early when parsing dates
         if (isLocalDateSet && isLocalTimeSet) {
             return of(localDate, localTime, zoneId);
@@ -1873,14 +1874,14 @@ public class DateFormatters {
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling
             return getLocaldate(accessor).atStartOfDay(zoneId);
-        } else if (accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
-            if (accessor.isSupported(WeekFields.ISO.weekOfWeekBasedYear())) {
-                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
+        } else if (accessor.isSupported(ISO.weekBasedYear())) {
+            if (accessor.isSupported(ISO.weekOfWeekBasedYear())) {
+                return Year.of(accessor.get(ISO.weekBasedYear()))
                     .atDay(1)
-                    .with(WeekFields.ISO.weekOfWeekBasedYear(), accessor.getLong(WeekFields.ISO.weekOfWeekBasedYear()))
+                    .with(ISO.weekOfWeekBasedYear(), accessor.getLong(ISO.weekOfWeekBasedYear()))
                     .atStartOfDay(zoneId);
             } else {
-                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
+                return Year.of(accessor.get(ISO.weekBasedYear()))
                     .atDay(1)
                     .with(TemporalAdjusters.firstInMonth(DayOfWeek.MONDAY))
                     .atStartOfDay(zoneId);

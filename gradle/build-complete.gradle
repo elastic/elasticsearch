@@ -42,7 +42,7 @@ if (buildNumber) {
 
 
             fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
-                include(name: "**/*.log")
+                include(name: "**/daemon-${ProcessHandle.current().pid()}*.log")
             }
 
             if (Files.isReadable(file("/var/log/").toPath())) {

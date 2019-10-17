@@ -1,4 +1,5 @@
 import java.nio.file.Files
+import org.elasticsearch.gradle.OS
 
 String buildNumber = System.getenv('BUILD_NUMBER')
 
@@ -10,11 +11,21 @@ if (buildNumber) {
             project.delete(uploadFile)
         }
 
-        project.exec {
-            ignoreExitValue = true
-            workingDir projectDir
-            commandLine 'bash', '-c', 'journalctl --since "1 hour ago" 2>&1 > journalctl.log'
-        }
+        OS.current()
+                .conditional()
+                .onUnix {
+                    project.exec {
+                        ignoreExitValue = true
+                        workingDir projectDir
+                        commandLine 'bash', '-c', 'journalctl --since "1 hour ago" 2>&1 > journalctl.log'
+                    }
+                }
+                .onWindows {
+
+                }
+                .onMac {
+
+                }
 
         ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
             fileTree(projectDir)

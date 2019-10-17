@@ -89,6 +89,9 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
                     mappingsMapBuilder.put(index, new MappingMetaData(in));
                 }
+                else {
+                    mappingsMapBuilder.put(index, MappingMetaData.EMPTY_MAPPINGS);
+                }
             } else {
                 boolean hasMapping = in.readBoolean();
                 mappingsMapBuilder.put(index, hasMapping ? new MappingMetaData(in) : MappingMetaData.EMPTY_MAPPINGS);
@@ -201,7 +204,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeString(indexEntry.key);
             if (out.getVersion().before(Version.V_8_0_0)) {
                 out.writeVInt(indexEntry.value == MappingMetaData.EMPTY_MAPPINGS ? 0 : 1);
-                if (indexEntry.value != null) {
+                if (indexEntry.value != MappingMetaData.EMPTY_MAPPINGS) {
                     out.writeString(MapperService.SINGLE_MAPPING_NAME);
                     indexEntry.value.writeTo(out);
                 }

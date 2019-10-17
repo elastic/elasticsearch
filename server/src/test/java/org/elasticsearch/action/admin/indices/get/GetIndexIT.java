@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -75,6 +76,15 @@ public class GetIndexIT extends ESIntegTestCase {
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [missing_idx]"));
         }
+    }
+
+    public void testUnknownIndexWithAllowNoIndices() {
+        GetIndexResponse response = client().admin().indices().prepareGetIndex()
+            .addIndices("missing_idx").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).get();
+        assertThat(response.indices(), notNullValue());
+        assertThat(response.indices().length, equalTo(0));
+        assertThat(response.mappings(), notNullValue());
+        assertThat(response.mappings().size(), equalTo(0));
     }
 
     public void testEmpty() {

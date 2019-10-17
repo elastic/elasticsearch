@@ -56,6 +56,8 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testExtractValidHeapSizeNoOptionPresent() throws InterruptedException, IOException {
+        // Muting on Windows, awaitsfix: https://github.com/elastic/elasticsearch/issues/47384
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"));
         assertThat(
                 JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.emptyList())),
                 greaterThan(0L));

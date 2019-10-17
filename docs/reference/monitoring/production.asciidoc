@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="gold"]
 [[monitoring-production]]
 == Monitoring in a production environment
 
@@ -140,6 +140,7 @@ POST /_xpack/security/user/stack-monitor
 }
 --------------------------------------------------
 // CONSOLE
+//TEST[skip:license-requirements]
 
 //image:images/monitoring.jpg["Monitoring",link="images/monitoring.jpg"]
 --

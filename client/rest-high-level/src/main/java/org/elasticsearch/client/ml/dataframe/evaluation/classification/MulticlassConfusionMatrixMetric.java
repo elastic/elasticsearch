@@ -97,7 +97,7 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
     public static class Result implements EvaluationMetric.Result {
 
         private static final ParseField CONFUSION_MATRIX = new ParseField("confusion_matrix");
-        private static final ParseField OTHER_CLASSES_COUNT = new ParseField("_other_");
+        private static final ParseField OTHER_ACTUAL_CLASS_COUNT = new ParseField("other_actual_class_count");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
@@ -106,7 +106,7 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
 
         static {
             PARSER.declareObjectArray(constructorArg(), ActualClass.PARSER, CONFUSION_MATRIX);
-            PARSER.declareLong(constructorArg(), OTHER_CLASSES_COUNT);
+            PARSER.declareLong(constructorArg(), OTHER_ACTUAL_CLASS_COUNT);
         }
 
         public static Result fromXContent(XContentParser parser) {
@@ -115,11 +115,11 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
 
         // Immutable
         private final List<ActualClass> confusionMatrix;
-        private final long otherClassesCount;
+        private final long otherActualClassCount;
 
-        public Result(List<ActualClass> confusionMatrix, long otherClassesCount) {
+        public Result(List<ActualClass> confusionMatrix, long otherActualClassCount) {
             this.confusionMatrix = Collections.unmodifiableList(Objects.requireNonNull(confusionMatrix));
-            this.otherClassesCount = otherClassesCount;
+            this.otherActualClassCount = otherActualClassCount;
         }
 
         @Override
@@ -131,15 +131,15 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
             return confusionMatrix;
         }
 
-        public long getOtherClassesCount() {
-            return otherClassesCount;
+        public long getOtherActualClassCount() {
+            return otherActualClassCount;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CONFUSION_MATRIX.getPreferredName(), confusionMatrix);
-            builder.field(OTHER_CLASSES_COUNT.getPreferredName(), otherClassesCount);
+            builder.field(OTHER_ACTUAL_CLASS_COUNT.getPreferredName(), otherActualClassCount);
             builder.endObject();
             return builder;
         }
@@ -150,12 +150,12 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return Objects.equals(this.confusionMatrix, that.confusionMatrix)
-                && this.otherClassesCount == that.otherClassesCount;
+                && this.otherActualClassCount == that.otherActualClassCount;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(confusionMatrix, otherClassesCount);
+            return Objects.hash(confusionMatrix, otherActualClassCount);
         }
     }
 
@@ -163,7 +163,7 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
 
         private static final ParseField ACTUAL_CLASS = new ParseField("actual_class");
         private static final ParseField PREDICTED_CLASSES = new ParseField("predicted_classes");
-        private static final ParseField OTHER_CLASSES_COUNT = new ParseField("_other_");
+        private static final ParseField OTHER_PREDICTED_CLASS_COUNT = new ParseField("other_predicted_class_count");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<ActualClass, Void> PARSER =
@@ -175,17 +175,17 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
         static {
             PARSER.declareString(constructorArg(), ACTUAL_CLASS);
             PARSER.declareObjectArray(constructorArg(), PredictedClass.PARSER, PREDICTED_CLASSES);
-            PARSER.declareLong(constructorArg(), OTHER_CLASSES_COUNT);
+            PARSER.declareLong(constructorArg(), OTHER_PREDICTED_CLASS_COUNT);
         }
 
         private final String actualClass;
         private final List<PredictedClass> predictedClasses;
-        private final long otherClassesCount;
+        private final long otherPredictedClassCount;
 
-        public ActualClass(String actualClass, List<PredictedClass> predictedClasses, long otherClassesCount) {
+        public ActualClass(String actualClass, List<PredictedClass> predictedClasses, long otherPredictedClassCount) {
             this.actualClass = actualClass;
             this.predictedClasses = Collections.unmodifiableList(predictedClasses);
-            this.otherClassesCount = otherClassesCount;
+            this.otherPredictedClassCount = otherPredictedClassCount;
         }
 
         @Override
@@ -193,7 +193,7 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
             builder.startObject();
             builder.field(ACTUAL_CLASS.getPreferredName(), actualClass);
             builder.field(PREDICTED_CLASSES.getPreferredName(), predictedClasses);
-            builder.field(OTHER_CLASSES_COUNT.getPreferredName(), otherClassesCount);
+            builder.field(OTHER_PREDICTED_CLASS_COUNT.getPreferredName(), otherPredictedClassCount);
             builder.endObject();
             return builder;
         }
@@ -205,12 +205,12 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
             ActualClass that = (ActualClass) o;
             return Objects.equals(this.actualClass, that.actualClass)
                 && Objects.equals(this.predictedClasses, that.predictedClasses)
-                && this.otherClassesCount == that.otherClassesCount;
+                && this.otherPredictedClassCount == that.otherPredictedClassCount;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(actualClass, predictedClasses, otherClassesCount);
+            return Objects.hash(actualClass, predictedClasses, otherPredictedClassCount);
         }
     }
 

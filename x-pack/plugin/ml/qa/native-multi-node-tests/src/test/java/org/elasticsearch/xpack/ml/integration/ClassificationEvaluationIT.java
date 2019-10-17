@@ -95,7 +95,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("fox", 3L),
                         new PredictedClass("mouse", 1L)),
                     0))));
-        assertThat(confusionMatrixResult.getOtherClassesCount(), equalTo(0L));
+        assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(0L));
     }
 
     public void testEvaluate_MulticlassClassification_ConfusionMatrixMetricWithDefaultSize() {
@@ -155,7 +155,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("fox", 3L),
                         new PredictedClass("mouse", 1L)),
                     0))));
-        assertThat(confusionMatrixResult.getOtherClassesCount(), equalTo(0L));
+        assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(0L));
     }
 
     public void testEvaluate_MulticlassClassification_ConfusionMatrixMetricWithUserProvidedSize() {
@@ -184,7 +184,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 new ActualClass("dog",
                     List.of(new PredictedClass("ant", 4L), new PredictedClass("cat", 2L), new PredictedClass("dog", 1L)),
                     8))));
-        assertThat(confusionMatrixResult.getOtherClassesCount(), equalTo(2L));
+        assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(2L));
     }
 
     private static void indexAnimalsData(String indexName) {

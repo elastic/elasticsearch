@@ -1810,7 +1810,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                         new ActualClass(
                             "dog", List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0)
                     )));
-            assertThat(mcmResult.getOtherClassesCount(), equalTo(0L));
+            assertThat(mcmResult.getOtherActualClassCount(), equalTo(0L));
         }
         {  // Explicit size provided for MulticlassConfusionMatrixMetric metric
             EvaluateDataFrameRequest evaluateDataFrameRequest =
@@ -1834,7 +1834,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                         new ActualClass("cat", List.of(new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1),
                         new ActualClass("dog", List.of(new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0)
                     )));
-            assertThat(mcmResult.getOtherClassesCount(), equalTo(1L));
+            assertThat(mcmResult.getOtherActualClassCount(), equalTo(1L));
         }
     }
 

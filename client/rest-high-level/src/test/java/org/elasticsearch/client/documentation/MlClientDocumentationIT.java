@@ -3358,7 +3358,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <1>
 
             List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <2>
-            long otherClassesCount = multiclassConfusionMatrix.getOtherClassesCount(); // <3>
+            long otherClassesCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <3>
             // end::evaluate-data-frame-results-classification
 
             assertThat(multiclassConfusionMatrix.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));

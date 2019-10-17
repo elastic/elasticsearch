@@ -113,7 +113,7 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
                 List.of(
                     new ActualClass("dog", List.of(new PredictedClass("cat", 10L), new PredictedClass("dog", 20L)), 0),
                     new ActualClass("cat", List.of(new PredictedClass("cat", 30L), new PredictedClass("dog", 40L)), 0))));
-        assertThat(result.getOtherClassesCount(), equalTo(0L));
+        assertThat(result.getOtherActualClassCount(), equalTo(0L));
     }
 
     public void testEvaluate_OtherClassesCountGreaterThanZero() {
@@ -151,7 +151,7 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
                 List.of(
                     new ActualClass("dog", List.of(new PredictedClass("cat", 10L), new PredictedClass("dog", 20L)), 0),
                     new ActualClass("cat", List.of(new PredictedClass("cat", 30L), new PredictedClass("dog", 40L)), 15))));
-        assertThat(result.getOtherClassesCount(), equalTo(3L));
+        assertThat(result.getOtherActualClassCount(), equalTo(3L));
     }
 
     private static Terms mockTerms(String name, List<Terms.Bucket> buckets, long sumOfOtherDocCounts) {

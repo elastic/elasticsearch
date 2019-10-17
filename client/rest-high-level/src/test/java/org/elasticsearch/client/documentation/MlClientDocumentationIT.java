@@ -142,6 +142,8 @@ import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -3355,7 +3357,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
                 response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <1>
 
-            Map<String, Map<String, Long>> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <2>
+            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <2>
             long otherClassesCount = multiclassConfusionMatrix.getOtherClassesCount(); // <3>
             // end::evaluate-data-frame-results-classification
 
@@ -3363,10 +3365,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(
                 confusionMatrix,
                 equalTo(
-                    Map.of(
-                        "cat", Map.of("cat", 3L, "dog", 1L, "ant", 0L, "_other_", 1L),
-                        "dog", Map.of("cat", 1L, "dog", 3L, "ant", 0L),
-                        "ant", Map.of("cat", 1L, "dog", 0L, "ant", 0L))));
+                    List.of(
+                        new ActualClass(
+                            "ant", List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)), 0),
+                        new ActualClass(
+                            "cat", List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1),
+                        new ActualClass(
+                            "dog", List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0)
+                    )));
             assertThat(otherClassesCount, equalTo(0L));
         }
     }

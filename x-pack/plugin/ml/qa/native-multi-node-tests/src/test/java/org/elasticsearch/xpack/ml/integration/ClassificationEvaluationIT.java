@@ -12,6 +12,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.ActualClass;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.PredictedClass;
 import org.junit.After;
 import org.junit.Before;
 
@@ -53,12 +55,47 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(
             confusionMatrixResult.getConfusionMatrix(),
-            equalTo(Map.of(
-                "ant", Map.of("ant", 1L, "cat", 4L, "dog", 3L, "fox", 2L, "mouse", 5L),
-                "cat", Map.of("ant", 3L, "cat", 1L, "dog", 5L, "fox", 4L, "mouse", 2L),
-                "dog", Map.of("ant", 4L, "cat", 2L, "dog", 1L, "fox", 5L, "mouse", 3L),
-                "fox", Map.of("ant", 5L, "cat", 3L, "dog", 2L, "fox", 1L, "mouse", 4L),
-                "mouse", Map.of("ant", 2L, "cat", 5L, "dog", 4L, "fox", 3L, "mouse", 1L))));
+            equalTo(List.of(
+                new ActualClass("ant",
+                    List.of(
+                        new PredictedClass("ant", 1L),
+                        new PredictedClass("cat", 4L),
+                        new PredictedClass("dog", 3L),
+                        new PredictedClass("fox", 2L),
+                        new PredictedClass("mouse", 5L)),
+                    0),
+                new ActualClass("cat",
+                    List.of(
+                        new PredictedClass("ant", 3L),
+                        new PredictedClass("cat", 1L),
+                        new PredictedClass("dog", 5L),
+                        new PredictedClass("fox", 4L),
+                        new PredictedClass("mouse", 2L)),
+                    0),
+                new ActualClass("dog",
+                    List.of(
+                        new PredictedClass("ant", 4L),
+                        new PredictedClass("cat", 2L),
+                        new PredictedClass("dog", 1L),
+                        new PredictedClass("fox", 5L),
+                        new PredictedClass("mouse", 3L)),
+                    0),
+                new ActualClass("fox",
+                    List.of(
+                        new PredictedClass("ant", 5L),
+                        new PredictedClass("cat", 3L),
+                        new PredictedClass("dog", 2L),
+                        new PredictedClass("fox", 1L),
+                        new PredictedClass("mouse", 4L)),
+                    0),
+                new ActualClass("mouse",
+                    List.of(
+                        new PredictedClass("ant", 2L),
+                        new PredictedClass("cat", 5L),
+                        new PredictedClass("dog", 4L),
+                        new PredictedClass("fox", 3L),
+                        new PredictedClass("mouse", 1L)),
+                    0))));
         assertThat(confusionMatrixResult.getOtherClassesCount(), equalTo(0L));
     }
 
@@ -78,12 +115,47 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(
             confusionMatrixResult.getConfusionMatrix(),
-            equalTo(Map.of(
-                "ant", Map.of("ant", 1L, "cat", 4L, "dog", 3L, "fox", 2L, "mouse", 5L),
-                "cat", Map.of("ant", 3L, "cat", 1L, "dog", 5L, "fox", 4L, "mouse", 2L),
-                "dog", Map.of("ant", 4L, "cat", 2L, "dog", 1L, "fox", 5L, "mouse", 3L),
-                "fox", Map.of("ant", 5L, "cat", 3L, "dog", 2L, "fox", 1L, "mouse", 4L),
-                "mouse", Map.of("ant", 2L, "cat", 5L, "dog", 4L, "fox", 3L, "mouse", 1L))));
+            equalTo(List.of(
+                new ActualClass("ant",
+                    List.of(
+                        new PredictedClass("ant", 1L),
+                        new PredictedClass("cat", 4L),
+                        new PredictedClass("dog", 3L),
+                        new PredictedClass("fox", 2L),
+                        new PredictedClass("mouse", 5L)),
+                    0),
+                new ActualClass("cat",
+                    List.of(
+                        new PredictedClass("ant", 3L),
+                        new PredictedClass("cat", 1L),
+                        new PredictedClass("dog", 5L),
+                        new PredictedClass("fox", 4L),
+                        new PredictedClass("mouse", 2L)),
+                    0),
+                new ActualClass("dog",
+                    List.of(
+                        new PredictedClass("ant", 4L),
+                        new PredictedClass("cat", 2L),
+                        new PredictedClass("dog", 1L),
+                        new PredictedClass("fox", 5L),
+                        new PredictedClass("mouse", 3L)),
+                    0),
+                new ActualClass("fox",
+                    List.of(
+                        new PredictedClass("ant", 5L),
+                        new PredictedClass("cat", 3L),
+                        new PredictedClass("dog", 2L),
+                        new PredictedClass("fox", 1L),
+                        new PredictedClass("mouse", 4L)),
+                    0),
+                new ActualClass("mouse",
+                    List.of(
+                        new PredictedClass("ant", 2L),
+                        new PredictedClass("cat", 5L),
+                        new PredictedClass("dog", 4L),
+                        new PredictedClass("fox", 3L),
+                        new PredictedClass("mouse", 1L)),
+                    0))));
         assertThat(confusionMatrixResult.getOtherClassesCount(), equalTo(0L));
     }
 
@@ -103,10 +175,16 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(
             confusionMatrixResult.getConfusionMatrix(),
-            equalTo(Map.of(
-                "ant", Map.of("ant", 1L, "cat", 4L, "dog", 3L, "_other_", 7L),
-                "cat", Map.of("ant", 3L, "cat", 1L, "dog", 5L, "_other_", 6L),
-                "dog", Map.of("ant", 4L, "cat", 2L, "dog", 1L, "_other_", 8L))));
+            equalTo(List.of(
+                new ActualClass("ant",
+                    List.of(new PredictedClass("ant", 1L), new PredictedClass("cat", 4L), new PredictedClass("dog", 3L)),
+                    7),
+                new ActualClass("cat",
+                    List.of(new PredictedClass("ant", 3L), new PredictedClass("cat", 1L), new PredictedClass("dog", 5L)),
+                    6),
+                new ActualClass("dog",
+                    List.of(new PredictedClass("ant", 4L), new PredictedClass("cat", 2L), new PredictedClass("dog", 1L)),
+                    8))));
         assertThat(confusionMatrixResult.getOtherClassesCount(), equalTo(2L));
     }
 

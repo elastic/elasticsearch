@@ -8,47 +8,48 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.ActualClass;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.PredictedClass;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.Result;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class MulticlassConfusionMatrixResultTests extends AbstractSerializingTestCase<MulticlassConfusionMatrix.Result> {
+public class MulticlassConfusionMatrixResultTests extends AbstractSerializingTestCase<Result> {
 
-    public static MulticlassConfusionMatrix.Result createRandom() {
+    public static Result createRandom() {
         int numClasses = randomIntBetween(2, 100);
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
-        Map<String, Map<String, Long>> confusionMatrix = new TreeMap<>();
+        List<ActualClass> actualClasses = new ArrayList<>(numClasses);
         for (int i = 0; i < numClasses; i++) {
-            Map<String, Long> row = new TreeMap<>();
-            confusionMatrix.put(classNames.get(i), row);
+            List<PredictedClass> predictedClasses = new ArrayList<>(numClasses);
             for (int j = 0; j < numClasses; j++) {
                 if (randomBoolean()) {
-                    row.put(classNames.get(i), randomNonNegativeLong());
+                    predictedClasses.add(new PredictedClass(classNames.get(j), randomNonNegativeLong()));
                 }
             }
+            actualClasses.add(new ActualClass(classNames.get(i), predictedClasses, randomNonNegativeLong()));
         }
-        long otherClassesCount = randomNonNegativeLong();
-        return new MulticlassConfusionMatrix.Result(confusionMatrix, otherClassesCount);
+        return new Result(actualClasses, randomNonNegativeLong());
     }
 
     @Override
-    protected MulticlassConfusionMatrix.Result doParseInstance(XContentParser parser) throws IOException {
-        return MulticlassConfusionMatrix.Result.fromXContent(parser);
+    protected Result doParseInstance(XContentParser parser) throws IOException {
+        return Result.fromXContent(parser);
     }
 
     @Override
-    protected MulticlassConfusionMatrix.Result createTestInstance() {
+    protected Result createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected Writeable.Reader<MulticlassConfusionMatrix.Result> instanceReader() {
-        return MulticlassConfusionMatrix.Result::new;
+    protected Writeable.Reader<Result> instanceReader() {
+        return Result::new;
     }
 
     @Override

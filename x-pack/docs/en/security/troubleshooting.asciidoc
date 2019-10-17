@@ -21,8 +21,12 @@ answers for frequently asked questions.
 * <<trb-security-setup>>
 * <<trb-security-path>>
 
+For issues that you cannot fix yourself … we’re here to help.
+If you are an existing Elastic customer with a support contract, please create
+a ticket in the
+https://support.elastic.co/customers/s/login/[Elastic Support portal].
+Or post in the https://discuss.elastic.co/[Elastic forum].
 
-To get help, see <<xpack-help>>.
 
 [[security-auth-failure-upgrade]]
 === Can't log in after upgrading to {version}
@@ -99,7 +103,7 @@ jacknich       : monitoring,unknown_role* <1>
 <1> `unknown_role` was not found in `roles.yml`
 
 For more information about this command, see the 
-<<users-command.,`elasticsearch-users` command>>.
+<<users-command,`elasticsearch-users` command>>.
 --
 
 . If you are authenticating to LDAP, a number of configuration options can cause

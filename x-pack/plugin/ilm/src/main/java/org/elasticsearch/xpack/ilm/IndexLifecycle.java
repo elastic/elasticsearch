@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.ilm.action.TransportRemoveIndexLifecyclePolicyAct
 import org.elasticsearch.xpack.ilm.action.TransportRetryAction;
 import org.elasticsearch.xpack.ilm.action.TransportStartILMAction;
 import org.elasticsearch.xpack.ilm.action.TransportStopILMAction;
+import org.elasticsearch.xpack.slm.SLMFeatureSet;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 import org.elasticsearch.xpack.slm.SnapshotRetentionService;
@@ -158,6 +159,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         }
 
         modules.add(b -> XPackPlugin.bindFeatureSet(b, IndexLifecycleFeatureSet.class));
+        modules.add(b -> XPackPlugin.bindFeatureSet(b, SLMFeatureSet.class));
 
         return modules;
     }

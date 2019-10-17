@@ -1105,7 +1105,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * </pre>
      */
     protected final IndexResponse index(String index, String type, String id, Map<String, Object> source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1115,7 +1115,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * </pre>
      */
     protected final IndexResponse index(String index, String type, String id, XContentBuilder source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1125,7 +1125,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * </pre>
      */
     protected final IndexResponse index(String index, String type, String id, Object... source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1137,7 +1137,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * where source is a JSON String.
      */
     protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index, type, id).setSource(source, XContentType.JSON).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
     /**

@@ -50,9 +50,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.soft_deletes.enabled", true))
             .get();
 
-        client().prepareIndex("index", "doc", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index", "doc", "2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index", "doc", "3").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("2").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
 
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         long globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -76,9 +76,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(operation.seqNo(), equalTo(2L));
         assertThat(operation.id(), equalTo("3"));
 
-        client().prepareIndex("index", "doc", "3").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index", "doc", "4").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index", "doc", "5").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("4").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("5").setSource("{}", XContentType.JSON).get();
 
         shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -113,7 +113,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             .get();
 
         for (int i = 0; i < 32; i++) {
-            client().prepareIndex("index", "_doc", "1").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
             client().prepareDelete("index", "1").get();
             client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }

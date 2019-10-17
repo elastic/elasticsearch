@@ -328,7 +328,7 @@ public final class TokenService {
             final BytesReference tokenDocument = createTokenDocument(userToken, storedRefreshToken, originatingClientAuth);
             final String documentId = getTokenDocumentId(storedAccessToken);
 
-            final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
+            final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName()).setId(documentId)
                     .setOpType(OpType.CREATE)
                     .setSource(tokenDocument, XContentType.JSON)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)

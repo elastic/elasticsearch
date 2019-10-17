@@ -140,6 +140,7 @@ public class TransportStopDataFrameAnalyticsAction
                                                  Set<String> failedAnalytics) {
         for (String analyticsId : analyticsIds) {
             switch (MlTasks.getDataFrameAnalyticsState(analyticsId, tasks)) {
+                case STARTING:
                 case STARTED:
                 case REINDEXING:
                 case ANALYZING:
@@ -249,7 +250,7 @@ public class TransportStopDataFrameAnalyticsAction
                 });
             },
             e -> {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     // the task has disappeared so must have stopped
                     listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
                 } else {

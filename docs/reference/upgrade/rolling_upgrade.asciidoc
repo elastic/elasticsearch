@@ -7,6 +7,12 @@ a time so upgrading does not interrupt service. Running multiple versions of
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
+It is best to upgrade the master-eligible nodes in your cluster after all of
+the other nodes. Once you have started to upgrade the master-eligible nodes
+they may form a cluster that nodes of older versions cannot join. If you
+upgrade the master-eligible nodes last then all the other nodes will not be
+running an older version and so they will be able to join the cluster.
+
 Rolling upgrades are supported:
 
 * Between minor versions
@@ -17,7 +23,12 @@ Rolling upgrades are supported:
 Upgrading directly to {version} from 6.6 or earlier requires a
 <<restart-upgrade, full cluster restart>>.
 
-To perform a rolling upgrade from {prev-major-version} to {version}:
+include::preparing_to_upgrade.asciidoc[]
+
+[float]
+=== Upgrading your cluster
+
+To perform a rolling upgrade to {version}:
 
 . *Disable shard allocation*.
 +
@@ -53,6 +64,11 @@ include::shut-down-node.asciidoc[]
 --
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
+
+[[rolling-upgrades-bootstrapping]]
+NOTE: You should leave `cluster.initial_master_nodes` unset while performing a
+rolling upgrade. Each upgraded node is joining an existing cluster so there is
+no need for <<modules-discovery-bootstrap-cluster,cluster bootstrapping>>.
 --
 
 . *Upgrade any plugins.*

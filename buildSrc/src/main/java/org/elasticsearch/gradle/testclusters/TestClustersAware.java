@@ -18,9 +18,13 @@ interface TestClustersAware extends Task {
             );
         }
 
-        cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach( distro ->
+        cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro ->
             dependsOn(distro.getExtracted())
         );
         getClusters().add(cluster);
     }
+
+    default void beforeStart() {
+    }
+
 }

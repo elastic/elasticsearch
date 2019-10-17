@@ -27,6 +27,7 @@ import org.elasticsearch.painless.Locals.Parameter;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Opcodes;
@@ -126,14 +127,15 @@ public final class SFunction extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (block.statements.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
         }
 
         locals = Locals.newLocalScope(locals);
+
         block.lastSource = true;
-        block.analyze(locals);
+        block.analyze(scriptRoot, locals);
         methodEscape = block.methodEscape;
 
         if (!methodEscape && returnType != void.class) {

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 
 import java.io.Closeable;
 import java.time.Clock;
@@ -65,9 +66,12 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
         if (this.isMaster) {
             final ClusterState state = event.state();
 
-            if (ilmStoppedOrStopping(state)) {
+            if (slmStoppedOrStopping(state)) {
                 if (scheduler.scheduledJobIds().size() > 0) {
                     cancelSnapshotJobs();
+                }
+                if (slmStopping(state)) {
+                    submitOperationModeUpdate(OperationMode.STOPPED);
                 }
                 return;
             }
@@ -82,8 +86,8 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
         this.isMaster = true;
         scheduler.register(snapshotTask);
         final ClusterState state = clusterService.state();
-        if (ilmStoppedOrStopping(state)) {
-            // ILM is currently stopped, so don't schedule jobs
+        if (slmStoppedOrStopping(state)) {
+            // SLM is currently stopped, so don't schedule jobs
             return;
         }
         scheduleSnapshotJobs(state);
@@ -102,13 +106,27 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
     }
 
     /**
-     * Returns true if ILM is in the stopped or stopped state
+     * Returns true if SLM is in the stopping or stopped state
      */
-    static boolean ilmStoppedOrStopping(ClusterState state) {
+    static boolean slmStoppedOrStopping(ClusterState state) {
         return Optional.ofNullable((SnapshotLifecycleMetadata) state.metaData().custom(SnapshotLifecycleMetadata.TYPE))
             .map(SnapshotLifecycleMetadata::getOperationMode)
             .map(mode -> OperationMode.STOPPING == mode || OperationMode.STOPPED == mode)
             .orElse(false);
+    }
+
+    /**
+     * Returns true if SLM is in the stopping state
+     */
+    static boolean slmStopping(ClusterState state) {
+        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metaData().custom(SnapshotLifecycleMetadata.TYPE))
+            .map(SnapshotLifecycleMetadata::getOperationMode)
+            .map(mode -> OperationMode.STOPPING == mode)
+            .orElse(false);
+    }
+
+    public void submitOperationModeUpdate(OperationMode mode) {
+        clusterService.submitStateUpdateTask("slm_operation_mode_update", OperationModeUpdateTask.slmMode(mode));
     }
 
     /**

@@ -178,7 +178,6 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                     for (int i = 0; i < 200 && stopped.get() == false; i++) {
                         final String fieldName = Integer.toString(i);
                         ParsedDocument doc = documentMapper.parse(new SourceToParse("test",
-                                "test",
                                 fieldName,
                                 new BytesArray("{ \"" + fieldName + "\" : \"test\" }"),
                                 XContentType.JSON));
@@ -201,7 +200,6 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                 final String fieldName = lastIntroducedFieldName.get();
                 final BytesReference source = new BytesArray("{ \"" + fieldName + "\" : \"test\" }");
                 ParsedDocument parsedDoc = documentMapper.parse(new SourceToParse("test",
-                        "test",
                         "random",
                         source,
                         XContentType.JSON));

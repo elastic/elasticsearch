@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -55,8 +56,8 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
-        actual = locals.getPainlessLookup().canonicalTypeNameToType(type);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 
         if (actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
@@ -64,8 +65,8 @@ public final class EExplicit extends AExpression {
 
         child.expected = actual;
         child.explicit = true;
-        child.analyze(locals);
-        child = child.cast(locals);
+        child.analyze(scriptRoot, locals);
+        child = child.cast(scriptRoot, locals);
     }
 
     @Override
@@ -73,12 +74,12 @@ public final class EExplicit extends AExpression {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
-    AExpression cast(Locals locals) {
+    AExpression cast(ScriptRoot scriptRoot, Locals locals) {
         child.expected = expected;
         child.explicit = explicit;
         child.internal = internal;
 
-        return child.cast(locals);
+        return child.cast(scriptRoot, locals);
     }
 
     @Override

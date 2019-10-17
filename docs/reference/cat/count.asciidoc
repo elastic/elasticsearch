@@ -16,6 +16,8 @@ which have not yet been removed by the merge process.
 
 `GET /_cat/count/<index>`
 
+`GET /_cat/count`
+
 
 [[cat-count-api-path-params]]
 ==== {api-path-parms-title}
@@ -31,10 +33,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 

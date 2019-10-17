@@ -92,7 +92,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Simulated(indexRequest.index(), MapperService.SINGLE_MAPPING_NAME, indexRequest.id(),
+            return new IndexAction.Simulated(indexRequest.index(), indexRequest.id(),
                 action.refreshPolicy, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 

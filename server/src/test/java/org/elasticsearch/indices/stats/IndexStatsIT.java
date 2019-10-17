@@ -62,7 +62,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -974,7 +973,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
-    @TestLogging(value = "_root:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/46701")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder().put(indexSettings())
             .put("number_of_replicas", 0)

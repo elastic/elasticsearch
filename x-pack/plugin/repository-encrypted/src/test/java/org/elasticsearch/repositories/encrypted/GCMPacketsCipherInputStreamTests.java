@@ -6,6 +6,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import java.io.ByteArrayInputStream;
@@ -19,6 +20,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import static org.elasticsearch.repositories.encrypted.GCMPacketsCipherInputStream.ENCRYPTED_PACKET_SIZE_IN_BYTES;
+import static org.elasticsearch.repositories.encrypted.GCMPacketsCipherInputStream.READ_BUFFER_SIZE_IN_BYTES;
 
 public class GCMPacketsCipherInputStreamTests extends ESTestCase {
 
@@ -208,6 +210,67 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
             // reset at the end
             cipherInputStream.reset();
             assertThat(cipherInputStream.read(), Matchers.is(-1));
+        }
+    }
+
+    public void testDecryptionFails() throws Exception {
+        Random random = new Random();
+        int length = randomIntBetween(0, READ_BUFFER_SIZE_IN_BYTES);
+        int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
+        int nonce = new Random().nextInt();
+        byte[] ciphertextBytes;
+        try (InputStream cipherInputStream =
+                     GCMPacketsCipherInputStream.getEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
+                             secretKey, nonce, bcFipsProvider)) {
+            ciphertextBytes = cipherInputStream.readAllBytes();
+        }
+        // decryption fails for one byte modifications
+        for (int i = 0; i < ciphertextBytes.length; i++) {
+            byte bytei = ciphertextBytes[i];
+            while (bytei == ciphertextBytes[i]) {
+                ciphertextBytes[i] = (byte) random.nextInt();
+            }
+            try (InputStream plainInputStream =
+                         GCMPacketsCipherInputStream.getDecryptor(new ByteArrayInputStream(ciphertextBytes),
+                                 secretKey, nonce, bcFipsProvider)) {
+                IOException e = expectThrows(IOException.class, () -> {
+                    readAllInputStream(plainInputStream,
+                            GCMPacketsCipherInputStream.getDecryptionSizeFromCipherSize(ciphertextBytes.length));
+                });
+                assertThat(e.getCause(), Matchers.isA(AEADBadTagException.class));
+            }
+            ciphertextBytes[i] = bytei;
+        }
+        // decryption fails for one byte omissions
+        byte[] missingByteCiphertext = new byte[ciphertextBytes.length - 1];
+        for (int i = 0; i < ciphertextBytes.length; i++) {
+            System.arraycopy(ciphertextBytes, 0, missingByteCiphertext, 0, i);
+            System.arraycopy(ciphertextBytes, i + 1, missingByteCiphertext, i, (ciphertextBytes.length - i - 1));
+            try (InputStream plainInputStream =
+                         GCMPacketsCipherInputStream.getDecryptor(new ByteArrayInputStream(missingByteCiphertext),
+                                 secretKey, nonce, bcFipsProvider)) {
+                IOException e = expectThrows(IOException.class, () -> {
+                    readAllInputStream(plainInputStream,
+                            GCMPacketsCipherInputStream.getDecryptionSizeFromCipherSize(missingByteCiphertext.length));
+                });
+                assertThat(e.getCause(), Matchers.isA(AEADBadTagException.class));
+            }
+        }
+        // decryption fails for one extra byte
+        byte[] extraByteCiphertext = new byte[ciphertextBytes.length + 1];
+        for (int i = 0; i < ciphertextBytes.length; i++) {
+            System.arraycopy(ciphertextBytes, 0, extraByteCiphertext, 0, i);
+            extraByteCiphertext[i] = (byte) random.nextInt();
+            System.arraycopy(ciphertextBytes, i, extraByteCiphertext, i + 1, (ciphertextBytes.length - i));
+            try (InputStream plainInputStream =
+                         GCMPacketsCipherInputStream.getDecryptor(new ByteArrayInputStream(extraByteCiphertext),
+                                 secretKey, nonce, bcFipsProvider)) {
+                IOException e = expectThrows(IOException.class, () -> {
+                    readAllInputStream(plainInputStream,
+                            GCMPacketsCipherInputStream.getDecryptionSizeFromCipherSize(extraByteCiphertext.length));
+                });
+                assertThat(e.getCause(), Matchers.isA(AEADBadTagException.class));
+            }
         }
     }
 

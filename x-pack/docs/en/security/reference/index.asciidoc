@@ -1,0 +1,10 @@
+[role="xpack"]
+[[security-reference]]
+== Reference
+* <<security-privileges>>
+* <<security-settings>>
+* <<security-files>>
+* <<security-api>>
+* <<xpack-commands>>
+
+include::files.asciidoc[]

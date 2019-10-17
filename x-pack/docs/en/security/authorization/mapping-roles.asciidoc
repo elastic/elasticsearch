@@ -4,7 +4,7 @@
 
 If you authenticate users with the `native` or `file` realms, you can manage
 role assignment by using the <<managing-native-users, User Management APIs>> or
-the {ref}/users-command.html[users] command-line tool respectively.
+the <<users-command,users>> command-line tool respectively.
 
 For other types of realms, you must create _role-mappings_ that define which
 roles should be assigned to each user based on their username, groups, or
@@ -18,7 +18,7 @@ the API, and other roles that are mapped through files.
 
 When you use role-mappings, you assign existing roles to users.
 The available roles should either be added using the
-{ref}/security-api.html#security-role-apis[role management APIs] or defined in the
+<<security-role-apis,role management APIs>> or defined in the
 <<roles-management-file, roles file>>. Either role-mapping method can use
 either role management method. For example, when you use the role mapping API,
 you are able to map users to both API-managed roles and file-managed roles
@@ -28,7 +28,7 @@ you are able to map users to both API-managed roles and file-managed roles
 ==== Using the role mapping API
 
 You can define role-mappings through the
-{ref}/security-api-put-role-mapping.html[add role mapping API].
+<<security-api-put-role-mapping,add role mapping API>>.
 
 [[mapping-roles-file]]
 ==== Using role mapping files
@@ -41,9 +41,9 @@ By default, role mappings are stored in `ES_PATH_CONF/role_mapping.yml`,
 where `ES_PATH_CONF` is `ES_HOME/config` (zip/tar installations) or
 `/etc/elasticsearch` (package installations). To specify a different location,
 you configure the `files.role_mapping` setting in the 
-{ref}/security-settings.html#ref-ad-settings[Active Directory], 
-{ref}/security-settings.html#ref-ldap-settings[LDAP], and 
-{ref}/security-settings.html#ref-pki-settings[PKI] realm settings in 
+<<ref-ad-settings,Active Directory>>, 
+<<ref-ldap-settings,LDAP>>, and 
+<<ref-pki-settings,PKI>> realm settings in 
 `elasticsearch.yml`.
 
 Within the role mapping file, the security roles are keys and groups and users

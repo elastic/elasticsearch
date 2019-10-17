@@ -1,6 +1,6 @@
 [role="xpack"]
 [[configuring-tls-docker]]
-=== Encrypting Communications in an {es} Docker Container
+=== Encrypting communications in an {es} Docker container
 
 Starting with version 6.0.0, {security} (Gold, Platinum or Enterprise subscriptions) https://www.elastic.co/guide/en/elasticsearch/reference/6.0/breaking-6.0.0-xes.html[requires SSL/TLS]
 encryption for the transport networking layer.
@@ -10,7 +10,7 @@ HTTPS and transport using the {es} Docker image. The example uses
 Docker Compose to manage the containers.
 
 For further details, please refer to
-{xpack-ref}/encrypting-communications.html[Encrypting Communications] and
+<<encrypting-communications>> and
 https://www.elastic.co/subscriptions[available subscriptions].
 
 [float]
@@ -182,7 +182,7 @@ volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
 ----
 
 <1> Bootstrap `elastic` with the password defined in `.env`. See
-{stack-ov}/built-in-users.html#bootstrap-elastic-passwords[the Elastic Bootstrap Password].
+<<bootstrap-elastic-passwords>>.
 <2> Automatically generate and apply a trial subscription, in order to enable
 {security}.
 <3> Disable verification of authenticity for inter-node communication. Allows

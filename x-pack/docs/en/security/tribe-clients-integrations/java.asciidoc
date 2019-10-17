@@ -1,5 +1,5 @@
 [[java-clients]]
-=== Java Client and Security
+=== Java client and security
 
 {security} supports the Java http://www.elastic.co/guide/en/elasticsearch/client/java-api/current/transport-client.html[transport client] for Elasticsearch.
 The transport client uses the same transport protocol that the cluster nodes use
@@ -11,7 +11,7 @@ NOTE: Using the Java Node Client with secured clusters is not recommended or
 
 [float]
 [[transport-client]]
-==== Configuring the Transport Client to work with a Secured Cluster
+==== Configuring the transport client to work with a secured Cluster
 
 [WARNING]
 ===================================
@@ -39,7 +39,7 @@ level Java REST Client] with JSON request and response bodies.
 To use the transport client with a secured cluster, you need to:
 
 [[java-transport-client-role]]
-. {ref}/setup-xpack-client.html[Configure the {xpack} transport client].
+. <<setup-xpack-client>>.
 
 . Configure a user with the privileges required to start the transport client.
 A default `transport_client` role is built-in to {xpack} that grants the
@@ -158,10 +158,10 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
 
 [float]
 [[disabling-client-auth]]
-===== Disabling Client Authentication
+===== Disabling client authentication
 
 If you want to disable client authentication, you can use a client-specific
-transport protocol. For more information see <<separating-node-client-traffic, Separating Node to Node and Client Traffic>>.
+transport protocol. For more information see <<separating-node-client-traffic>>.
 
 If you are not using client authentication and sign the Elasticsearch node
 certificates with your own CA, you need to provide the path to the CA
@@ -188,7 +188,7 @@ NOTE: If you are using a public CA that is already trusted by the Java runtime,
 
 [float]
 [[connecting-anonymously]]
-===== Connecting Anonymously
+===== Connecting anonymously
 
 To enable the transport client to connect anonymously, you must assign the
 anonymous user the privileges defined in the <<java-transport-client-role,transport_client>>
@@ -197,7 +197,7 @@ see <<anonymous-access,Enabling Anonymous Access>>.
 
 [float]
 [[security-client]]
-==== Security Client
+==== Security client
 
 {security} exposes its own API through the `SecurityClient` class. To get a hold
 of a `SecurityClient` you'll first need to create the `XPackClient`, which is a

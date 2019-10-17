@@ -2951,6 +2951,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureBagFraction(0.4) // <6>
                 .setPredictionFieldName("my_prediction_field_name") // <7>
                 .setTrainingPercent(50.0) // <8>
+                .setNumTopClasses(1) // <9>
                 .build();
             // end::put-data-frame-analytics-classification
 

@@ -1,0 +1,184 @@
+[[snapshot-restore-api]]
+=== Snapshot Restore API
+++++
+<titleabbrev>Snapshot Restore API</titleabbrev>
+++++
+////
+Restores a snapshot into a running cluster.
+////
+
+Restores a snapshot into a running cluster.
+
+[source,js]
+--------------------------------------------------
+POST /_snapshot/my_backup/snapshot_1/_restore
+--------------------------------------------------
+// CONSOLE
+
+////
+***********************************************************
+////
+
+////
+Use the appropriate heading levels for your book.
+Add anchors for each section.
+FYI: The section titles use attributes in case those terms change.
+////
+
+[[sample-api-request]]
+==== {api-request-title}
+////
+This section show the basic endpoint, without the body or optional parameters.
+Variables should use <...> syntax.
+If an API supports both PUT and POST, include both here.
+////
+
+`PUT /<follower_index>/_ccr/follow`
+
+
+[[sample-api-prereqs]]
+==== {api-prereq-title}
+////
+Optional list of prerequisites.
+
+For example:
+
+* A snapshot of an index created in 5.x can be restored to 6.x. You must...
+* If the {es} {security-features} are enabled, you must have `write`, `monitor`,
+and `manage_follow_index` index privileges...
+////
+
+
+[[sample-api-desc]]
+==== {api-description-title}
+////
+Add a more detailed description the context.
+Link to related APIs if appropriate.
+
+Guidelines for parameter documentation
+***************************************
+* Use a definition list.
+* End each definition with a period.
+* Include whether the parameter is Optional or Required and the data type.
+* Include default values as the last sentence of the first paragraph.
+* Include a range of valid values, if applicable.
+* If the parameter requires a specific delimiter for multiple values, say so.
+* If the parameter supports wildcards, ditto.
+* For large or nested objects, consider linking to a separate definition list.
+***************************************
+////
+
+
+[[sample-api-path-params]]
+==== {api-path-parms-title}
+////
+A list of all the parameters within the path of the endpoint (before the query string (?)).
+
+For example:
+`<follower_index>`::
+(Required, string) Name of the follower index
+////
+
+
+[[sample-api-query-params]]
+==== {api-query-parms-title}
+////
+A list of the parameters in the query string of the endpoint (after the ?).
+
+For example:
+`wait_for_active_shards`::
+(Optional, integer) Specifies the number of shards to wait on being active before
+responding. A shard must be restored from the leader index being active.
+Restoring a follower shard requires transferring all the remote Lucene segment
+files to the follower index. The default is `0`, which means waiting on none of
+the shards to be active.
+////
+
+
+[[sample-api-request-body]]
+==== {api-request-body-title}
+////
+A list of the properties you can specify in the body of the request.
+
+For example:
+`remote_cluster`::
+(Required, string) The <<modules-remote-clusters,remote cluster>> that contains
+the leader index.
+
+`leader_index`::
+(Required, string) The name of the index in the leader cluster to follow.
+////
+
+
+[[sample-api-response-body]]
+==== {api-response-body-title}
+////
+Response body is only required for detailed responses.
+
+For example:
+`auto_follow_stats`::
+  (object) An object representing stats for the auto-follow coordinator. This
+  object consists of the following fields:
+
+`auto_follow_stats.number_of_successful_follow_indices`:::
+  (long) the number of indices that the auto-follow coordinator successfully
+  followed
+...
+
+////
+
+
+[[sample-api-response-codes]]
+==== {api-response-codes-title}
+////
+Response codes are only required when needed to understand the response body.
+
+For example:
+`200`::
+Indicates all listed indices or index aliases exist.
+
+ `404`::
+Indicates one or more listed indices or index aliases **do not** exist.
+////
+
+
+[[sample-api-example]]
+==== {api-examples-title}
+////
+Optional additional examples.
+DO NOT repeat the basic example used earlier.
+
+
+[source,js]
+----
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index",
+  "max_read_request_operation_count" : 1024,
+  "max_outstanding_read_requests" : 16,
+  "max_read_request_size" : "1024k",
+  "max_write_request_operation_count" : 32768,
+  "max_write_request_size" : "16k",
+  "max_outstanding_write_requests" : 8,
+  "max_write_buffer_count" : 512,
+  "max_write_buffer_size" : "512k",
+  "max_retry_delay" : "10s",
+  "read_poll_timeout" : "30s"
+}
+----
+// CONSOLE
+// TEST[setup:remote_cluster_and_leader_index]
+
+The API returns the following result:
+
+[source,js]
+----
+{
+  "follow_index_created" : true,
+  "follow_index_shards_acked" : true,
+  "index_following_started" : true
+}
+----
+// TESTRESPONSE
+////

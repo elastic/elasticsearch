@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -78,20 +79,22 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
                                        AsyncMethod<Req, Resp> asyncMethod) throws IOException {
         return execute(request, syncMethod, asyncMethod, RequestOptions.DEFAULT);
     }
-    
+
     /**
      * Executes the provided request using either the sync method or its async variant, both provided as functions
      */
     protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
                                        AsyncMethod<Req, Resp> asyncMethod, RequestOptions options) throws IOException {
-        if (randomBoolean()) {
+        final boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
+
+        if (async == false) {
             return syncMethod.execute(request, options);
         } else {
             PlainActionFuture<Resp> future = PlainActionFuture.newFuture();
             asyncMethod.execute(request, options, future);
             return future.actionGet();
         }
-    }    
+    }
 
     /**
      * Executes the provided request using either the sync method or its async
@@ -100,7 +103,9 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
      */
     protected static <Resp> Resp execute(SyncMethodNoRequest<Resp> syncMethodNoRequest, AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
             RequestOptions requestOptions) throws IOException {
-        if (randomBoolean()) {
+        final boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
+
+        if (async == false) {
             return syncMethodNoRequest.execute(requestOptions);
         } else {
             PlainActionFuture<Resp> future = PlainActionFuture.newFuture();

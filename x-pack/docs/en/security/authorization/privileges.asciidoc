@@ -47,7 +47,7 @@ patterns. It also includes the authority to grant the privileges necessary to
 manage follower indices and auto-follow patterns. This privilege is necessary 
 only on clusters that contain follower indices. 
 
-`manage_data_frame_transforms`::
+`manage_transform`::
 All operations related to managing {transforms}.
 
 `manage_ilm`::
@@ -119,7 +119,7 @@ security roles of the user who created or updated them.
 All cluster read-only operations, like cluster health and state, hot threads, 
 node info, node and cluster stats, and pending cluster tasks.
 
-`monitor_data_frame_transforms`::
+`monitor_transform`::
 All read-only operations related to {transforms}.
 
 `monitor_ml`::

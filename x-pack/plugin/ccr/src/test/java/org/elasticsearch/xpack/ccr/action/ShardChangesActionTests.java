@@ -147,7 +147,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final IndexShard indexShard = indexService.getShard(0);
         final Translog.Operation[] operations = ShardChangesAction.getOperations(indexShard, indexShard.getLastKnownGlobalCheckpoint(),
             0, 12, indexShard.getHistoryUUID(), new ByteSizeValue(256, ByteSizeUnit.BYTES));
-        assertThat(operations.length, equalTo(11));
+        assertThat(operations.length, equalTo(12));
         assertThat(operations[0].seqNo(), equalTo(0L));
         assertThat(operations[1].seqNo(), equalTo(1L));
         assertThat(operations[2].seqNo(), equalTo(2L));
@@ -159,6 +159,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         assertThat(operations[8].seqNo(), equalTo(8L));
         assertThat(operations[9].seqNo(), equalTo(9L));
         assertThat(operations[10].seqNo(), equalTo(10L));
+        assertThat(operations[11].seqNo(), equalTo(11L));
     }
 
     public void testGetOperationsAlwaysReturnAtLeastOneOp() throws Exception {

@@ -67,6 +67,12 @@ public class Classification implements DataFrameAnalysis {
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet()));
 
+    /**
+     * As long as we only support binary classification it makes sense to always report both classes with their probabilities.
+     * This way the user can see if the prediction was made with confidence they need.
+     */
+    private static final int DEFAULT_NUM_TOP_CLASSES = 2;
+
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
     private final String predictionFieldName;
@@ -87,7 +93,7 @@ public class Classification implements DataFrameAnalysis {
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
         this.predictionFieldName = predictionFieldName;
-        this.numTopClasses = numTopClasses == null ? 0 : numTopClasses;
+        this.numTopClasses = numTopClasses == null ? DEFAULT_NUM_TOP_CLASSES : numTopClasses;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
     }
 
@@ -105,6 +111,10 @@ public class Classification implements DataFrameAnalysis {
 
     public String getDependentVariable() {
         return dependentVariable;
+    }
+
+    public int getNumTopClasses() {
+        return numTopClasses;
     }
 
     public double getTrainingPercent() {

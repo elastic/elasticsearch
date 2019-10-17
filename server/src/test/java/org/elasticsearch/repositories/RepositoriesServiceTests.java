@@ -67,6 +67,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             Collections.emptySet());
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
             transportService, Collections.emptyMap(), Collections.singletonMap(TestRepository.TYPE, TestRepository::new), threadPool);
+        repositoriesService.start();
     }
 
     public void testRegisterInternalRepository() {

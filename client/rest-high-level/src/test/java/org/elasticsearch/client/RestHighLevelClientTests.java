@@ -760,6 +760,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         String[] notYetSupportedApi = new String[]{
             "cluster.remote_info",
             "create",
+            "get_script_context",
             "get_source",
             "indices.delete_alias",
             "indices.exists_type",
@@ -857,6 +858,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("security.") == false &&
                                 apiName.startsWith("index_lifecycle.") == false &&
                                 apiName.startsWith("ccr.") == false &&
+                                apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("transform.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&

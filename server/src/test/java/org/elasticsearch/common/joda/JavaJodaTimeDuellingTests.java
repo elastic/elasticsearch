@@ -848,6 +848,10 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-10-10T10:11:12,123+05:30", format, jodaFormatter, javaFormatter);
     }
 
+    public void testParsingLocalDateFromYearOfEra(){
+        //with strict resolving, YearOfEra expect an era, otherwise it won't resolve to a date
+        assertSameDate("2018363","yyyyDDD",Joda.forPattern("YYYYDDD"),DateFormatter.forPattern("uuuuDDD"));
+    }
     public void testParsingMissingTimezone() {
         long millisJava = DateFormatter.forPattern("8yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
         long millisJoda = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");

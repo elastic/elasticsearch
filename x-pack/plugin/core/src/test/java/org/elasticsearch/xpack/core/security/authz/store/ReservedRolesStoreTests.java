@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
@@ -441,6 +442,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Role monitoringUserRole = Role.builder(roleDescriptor, null).build();
         assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(XPackInfoAction.NAME, request, authentication), is(true));
+        assertThat(monitoringUserRole.cluster().check(RemoteInfoAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));

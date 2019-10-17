@@ -80,8 +80,8 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
 
     public void testMarkAndResetAtBeginningForEncryption() throws Exception {
         testMarkAndResetToSameOffsetForEncryption(0);
-        testMarkAndResetToSameOffsetForEncryption(GCMPacketsCipherInputStream.
-                getEncryptionSizeFromPlainSize(GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES));
+        testMarkAndResetToSameOffsetForEncryption(Math.toIntExact(GCMPacketsCipherInputStream.
+                getEncryptionSizeFromPlainSize(GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES)));
     }
 
     public void testMarkAndResetFirstPacketForEncryption() throws Exception {
@@ -111,7 +111,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
                              secretKey, nonce, bcFipsProvider)) {
             cipherInputStream.mark(Integer.MAX_VALUE);
             for (int i = 0; i < GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length); i++) {
-                int skipSize = randomIntBetween(1, GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length) - i);
+                int skipSize = randomIntBetween(1, Math.toIntExact(GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length)) - i);
                 // skip bytes
                 cipherInputStream.readNBytes(skipSize);
                 cipherInputStream.reset();
@@ -143,7 +143,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
             int position4 = randomIntBetween(position3 + 1, 2 * ENCRYPTED_PACKET_SIZE_IN_BYTES - 2);
             int position5 = randomIntBetween(position4 + 1, 2 * ENCRYPTED_PACKET_SIZE_IN_BYTES - 1);
             int position6 = 2 * ENCRYPTED_PACKET_SIZE_IN_BYTES;
-            int position7 = GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length);
+            int position7 = Math.toIntExact(GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length));
             // skip position1 bytes
             cipherInputStream.readNBytes(position1);
             // mark position1
@@ -292,7 +292,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
             cipherInputStream.reset();
             // read/skip more than (encrypted) packet size, but less than the full stream
             skipSize = randomIntBetween(ENCRYPTED_PACKET_SIZE_IN_BYTES,
-                    GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length) - 1 - offset);
+                    Math.toIntExact(GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize((long)length)) - 1 - offset);
             byte[] secondPassEncryption = cipherInputStream.readNBytes(skipSize);
             assertTrue(Arrays.equals(firstPassEncryption, 0, firstPassEncryption.length, secondPassEncryption, 0,
                     firstPassEncryption.length));
@@ -304,7 +304,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
                 thirdPassEncryption = cipherInputStream.readAllBytes();
             } else {
                 thirdPassEncryption =
-                        cipherInputStream.readNBytes(GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length) - offset);
+                        cipherInputStream.readNBytes(Math.toIntExact(GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize((long)length)) - offset);
             }
             assertTrue(Arrays.equals(secondPassEncryption, 0, secondPassEncryption.length, thirdPassEncryption, 0,
                     secondPassEncryption.length));
@@ -312,7 +312,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
             cipherInputStream.reset();
             // read/skip more than (encrypted) packet size, but less than the full stream
             skipSize = randomIntBetween(ENCRYPTED_PACKET_SIZE_IN_BYTES,
-                    GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length) - 1 - offset);
+                    Math.toIntExact(GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize((long)length)) - 1 - offset);
             byte[] fourthPassEncryption = cipherInputStream.readNBytes(skipSize);
             assertTrue(Arrays.equals(fourthPassEncryption, 0, fourthPassEncryption.length, thirdPassEncryption, 0,
                     fourthPassEncryption.length));
@@ -361,9 +361,9 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     }
 
     // read "adversarily" in small random pieces
-    private ByteArrayOutputStream readAllInputStream(InputStream inputStream, int size) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream(size);
-        byte[] temp = new byte[randomIntBetween(1, size != 0 ? size : 1)];
+    private ByteArrayOutputStream readAllInputStream(InputStream inputStream, long size) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(size));
+        byte[] temp = new byte[randomIntBetween(1, size != 0 ? Math.toIntExact(size) : 1)];
         do {
             int bytesRead = inputStream.read(temp, 0, randomIntBetween(1, temp.length));
             if (bytesRead == -1) {
@@ -378,7 +378,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
                 baos.write(singleByte);
             }
         } while (true);
-        assertThat(baos.size(), Matchers.is(size));
+        assertThat(baos.size(), Matchers.is(Math.toIntExact(size)));
         return baos;
     }
 }

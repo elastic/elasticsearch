@@ -14,13 +14,13 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -30,13 +30,14 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.HashMap;
 import java.util.Map;
@@ -44,19 +45,15 @@ import java.util.function.Function;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
+    private static final BouncyCastleFipsProvider BC_FIPS_PROVIDER = new BouncyCastleFipsProvider();
+    // TODO change this and make it (secure) randomly generated for each blob
+    private static final int NONCE = 5318008;
+
     static final Setting.AffixSetting<SecureString> ENCRYPTION_PASSWORD_SETTING = Setting.affixKeySetting("repository.encrypted.",
             "password", key -> SecureSetting.secureString(key, null));
 
     private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity());
-    private static final int GCM_TAG_BYTES_LENGTH = 16;
-    private static final String ENCRYPTION_MODE = "AES/GCM/NoPadding";
     private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata-";
-    // always the same IV because the key is randomly generated anew (Key-IV pair is never repeated)
-    private static final GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, new byte[] {0,1,2,3,4,5,6,7,8,9,10,11 });
-    // given the mode, the IV and the tag length, the maximum "chunk" size is ~64GB, we set it to 32GB to err on the safe side
-    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.GB);
-
-    private static final BouncyCastleFipsProvider BC_FIPS_PROV = new BouncyCastleFipsProvider();
 
     private final BlobStoreRepository delegatedRepository;
     private final SecretKey masterSecretKey;
@@ -88,16 +85,6 @@ public class EncryptedRepository extends BlobStoreRepository {
     protected void doClose() {
         super.doClose();
         this.delegatedRepository.close();
-    }
-
-    @Override
-    public ByteSizeValue chunkSize() {
-        ByteSizeValue delegatedChunkSize = this.delegatedRepository.chunkSize();
-        if (delegatedChunkSize == null || delegatedChunkSize.compareTo(MAX_CHUNK_SIZE) > 0) {
-            return MAX_CHUNK_SIZE;
-        } else {
-            return delegatedChunkSize;
-        }
     }
 
     /**
@@ -188,35 +175,35 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public InputStream readBlob(String blobName) throws IOException {
-//            final BytesReference dataDecryptionKeyBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
-//            try {
-//                SecretKey dataDecryptionKey = unwrapKey(BytesReference.toBytes(dataDecryptionKeyBytes), this.masterSecretKey);
-//                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_FIPS_PROV);
-//                cipher.init(Cipher.DECRYPT_MODE, dataDecryptionKey, ivParameterSpec);
-//                return new CipherInputStream(this.delegatedBlobContainer.readBlob(blobName), cipher);
-//            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException e) {
-//                throw new IOException(e);
-//            }
-            return null;
+            final BytesReference dataDecryptionKeyBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
+            final SecretKey dataDecryptionKey;
+            try {
+                dataDecryptionKey = unwrapKey(BytesReference.toBytes(dataDecryptionKeyBytes), this.masterSecretKey);
+            } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException e) {
+                throw new IOException(e);
+            }
+            return GCMPacketsCipherInputStream.getDecryptor(this.delegatedBlobContainer.readBlob(blobName), dataDecryptionKey, NONCE,
+                    BC_FIPS_PROVIDER);
         }
 
         @Override
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-//            try {
-//                SecretKey dataEncryptionKey = generateRandomSecretKey();
-//                byte[] wrappedDataEncryptionKey = wrapKey(dataEncryptionKey, this.masterSecretKey);
-//                try (InputStream stream = new ByteArrayInputStream(wrappedDataEncryptionKey)) {
-//                    this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
-//                }
-//                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_FIPS_PROV);
-//                cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey, ivParameterSpec);
-//                cipher.update()
-//                this.delegatedBlobContainer.writeBlob(blobName, new CipherInputStream(inputStream, cipher), blobSize + GCM_TAG_BYTES_LENGTH,
-//                        failIfAlreadyExists);
-//            } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException
-//                    | InvalidAlgorithmParameterException e) {
-//                throw new IOException(e);
-//            }
+            final byte[] wrappedDataEncryptionKey;
+            final SecretKey dataEncryptionKey;
+            try {
+                dataEncryptionKey = generateRandomSecretKey();
+                wrappedDataEncryptionKey = wrapKey(dataEncryptionKey, this.masterSecretKey);
+            } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException e) {
+                throw new IOException(e);
+            }
+            try (InputStream stream = new ByteArrayInputStream(wrappedDataEncryptionKey)) {
+                this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
+            }
+            final long encryptedSize = GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(blobSize);
+            try (InputStream encryptedInputStream = GCMPacketsCipherInputStream.getEncryptor(inputStream, dataEncryptionKey, NONCE,
+                    BC_FIPS_PROVIDER)) {
+                this.delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedSize, failIfAlreadyExists);
+            }
         }
 
         @Override
@@ -263,7 +250,7 @@ public class EncryptedRepository extends BlobStoreRepository {
 
                     @Override
                     public long length() {
-                        return entry.getValue().length() - GCM_TAG_BYTES_LENGTH;
+                        return GCMPacketsCipherInputStream.getDecryptionSizeFromCipherSize(entry.getValue().length());
                     }
                 });
             }
@@ -274,7 +261,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     private static SecretKey generateSecretKeyFromPassword(char[] password) throws NoSuchAlgorithmException, InvalidKeySpecException {
         byte[] salt = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; // same salt for 1:1 password to key
         PBEKeySpec spec = new PBEKeySpec(password, salt, 65536, 256);
-        SecretKey tmp = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec);
+        SecretKey tmp = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", BC_FIPS_PROVIDER).generateSecret(spec);
         return new SecretKeySpec(tmp.getEncoded(), "AES");
     }
 
@@ -283,21 +270,21 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     private static SecretKey generateRandomSecretKey() throws NoSuchAlgorithmException {
-        KeyGenerator keyGen = KeyGenerator.getInstance("AES", BC_FIPS_PROV);
-        keyGen.init(256);
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES", BC_FIPS_PROVIDER);
+        keyGen.init(256, SecureRandom.getInstance("DEFAULT", BC_FIPS_PROVIDER));
         return keyGen.generateKey();
     }
 
     private static byte[] wrapKey(SecretKey toWrap, SecretKey keyWrappingKey)
             throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException {
-        Cipher cipher = Cipher.getInstance("AESWrap");
+        Cipher cipher = Cipher.getInstance("AESWrap", BC_FIPS_PROVIDER);
         cipher.init(Cipher.WRAP_MODE, keyWrappingKey);
         return cipher.wrap(toWrap);
     }
 
     private static SecretKey unwrapKey(byte[] toUnwrap, SecretKey keyEncryptionKey)
             throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
-        Cipher cipher = Cipher.getInstance("AESWrap");
+        Cipher cipher = Cipher.getInstance("AESWrap", BC_FIPS_PROVIDER);
         cipher.init(Cipher.UNWRAP_MODE, keyEncryptionKey);
         return (SecretKey) cipher.unwrap(toUnwrap, "AES", Cipher.SECRET_KEY);
     }

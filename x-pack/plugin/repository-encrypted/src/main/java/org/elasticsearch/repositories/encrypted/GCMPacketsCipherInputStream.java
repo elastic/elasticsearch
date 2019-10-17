@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.Provider;
+import java.util.Objects;
 
 import static javax.crypto.Cipher.DECRYPT_MODE;
 import static javax.crypto.Cipher.ENCRYPT_MODE;
@@ -189,18 +190,18 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
         return getDecryptor(in, secretKey, nonce, new BouncyCastleFipsProvider());
     }
 
-    public static int getEncryptionSizeFromPlainSize(int size) {
+    public static long getEncryptionSizeFromPlainSize(long size) {
         if (size < 0) {
             throw new IllegalArgumentException();
         }
         return (size / PACKET_SIZE_IN_BYTES) * (ENCRYPTED_PACKET_SIZE_IN_BYTES) + (size % PACKET_SIZE_IN_BYTES) + GCM_TAG_SIZE_IN_BYTES;
     }
 
-    public static int getDecryptionSizeFromCipherSize(int size) {
+    public static long getDecryptionSizeFromCipherSize(long size) {
         if (size < GCM_TAG_SIZE_IN_BYTES) {
             throw new IllegalArgumentException();
         }
-        int plainSize = (size / (ENCRYPTED_PACKET_SIZE_IN_BYTES)) * PACKET_SIZE_IN_BYTES;
+        long plainSize = (size / (ENCRYPTED_PACKET_SIZE_IN_BYTES)) * PACKET_SIZE_IN_BYTES;
         if (size % ENCRYPTED_PACKET_SIZE_IN_BYTES < GCM_TAG_SIZE_IN_BYTES) {
             throw new IllegalArgumentException();
         }
@@ -208,8 +209,8 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
     }
 
     private GCMPacketsCipherInputStream(InputStream in, SecretKey secretKey, int mode, long packetIndex, int nonce, Provider provider) {
-        super(in);
-        this.secretKey = secretKey;
+        super(Objects.requireNonNull(in));
+        this.secretKey = Objects.requireNonNull(secretKey);
         this.mode = mode;
         this.packetIndex = packetIndex;
         this.provider = provider;
@@ -233,7 +234,7 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
             cipher = Cipher.getInstance(GCM_ENCRYPTION_SCHEME);
         }
         // construct IV and increment packet index
-        packetIV.putLong(0, packetIndex++);
+        packetIV.putLong(0, Math.incrementExact(packetIndex));
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_SIZE_IN_BYTES * Byte.SIZE, packetIV.array());
         cipher.init(mode, secretKey, gcmParameterSpec);
         packetCipher = cipher;

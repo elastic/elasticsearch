@@ -59,8 +59,6 @@ public class DataFrameAnalyticsConfigProvider {
 
     private static final int MAX_CONFIGS_SIZE = 10000;
 
-    private static final Map<String, String> TO_XCONTENT_PARAMS;
-
     private static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
 
     private final Client client;

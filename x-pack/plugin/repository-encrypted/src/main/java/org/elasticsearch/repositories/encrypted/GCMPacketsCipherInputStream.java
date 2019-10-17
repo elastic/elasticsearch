@@ -152,6 +152,7 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
     private static final String GCM_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
 
     static final int PACKET_SIZE_IN_BYTES = 4096;
+    static final int ENCRYPTED_PACKET_SIZE_IN_BYTES = PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES;
     static final int READ_BUFFER_SIZE_IN_BYTES = 512;
 
     private boolean done = false;
@@ -192,16 +193,18 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
         if (size < 0) {
             throw new IllegalArgumentException();
         }
-        return (size / PACKET_SIZE_IN_BYTES) * (PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES)
-                + (size % PACKET_SIZE_IN_BYTES) + GCM_TAG_SIZE_IN_BYTES;
+        return (size / PACKET_SIZE_IN_BYTES) * (ENCRYPTED_PACKET_SIZE_IN_BYTES) + (size % PACKET_SIZE_IN_BYTES) + GCM_TAG_SIZE_IN_BYTES;
     }
 
     public static int getDecryptionSizeFromCipherSize(int size) {
         if (size < GCM_TAG_SIZE_IN_BYTES) {
             throw new IllegalArgumentException();
         }
-        return (size / (PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES)) * PACKET_SIZE_IN_BYTES
-                + (size % (PACKET_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES)) - GCM_TAG_SIZE_IN_BYTES;
+        int plainSize = (size / (ENCRYPTED_PACKET_SIZE_IN_BYTES)) * PACKET_SIZE_IN_BYTES;
+        if (size % ENCRYPTED_PACKET_SIZE_IN_BYTES < GCM_TAG_SIZE_IN_BYTES) {
+            throw new IllegalArgumentException();
+        }
+        return plainSize + (size % ENCRYPTED_PACKET_SIZE_IN_BYTES) - GCM_TAG_SIZE_IN_BYTES;
     }
 
     private GCMPacketsCipherInputStream(InputStream in, SecretKey secretKey, int mode, long packetIndex, int nonce, Provider provider) {

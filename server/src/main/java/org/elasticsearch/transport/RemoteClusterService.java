@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -64,8 +65,6 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
-
-    private static final ActionListener<Void> noopListener = ActionListener.wrap((x) -> {}, (x) -> {});
 
     /**
      * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
@@ -240,8 +239,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     public void listenForUpdates(ClusterSettings clusterSettings) {
         super.listenForUpdates(clusterSettings);
-        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {
-        });
+        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
     }
 
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
@@ -253,7 +251,19 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-        updateRemoteCluster(clusterAlias, settings, noopListener);
+        PlainActionFuture<Void> connectedFuture = PlainActionFuture.newFuture();
+        updateRemoteCluster(clusterAlias, settings, connectedFuture);
+
+        TimeValue timeValue = TimeValue.timeValueSeconds(3);
+        try {
+            connectedFuture.get(timeValue.millis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (TimeoutException ex) {
+            logger.warn("failed to connect to remote cluster {} on settings update within {}", clusterAlias, timeValue.toString());
+        } catch (Exception e) {
+            logger.warn(new ParameterizedMessage("failed to connect to remote cluster {} on settings update", clusterAlias), e);
+        }
     }
 
     /**
@@ -331,7 +341,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         };
 
         for (Map.Entry<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> entry : seeds.entrySet()) {
-            updateRemoteCluster(entry.getKey(), Settings.EMPTY, countedListener);
+            updateRemoteCluster(entry.getKey(), settings, countedListener);
         }
 
         if (seeds.isEmpty()) {

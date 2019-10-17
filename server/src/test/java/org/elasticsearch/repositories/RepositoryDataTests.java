@@ -158,9 +158,6 @@ public class RepositoryDataTests extends ESTestCase {
         String indexName = indexNames.iterator().next();
         IndexId indexId = indices.get(indexName);
         assertEquals(indexId, repositoryData.resolveIndexId(indexName));
-        String notInRepoData = randomAlphaOfLength(5);
-        assertFalse(indexName.contains(notInRepoData));
-        assertEquals(new IndexId(notInRepoData, notInRepoData), repositoryData.resolveIndexId(notInRepoData));
     }
 
     public void testGetSnapshotState() {

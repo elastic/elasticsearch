@@ -54,10 +54,7 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
                 }
             }
         }
-        resolution = isDate(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
+
         return TypeResolution.TYPE_RESOLVED;
     }
 

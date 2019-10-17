@@ -476,6 +476,16 @@ null       | 430
 F          | 391
 ;
 
+selectDateTruncWithInterval
+SELECT DATE_TRUNC('hour', INTERVAL '1 12:43:21.0123' DAY TO SECONDS) as dt_hour, DATE_TRUNC('minute', INTERVAL '1 12:43:21.0123' DAY TO SECONDS) as dt_min,
+DATE_TRUNC('seconds', INTERVAL '1 12:43:21.0123' DAY TO SECONDS) as dt_sec, DATE_TRUNC('ms', INTERVAL '1 12:43:21.0123' DAY TO SECONDS)::string as dt_millis,
+DATE_TRUNC('mcs', INTERVAL '1 12:43:21.0123' DAY TO SECONDS)::string as dt_micro, DATE_TRUNC('nanoseconds', INTERVAL '1 12:43:21.0123' DAY TO SECONDS)::string as dt_nano;
+
+    dt_hour    |    dt_min     |    dt_sec     |   dt_millis   |   dt_micro    |    dt_nano
+---------------+---------------+---------------+---------------+---------------+---------------
++1 12:00:00.0  |+1 12:43:00.0  |+1 12:43:21.0  |+1 12:43:21.123|+1 12:43:21.123|+1 12:43:21.123
+;
+
 selectDateTruncWithDateTime
 schema::dt_hour:ts|dt_min:ts|dt_sec:ts|dt_millis:s|dt_micro:s|dt_nano:s
 SELECT DATE_TRUNC('hour', '2019-09-04T11:22:33.123Z'::datetime) as dt_hour, DATE_TRUNC('minute', '2019-09-04T11:22:33.123Z'::datetime) as dt_min,

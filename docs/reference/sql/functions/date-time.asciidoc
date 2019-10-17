@@ -512,20 +512,21 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeTzOffsetMinus]
 --------------------------------------------------
 DATE_TRUNC(
     string_exp, <1>
-    datetime_exp) <2>
+    datetime_exp/interval_exp) <2>
 --------------------------------------------------
 
 *Input*:
 
-<1> string expression denoting the unit to which the date/datetime should be truncated to
-<2> date/datetime expression
+<1> string expression denoting the unit to which the date/datetime/interval should be truncated to
+<2> date/datetime/interval expression
 
-*Output*: datetime
+*Output*: datetime/interval
 
 .Description:
 
-Truncate the date/datetime to the specified unit by setting all fields that are less significant than the specified
+Truncate the date/datetime/interval to the specified unit by setting all fields that are less significant than the specified
 one to zero (or one, for day, day of week and month). If any of the two arguments is `null` a `null` is returned.
+If first argument is `week` and second argument is interval, `interval units week not supported because months usually have have fractional weeks` is returned.
 
 [cols="^,^"]
 |===

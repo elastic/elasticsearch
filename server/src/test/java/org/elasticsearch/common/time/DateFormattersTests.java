@@ -115,7 +115,7 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testLocales() {
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(IsoLocale.ROOT));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(Locale.ROOT));
         Locale locale = randomLocale(random());
         assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).locale(), is(locale));
     }

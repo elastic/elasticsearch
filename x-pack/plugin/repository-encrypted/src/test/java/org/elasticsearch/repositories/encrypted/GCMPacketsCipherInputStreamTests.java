@@ -1,6 +1,12 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.repositories.encrypted;
 
 import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -36,7 +42,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
             return null;
         });
         testPlaintextArray = new byte[TEST_ARRAY_SIZE];
-        new Random().nextBytes(testPlaintextArray);
+        Randomness.get().nextBytes(testPlaintextArray);
     }
 
     @Before
@@ -99,7 +105,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     public void testMarkAndResetCrawlForEncryption() throws Exception {
         int length = GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES;
         int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
-        int nonce = new Random().nextInt();
+        int nonce = Randomness.get().nextInt();
         byte[] ciphertextBytes;
         try (InputStream cipherInputStream =
                      GCMPacketsCipherInputStream.getEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
@@ -127,7 +133,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     public void testMarkAndResetStepInRewindBuffer() throws Exception {
         int length = 2 * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES;
         int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
-        int nonce = new Random().nextInt();
+        int nonce = Randomness.get().nextInt();
         byte[] ciphertextBytes;
         try (InputStream cipherInputStream =
                      GCMPacketsCipherInputStream.getEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
@@ -214,10 +220,10 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     }
 
     public void testDecryptionFails() throws Exception {
-        Random random = new Random();
+        Random random = Randomness.get();
         int length = randomIntBetween(0, READ_BUFFER_SIZE_IN_BYTES);
         int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
-        int nonce = new Random().nextInt();
+        int nonce = random.nextInt();
         byte[] ciphertextBytes;
         try (InputStream cipherInputStream =
                      GCMPacketsCipherInputStream.getEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
@@ -280,7 +286,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
         int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
         try (InputStream cipherInputStream =
                      GCMPacketsCipherInputStream.getEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
-                             secretKey, new Random().nextInt(), bcFipsProvider)) {
+                             secretKey, Randomness.get().nextInt(), bcFipsProvider)) {
             // skip offset bytes
             cipherInputStream.readNBytes(offset);
             // mark after offset
@@ -303,8 +309,8 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
             if (randomBoolean()) {
                 thirdPassEncryption = cipherInputStream.readAllBytes();
             } else {
-                thirdPassEncryption =
-                        cipherInputStream.readNBytes(Math.toIntExact(GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize((long)length)) - offset);
+                thirdPassEncryption = cipherInputStream.readNBytes(
+                                Math.toIntExact(GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize((long) length)) - offset);
             }
             assertTrue(Arrays.equals(secondPassEncryption, 0, secondPassEncryption.length, thirdPassEncryption, 0,
                     secondPassEncryption.length));
@@ -327,8 +333,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     }
 
     private void testEncryptDecryptRandomOfLength(int length, SecretKey secretKey) throws Exception {
-        Random random = new Random();
-        int nonce = random.nextInt();
+        int nonce = Randomness.get().nextInt();
         ByteArrayOutputStream cipherTextOutput;
         ByteArrayOutputStream plainTextOutput;
         int startIndex = randomIntBetween(0, testPlaintextArray.length - length);

@@ -8,6 +8,21 @@ esplugin {
     extendedPlugins = ['x-pack-core']
 }
 
+thirdPartyAudit {
+    ignoreViolations (
+      'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
+      'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
+      'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
+      'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
+      'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
+      'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
+      'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
+      'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
+      'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
+      'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
+    )
+}
+
 dependencies {
   compile "org.bouncycastle:bc-fips:1.0.1"
   compile "org.bouncycastle:bcpkix-fips:1.0.3"

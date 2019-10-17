@@ -512,8 +512,8 @@ The API returns the following response:
 ===== Rename a field
 
 // tag::rename-field[]
-If you want to rename a field,
-consider adding an <<alias, `alias`>> field to the index.
+Renaming a field would invalidate data already indexed under the old field name.
+Instead, add an <<alias, `alias`>> field to create an alternate field name.
 // end::rename-field[]
 
 For example,
@@ -534,10 +534,6 @@ PUT /my_index
   }
 }
 ----
-
-While you cannot rename the `user_identifier`,
-you can add an alias field
-that creates an alternate field name.
 
 Use the put mapping API to add the `user_id` field alias
 for the existing `user_identifier` field.

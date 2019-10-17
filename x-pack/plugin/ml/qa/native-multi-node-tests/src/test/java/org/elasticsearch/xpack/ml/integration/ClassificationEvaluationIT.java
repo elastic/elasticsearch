@@ -18,7 +18,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 

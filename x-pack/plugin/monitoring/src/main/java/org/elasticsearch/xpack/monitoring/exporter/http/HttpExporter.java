@@ -203,7 +203,7 @@ public class HttpExporter extends Exporter {
                             if (Strings.isNullOrEmpty(value) == false) {
                                 try {
                                     RestClientBuilder.cleanPathPrefix(value);
-                                } catch (IllegalArgumentException e) {
+                                } catch (RuntimeException e) {
                                     Setting<?> concreteSetting = HttpExporter.PROXY_BASE_PATH_SETTING.getConcreteSetting(key);
                                     throw new SettingsException("[" + concreteSetting.getKey() + "] is malformed [" + value + "]", e);
                                 }

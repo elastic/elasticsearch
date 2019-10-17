@@ -262,7 +262,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     @Override
     protected void stopInternal() {
         if (sharedGroup != null) {
-            sharedGroup.shutdownGracefully();
+            sharedGroup.shutdown();
             sharedGroup = null;
         }
     }

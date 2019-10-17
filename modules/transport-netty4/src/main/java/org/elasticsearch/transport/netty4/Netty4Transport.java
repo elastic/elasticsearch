@@ -36,7 +36,6 @@ import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
-import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -311,12 +310,7 @@ public class Netty4Transport extends TcpTransport {
     @Override
     @SuppressForbidden(reason = "debug")
     protected void stopInternal() {
-        Future<?> shutdownFuture = sharedGroup.shutdownGracefully();
-        shutdownFuture.awaitUninterruptibly();
-        if (shutdownFuture.isSuccess() == false) {
-            logger.warn("Error closing netty event loop group", shutdownFuture.cause());
-        }
-
+        sharedGroup.shutdown();
         serverBootstraps.clear();
         clientBootstrap = null;
     }

@@ -24,6 +24,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.http.HttpServerTransport;
@@ -42,6 +44,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * If that setting is not 0, then it will return a different group in the {@link #getHttpGroup()} call.
  */
 public final class SharedGroupFactory {
+
+    private static final Logger logger = LogManager.getLogger(SharedGroupFactory.class);
 
     private final Settings settings;
     private final int workerCount;
@@ -105,7 +109,11 @@ public final class SharedGroupFactory {
 
         @Override
         protected void closeInternal() {
-            eventLoopGroup.shutdownGracefully(0, 5, TimeUnit.SECONDS);
+            Future<?> shutdownFuture = eventLoopGroup.shutdownGracefully(0, 5, TimeUnit.SECONDS);
+            shutdownFuture.awaitUninterruptibly();
+            if (shutdownFuture.isSuccess() == false) {
+                logger.warn("Error closing netty event loop group", shutdownFuture.cause());
+            }
         }
     }
 
@@ -127,17 +135,9 @@ public final class SharedGroupFactory {
             return refCountedGroup.eventLoopGroup;
         }
 
-        public Future<?> shutdownGracefully() {
+        public void shutdown() {
             if (isOpen.compareAndSet(true, false)) {
                 refCountedGroup.decRef();
-                if (refCountedGroup.refCount() == 0) {
-                    refCountedGroup.eventLoopGroup.terminationFuture();
-                    return refCountedGroup.eventLoopGroup.terminationFuture();
-                } else {
-                    return getSuccessPromise();
-                }
-            } else {
-                return getSuccessPromise();
             }
         }
 

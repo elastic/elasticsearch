@@ -34,10 +34,10 @@ public final class SharedGroupFactoryTests extends ESTestCase {
         try {
             assertSame(httpGroup.getLowLevelGroup(), transportGroup.getLowLevelGroup());
         } finally {
-            httpGroup.shutdownGracefully().sync();
+            httpGroup.shutdown();
             assertFalse(httpGroup.getLowLevelGroup().isShuttingDown());
             assertFalse(transportGroup.getLowLevelGroup().isShuttingDown());
-            transportGroup.shutdownGracefully().sync();
+            transportGroup.shutdown();
             assertTrue(httpGroup.getLowLevelGroup().isShuttingDown());
             assertTrue(transportGroup.getLowLevelGroup().isShuttingDown());
         }
@@ -54,10 +54,10 @@ public final class SharedGroupFactoryTests extends ESTestCase {
         try {
             assertNotSame(httpGroup.getLowLevelGroup(), transportGroup.getLowLevelGroup());
         } finally {
-            httpGroup.shutdownGracefully().sync();
+            httpGroup.shutdown();
             assertTrue(httpGroup.getLowLevelGroup().isShuttingDown());
             assertFalse(transportGroup.getLowLevelGroup().isShuttingDown());
-            transportGroup.shutdownGracefully().sync();
+            transportGroup.shutdown();
             assertTrue(transportGroup.getLowLevelGroup().isShuttingDown());
         }
     }

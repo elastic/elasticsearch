@@ -1,7 +1,7 @@
 [[cross-cluster-configuring]]
-=== Cross Cluster Search and Security
+=== Cross cluster search and security
 
-{ref}/modules-cross-cluster-search.html[Cross Cluster Search] enables
+<<modules-cross-cluster-search,Cross cluster search>> enables
 federated search across multiple clusters. When using cross cluster search
 with secured clusters, all clusters must have {security} enabled.
 
@@ -24,7 +24,7 @@ To use cross cluster search with secured clusters:
 
 * Enable {security} on every node in each connected cluster. For more
 information about the `xpack.security.enabled` setting, see
-{ref}/security-settings.html[Security Settings in {es}].
+<<security-settings>>.
 
 * Enable encryption globally. To encrypt communications, you must enable
   <<ssl-tls,enable SSL/TLS>> on every node.
@@ -36,10 +36,10 @@ information about the `xpack.security.enabled` setting, see
   ** Using the same certificate authority to generate certificates for all
     connected clusters, or
   ** Adding the CA certificate from the local cluster as a trusted CA in
-    each remote cluster (see {ref}/security-settings.html#transport-tls-ssl-settings[Transport TLS settings]).
+    each remote cluster (see <<transport-tls-ssl-settings>>).
 
 * Configure the local cluster to connect to remote clusters as described
-  in {ref}/modules-cross-cluster-search.html#_configuring_cross_cluster_search[Configuring Cross Cluster Search].
+  in <<modules-cross-cluster-search>>.
   For example, the following configuration adds two remote clusters
   to the local cluster:
 +
@@ -69,7 +69,7 @@ PUT _cluster/settings
   that exists on the remote clusters.  On the remote clusters, use that role
   to define which indices the user may access.  (See <<authorization>>).
 
-==== Example Configuration of Cross Cluster Search
+==== Example configuration of cross cluster search
 
 In the following example, we will configure the user `alice` to have permissions
 to search any index starting with `logs-` in cluster `two` from cluster `one`.
@@ -144,7 +144,7 @@ cluster `two` as follows:
 
 [source,js]
 -----------------------------------------------------------
-GET two:logs-2017.04/_search <1>
+GET two:logs-2017.04/_search
 {
   "query": {
     "match_all": {}
@@ -153,7 +153,5 @@ GET two:logs-2017.04/_search <1>
 -----------------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
-//TBD: Is there a missing description of the <1> callout above?
 
-:edit_url: https://github.com/elastic/kibana/edit/{branch}/docs/security/cross-cluster-kibana.asciidoc
-include::{kib-repo-dir}/security/cross-cluster-kibana.asciidoc[]
+include::cross-cluster-kibana.asciidoc[]

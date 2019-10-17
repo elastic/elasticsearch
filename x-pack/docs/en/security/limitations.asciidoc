@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-limitations]]
 == Security limitations
+++++
+<titleabbrev>Limitations</titleabbrev>
+++++
 
 [float]
 === Plugins

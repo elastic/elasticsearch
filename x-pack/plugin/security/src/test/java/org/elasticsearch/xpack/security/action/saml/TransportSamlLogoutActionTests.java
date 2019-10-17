@@ -142,7 +142,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
                     .setType((String) invocationOnMock.getArguments()[1])
                     .setId((String) invocationOnMock.getArguments()[2]);
             return builder;
-        }).when(client).prepareUpdate(anyString(), anyString(), anyString());
+        }).when(client).prepareUpdate(anyString(), anyString());
         doAnswer(invocationOnMock -> {
             BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
             return builder;

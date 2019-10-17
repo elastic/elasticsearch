@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
@@ -27,7 +26,7 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
     public static DatePartProcessor randomDatePartProcessor() {
         return new DatePartProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             randomZone());
     }
 
@@ -50,7 +49,7 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
     protected DatePartProcessor mutateInstance(DatePartProcessor instance) {
         return new DatePartProcessor(
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
     }
 
@@ -72,7 +71,7 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DatePart(Source.EMPTY, l("dayfyear"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("Received value [dayfyear] is not valid date part for extraction; did you mean [dayofyear, year]?",
-             siae.getMessage());
+            siae.getMessage());
     }
 
     public void testWithNulls() {

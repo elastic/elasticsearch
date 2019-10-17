@@ -148,6 +148,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private volatile Process esProcess;
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
+    private String httpPort = "0";
+    private String transportPort = "0";
 
     ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
         this.path = path;
@@ -178,7 +180,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Internal
     public Version getVersion() {
-        return distributions.get(currentDistro).getVersion();
+        return Version.fromString(distributions.get(currentDistro).getVersion());
     }
 
     @Internal
@@ -359,8 +361,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void freeze() {
-        requireNonNull(distributions, "null distribution passed when configuring test cluster `" + this + "`");
-        requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
+        requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
     }
@@ -637,7 +638,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private Map<String, String> getESEnvironment() {
         Map<String, String> defaultEnv = new HashMap<>();
-        defaultEnv.put("JAVA_HOME", getJavaHome().getAbsolutePath());
+        if ( getJavaHome() != null) {
+            defaultEnv.put("JAVA_HOME", getJavaHome().getAbsolutePath());
+        }
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
@@ -657,7 +660,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 })
                 .collect(Collectors.joining(" "));
         }
-        defaultEnv.put("ES_JAVA_OPTS", "-Xms512m -Xmx512m -ea -esa " +
+        String heapSize = System.getProperty("tests.heap.size", "512m");
+        defaultEnv.put("ES_JAVA_OPTS", "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa " +
             systemPropertiesString + " " +
             jvmArgsString + " " +
             // Support  passing in additional JVM arguments
@@ -696,9 +700,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't inherit anything from the environment for as that would  lack reproducibility
         environment.clear();
         environment.putAll(getESEnvironment());
+
         // don't buffer all in memory, make sure we don't block on the default pipes
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
         processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
+
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
             esProcess = processBuilder.start();
@@ -988,11 +994,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
         defaultConfig.put("node.attr.testattr", "test");
         defaultConfig.put("node.portsfile", "true");
-        defaultConfig.put("http.port", "0");
+        defaultConfig.put("http.port", httpPort);
         if (getVersion().onOrAfter(Version.fromString("6.7.0"))) {
-            defaultConfig.put("transport.port", "0");
+            defaultConfig.put("transport.port", transportPort);
         } else {
-            defaultConfig.put("transport.tcp.port", "0");
+            defaultConfig.put("transport.tcp.port", transportPort);
         }
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         defaultConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
@@ -1285,6 +1291,24 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString()
             );
         }
+    }
+
+    void setHttpPort(String httpPort) {
+        this.httpPort = httpPort;
+    }
+
+    void setTransportPort(String transportPort) {
+        this.transportPort = transportPort;
+    }
+
+    @Internal
+    Path getEsStdoutFile() {
+        return esStdoutFile;
+    }
+
+    @Internal
+    Path getEsStderrFile() {
+        return esStderrFile;
     }
 
     private static class FileEntry implements Named {

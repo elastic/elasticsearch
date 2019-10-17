@@ -117,4 +117,14 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
     public boolean isFragment() {
         return delegate.isFragment();
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        return delegate.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return delegate.hashCode();
+    }
 }

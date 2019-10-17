@@ -64,13 +64,13 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     }
 
     public void testEncryptDecryptLargerThanPacketSize() throws Exception {
-        for (int i = GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES + 1; i <= GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES * 4; i++) {
+        for (int i = GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES + 1; i <= GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES * 3; i++) {
             testEncryptDecryptRandomOfLength(i, secretKey);
         }
     }
 
     public void testEncryptDecryptMultipleOfPacketSize() throws Exception {
-        for (int i = 1; i <= 7; i++) {
+        for (int i = 1; i <= 6; i++) {
             testEncryptDecryptRandomOfLength(i * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES, secretKey);
         }
     }
@@ -94,8 +94,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     }
 
     public void testMarkAndResetCrawlForEncryption() throws Exception {
-        int length = GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES + randomIntBetween(0,
-                GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES);
+        int length = GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES;
         int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
         int nonce = new Random().nextInt();
         byte[] ciphertextBytes;
@@ -120,7 +119,7 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     }
 
     private void testMarkAndResetToSameOffsetForEncryption(int offset) throws Exception {
-        int length = 3 * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES + randomIntBetween(0,
+        int length = 4 * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES + randomIntBetween(0,
                 GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES);
         int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
         try (InputStream cipherInputStream =

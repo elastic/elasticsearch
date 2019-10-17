@@ -103,6 +103,17 @@ public abstract class RemoteClusterAware {
     }
 
     /**
+     * Returns remote clusters that are enabled in these settings
+     */
+    protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
+        final Stream<Setting<List<String>>> allConcreteSettings = REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings);
+        return allConcreteSettings
+            .map(REMOTE_CLUSTERS_SEEDS::getNamespace)
+            .filter(clusterAlias -> RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings))
+            .collect(Collectors.toSet());
+    }
+
+    /**
      * Builds the dynamic per-cluster config from the given settings. This is a map keyed by the cluster alias that points to a tuple
      * (ProxyAddresss, [SeedNodeSuppliers]). If a cluster is configured with a proxy address all seed nodes will point to
      * {@link TransportAddress#META_ADDRESS} and their configured address will be used as the hostname for the generated discovery node.

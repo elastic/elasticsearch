@@ -31,7 +31,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +52,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
@@ -65,6 +63,8 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
+
+    private static final ActionListener<Void> noopListener = ActionListener.wrap((x) -> {}, (x) -> {});
 
     /**
      * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
@@ -251,19 +251,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-        PlainActionFuture<Void> connectedFuture = PlainActionFuture.newFuture();
-        updateRemoteCluster(clusterAlias, settings, connectedFuture);
-
-        TimeValue timeValue = TimeValue.timeValueSeconds(3);
-        try {
-            connectedFuture.get(timeValue.millis(), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (TimeoutException ex) {
-            logger.warn("failed to connect to remote cluster {} on settings update within {}", clusterAlias, timeValue.toString());
-        } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("failed to connect to remote cluster {} on settings update", clusterAlias), e);
-        }
+        updateRemoteCluster(clusterAlias, settings, noopListener);
     }
 
     /**
@@ -318,12 +306,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> seeds =
-            RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
+        Set<String> enabledClusters = RemoteClusterAware.getEnabledRemoteClusters(settings);
 
         ActionListener<Void> countedListener = new ActionListener<>() {
 
-            CountDown countDown = new CountDown(seeds.size());
+            CountDown countDown = new CountDown(enabledClusters.size());
 
             @Override
             public void onResponse(Void v) {
@@ -340,11 +327,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
         };
 
-        for (Map.Entry<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> entry : seeds.entrySet()) {
-            updateRemoteCluster(entry.getKey(), settings, countedListener);
+        for (String clusterAlias : enabledClusters) {
+            updateRemoteCluster(clusterAlias, settings, countedListener);
         }
 
-        if (seeds.isEmpty()) {
+        if (enabledClusters.isEmpty()) {
             future.onResponse(null);
         }
 

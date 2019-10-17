@@ -68,7 +68,7 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
         }
 
         void init() {
-            Set<String> clusterAliases = buildRemoteClustersDynamicConfig(settings).keySet();
+            Set<String> clusterAliases = getEnabledRemoteClusters(settings);
             for (String clusterAlias : clusterAliases) {
                 putRepository(CcrRepository.NAME_PREFIX + clusterAlias);
             }

@@ -52,6 +52,7 @@ POST /_xpack/security/user/remote_monitor
 }
 ---------------------------------------------------------------
 // CONSOLE
+//TEST[skip:license-requirements]
 --
 
 . Configure each {es} node in the cluster you are

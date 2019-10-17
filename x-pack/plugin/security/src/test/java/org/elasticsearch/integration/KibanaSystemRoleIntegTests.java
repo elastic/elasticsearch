@@ -51,7 +51,6 @@ public class KibanaSystemRoleIntegTests extends SecurityIntegTestCase {
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_system", USERS_PASSWD)))
                 .prepareIndex()
                 .setIndex(index)
-                .setType("dashboard")
                 .setSource("foo", "bar")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();

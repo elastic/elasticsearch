@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,6 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
     private static final int MAX_ASSIGNMENT_ATTEMPTS = 10;
+    private static final long ONE_MINUTE_IN_MILLIS = TimeValue.timeValueMinutes(1).getMillis();
+    private static final long THIRTY_MINUTES_IN_MILLIS = TimeValue.timeValueMinutes(30).millis();
 
     private static final Logger logger = LogManager.getLogger(ReindexTask.class);
 
@@ -154,28 +157,44 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
         assert checkpointThrottler != null;
         if (isDone.compareAndSet(false, true)) {
-            checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception));
+            checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception, TimeValue.ZERO));
         }
     }
 
-    private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
+    private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
+                                    TimeValue delay) {
         ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(reindexResponse, exception);
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
+        lastState = null;
+
         reindexIndexClient.updateReindexTaskDoc(persistentTaskId, state, term, seqNo, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {
-                lastState = null;
                 finishedListener.onResponse(taskState.getStateDoc());
 
             }
 
             @Override
             public void onFailure(Exception e) {
-                lastState = null;
-                // TODO: Maybe retry finished write?
-                finishedListener.onFailure(e);
+                // TODO: Need to ensure that the allocation has changed
+                if (e instanceof VersionConflictEngineException == false) {
+                    TimeValue nextDelay = getNextDelay(delay);
+                    threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay, ThreadPool.Names.SAME);
+                }
             }
         });
+    }
+
+    private TimeValue getNextDelay(TimeValue delay) {
+        TimeValue newDelay;
+        if (TimeValue.ZERO.equals(delay)) {
+            newDelay = TimeValue.timeValueMillis(500);
+        } else if (delay.getMillis() < ONE_MINUTE_IN_MILLIS) {
+            newDelay = TimeValue.timeValueMillis(delay.getMillis() * 2);
+        } else {
+            newDelay = TimeValue.timeValueMillis(Math.max(delay.getMillis() + ONE_MINUTE_IN_MILLIS, THIRTY_MINUTES_IN_MILLIS));
+        }
+        return newDelay;
     }
 }

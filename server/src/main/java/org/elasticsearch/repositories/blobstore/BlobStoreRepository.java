@@ -22,9 +22,13 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
@@ -1151,9 +1155,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer container = shardContainer(indexId, snapshotShardId);
             BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
             SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-            new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE, threadPool.generic()) {
+            final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+            new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE) {
                 @Override
-                protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
+                protected void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store,
+                                            ActionListener<Void> listener) {
+                    if (filesToRecover.isEmpty()) {
+                        listener.onResponse(null);
+                    } else {
+                        ActionListener<Void> allFilesListener =
+                            new GroupedActionListener<>(ActionListener.map(listener, v -> null), filesToRecover.size());
+                        // restore the files from the snapshot to the Lucene store
+                        for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
+                            logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
+                            executor.execute(ActionRunnable.run(allFilesListener, () -> restoreFile(fileToRecover, store)));
+                        }
+                    }
+                }
+
+                private InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
                     final InputStream dataBlobCompositeStream = new SlicedInputStream(fileInfo.numberOfParts()) {
                         @Override
                         protected InputStream openSlice(long slice) throws IOException {
@@ -1162,6 +1182,41 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     };
                     return restoreRateLimiter == null ? dataBlobCompositeStream :
                         new RateLimitingInputStream(dataBlobCompositeStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
+                }
+
+                /**
+                 * Restores a file
+                 * @param fileInfo file to be restored
+                 */
+                private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
+                    boolean success = false;
+
+                    try (InputStream stream = fileInputStream(fileInfo)) {
+                        try (IndexOutput indexOutput =
+                                 store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
+                            final byte[] buffer = new byte[bufferSize];
+                            int length;
+                            while ((length = stream.read(buffer)) > 0) {
+                                indexOutput.writeBytes(buffer, 0, length);
+                                recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
+                            }
+                            Store.verify(indexOutput);
+                            indexOutput.close();
+                            store.directory().sync(Collections.singleton(fileInfo.physicalName()));
+                            success = true;
+                        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+                            try {
+                                store.markStoreCorrupted(ex);
+                            } catch (IOException e) {
+                                logger.warn("store cannot be marked as corrupted", e);
+                            }
+                            throw ex;
+                        } finally {
+                            if (success == false) {
+                                store.deleteQuiet(fileInfo.physicalName());
+                            }
+                        }
+                    }
                 }
             }.restore(snapshotFiles, store, l);
         }));

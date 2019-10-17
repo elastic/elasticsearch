@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -72,23 +71,6 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         internalCluster().startMasterOnlyNodes(2);
         internalCluster().startDataOnlyNodes(2);
         ensureGreen();
-    }
-
-    @After
-    public void resetSLMSettings() throws Exception {
-        // Cancel/delete all snapshots
-        assertBusy(() -> {
-            logger.info("--> wiping all snapshots after test");
-            client().admin().cluster().prepareGetSnapshots(REPO).get().getSnapshots()
-                .forEach(snapshotInfo -> {
-                    try {
-                        client().admin().cluster().prepareDeleteSnapshot(REPO, snapshotInfo.snapshotId().getName()).get();
-                    } catch (Exception e) {
-                        logger.warn("exception cleaning up snapshot " + snapshotInfo.snapshotId().getName(), e);
-                        fail("exception cleanup up snapshot");
-                    }
-                });
-        });
     }
 
     @Override
@@ -287,7 +269,6 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47937")
     public void testBasicFailureRetention() throws Exception {
         testUnsuccessfulSnapshotRetention(false);
 

@@ -21,6 +21,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
@@ -28,7 +29,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
-
 
 public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
 
@@ -56,15 +56,15 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
 
     @Override
     protected TrainedModelConfig createTestInstance() {
+        List<String> tags = Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false));
         return new TrainedModelConfig(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
-            randomBoolean() ? null : randomNonNegativeLong(),
-            randomAlphaOfLength(10),
             randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
+            tags,
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
     }
 
@@ -116,9 +116,9 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()
                 .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
-                .setCreatedTime(Instant.now())
+                .setCreateTime(Instant.now())
                 .setModelId(modelId).validate());
-        assertThat(ex.getMessage(), equalTo("illegal to set [created_time] at inference model creation"));
+        assertThat(ex.getMessage(), equalTo("illegal to set [create_time] at inference model creation"));
 
         ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()

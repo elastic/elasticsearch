@@ -64,6 +64,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand.TRUNCATE_CLEAN_TRANSLOG_FLAG;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -371,6 +373,39 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final OptionSet options2 = parser.parse("--dir", indexPath.toAbsolutePath().toString());
         command.findAndProcessShardPath(options2, environment,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
+    }
+
+    public void testFailsOnCleanIndex() throws Exception {
+        indexDocs(indexShard, true);
+        closeShards(indexShard);
+
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        final MockTerminal t = new MockTerminal();
+        final OptionParser parser = command.getParser();
+
+        final OptionSet options = parser.parse("-d", translogPath.toString());
+        t.setVerbosity(Terminal.Verbosity.VERBOSE);
+        assertThat(expectThrows(ElasticsearchException.class, () -> command.execute(t, options, environment)).getMessage(),
+            allOf(containsString("Shard does not seem to be corrupted"), containsString("--" + TRUNCATE_CLEAN_TRANSLOG_FLAG)));
+        assertThat(t.getOutput(), containsString("Lucene index is clean"));
+        assertThat(t.getOutput(), containsString("Translog is clean"));
+    }
+
+    public void testTruncatesCleanTranslogIfRequested() throws Exception {
+        indexDocs(indexShard, true);
+        closeShards(indexShard);
+
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        final MockTerminal t = new MockTerminal();
+        final OptionParser parser = command.getParser();
+
+        final OptionSet options = parser.parse("-d", translogPath.toString(), "--" + TRUNCATE_CLEAN_TRANSLOG_FLAG);
+        t.addTextInput("y");
+        t.setVerbosity(Terminal.Verbosity.VERBOSE);
+        command.execute(t, options, environment);
+        assertThat(t.getOutput(), containsString("Lucene index is clean"));
+        assertThat(t.getOutput(), containsString("Translog was not analysed and will be truncated"));
+        assertThat(t.getOutput(), containsString("Creating new empty translog"));
     }
 
     public void testCleanWithCorruptionMarker() throws Exception {

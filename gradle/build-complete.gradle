@@ -41,7 +41,7 @@ if (buildNumber) {
                     .each { fileset(file: it) }
 
 
-            fileset(dir: "${gradle.gradleUserHomeDir}/daemon", followsymlinks: false) {
+            fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
                 include(name: "**/*.log")
             }
 

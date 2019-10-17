@@ -63,7 +63,7 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
             }
             int cipherBytesCount = super.read(b, off, len);
             // if buffering of the ciphertext is required
-            if (markTriggeredForCurrentPacket && cipherBytesCount != -1) {
+            if (markTriggeredForCurrentPacket && cipherBytesCount > 0) {
                 markWriteBuffer.write(b, off, cipherBytesCount );
             }
             return cipherBytesCount;
@@ -102,6 +102,15 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
         public void mark(int readLimit) {
             markTriggeredForCurrentPacket = true;
             markWriteBuffer = new ByteArrayOutputStream();
+            if (markReadBuffer.available() > 0) {
+                markReadBuffer.mark(Integer.MAX_VALUE);
+                try {
+                    markReadBuffer.transferTo(markWriteBuffer);
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+                markReadBuffer.reset();
+            }
             markPacketIndex = getPacketIndex();
             markReadLimit = readLimit;
         }
@@ -111,12 +120,14 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
             if (markWriteBuffer == null) {
                 throw new IOException("mark not called");
             }
+            if (markPacketIndex > getPacketIndex()) {
+                throw new IllegalStateException();
+            }
             // mark triggered before the packet boundary has been read over
             if (false == markTriggeredForCurrentPacket) {
-                if (markPacketIndex >= getPacketIndex()) {
-                    throw new IllegalStateException();
-                }
+                // reset underlying input stream to packet boundary
                 in.reset();
+                // set packet index for the next packet and clear any transitory state of any inside of packet processing
                 setPacketIndex(markPacketIndex);
             }
             if (markPacketIndex != getPacketIndex()) {
@@ -161,20 +172,20 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
     private InputStream processedInputStream = InputStream.nullInputStream();
     private int bytesBufferedInsideTheCipher = 0;
 
-    static GCMPacketsCipherInputStream getGCMPacketsEncryptor(InputStream in, SecretKey secretKey, int nonce, Provider provider) {
+    static GCMPacketsCipherInputStream getEncryptor(InputStream in, SecretKey secretKey, int nonce, Provider provider) {
         return new GCMPacketsWithMarkCipherInputStream(in, secretKey, ENCRYPT_MODE, 0, nonce, provider);
     }
 
-    static GCMPacketsCipherInputStream getGCMPacketsDecryptor(InputStream in, SecretKey secretKey, int nonce, Provider provider) {
+    static GCMPacketsCipherInputStream getDecryptor(InputStream in, SecretKey secretKey, int nonce, Provider provider) {
         return new GCMPacketsWithMarkCipherInputStream(in, secretKey, DECRYPT_MODE, 0, nonce, provider);
     }
 
-    public static GCMPacketsCipherInputStream getGCMPacketsEncryptor(InputStream in, SecretKey secretKey, int nonce) {
-        return getGCMPacketsEncryptor(in, secretKey, nonce, new BouncyCastleFipsProvider());
+    public static GCMPacketsCipherInputStream getEncryptor(InputStream in, SecretKey secretKey, int nonce) {
+        return getEncryptor(in, secretKey, nonce, new BouncyCastleFipsProvider());
     }
 
-    public static GCMPacketsCipherInputStream getGCMPacketsDecryptor(InputStream in, SecretKey secretKey, int nonce) {
-        return getGCMPacketsDecryptor(in, secretKey, nonce, new BouncyCastleFipsProvider());
+    public static GCMPacketsCipherInputStream getDecryptor(InputStream in, SecretKey secretKey, int nonce) {
+        return getDecryptor(in, secretKey, nonce, new BouncyCastleFipsProvider());
     }
 
     public static int getEncryptionSizeFromPlainSize(int size) {
@@ -390,6 +401,7 @@ public class GCMPacketsCipherInputStream extends FilterInputStream {
     void setPacketIndex(long packetIndex) {
         processedInputStream = InputStream.nullInputStream();
         stillToReadInPacket = packetSizeInBytes;
+        done = false;
         this.packetIndex = packetIndex;
     }
 

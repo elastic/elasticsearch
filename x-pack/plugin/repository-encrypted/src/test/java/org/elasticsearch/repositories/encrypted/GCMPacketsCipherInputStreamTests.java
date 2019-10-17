@@ -20,7 +20,8 @@ import java.util.Random;
 
 public class GCMPacketsCipherInputStreamTests extends ESTestCase {
 
-    private static int TEST_ARRAY_SIZE = 5 * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES;
+    private static int TEST_ARRAY_SIZE = 8 * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES;
+    private static int ENCRYPTED_PACKET_SIZE = GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES);
     private static byte[] testPlaintextArray;
     private static BouncyCastleFipsProvider bcFipsProvider;
     private SecretKey secretKey;
@@ -63,14 +64,110 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
     }
 
     public void testEncryptDecryptLargerThanPacketSize() throws Exception {
-        for (int i = GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES + 1; i < GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES * 3; i++) {
+        for (int i = GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES + 1; i <= GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES * 4; i++) {
             testEncryptDecryptRandomOfLength(i, secretKey);
         }
     }
 
     public void testEncryptDecryptMultipleOfPacketSize() throws Exception {
-        for (int i = 1; i <= 5; i++) {
+        for (int i = 1; i <= 7; i++) {
             testEncryptDecryptRandomOfLength(i * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES, secretKey);
+        }
+    }
+
+    public void testMarkAndResetAtBeginningForEncryption() throws Exception {
+        testMarkAndResetToSameOffsetForEncryption(0);
+        testMarkAndResetToSameOffsetForEncryption(GCMPacketsCipherInputStream.
+                getEncryptionSizeFromPlainSize(GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES));
+    }
+
+    public void testMarkAndResetFirstPacketForEncryption() throws Exception {
+        for (int i = 1; i < ENCRYPTED_PACKET_SIZE; i++) {
+            testMarkAndResetToSameOffsetForEncryption(i);
+        }
+    }
+
+    public void testMarkAndResetRandomSecondPacketForEncryption() throws Exception {
+        for (int i = ENCRYPTED_PACKET_SIZE + 1; i < 2 * ENCRYPTED_PACKET_SIZE; i++) {
+            testMarkAndResetToSameOffsetForEncryption(i);
+        }
+    }
+
+    public void testMarkAndResetCrawlForEncryption() throws Exception {
+        int length = GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES + randomIntBetween(0,
+                GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES);
+        int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
+        int nonce = new Random().nextInt();
+        byte[] ciphertextBytes;
+        try (InputStream cipherInputStream =
+                     GCMPacketsCipherInputStream.getEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
+                             secretKey, nonce, bcFipsProvider)) {
+            ciphertextBytes = cipherInputStream.readAllBytes();
+        }
+        try (InputStream cipherInputStream =
+                     GCMPacketsCipherInputStream.getEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
+                             secretKey, nonce, bcFipsProvider)) {
+            cipherInputStream.mark(Integer.MAX_VALUE);
+            for (int i = 0; i < GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length); i++) {
+                int skipSize = randomIntBetween(1, GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length) - i);
+                cipherInputStream.readNBytes(skipSize);
+                cipherInputStream.reset();
+                int byteRead = cipherInputStream.read();
+                cipherInputStream.mark(Integer.MAX_VALUE);
+                assertThat("Mismatch at position: " + i, (byte) byteRead, Matchers.is(ciphertextBytes[i]));
+            }
+        }
+    }
+
+    private void testMarkAndResetToSameOffsetForEncryption(int offset) throws Exception {
+        int length = 3 * GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES + randomIntBetween(0,
+                GCMPacketsCipherInputStream.PACKET_SIZE_IN_BYTES);
+        int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
+        try (InputStream cipherInputStream =
+                     GCMPacketsCipherInputStream.getEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
+                             secretKey, new Random().nextInt(), bcFipsProvider)) {
+            // skip offset bytes
+            cipherInputStream.readNBytes(offset);
+            // mark after offset
+            cipherInputStream.mark(Integer.MAX_VALUE);
+            // read/skip less than (encrypted) packet size
+            int skipSize = randomIntBetween(1, ENCRYPTED_PACKET_SIZE - 1);
+            byte[] firstPassEncryption = cipherInputStream.readNBytes(skipSize);
+            // back to start
+            cipherInputStream.reset();
+            // read/skip more than (encrypted) packet size, but less than the full stream
+            skipSize = randomIntBetween(ENCRYPTED_PACKET_SIZE,
+                    GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length) - 1 - offset);
+            byte[] secondPassEncryption = cipherInputStream.readNBytes(skipSize);
+            assertTrue(Arrays.equals(firstPassEncryption, 0, firstPassEncryption.length, secondPassEncryption, 0,
+                    firstPassEncryption.length));
+            // back to start
+            cipherInputStream.reset();
+            byte[] thirdPassEncryption;
+            // read/skip to end of ciphertext
+            if (randomBoolean()) {
+                thirdPassEncryption = cipherInputStream.readAllBytes();
+            } else {
+                thirdPassEncryption =
+                        cipherInputStream.readNBytes(GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length) - offset);
+            }
+            assertTrue(Arrays.equals(secondPassEncryption, 0, secondPassEncryption.length, thirdPassEncryption, 0,
+                    secondPassEncryption.length));
+            // back to start
+            cipherInputStream.reset();
+            // read/skip more than (encrypted) packet size, but less than the full stream
+            skipSize = randomIntBetween(ENCRYPTED_PACKET_SIZE,
+                    GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length) - 1 - offset);
+            byte[] fourthPassEncryption = cipherInputStream.readNBytes(skipSize);
+            assertTrue(Arrays.equals(fourthPassEncryption, 0, fourthPassEncryption.length, thirdPassEncryption, 0,
+                    fourthPassEncryption.length));
+            // back to start
+            cipherInputStream.reset();
+            // read/skip less than (encrypted) packet size
+            skipSize = randomIntBetween(1, ENCRYPTED_PACKET_SIZE - 1);
+            byte[] fifthsPassEncryption = cipherInputStream.readNBytes(skipSize);
+            assertTrue(Arrays.equals(fifthsPassEncryption, 0, fifthsPassEncryption.length, fourthPassEncryption, 0,
+                    fifthsPassEncryption.length));
         }
     }
 
@@ -79,16 +176,16 @@ public class GCMPacketsCipherInputStreamTests extends ESTestCase {
         int nonce = random.nextInt();
         ByteArrayOutputStream cipherTextOutput;
         ByteArrayOutputStream plainTextOutput;
-        int startIndex =  randomIntBetween(0, testPlaintextArray.length - length);
+        int startIndex = randomIntBetween(0, testPlaintextArray.length - length);
         // encrypt
         try (InputStream cipherInputStream =
-                     GCMPacketsCipherInputStream.getGCMPacketsEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
+                     GCMPacketsCipherInputStream.getEncryptor(new ByteArrayInputStream(testPlaintextArray, startIndex, length),
                              secretKey, nonce, bcFipsProvider)) {
             cipherTextOutput = readAllInputStream(cipherInputStream, GCMPacketsCipherInputStream.getEncryptionSizeFromPlainSize(length));
         }
         //decrypt
         try (InputStream plainInputStream =
-                     GCMPacketsCipherInputStream.getGCMPacketsDecryptor(new ByteArrayInputStream(cipherTextOutput.toByteArray()),
+                     GCMPacketsCipherInputStream.getDecryptor(new ByteArrayInputStream(cipherTextOutput.toByteArray()),
                              secretKey, nonce, bcFipsProvider)) {
             plainTextOutput = readAllInputStream(plainInputStream,
                     GCMPacketsCipherInputStream.getDecryptionSizeFromCipherSize(cipherTextOutput.size()));

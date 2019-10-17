@@ -150,6 +150,8 @@ check.dependsOn(testScriptDocValuesMissingV7Behaviour)
 unitTest {
   // these are tested explicitly in separate test tasks
   exclude '**/*ScriptDocValuesMissingV7BehaviourTests.class'
+  jvmArg '-Djava.locale.providers=COMPAT'
+
 }
 
 forbiddenPatterns {

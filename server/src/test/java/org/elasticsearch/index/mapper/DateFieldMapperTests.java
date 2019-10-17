@@ -270,6 +270,18 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(epochMillis, pointField.numericValue().longValue());
     }
 
+    public void testChangeLocaleWith8Prefix() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                                                         .startObject("properties").startObject("field").field("type", "date")
+                                                         .field("format", "8E, d MMM uuuu HH:mm:ss Z")
+                                                         .field("locale", "de")
+                                                         .endObject().endObject().endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+    }
+
     public void testChangeLocale() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").field("locale", "fr").endObject().endObject()

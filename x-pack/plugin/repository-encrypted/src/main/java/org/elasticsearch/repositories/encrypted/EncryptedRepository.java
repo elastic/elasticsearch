@@ -6,6 +6,7 @@
 
 package org.elasticsearch.repositories.encrypted;
 
+import org.bouncycastle.crypto.fips.FipsUnapprovedOperationError;
 import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
@@ -35,8 +36,10 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.AccessController;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.HashMap;
@@ -45,7 +48,13 @@ import java.util.function.Function;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
-    private static final BouncyCastleFipsProvider BC_FIPS_PROVIDER = new BouncyCastleFipsProvider();
+    private static BouncyCastleFipsProvider BC_FIPS_PROVIDER;
+     static {
+         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+             EncryptedRepository.BC_FIPS_PROVIDER = new BouncyCastleFipsProvider();
+             return null;
+         });
+     }
     // TODO change this and make it (secure) randomly generated for each blob
     private static final int NONCE = 5318008;
 
@@ -261,8 +270,15 @@ public class EncryptedRepository extends BlobStoreRepository {
     private static SecretKey generateSecretKeyFromPassword(char[] password) throws NoSuchAlgorithmException, InvalidKeySpecException {
         byte[] salt = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; // same salt for 1:1 password to key
         PBEKeySpec spec = new PBEKeySpec(password, salt, 65536, 256);
-        SecretKey tmp = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", BC_FIPS_PROVIDER).generateSecret(spec);
-        return new SecretKeySpec(tmp.getEncoded(), "AES");
+        try {
+            SecretKey tmp = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", BC_FIPS_PROVIDER).generateSecret(spec);
+            return new SecretKeySpec(tmp.getEncoded(), "AES");
+        } catch (FipsUnapprovedOperationError e) {
+            // password must be at least 112 bits
+            // wrap the error into an exception because the exception is better handled up the stack
+            // TODO don't do this wrapping
+            throw new RuntimeException(e);
+        }
     }
 
     private static String keyId(SecretKey secretKey) {

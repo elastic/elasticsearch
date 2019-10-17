@@ -40,9 +40,9 @@ public class DebMetadataTests extends PackagingTestCase {
     public void test05CheckLintian() {
         String extraArgs = "";
         if (sh.run("lintian --help").stdout.contains("fail-on-warnings")) {
-            extraArgs = " --fail-on-warnings ";
+            extraArgs = "--fail-on-warnings ";
         }
-        sh.run("lintian" + extraArgs + FileUtils.getDistributionFile(distribution()));
+        sh.run("lintian " + extraArgs + FileUtils.getDistributionFile(distribution()));
     }
 
     public void test06Dependencies() {

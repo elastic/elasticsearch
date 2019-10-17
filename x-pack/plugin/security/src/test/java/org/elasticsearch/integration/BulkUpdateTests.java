@@ -91,7 +91,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         //update with new field
-        Request updateRequest = new Request("POST", path + "/_update");
+        Request updateRequest = new Request("POST", "/index1/_update/1");
         updateRequest.setOptions(options);
         updateRequest.setJsonEntity("{\"doc\": {\"not test\": \"not test\"}}");
         getRestClient().performRequest(updateRequest);

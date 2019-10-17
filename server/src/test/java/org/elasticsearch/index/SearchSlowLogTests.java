@@ -13,7 +13,7 @@
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
+git status * specific language governing permissions and limitations
  * under the License.
  */
 
@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -223,6 +224,25 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.DEBUG)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        SearchSlowLog debugLog = new SearchSlowLog(settings);
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.INFO)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        SearchSlowLog infoLog = new SearchSlowLog(settings);
+
+        assertEquals(SlowLogLevel.DEBUG, debugLog.getLevel());
+        assertEquals(SlowLogLevel.INFO, infoLog.getLevel());
     }
 
     public void testSetQueryLevels() {

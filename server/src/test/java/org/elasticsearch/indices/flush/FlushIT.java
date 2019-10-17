@@ -206,7 +206,7 @@ public class FlushIT extends ESIntegTestCase {
             @Override
             public void run() {
                 while (stop.get() == false) {
-                    client().prepareIndex().setIndex("test").setType("_doc").setSource("{}", XContentType.JSON).get();
+                    client().prepareIndex().setIndex("test").setSource("{}", XContentType.JSON).get();
                     numDocs.incrementAndGet();
                 }
             }

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorStatsAction;
+import org.elasticsearch.xpack.core.enrich.EnrichFeatureSet;
 import org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportEnrichStatsAction;
@@ -174,6 +176,15 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     }
 
     @Override
+    public Collection<Module> createGuiceModules() {
+        if (transportClientMode) {
+            return Collections.emptyList();
+        }
+
+        return Collections.singleton(b -> XPackPlugin.bindFeatureSet(b, EnrichFeatureSet.class));
+    }
+
+    @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
             new NamedWriteableRegistry.Entry(MetaData.Custom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
@@ -191,6 +202,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
+            ENRICH_ENABLED_SETTING,
             ENRICH_FETCH_SIZE_SETTING,
             ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS,
             ENRICH_CLEANUP_PERIOD,

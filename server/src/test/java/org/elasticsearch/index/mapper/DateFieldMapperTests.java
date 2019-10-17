@@ -280,13 +280,6 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
-
-        mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                                      .startObject()
-                                      .field("field", "Mi., 06 Dez. 2000 02:55:00 -0800")
-                                      .endObject()),
-            XContentType.JSON));
     }
 
     public void testChangeLocale() throws IOException {

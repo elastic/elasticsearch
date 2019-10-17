@@ -27,6 +27,32 @@ import static javax.crypto.Cipher.DECRYPT_MODE;
 import static javax.crypto.Cipher.ENCRYPT_MODE;
 
 /**
+ * Given an {@code InputStream} and a {@code SecretKey}, creates a wrapper {@code InputStream} that encrypts/decrypts the content of the
+ * original stream. The original stream must not be otherwise used; it will be closed when the encryptor/decryptor stream is closed.
+ *
+ * The method of encryption is AES/GCM/NOPadding. The GCM mode is a form of authenticated encryption, meaning it offers authenticity in
+ * addition to the expected confidentiality. In other words, during decryption it verifies that the ciphertext being decrypted has not
+ * been tampered with.
+ *
+ * During encryption the source input stream is processed piece-wise and a packet (consisting of multiple pieces) of at most {@code
+ * GCMPacketsCipherInputStream#PACKET_SIZE_IN_BYTES} bytes size is encrypted and authenticated independently of the other packets. All
+ * packets in the same stream are encrypted with the same secret key, but a different IV, monotonically increasing with the packet index.
+ * Consequently, each packet has its own authentication tag appended, even the empty packet (all packets are the same size, but the last
+ * one can be of any size). The resulting ciphertext has a larger size than the source plaintext.
+ *
+ * Decryption also validates the authentication tag. It is important that the {@code Cipher} used during decryption, which is returned by
+ * the {@code Provider} parameter, NOT internally cache pieces of ciphertext, without releasing the decrypted plaintext, until it
+ * validates the associated authentication tag. Failure to comply to this requirement, will choke (throw {@code IllegalStateException}) the
+ * decryption stream, because the ciphertext is processed piece wise, the complete packet is not available fully at one moment.
+ *
+ * The resulting decrypted stream will return possibly un-authenticated content, but it is guaranteed that an {@code IOException} is
+ * thrown, at the latest when the stream has been exhausted ({@code InputStream#read} return {@code -1}) if the ciphertext has been altered.
+ *
+ * Both the encrypting and decrypting streams support {@code InputStream#mark} and {@code InputStream#reset}. Because GCM processing cannot
+ * be reset to a previous state, it only "goes forward", a mark call during the processing of a packet will buffer the processed bytes
+ * until the next packet boundary. A reset call will pick up any buffered data from a partially processed packet, and re-encrypt the
+ * following packets (the following packets of a mark call are not buffered, they are re-encrypted).
+ *
  * This is obviously NOT thread-safe.
  */
 public class GCMPacketsCipherInputStream extends FilterInputStream {

@@ -131,9 +131,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         final Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.field += 1", Collections.emptyMap());
 
         bulkResponse = client().prepareBulk()
-                .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("1").setScript(script))
-                .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("2").setScript(script).setRetryOnConflict(3))
-                .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("3")
+                .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("1").setScript(script))
+                .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("2").setScript(script).setRetryOnConflict(3))
+                .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("3")
                         .setDoc(jsonBuilder().startObject().field("field1", "test").endObject()))
                 .get();
 
@@ -167,10 +167,10 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         bulkResponse = client()
                 .prepareBulk()
-                .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("6").setScript(script)
+                .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("6").setScript(script)
                         .setUpsert(jsonBuilder().startObject().field("field", 0).endObject()))
-                .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("7").setScript(script))
-                .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("2").setScript(script))
+                .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("7").setScript(script))
+                .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("2").setScript(script))
                 .get();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
@@ -308,7 +308,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             builder.add(
                     client().prepareUpdate()
-                            .setIndex("test").setType("type1").setId(Integer.toString(i))
+                            .setIndex("test").setId(Integer.toString(i))
                             .setFetchSource("counter", null)
                             .setScript(script)
                             .setUpsert(jsonBuilder().startObject().field("counter", 1).endObject()));
@@ -337,7 +337,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         builder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            UpdateRequestBuilder updateBuilder = client().prepareUpdate().setIndex("test").setType("type1").setId(Integer.toString(i))
+            UpdateRequestBuilder updateBuilder = client().prepareUpdate().setIndex("test").setId(Integer.toString(i))
                     .setFetchSource("counter", null);
             if (i % 2 == 0) {
                 updateBuilder.setScript(script);
@@ -367,7 +367,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         builder = client().prepareBulk();
         int maxDocs = numDocs / 2 + numDocs;
         for (int i = (numDocs / 2); i < maxDocs; i++) {
-            builder.add(client().prepareUpdate().setIndex("test").setType("type1").setId(Integer.toString(i)).setScript(script));
+            builder.add(client().prepareUpdate().setIndex("test").setId(Integer.toString(i)).setScript(script));
         }
         response = builder.execute().actionGet();
         assertThat(response.hasFailures(), equalTo(true));
@@ -387,7 +387,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         builder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            builder.add(client().prepareUpdate().setIndex("test").setType("type1").setId(Integer.toString(i))
+            builder.add(client().prepareUpdate().setIndex("test").setId(Integer.toString(i))
                     .setScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"none\"", Collections.emptyMap())));
         }
         response = builder.execute().actionGet();
@@ -402,7 +402,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         builder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            builder.add(client().prepareUpdate().setIndex("test").setType("type1").setId(Integer.toString(i))
+            builder.add(client().prepareUpdate().setIndex("test").setId(Integer.toString(i))
                     .setScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"delete\"", Collections.emptyMap())));
         }
         response = builder.execute().actionGet();

@@ -421,7 +421,7 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public UpdateRequestBuilder prepareUpdate() {
-        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null, null);
+        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null);
     }
 
     @Override

@@ -22,10 +22,10 @@ import org.junit.Assert;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.StringJoiner;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.sql.TestUtils.randomWhitespaces;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -34,14 +34,6 @@ import static org.hamcrest.Matchers.matchesPattern;
 public class EscapedFunctionsTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
-
-    private String randomWhitespaces() {
-        StringJoiner sj = new StringJoiner("");
-        for (int i = 0; i < randomInt(10); i++) {
-            sj.add(randomFrom(" ", "\t", "\r", "\n"));
-        }
-        return sj.toString();
-    }
 
     private String buildExpression(String escape, String pattern, Object value) {
         return format(Locale.ROOT, "{" + randomWhitespaces() + escape + " " + randomWhitespaces() +

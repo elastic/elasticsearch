@@ -120,7 +120,7 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public boolean isCacheable(LeafReaderContext ctx) {
-        return subQueryWeight.isCacheable(ctx);
+        return false;
     }
 
 }

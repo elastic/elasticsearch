@@ -67,6 +67,19 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     private static int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
+    /**
+     * A policy to bypass the cache entirely
+     */
+    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
+        @Override
+        public void onUse(Query query) {}
+
+        @Override
+        public boolean shouldCache(Query query) {
+            return false;
+        }
+    };
+
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private Runnable checkCancelled;
@@ -79,6 +92,10 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     public void setProfiler(QueryProfiler profiler) {
+        if (profiler != null) {
+            // disable query caching on profiled query
+            setQueryCachingPolicy(NEVER_CACHE_POLICY);
+        }
         this.profiler = profiler;
     }
 

@@ -68,7 +68,7 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
         OutputAggregator outputAggregator = null;
         if (randomBoolean()) {
             List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-            outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
+            outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights), new LogisticRegression(weights));
         }
         List<String> categoryLabels = null;
         if (randomBoolean()) {

@@ -26,7 +26,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -280,6 +283,39 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build()));
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), allOf(hasItem(nodeWithHigherMatching), not(hasItem(nodeWithLowerMatching))));
+    }
+
+    /**
+     * Make sure that we do not repeatedly cancel an ongoing recovery for a noop copy on a broken node.
+     */
+    public void testDoNotCancelRecoveryForBrokenNode() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        String nodeWithPrimary = internalCluster().startDataOnlyNode();
+        String indexName = "test";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")));
+        ensureYellow(indexName);
+        String nodeWithReplica = internalCluster().startDataOnlyNode();
+        ensureGreen(indexName);
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(1, 200))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+        ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
+        String emptyNode = internalCluster().startDataOnlyNode();
+        MockTransportService transportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG)
+                && connection.getNode().getName().equals(emptyNode) == false) {
+                throw new CircuitBreakingException("not enough memory to open engine", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        internalCluster().restartNode(nodeWithReplica, new InternalTestCluster.RestartCallback());
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Sets.newHashSet(nodeWithPrimary, emptyNode)));
+        transportService.clearAllRules();
     }
 
     private void ensureActivePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {

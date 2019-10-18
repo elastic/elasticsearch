@@ -194,10 +194,17 @@ public class AllocationService {
                         shardToFail.shardId(), shardToFail, failedShard);
                 }
                 int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
+                boolean wasCancelledForNoopRecovery;
+                if (failedShard.unassignedInfo() != null) {
+                    wasCancelledForNoopRecovery = failedShard.unassignedInfo().wasCancelledForNoopRecovery()
+                        || failedShard.unassignedInfo().getReason() == UnassignedInfo.Reason.REALLOCATED_REPLICA;
+                } else {
+                    wasCancelledForNoopRecovery = false;
+                }
                 String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, message,
                     failedShardEntry.getFailure(), failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
-                    AllocationStatus.NO_ATTEMPT);
+                    AllocationStatus.NO_ATTEMPT, wasCancelledForNoopRecovery);
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
@@ -289,7 +296,7 @@ public class AllocationService {
                 if (newComputedLeftDelayNanos == 0) {
                     unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
                         unassignedInfo.getFailure(), unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(), false, unassignedInfo.getLastAllocationStatus()),
+                        unassignedInfo.getUnassignedTimeInMillis(), false, unassignedInfo.getLastAllocationStatus(), false),
                         shardRouting.recoverySource(), allocation.changes());
                 }
             }
@@ -308,7 +315,7 @@ public class AllocationService {
                 UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(), unassignedInfo.getMessage(),
                 unassignedInfo.getFailure(), 0, unassignedInfo.getUnassignedTimeInNanos(),
                 unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
-                unassignedInfo.getLastAllocationStatus()), shardRouting.recoverySource(), allocation.changes());
+                unassignedInfo.getLastAllocationStatus(), false), shardRouting.recoverySource(), allocation.changes());
         }
     }
 
@@ -421,7 +428,7 @@ public class AllocationService {
                 final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
                 boolean delayed = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetaData.getSettings()).nanos() > 0;
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left [" + node.nodeId() + "]",
-                    null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed, AllocationStatus.NO_ATTEMPT);
+                    null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed, AllocationStatus.NO_ATTEMPT, false);
                 allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, indexMetaData, allocation.changes());
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard

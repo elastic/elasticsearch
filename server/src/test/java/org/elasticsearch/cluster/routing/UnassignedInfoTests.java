@@ -82,7 +82,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
         UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
             new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null, null,
-                randomIntBetween(1, 100), System.nanoTime(), System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT):
+                randomIntBetween(1, 100), System.nanoTime(), System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT,
+                randomBoolean()):
             new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
@@ -94,6 +95,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
         assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
+        assertThat(read.wasCancelledForNoopRecovery(), equalTo(meta.wasCancelledForNoopRecovery()));
     }
 
     public void testIndexCreated() {
@@ -296,7 +298,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testRemainingDelayCalculation() throws Exception {
         final long baseTime = System.nanoTime();
         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime,
-                                                           System.currentTimeMillis(), randomBoolean(), AllocationStatus.NO_ATTEMPT);
+                                                           System.currentTimeMillis(), randomBoolean(), AllocationStatus.NO_ATTEMPT, false);
         final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
         final Settings indexSettings = Settings.builder()
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();

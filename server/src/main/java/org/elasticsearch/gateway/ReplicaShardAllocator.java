@@ -77,6 +77,12 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     continue;
                 }
 
+                // if we already cancelled this shard before, then we should not cancel it again
+                if (shard.unassignedInfo() != null && shard.unassignedInfo().wasCancelledForNoopRecovery()) {
+                    logger.trace("{} was cancelled for a noop recovery before", shard);
+                    continue;
+                }
+
                 AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> shardStores = fetchData(shard, allocation);
                 if (shardStores.hasData() == false) {
                     logger.trace("{}: fetching new stores for initializing shard", shard);
@@ -110,7 +116,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                             "existing allocation of replica to [" + currentNode + "] cancelled, can perform a noop recovery on ["+
                                 nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
-                            UnassignedInfo.AllocationStatus.NO_ATTEMPT);
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, false);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
                         shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
                             metaData.getIndexSafe(shard.index()), allocation.changes()));

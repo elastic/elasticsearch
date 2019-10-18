@@ -28,9 +28,7 @@ public class MulticlassConfusionMatrixResultTests extends AbstractSerializingTes
         for (int i = 0; i < numClasses; i++) {
             List<PredictedClass> predictedClasses = new ArrayList<>(numClasses);
             for (int j = 0; j < numClasses; j++) {
-                if (randomBoolean()) {
-                    predictedClasses.add(new PredictedClass(classNames.get(j), randomNonNegativeLong()));
-                }
+                predictedClasses.add(new PredictedClass(classNames.get(j), randomNonNegativeLong()));
             }
             actualClasses.add(new ActualClass(classNames.get(i), randomNonNegativeLong(), predictedClasses, randomNonNegativeLong()));
         }

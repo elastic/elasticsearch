@@ -630,7 +630,7 @@ setup:
               count: 1
             - predicted_class: "mouse"
               count: 0
-            other_predicted_class_count: 0
+            other_predicted_class_doc_count: 0
           - actual_class: "dog"
             actual_class_doc_count: 3
             predicted_classes:
@@ -640,7 +640,7 @@ setup:
               count: 2
             - predicted_class: "mouse"
               count: 0
-            other_predicted_class_count: 0
+            other_predicted_class_doc_count: 0
           - actual_class: "mouse"
             actual_class_doc_count: 2
             predicted_classes:
@@ -650,7 +650,7 @@ setup:
               count: 0
             - predicted_class: "mouse"
               count: 1
-            other_predicted_class_count: 0
+            other_predicted_class_doc_count: 0
         other_actual_class_count: 0
 ---
 "Test classification multiclass_confusion_matrix with explicit size":
@@ -678,7 +678,7 @@ setup:
                 count: 2
               - predicted_class: "dog"
                 count: 1
-            other_predicted_class_count: 0
+            other_predicted_class_doc_count: 0
           - actual_class: "dog"
             actual_class_doc_count: 3
             predicted_classes:
@@ -686,7 +686,7 @@ setup:
                 count: 1
               - predicted_class: "dog"
                 count: 2
-            other_predicted_class_count: 0
+            other_predicted_class_doc_count: 0
         other_actual_class_count: 1
 ---
 "Test classification with null metrics":

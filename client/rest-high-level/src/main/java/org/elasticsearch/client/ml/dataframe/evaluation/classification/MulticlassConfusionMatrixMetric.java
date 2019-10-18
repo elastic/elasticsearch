@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -164,7 +165,7 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
         private static final ParseField ACTUAL_CLASS = new ParseField("actual_class");
         private static final ParseField ACTUAL_CLASS_DOC_COUNT = new ParseField("actual_class_doc_count");
         private static final ParseField PREDICTED_CLASSES = new ParseField("predicted_classes");
-        private static final ParseField OTHER_PREDICTED_CLASS_COUNT = new ParseField("other_predicted_class_count");
+        private static final ParseField OTHER_PREDICTED_CLASS_DOC_COUNT = new ParseField("other_predicted_class_doc_count");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<ActualClass, Void> PARSER =
@@ -177,20 +178,20 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
             PARSER.declareString(constructorArg(), ACTUAL_CLASS);
             PARSER.declareLong(constructorArg(), ACTUAL_CLASS_DOC_COUNT);
             PARSER.declareObjectArray(constructorArg(), PredictedClass.PARSER, PREDICTED_CLASSES);
-            PARSER.declareLong(constructorArg(), OTHER_PREDICTED_CLASS_COUNT);
+            PARSER.declareLong(constructorArg(), OTHER_PREDICTED_CLASS_DOC_COUNT);
         }
 
         private final String actualClass;
         private final long actualClassDocCount;
         private final List<PredictedClass> predictedClasses;
-        private final long otherPredictedClassCount;
+        private final long otherPredictedClassDocCount;
 
         public ActualClass(
-                String actualClass, long actualClassDocCount, List<PredictedClass> predictedClasses, long otherPredictedClassCount) {
+                String actualClass, long actualClassDocCount, List<PredictedClass> predictedClasses, long otherPredictedClassDocCount) {
             this.actualClass = actualClass;
             this.actualClassDocCount = actualClassDocCount;
             this.predictedClasses = Collections.unmodifiableList(predictedClasses);
-            this.otherPredictedClassCount = otherPredictedClassCount;
+            this.otherPredictedClassDocCount = otherPredictedClassDocCount;
         }
 
         @Override
@@ -199,7 +200,7 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
             builder.field(ACTUAL_CLASS.getPreferredName(), actualClass);
             builder.field(ACTUAL_CLASS_DOC_COUNT.getPreferredName(), actualClassDocCount);
             builder.field(PREDICTED_CLASSES.getPreferredName(), predictedClasses);
-            builder.field(OTHER_PREDICTED_CLASS_COUNT.getPreferredName(), otherPredictedClassCount);
+            builder.field(OTHER_PREDICTED_CLASS_DOC_COUNT.getPreferredName(), otherPredictedClassDocCount);
             builder.endObject();
             return builder;
         }
@@ -212,12 +213,17 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
             return Objects.equals(this.actualClass, that.actualClass)
                 && this.actualClassDocCount == that.actualClassDocCount
                 && Objects.equals(this.predictedClasses, that.predictedClasses)
-                && this.otherPredictedClassCount == that.otherPredictedClassCount;
+                && this.otherPredictedClassDocCount == that.otherPredictedClassDocCount;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(actualClass, actualClassDocCount, predictedClasses, otherPredictedClassCount);
+            return Objects.hash(actualClass, actualClassDocCount, predictedClasses, otherPredictedClassDocCount);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 

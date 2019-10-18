@@ -3373,7 +3373,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                             0),
                         new ActualClass(
                             "cat",
-                            4,
+                            5,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
                             1),
                         new ActualClass(

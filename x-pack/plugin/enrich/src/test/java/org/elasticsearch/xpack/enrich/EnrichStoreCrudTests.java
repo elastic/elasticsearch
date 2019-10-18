@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -88,6 +89,13 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
             IllegalArgumentException error =
                 expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("myPolicy", policy, clusterService));
             assertThat(error.getMessage(), equalTo("Invalid policy name [myPolicy], must be lowercase"));
+        }
+        {
+            EnrichPolicy invalidPolicy = new EnrichPolicy("unsupported_type", null, Collections.singletonList("index"),
+                "field", Collections.singletonList("field"));
+            IllegalArgumentException error =
+                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("name", invalidPolicy, clusterService));
+            assertThat(error.getMessage(), equalTo("unsupported policy type [unsupported_type], supported types are [match, geo_match]"));
         }
     }
 

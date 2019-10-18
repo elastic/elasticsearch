@@ -89,6 +89,10 @@ public class Regression implements DataFrameAnalysis {
         return dependentVariable;
     }
 
+    public String getPredictionFieldName() {
+        return predictionFieldName;
+    }
+
     public double getTrainingPercent() {
         return trainingPercent;
     }

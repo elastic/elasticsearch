@@ -111,6 +111,10 @@ public class Classification implements DataFrameAnalysis {
         return dependentVariable;
     }
 
+    public String getPredictionFieldName() {
+        return predictionFieldName;
+    }
+
     public int getNumTopClasses() {
         return numTopClasses;
     }

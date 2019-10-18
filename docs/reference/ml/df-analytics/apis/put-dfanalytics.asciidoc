@@ -76,6 +76,10 @@ fields contain an array with two or more values are also ignored. Documents in
 the `dest` index that don’t contain a results field are not included in the 
 {classification} analysis.
 
+{classification-cap} analysis can be improved by mapping ordinal variable values 
+to a single number. For example, in case of age ranges, you can model the values 
+as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
+
 
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}

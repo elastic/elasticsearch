@@ -155,6 +155,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
 
     private final DocumentSubsetBitsetCache bitsetCache;
     private final Query roleQuery;
+    // we don't use a volatile here because the bitset is resolved before numDocs in the synchronized block
+    // so any thread that see numDocs != -1 should also see the true value of the roleQueryBits (happens-before).
     private BitSet roleQueryBits;
     private volatile int numDocs = -1;
 

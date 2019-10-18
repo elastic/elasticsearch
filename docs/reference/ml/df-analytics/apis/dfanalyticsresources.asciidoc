@@ -248,7 +248,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=training_percent]
 [[classification-resources-advanced]]
 ===== Advanced parameters
 
-Advanced parameters are for fine-tuning {classification} analysis. They are set 
+Advanced parameters are for fine-tuning {classanalysis}. They are set 
 automatically by <<ml-hyperparameter-optimization,hyperparameter optimization>> 
 to give minimum validation error. It is highly recommended to use the default 
 values unless you fully understand the function of these parameters. If these 

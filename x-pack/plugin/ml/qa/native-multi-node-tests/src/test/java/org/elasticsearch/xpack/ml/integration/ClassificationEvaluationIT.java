@@ -56,6 +56,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             confusionMatrixResult.getConfusionMatrix(),
             equalTo(List.of(
                 new ActualClass("ant",
+                    15,
                     List.of(
                         new PredictedClass("ant", 1L),
                         new PredictedClass("cat", 4L),
@@ -64,6 +65,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("mouse", 5L)),
                     0),
                 new ActualClass("cat",
+                    15,
                     List.of(
                         new PredictedClass("ant", 3L),
                         new PredictedClass("cat", 1L),
@@ -72,6 +74,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("mouse", 2L)),
                     0),
                 new ActualClass("dog",
+                    15,
                     List.of(
                         new PredictedClass("ant", 4L),
                         new PredictedClass("cat", 2L),
@@ -80,6 +83,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("mouse", 3L)),
                     0),
                 new ActualClass("fox",
+                    15,
                     List.of(
                         new PredictedClass("ant", 5L),
                         new PredictedClass("cat", 3L),
@@ -88,6 +92,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("mouse", 4L)),
                     0),
                 new ActualClass("mouse",
+                    15,
                     List.of(
                         new PredictedClass("ant", 2L),
                         new PredictedClass("cat", 5L),
@@ -116,6 +121,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             confusionMatrixResult.getConfusionMatrix(),
             equalTo(List.of(
                 new ActualClass("ant",
+                    15,
                     List.of(
                         new PredictedClass("ant", 1L),
                         new PredictedClass("cat", 4L),
@@ -124,6 +130,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("mouse", 5L)),
                     0),
                 new ActualClass("cat",
+                    15,
                     List.of(
                         new PredictedClass("ant", 3L),
                         new PredictedClass("cat", 1L),
@@ -132,6 +139,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("mouse", 2L)),
                     0),
                 new ActualClass("dog",
+                    15,
                     List.of(
                         new PredictedClass("ant", 4L),
                         new PredictedClass("cat", 2L),
@@ -140,6 +148,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("mouse", 3L)),
                     0),
                 new ActualClass("fox",
+                    15,
                     List.of(
                         new PredictedClass("ant", 5L),
                         new PredictedClass("cat", 3L),
@@ -148,6 +157,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new PredictedClass("mouse", 4L)),
                     0),
                 new ActualClass("mouse",
+                    15,
                     List.of(
                         new PredictedClass("ant", 2L),
                         new PredictedClass("cat", 5L),
@@ -176,12 +186,15 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             confusionMatrixResult.getConfusionMatrix(),
             equalTo(List.of(
                 new ActualClass("ant",
+                    15,
                     List.of(new PredictedClass("ant", 1L), new PredictedClass("cat", 4L), new PredictedClass("dog", 3L)),
                     7),
                 new ActualClass("cat",
+                    15,
                     List.of(new PredictedClass("ant", 3L), new PredictedClass("cat", 1L), new PredictedClass("dog", 5L)),
                     6),
                 new ActualClass("dog",
+                    15,
                     List.of(new PredictedClass("ant", 4L), new PredictedClass("cat", 2L), new PredictedClass("dog", 1L)),
                     8))));
         assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(2L));

@@ -52,7 +52,7 @@ public class MulticlassConfusionMatrixMetricResultTests extends AbstractXContent
                     predictedClasses.add(new PredictedClass(classNames.get(j), randomNonNegativeLong()));
                 }
             }
-            actualClasses.add(new ActualClass(classNames.get(i), predictedClasses, randomNonNegativeLong()));
+            actualClasses.add(new ActualClass(classNames.get(i), randomNonNegativeLong(), predictedClasses, randomNonNegativeLong()));
         }
         return new Result(actualClasses, randomNonNegativeLong());
     }

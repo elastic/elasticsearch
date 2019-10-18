@@ -144,6 +144,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
             List<ActualClass> actualClasses = new ArrayList<>(filtersAgg.getBuckets().size());
             for (Filters.Bucket bucket : filtersAgg.getBuckets()) {
                 String actualClass = bucket.getKeyAsString();
+                long actualClassDocCount = bucket.getDocCount();
                 Filters subAgg = bucket.getAggregations().get(STEP_2_AGGREGATE_BY_PREDICTED_CLASS);
                 List<PredictedClass> predictedClasses = new ArrayList<>();
                 long otherPredictedClassCount = 0;
@@ -157,7 +158,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
                     }
                 }
                 predictedClasses.sort(comparing(PredictedClass::getPredictedClass));
-                actualClasses.add(new ActualClass(actualClass, predictedClasses, otherPredictedClassCount));
+                actualClasses.add(new ActualClass(actualClass, actualClassDocCount, predictedClasses, otherPredictedClassCount));
             }
             result = new Result(actualClasses, Math.max(cardinalityAgg.getValue() - size, 0));
         }
@@ -278,6 +279,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
     public static class ActualClass implements ToXContentObject, Writeable {
 
         private static final ParseField ACTUAL_CLASS = new ParseField("actual_class");
+        private static final ParseField ACTUAL_CLASS_DOC_COUNT = new ParseField("actual_class_doc_count");
         private static final ParseField PREDICTED_CLASSES = new ParseField("predicted_classes");
         private static final ParseField OTHER_PREDICTED_CLASS_COUNT = new ParseField("other_predicted_class_count");
 
@@ -286,26 +288,31 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
             new ConstructingObjectParser<>(
                 "multiclass_confusion_matrix_actual_class",
                 true,
-                a -> new ActualClass((String) a[0], (List<PredictedClass>) a[1], (long) a[2]));
+                a -> new ActualClass((String) a[0], (long) a[1], (List<PredictedClass>) a[2], (long) a[3]));
 
         static {
             PARSER.declareString(constructorArg(), ACTUAL_CLASS);
+            PARSER.declareLong(constructorArg(), ACTUAL_CLASS_DOC_COUNT);
             PARSER.declareObjectArray(constructorArg(), PredictedClass.PARSER, PREDICTED_CLASSES);
             PARSER.declareLong(constructorArg(), OTHER_PREDICTED_CLASS_COUNT);
         }
 
         private final String actualClass;
+        private final long actualClassDocCount;
         private final List<PredictedClass> predictedClasses;
         private final long otherPredictedClassCount;
 
-        public ActualClass(String actualClass, List<PredictedClass> predictedClasses, long otherPredictedClassCount) {
+        public ActualClass(
+                String actualClass, long actualClassDocCount, List<PredictedClass> predictedClasses, long otherPredictedClassCount) {
             this.actualClass = actualClass;
+            this.actualClassDocCount = actualClassDocCount;
             this.predictedClasses = Collections.unmodifiableList(predictedClasses);
             this.otherPredictedClassCount = otherPredictedClassCount;
         }
 
         public ActualClass(StreamInput in) throws IOException {
             this.actualClass = in.readString();
+            this.actualClassDocCount = in.readLong();
             this.predictedClasses = Collections.unmodifiableList(in.readList(PredictedClass::new));
             this.otherPredictedClassCount = in.readLong();
         }
@@ -313,6 +320,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(actualClass);
+            out.writeLong(actualClassDocCount);
             out.writeList(predictedClasses);
             out.writeLong(otherPredictedClassCount);
         }
@@ -321,6 +329,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(ACTUAL_CLASS.getPreferredName(), actualClass);
+            builder.field(ACTUAL_CLASS_DOC_COUNT.getPreferredName(), actualClassDocCount);
             builder.field(PREDICTED_CLASSES.getPreferredName(), predictedClasses);
             builder.field(OTHER_PREDICTED_CLASS_COUNT.getPreferredName(), otherPredictedClassCount);
             builder.endObject();
@@ -333,13 +342,14 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             ActualClass that = (ActualClass) o;
             return Objects.equals(this.actualClass, that.actualClass)
+                && this.actualClassDocCount == that.actualClassDocCount
                 && Objects.equals(this.predictedClasses, that.predictedClasses)
                 && this.otherPredictedClassCount == that.otherPredictedClassCount;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(actualClass, predictedClasses, otherPredictedClassCount);
+            return Objects.hash(actualClass, actualClassDocCount, predictedClasses, otherPredictedClassCount);
         }
     }
 

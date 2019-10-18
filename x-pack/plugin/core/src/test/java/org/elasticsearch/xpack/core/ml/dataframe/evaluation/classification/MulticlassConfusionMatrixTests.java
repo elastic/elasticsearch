@@ -91,11 +91,13 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
                 List.of(
                     mockFiltersBucket(
                         "dog",
+                        30,
                         new Aggregations(List.of(mockFilters(
                             "multiclass_confusion_matrix_step_2_by_predicted_class",
                             List.of(mockFiltersBucket("cat", 10L), mockFiltersBucket("dog", 20L), mockFiltersBucket("_other_", 0L)))))),
                     mockFiltersBucket(
                         "cat",
+                        70,
                         new Aggregations(List.of(mockFilters(
                             "multiclass_confusion_matrix_step_2_by_predicted_class",
                             List.of(mockFiltersBucket("cat", 30L), mockFiltersBucket("dog", 40L), mockFiltersBucket("_other_", 0L)))))))),
@@ -111,8 +113,8 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
             result.getConfusionMatrix(),
             equalTo(
                 List.of(
-                    new ActualClass("dog", List.of(new PredictedClass("cat", 10L), new PredictedClass("dog", 20L)), 0),
-                    new ActualClass("cat", List.of(new PredictedClass("cat", 30L), new PredictedClass("dog", 40L)), 0))));
+                    new ActualClass("dog", 30, List.of(new PredictedClass("cat", 10L), new PredictedClass("dog", 20L)), 0),
+                    new ActualClass("cat", 70, List.of(new PredictedClass("cat", 30L), new PredictedClass("dog", 40L)), 0))));
         assertThat(result.getOtherActualClassCount(), equalTo(0L));
     }
 
@@ -129,11 +131,13 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
                 List.of(
                     mockFiltersBucket(
                         "dog",
+                        30,
                         new Aggregations(List.of(mockFilters(
                             "multiclass_confusion_matrix_step_2_by_predicted_class",
                             List.of(mockFiltersBucket("cat", 10L), mockFiltersBucket("dog", 20L), mockFiltersBucket("_other_", 0L)))))),
                     mockFiltersBucket(
                         "cat",
+                        85,
                         new Aggregations(List.of(mockFilters(
                             "multiclass_confusion_matrix_step_2_by_predicted_class",
                             List.of(mockFiltersBucket("cat", 30L), mockFiltersBucket("dog", 40L), mockFiltersBucket("_other_", 15L)))))))),
@@ -149,8 +153,8 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
             result.getConfusionMatrix(),
             equalTo(
                 List.of(
-                    new ActualClass("dog", List.of(new PredictedClass("cat", 10L), new PredictedClass("dog", 20L)), 0),
-                    new ActualClass("cat", List.of(new PredictedClass("cat", 30L), new PredictedClass("dog", 40L)), 15))));
+                    new ActualClass("dog", 30, List.of(new PredictedClass("cat", 10L), new PredictedClass("dog", 20L)), 0),
+                    new ActualClass("cat", 85, List.of(new PredictedClass("cat", 30L), new PredictedClass("dog", 40L)), 15))));
         assertThat(result.getOtherActualClassCount(), equalTo(3L));
     }
 
@@ -162,9 +166,9 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
         return aggregation;
     }
 
-    private static Terms.Bucket mockTermsBucket(String actualClass, Aggregations subAggs) {
+    private static Terms.Bucket mockTermsBucket(String key, Aggregations subAggs) {
         Terms.Bucket bucket = mock(Terms.Bucket.class);
-        when(bucket.getKeyAsString()).thenReturn(actualClass);
+        when(bucket.getKeyAsString()).thenReturn(key);
         when(bucket.getAggregations()).thenReturn(subAggs);
         return bucket;
     }
@@ -176,16 +180,15 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
         return aggregation;
     }
 
-    private static Filters.Bucket mockFiltersBucket(String actualClass, Aggregations subAggs) {
-        Filters.Bucket bucket = mock(Filters.Bucket.class);
-        when(bucket.getKeyAsString()).thenReturn(actualClass);
+    private static Filters.Bucket mockFiltersBucket(String key, long docCount, Aggregations subAggs) {
+        Filters.Bucket bucket = mockFiltersBucket(key, docCount);
         when(bucket.getAggregations()).thenReturn(subAggs);
         return bucket;
     }
 
-    private static Filters.Bucket mockFiltersBucket(String predictedClass, long docCount) {
+    private static Filters.Bucket mockFiltersBucket(String key, long docCount) {
         Filters.Bucket bucket = mock(Filters.Bucket.class);
-        when(bucket.getKeyAsString()).thenReturn(predictedClass);
+        when(bucket.getKeyAsString()).thenReturn(key);
         when(bucket.getDocCount()).thenReturn(docCount);
         return bucket;
     }

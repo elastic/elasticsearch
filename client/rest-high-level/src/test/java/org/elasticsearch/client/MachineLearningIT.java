@@ -1804,12 +1804,20 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 equalTo(
                     List.of(
                         new ActualClass(
-                            "ant", List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)), 0),
+                            "ant",
+                            1,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
+                            0),
                         new ActualClass(
-                            "cat", List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1),
+                            "cat",
+                            5,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
+                            1),
                         new ActualClass(
-                            "dog", List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0)
-                    )));
+                            "dog",
+                            4,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
+                            0))));
             assertThat(mcmResult.getOtherActualClassCount(), equalTo(0L));
         }
         {  // Explicit size provided for MulticlassConfusionMatrixMetric metric
@@ -1831,8 +1839,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 mcmResult.getConfusionMatrix(),
                 equalTo(
                     List.of(
-                        new ActualClass("cat", List.of(new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1),
-                        new ActualClass("dog", List.of(new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0)
+                        new ActualClass("cat", 5, List.of(new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1),
+                        new ActualClass("dog", 4, List.of(new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0)
                     )));
             assertThat(mcmResult.getOtherActualClassCount(), equalTo(1L));
         }

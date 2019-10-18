@@ -22,6 +22,7 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.TooLongFrameException;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
@@ -32,8 +33,8 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
 
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
-    @Override
-    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+//    @Override
+    protected void oldecode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         try {
             while (in.readableBytes() >= HEADER_SIZE) {
                 int messageLength = TcpTransport.readMessageLength(Netty4Utils.toBytesReference(in));
@@ -55,6 +56,40 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
         } catch (IllegalArgumentException ex) {
             throw new TooLongFrameException(ex);
         }
+    }
+
+    private int remainingBytes = 0;
+
+    @Override
+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+        try {
+            if (isBeginningOfMessage()) {
+                if (in.readableBytes() < HEADER_SIZE) {
+                    return;
+                } else {
+                    remainingBytes = TcpTransport.readMessageLength(Netty4Utils.toBytesReference(in));
+                    if (remainingBytes < 0) {
+                        remainingBytes = 0;
+                        throw new DecoderException("Invalid message length: " + remainingBytes);
+                    } else {
+                        remainingBytes = remainingBytes + HEADER_SIZE;
+                    }
+                }
+            }
+        } catch (IllegalArgumentException ex) {
+            remainingBytes = 0;
+            throw new TooLongFrameException(ex);
+        }
+
+        int bytesToConsume = Math.max(in.readableBytes(), remainingBytes);
+        final ByteBuf message = in.retainedSlice(0, bytesToConsume);
+        out.add(message);
+        in.readerIndex(bytesToConsume);
+        remainingBytes = remainingBytes - bytesToConsume;
+    }
+
+    private boolean isBeginningOfMessage() {
+        return remainingBytes == 0;
     }
 
 }

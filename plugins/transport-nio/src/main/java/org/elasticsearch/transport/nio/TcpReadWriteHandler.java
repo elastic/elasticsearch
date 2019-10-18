@@ -24,8 +24,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesWriteHandler;
@@ -33,21 +31,18 @@ import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
 import org.elasticsearch.transport.InboundAggregator;
 import org.elasticsearch.transport.InboundDecoder;
-import org.elasticsearch.transport.InboundHandler;
-import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public class TcpReadWriteHandler extends BytesWriteHandler {
 
     private final InboundDecoder decoder;
+    private final NioTcpChannel channel;
 
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
-        this.decoder = new InboundDecoder(new InboundAggregator(agg -> transport.inboundMessage2(channel, agg)), recycler);
+        this.channel = channel;
+        this.decoder = new InboundDecoder(new InboundAggregator(transport::inboundMessage2), recycler);
     }
 
     @Override
@@ -58,6 +53,6 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
             references[i] = new ByteBufferReference(pages[i].byteBuffer());
         }
         Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
-        return decoder.handle(new ReleasableBytesReference(new CompositeBytesReference(references), releasable));
+        return decoder.handle(channel, new ReleasableBytesReference(new CompositeBytesReference(references), releasable));
     }
 }

@@ -23,28 +23,25 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 public class InboundAggregator {
 
     private static final AggregatedMessage PING_MESSAGE = new AggregatedMessage(null, BytesArray.EMPTY, true);
 
-    private final Consumer<AggregatedMessage> messageConsumer;
+    private final BiConsumer<TcpChannel,AggregatedMessage> messageConsumer;
     private final ArrayList<ReleasableBytesReference> contentAggregation = new ArrayList<>();
     private Header currentHeader;
 
-    public InboundAggregator(Consumer<AggregatedMessage> messageConsumer) {
+    public InboundAggregator(BiConsumer<TcpChannel, AggregatedMessage> messageConsumer) {
         this.messageConsumer = messageConsumer;
     }
 
-    public void pingReceived(BytesReference ping) {
-        assert ping.length() == 6;
-        this.messageConsumer.accept(PING_MESSAGE);
+    public void pingReceived(TcpChannel channel) {
+        this.messageConsumer.accept(channel, PING_MESSAGE);
     }
 
     public void headerReceived(Header header) {
@@ -56,7 +53,7 @@ public class InboundAggregator {
         currentHeader = header;
     }
 
-    public void contentReceived(ReleasableBytesReference content) {
+    public void contentReceived(TcpChannel channel, ReleasableBytesReference content) {
         if (currentHeader == null) {
             throw new IllegalStateException("Received content without header");
         } else if (content.getReference().length() != 0) {
@@ -69,7 +66,7 @@ public class InboundAggregator {
             }
             CompositeBytesReference aggregatedContent = new CompositeBytesReference(references);
             try {
-                messageConsumer.accept(new AggregatedMessage(currentHeader, aggregatedContent, false));
+                messageConsumer.accept(channel, new AggregatedMessage(currentHeader, aggregatedContent, false));
             } finally {
                 Releasables.close(contentAggregation);
                 contentAggregation.clear();

@@ -32,7 +32,8 @@ import java.io.IOException;
 
 public class InboundDecoder implements Closeable {
 
-    private static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
+    private static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {
+    });
 
     private final InboundAggregator aggregator;
     private final PageCacheRecycler recycler;
@@ -49,59 +50,68 @@ public class InboundDecoder implements Closeable {
         this.recycler = recycler;
     }
 
-    public int handle(ReleasableBytesReference releasable) throws IOException {
+    public int handle(TcpChannel channel, ReleasableBytesReference releasable) throws IOException {
         if (isOnHeader()) {
-            int expectedLength = TcpTransport.readMessageLength(releasable.getReference());
-            if (expectedLength == -1) {
-                releasable.close();
-                return 0;
-            } else if (expectedLength == 0) {
-                aggregator.pingReceived(releasable.getReference().slice(0, 6));
-                releasable.close();
-                return 6;
-            } else {
-                if (releasable.getReference().length() < TcpHeader.HEADER_SIZE) {
-                    releasable.close();
+            try (releasable) {
+                int expectedLength = TcpTransport.readMessageLength(releasable.getReference());
+                if (expectedLength == -1) {
                     return 0;
+                } else if (expectedLength == 0) {
+                    aggregator.pingReceived(channel);
+                    return 6;
                 } else {
-                    networkMessageSize = expectedLength;
-                    Header header = parseHeader(networkMessageSize, releasable.getReference());
-                    bytesConsumed += TcpHeader.HEADER_SIZE - 6;
-                    if (header.isCompressed()) {
-                        decompressor = new TransportDecompressor(recycler);
+                    if (releasable.getReference().length() < TcpHeader.HEADER_SIZE) {
+                        return 0;
+                    } else {
+                        networkMessageSize = expectedLength;
+                        Header header = parseHeader(networkMessageSize, releasable.getReference());
+                        bytesConsumed += TcpHeader.HEADER_SIZE - 6;
+                        if (header.isCompressed()) {
+                            decompressor = new TransportDecompressor(recycler);
+                        }
+                        aggregator.headerReceived(header);
+                        return TcpHeader.HEADER_SIZE;
                     }
-                    aggregator.headerReceived(header);
-                    return TcpHeader.HEADER_SIZE;
                 }
             }
         } else {
-            int bytesToConsume = Math.min(releasable.getReference().length(), networkMessageSize - bytesConsumed);
-            bytesConsumed += bytesToConsume;
-            ReleasableBytesReference content;
-            if (isDone()) {
-                BytesReference sliced = releasable.getReference().slice(0, bytesToConsume);
-                content = new ReleasableBytesReference(sliced, releasable.getReleasable());
-            } else {
-                content = releasable;
-            }
-            if (decompressor != null) {
-                decompressor.decompress(content.getReference());
-                releasable.close();
-                ReleasableBytesReference decompressed;
-                while ((decompressed = decompressor.pollDecompressedPage()) != null) {
-                    aggregator.contentReceived(decompressed);
+            // TODO: Retained functionality will clean-up error handling
+            boolean success = false;
+            try {
+                int bytesToConsume = Math.min(releasable.getReference().length(), networkMessageSize - bytesConsumed);
+                bytesConsumed += bytesToConsume;
+                ReleasableBytesReference content;
+                if (isDone()) {
+                    BytesReference sliced = releasable.getReference().slice(0, bytesToConsume);
+                    content = new ReleasableBytesReference(sliced, releasable.getReleasable());
+                } else {
+                    content = releasable;
                 }
-            } else {
-                aggregator.contentReceived(content);
-            }
-            if (isDone()) {
-                decompressor = null;
-                networkMessageSize = -1;
-                bytesConsumed = 0;
-                aggregator.contentReceived(END_CONTENT);
-            }
+                if (decompressor != null) {
+                    decompressor.decompress(content.getReference());
+                    success = true;
+                    ReleasableBytesReference decompressed;
+                    while ((decompressed = decompressor.pollDecompressedPage()) != null) {
+                        aggregator.contentReceived(channel, decompressed);
+                    }
+                } else {
+                    aggregator.contentReceived(channel, content);
+                    success = true;
+                }
+                if (isDone()) {
+                    decompressor = null;
+                    networkMessageSize = -1;
+                    bytesConsumed = 0;
+                    aggregator.contentReceived(channel, END_CONTENT);
+                }
 
-            return bytesToConsume;
+                return bytesToConsume;
+            } finally {
+                if (success == false) {
+                    releasable.close();
+                }
+
+            }
         }
     }
 

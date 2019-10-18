@@ -270,9 +270,11 @@ public class MockNioTransport extends TcpTransport {
     private static class MockTcpReadWriteHandler extends BytesWriteHandler {
 
         private final InboundDecoder decoder;
+        private final MockSocketChannel channel;
 
         private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
-            this.decoder = new InboundDecoder(new InboundAggregator(agg -> transport.inboundMessage2(channel, agg)), recycler);
+            this.channel = channel;
+            this.decoder = new InboundDecoder(new InboundAggregator(transport::inboundMessage2), recycler);
         }
 
         @Override
@@ -283,7 +285,7 @@ public class MockNioTransport extends TcpTransport {
                 references[i] = new ByteBufferReference(pages[i].byteBuffer());
             }
             Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
-            return decoder.handle(new ReleasableBytesReference(new CompositeBytesReference(references), releasable));
+            return decoder.handle(channel, new ReleasableBytesReference(new CompositeBytesReference(references), releasable));
         }
     }
 

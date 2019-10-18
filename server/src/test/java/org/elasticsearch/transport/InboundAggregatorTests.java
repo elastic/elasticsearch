@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class InboundAggregatorTests extends ESTestCase {
 
@@ -29,7 +30,7 @@ public class InboundAggregatorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
-        aggregator = new InboundAggregator(message::set);
+        aggregator = new InboundAggregator((c, a) -> message.set(a));
     }
 
     @After
@@ -54,7 +55,7 @@ public class InboundAggregatorTests extends ESTestCase {
             streamOutput.write(randomByteArrayOfLength(10));
             expectThrows(IllegalStateException.class, () -> {
                 ReleasableBytesReference content = new ReleasableBytesReference(streamOutput.bytes(), () -> {});
-                aggregator.contentReceived(content);
+                aggregator.contentReceived(mock(TcpChannel.class), content);
             });
         }
     }
@@ -69,15 +70,16 @@ public class InboundAggregatorTests extends ESTestCase {
             threadPool.getThreadContext().writeTo(streamOutput);
             streamOutput.writeString("action_name");
             streamOutput.write(randomByteArrayOfLength(10));
-            aggregator.contentReceived(new ReleasableBytesReference(streamOutput.bytes(), () -> {}));
+            aggregator.contentReceived(mock(TcpChannel.class), new ReleasableBytesReference(streamOutput.bytes(), () -> {}));
         }
 
-        aggregator.contentReceived(new ReleasableBytesReference(new BytesArray(randomByteArrayOfLength(10)), () -> {}));
+        BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
+        aggregator.contentReceived(mock(TcpChannel.class), new ReleasableBytesReference(bytes, () -> {}));
 
         assertThat(message.get(), nullValue());
 
         // Signal EOS
-        aggregator.contentReceived(new ReleasableBytesReference(BytesArray.EMPTY, () -> {}));
+        aggregator.contentReceived(mock(TcpChannel.class), new ReleasableBytesReference(BytesArray.EMPTY, () -> {}));
 
         assertThat(message.get(), notNullValue());
         assertFalse(message.get().isPing());

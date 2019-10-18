@@ -139,7 +139,7 @@ public class NioTransport extends TcpTransport {
         return (n) -> new TcpChannelFactoryImpl(profileSettings, true);
     }
 
-    protected static abstract class TcpChannelFactory extends ChannelFactory<NioTcpServerChannel, NioTcpChannel> {
+    protected abstract static class TcpChannelFactory extends ChannelFactory<NioTcpServerChannel, NioTcpChannel> {
 
         protected TcpChannelFactory(ProfileSettings profileSettings) {
             super(profileSettings.tcpNoDelay, profileSettings.tcpKeepAlive, profileSettings.tcpKeepIdle, profileSettings.tcpKeepInterval,

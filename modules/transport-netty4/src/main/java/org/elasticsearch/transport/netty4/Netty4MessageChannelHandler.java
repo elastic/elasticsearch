@@ -25,10 +25,8 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.util.Attribute;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.transport.InboundAggregator;
@@ -54,7 +52,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     Netty4MessageChannelHandler(PageCacheRecycler pageCacheRecycler, Netty4Transport transport) {
         this.transport = transport;
-        this.decoder = new InboundDecoder(new InboundAggregator(agg -> transport.inboundMessage2(null, agg)), pageCacheRecycler);
+        this.decoder = new InboundDecoder(new InboundAggregator(transport::inboundMessage2), pageCacheRecycler);
     }
 
     @Override
@@ -64,12 +62,13 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
         final ByteBuf buffer = (ByteBuf) msg;
         try {
-            Channel channel = ctx.channel();
-            Attribute<Netty4TcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
+            Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
             int bytesHandled = Integer.MAX_VALUE;
             while (bytesHandled != 0) {
-                ByteBuf duplicate = buffer.retainedDuplicate();
-                bytesHandled = decoder.handle(new ReleasableBytesReference(Netty4Utils.toBytesReference(duplicate), duplicate::release));
+                ByteBuf duplicate = buffer.retainedSlice();
+                ReleasableBytesReference reference = new ReleasableBytesReference(Netty4Utils.toBytesReference(duplicate),
+                    duplicate::release);
+                bytesHandled = decoder.handle(channel, reference);
                 buffer.readerIndex(buffer.readerIndex() + bytesHandled);
             }
         } finally {

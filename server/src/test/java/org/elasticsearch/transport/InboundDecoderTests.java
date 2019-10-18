@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class InboundDecoderTests extends ESTestCase {
@@ -50,14 +51,14 @@ public class InboundDecoderTests extends ESTestCase {
 
         InboundAggregator aggregator = mock(InboundAggregator.class);
         InboundDecoder decoder = new InboundDecoder(aggregator);
-        int bytesConsumed = decoder.handle(new ReleasableBytesReference(bytes, releasable));
+        int bytesConsumed = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes, releasable));
         verify(aggregator).headerReceived(any(Header.class));
         assertEquals(TcpHeader.HEADER_SIZE, bytesConsumed);
 
         final BytesReference bytes2 = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);
-        int bytesConsumed2 = decoder.handle(new ReleasableBytesReference(bytes2, releasable));
+        int bytesConsumed2 = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes2, releasable));
         assertEquals(bytes.length() - TcpHeader.HEADER_SIZE, bytesConsumed2);
-        verify(aggregator).contentReceived(any(ReleasableBytesReference.class));
+        verify(aggregator, times(2)).contentReceived(any(TcpChannel.class), any(ReleasableBytesReference.class));
     }
 
     private static class TestRequest extends TransportRequest {

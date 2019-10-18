@@ -51,7 +51,7 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
-    private static final WeekFields WEEK_FIELDS = WeekFields.of(Locale.ROOT);
+    public static final WeekFields WEEK_FIELDS = WeekFields.of(Locale.ROOT);
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder()
         .appendOffset("+HHmm", "Z")
@@ -945,14 +945,14 @@ public class DateFormatters {
      * Returns a formatter for a four digit weekyear
      */
     private static final DateFormatter STRICT_WEEKYEAR = new JavaDateFormatter("strict_weekyear", new DateTimeFormatterBuilder()
-        .appendValue(WeekFields.ISO.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(WEEK_FIELDS.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT));
 
     private static final DateTimeFormatter STRICT_WEEKYEAR_WEEK_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(WeekFields.ISO.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(WEEK_FIELDS.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
         .appendLiteral("-W")
-        .appendValue(WeekFields.ISO.weekOfWeekBasedYear(), 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendValue(WEEK_FIELDS.weekOfWeekBasedYear(), 2, 2, SignStyle.NOT_NEGATIVE)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
 
@@ -971,7 +971,7 @@ public class DateFormatters {
         new DateTimeFormatterBuilder()
             .append(STRICT_WEEKYEAR_WEEK_FORMATTER)
             .appendLiteral("-")
-            .appendValue(WeekFields.ISO.dayOfWeek())
+            .appendValue(WEEK_FIELDS.dayOfWeek())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT));
 
@@ -1161,7 +1161,7 @@ public class DateFormatters {
      * Returns a formatter for a four digit weekyear. (YYYY)
      */
     private static final DateFormatter WEEK_YEAR = new JavaDateFormatter("week_year",
-        new DateTimeFormatterBuilder().appendValue(WeekFields.ISO.weekBasedYear()).toFormatter(Locale.ROOT)
+        new DateTimeFormatterBuilder().appendValue(WEEK_FIELDS.weekBasedYear()).toFormatter(Locale.ROOT)
                                       .withResolverStyle(ResolverStyle.STRICT));
 
     /*
@@ -1590,9 +1590,9 @@ public class DateFormatters {
      */
     private static final DateFormatter WEEKYEAR_WEEK = new JavaDateFormatter("weekyear_week", STRICT_WEEKYEAR_WEEK_FORMATTER,
         new DateTimeFormatterBuilder()
-            .appendValue(WeekFields.ISO.weekBasedYear())
+            .appendValue(WEEK_FIELDS.weekBasedYear())
             .appendLiteral("-W")
-            .appendValue(WeekFields.ISO.weekOfWeekBasedYear())
+            .appendValue(WEEK_FIELDS.weekOfWeekBasedYear())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT)
     );
@@ -1605,15 +1605,15 @@ public class DateFormatters {
         new DateTimeFormatterBuilder()
             .append(STRICT_WEEKYEAR_WEEK_FORMATTER)
             .appendLiteral("-")
-            .appendValue(WeekFields.ISO.dayOfWeek())
+            .appendValue(WEEK_FIELDS.dayOfWeek())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT),
         new DateTimeFormatterBuilder()
-            .appendValue(WeekFields.ISO.weekBasedYear())
+            .appendValue(WEEK_FIELDS.weekBasedYear())
             .appendLiteral("-W")
-            .appendValue(WeekFields.ISO.weekOfWeekBasedYear())
+            .appendValue(WEEK_FIELDS.weekOfWeekBasedYear())
             .appendLiteral("-")
-            .appendValue(WeekFields.ISO.dayOfWeek())
+            .appendValue(WEEK_FIELDS.dayOfWeek())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT)
     );

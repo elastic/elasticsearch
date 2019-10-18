@@ -35,7 +35,14 @@ import org.elasticsearch.client.Node.Roles;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;

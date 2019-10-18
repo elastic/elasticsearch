@@ -64,7 +64,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         Object missing,
         ZoneId timeZone,
         String format,
-        Function<Script, BuiltinValuesSourceType> resolveScriptAny
+        Function<Script, ValuesSourceType> resolveScriptAny
     ) {
 
         if (field == null) {
@@ -73,7 +73,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 config.format(resolveFormat(null, valueType, timeZone));
                 return config;
             }
-            BuiltinValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : BuiltinValuesSourceType.ANY;
+            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : BuiltinValuesSourceType.ANY;
             if (valuesSourceType == BuiltinValuesSourceType.ANY) {
                 // the specific value source type is undefined, but for scripts,
                 // we need to have a specific value source
@@ -92,7 +92,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
-            BuiltinValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : BuiltinValuesSourceType.ANY;
+            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : BuiltinValuesSourceType.ANY;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
@@ -155,7 +155,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return valueFormat;
     }
 
-    private final BuiltinValuesSourceType valueSourceType;
+    private final ValuesSourceType valueSourceType;
     private FieldContext fieldContext;
     private AggregationScript.LeafFactory script;
     private ValueType scriptValueType;
@@ -164,11 +164,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private Object missing;
     private ZoneId timeZone;
 
-    public ValuesSourceConfig(BuiltinValuesSourceType valueSourceType) {
+    public ValuesSourceConfig(ValuesSourceType valueSourceType) {
         this.valueSourceType = valueSourceType;
     }
 
-    public BuiltinValuesSourceType valueSourceType() {
+    public ValuesSourceType valueSourceType() {
         return valueSourceType;
     }
 

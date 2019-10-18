@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.function.LongSupplier;
 
-public enum BuiltinValuesSourceType implements Writeable {
+public enum BuiltinValuesSourceType implements Writeable, ValuesSourceType {
     ANY {
         @Override
         public ValuesSource getEmpty() {
@@ -189,11 +189,11 @@ public enum BuiltinValuesSourceType implements Writeable {
         }
     };
 
-    public static BuiltinValuesSourceType fromString(String name) {
+    public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static BuiltinValuesSourceType fromStream(StreamInput in) throws IOException {
+    public static ValuesSourceType fromStream(StreamInput in) throws IOException {
         return in.readEnum(BuiltinValuesSourceType.class);
     }
 
@@ -207,9 +207,4 @@ public enum BuiltinValuesSourceType implements Writeable {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public abstract ValuesSource getEmpty();
-    public abstract ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType);
-    public abstract ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
-    public abstract ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                                LongSupplier now);
 }

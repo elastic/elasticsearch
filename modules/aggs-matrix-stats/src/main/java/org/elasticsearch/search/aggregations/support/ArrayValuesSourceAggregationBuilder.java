@@ -52,7 +52,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ArrayValuesSourceAggregationBuilder<VS, AB>>
         extends ArrayValuesSourceAggregationBuilder<VS, AB> {
 
-        protected LeafOnly(String name, BuiltinValuesSourceType valuesSourceType, ValueType targetValueType) {
+        protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, valuesSourceType, targetValueType);
         }
 
@@ -67,7 +67,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         /**
          * Read from a stream that does not serialize its targetValueType. This should be used by most subclasses.
          */
-        protected LeafOnly(StreamInput in, BuiltinValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
+        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
             super(in, valuesSourceType, targetValueType);
         }
 
@@ -75,7 +75,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
          * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
          * {@link #serializeTargetValueType()} to return true.
          */
-        protected LeafOnly(StreamInput in, BuiltinValuesSourceType valuesSourceType) throws IOException {
+        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
             super(in, valuesSourceType);
         }
 
@@ -86,7 +86,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         }
     }
 
-    private final BuiltinValuesSourceType valuesSourceType;
+    private final ValuesSourceType valuesSourceType;
     private final ValueType targetValueType;
     private List<String> fields = Collections.emptyList();
     private ValueType valueType = null;
@@ -94,7 +94,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     private Object missing = null;
     private Map<String, Object> missingMap = Collections.emptyMap();
 
-    protected ArrayValuesSourceAggregationBuilder(String name, BuiltinValuesSourceType valuesSourceType, ValueType targetValueType) {
+    protected ArrayValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
         super(name);
         if (valuesSourceType == null) {
             throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
@@ -115,7 +115,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         this.missing = clone.missing;
     }
 
-    protected ArrayValuesSourceAggregationBuilder(StreamInput in, BuiltinValuesSourceType valuesSourceType, ValueType targetValueType)
+    protected ArrayValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
         throws IOException {
         super(in);
         assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
@@ -124,7 +124,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         read(in);
     }
 
-    protected ArrayValuesSourceAggregationBuilder(StreamInput in, BuiltinValuesSourceType valuesSourceType) throws IOException {
+    protected ArrayValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
         super(in);
         assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
         this.valuesSourceType = valuesSourceType;
@@ -269,7 +269,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(BuiltinValuesSourceType.ANY);
                 return config.format(resolveFormat(null, valueType));
             }
-            BuiltinValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
+            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             if (valuesSourceType == null || valuesSourceType == BuiltinValuesSourceType.ANY) {
                 // the specific value source type is undefined, but for scripts,
                 // we need to have a specific value source
@@ -284,7 +284,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
 
         MappedFieldType fieldType = queryShardContext.getMapperService().fullName(field);
         if (fieldType == null) {
-            BuiltinValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
+            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missingMap.get(field));
             config.format(resolveFormat(format, valueType));

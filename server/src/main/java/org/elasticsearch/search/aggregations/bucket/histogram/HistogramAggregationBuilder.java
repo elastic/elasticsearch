@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -97,7 +98,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     private long minDocCount = 0;
 
     @Override
-    protected BuiltinValuesSourceType resolveScriptAny(Script script) {
+    protected ValuesSourceType resolveScriptAny(Script script) {
         // TODO: No idea how we'd support Range scripts here.
         return BuiltinValuesSourceType.NUMERIC;
     }

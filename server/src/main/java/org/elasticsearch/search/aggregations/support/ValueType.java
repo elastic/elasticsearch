@@ -53,7 +53,7 @@ public enum ValueType implements Writeable {
     RANGE((byte) 10, "range", "range", BuiltinValuesSourceType.RANGE, BinaryDVIndexFieldData.class, DocValueFormat.RAW);
 
     final String description;
-    final BuiltinValuesSourceType valuesSourceType;
+    final ValuesSourceType valuesSourceType;
     final Class<? extends IndexFieldData> fieldDataType;
     final DocValueFormat defaultFormat;
     private final byte id;
@@ -61,7 +61,7 @@ public enum ValueType implements Writeable {
 
     public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
-    ValueType(byte id, String description, String preferredName, BuiltinValuesSourceType valuesSourceType,
+    ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
             Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
         this.id = id;
         this.description = description;
@@ -75,7 +75,7 @@ public enum ValueType implements Writeable {
         return preferredName;
     }
 
-    public BuiltinValuesSourceType getValuesSourceType() {
+    public ValuesSourceType getValuesSourceType() {
         return valuesSourceType;
     }
 

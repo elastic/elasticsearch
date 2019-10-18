@@ -64,10 +64,10 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
     }
 
     private boolean formattable = false;
-    private BuiltinValuesSourceType valuesSourceType = null;
+    private ValuesSourceType valuesSourceType = null;
     private ValueType targetValueType = null;
 
-    private ArrayValuesSourceParser(boolean formattable, BuiltinValuesSourceType valuesSourceType, ValueType targetValueType) {
+    private ArrayValuesSourceParser(boolean formattable, ValuesSourceType valuesSourceType, ValueType targetValueType) {
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
         this.formattable = formattable;
@@ -194,14 +194,14 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      * @return the created factory
      */
     protected abstract ArrayValuesSourceAggregationBuilder<VS, ?> createFactory(String aggregationName,
-                                                                                BuiltinValuesSourceType valuesSourceType,
+                                                                                ValuesSourceType valuesSourceType,
                                                                                 ValueType targetValueType,
                                                                                 Map<ParseField, Object> otherOptions);
 
     /**
      * Allows subclasses of {@link ArrayValuesSourceParser} to parse extra
      * parameters and store them in a {@link Map} which will later be passed to
-     * {@link #createFactory(String, BuiltinValuesSourceType, ValueType, Map)}.
+     * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}.
      *
      * @param aggregationName
      *            the name of the aggregation
@@ -214,7 +214,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      * @param otherOptions
      *            a {@link Map} of options to be populated by successive calls
      *            to this method which will then be passed to the
-     *            {@link #createFactory(String, BuiltinValuesSourceType, ValueType, Map)}
+     *            {@link #createFactory(String, ValuesSourceType, ValueType, Map)}
      *            method
      * @return <code>true</code> if the current token was correctly parsed,
      *         <code>false</code> otherwise

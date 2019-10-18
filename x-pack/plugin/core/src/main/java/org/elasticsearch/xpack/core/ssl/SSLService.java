@@ -459,7 +459,7 @@ public class SSLService {
             if (isConfigurationValidForServerUsage(configuration) == false) {
                 throw new ElasticsearchSecurityException("invalid SSL configuration for " + prefix +
                     " - server ssl configuration requires a key and certificate, but these have not been configured; you must set either " +
-                    "[" + configurationSettings.x509KeyPair.keystorePath.getKey() + "] or [" +
+                    "[" + configurationSettings.x509KeyPair.keystorePath.getKey() + "], or both [" +
                     configurationSettings.x509KeyPair.keyPath.getKey() + "] and [" +
                     configurationSettings.x509KeyPair.certificatePath.getKey() + "]");
             }

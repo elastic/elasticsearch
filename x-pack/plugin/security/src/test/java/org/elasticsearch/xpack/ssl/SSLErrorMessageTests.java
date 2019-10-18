@@ -134,9 +134,9 @@ public class SSLErrorMessageTests extends ESTestCase {
         configureWorkingTruststore(prefix, settings);
 
         Throwable exception = expectFailure(settings);
-        assertThat(exception, throwableWithMessage("invalid configuration for " + prefix +
-            " - a server context requires a key and certificate, but these have not been configured" +
-            "; either [" + prefix + ".keystore.path] or [" + prefix + ".certificate] should be set"));
+        assertThat(exception, throwableWithMessage("invalid SSL configuration for " + prefix +
+            " - server ssl configuration requires a key and certificate, but these have not been configured;" +
+            " you must set either [" + prefix + ".keystore.path], or both [" + prefix + ".key] and [" + prefix + ".certificate]"));
         assertThat(exception, instanceOf(ElasticsearchException.class));
     }
 

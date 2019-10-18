@@ -1884,13 +1884,13 @@ public class DateFormatters {
     private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor) {
         if (accessor.isSupported(WEEK_FIELDS.weekOfWeekBasedYear())) {
             return LocalDate.ofEpochDay(0)
-                            .with(IsoFields.WEEK_BASED_YEAR, accessor.get(WEEK_FIELDS.weekBasedYear()))
-                            .with(IsoFields.WEEK_OF_WEEK_BASED_YEAR, accessor.get(WEEK_FIELDS.weekOfWeekBasedYear()))
-                            .with(ChronoField.DAY_OF_WEEK, 1);
+                            .with(WEEK_FIELDS.weekBasedYear(), accessor.get(WEEK_FIELDS.weekBasedYear()))
+                            .with(WEEK_FIELDS.weekOfWeekBasedYear(), accessor.get(WEEK_FIELDS.weekOfWeekBasedYear()))
+                            .with(ChronoField.DAY_OF_WEEK, WEEK_FIELDS.getFirstDayOfWeek().getValue());
         } else {
             return LocalDate.ofEpochDay(0)
-                            .with(IsoFields.WEEK_BASED_YEAR, accessor.get(WEEK_FIELDS.weekBasedYear()))
-                            .with(ChronoField.DAY_OF_WEEK, 1);
+                            .with(WEEK_FIELDS.weekBasedYear(), accessor.get(WEEK_FIELDS.weekBasedYear()))
+                            .with(ChronoField.DAY_OF_WEEK, WEEK_FIELDS.getFirstDayOfWeek().getValue());
         }
     }
 

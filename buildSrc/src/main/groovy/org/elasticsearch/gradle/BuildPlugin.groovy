@@ -857,6 +857,8 @@ class BuildPlugin implements Plugin<Project> {
                         'tests.security.manager': 'true',
                         'jna.nosys': 'true'
 
+                test.systemProperty ('java.locale.providers','SPI,COMPAT')
+
                 // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
                 if (System.getProperty('ignore.tests.seed') != null) {
                     nonInputProperties.systemProperty('tests.seed', project.property('testSeed'))

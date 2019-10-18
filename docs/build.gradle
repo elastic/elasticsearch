@@ -972,12 +972,11 @@ buildRestTests.setups['server_metrics_index'] = '''
               number_of_shards: 1
               number_of_replicas: 0
             mappings:
-              metric:
-                properties:
-                  timestamp:
-                    type: date
-                  total:
-                    type: long
+              properties:
+                timestamp:
+                  type: date
+                total:
+                  type: long
 '''
 buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_metrics_index'] + '''
   - do:

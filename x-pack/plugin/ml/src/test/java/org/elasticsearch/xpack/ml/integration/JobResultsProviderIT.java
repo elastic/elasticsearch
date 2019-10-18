@@ -563,7 +563,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         for (ScheduledEvent event : events) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(
+                    ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
                 indexRequest.source(event.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
@@ -606,7 +607,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         for (MlFilter filter : filters) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(
+                    ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
                 indexRequest.source(filter.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
@@ -636,7 +638,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         for (Calendar calendar: calendars) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(calendar.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(
+                    Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
                 indexRequest.source(calendar.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }

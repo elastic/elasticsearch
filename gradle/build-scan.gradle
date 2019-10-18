@@ -1,7 +1,9 @@
 import org.elasticsearch.gradle.OS
 
 buildScan {
-    def jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+    URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+    String buildNumber = System.getenv('BUILD_NUMBER')
+    String jobName =  System.getenv('JOB_NAME')
 
     tag OS.current().name()
 
@@ -16,6 +18,8 @@ buildScan {
         tag 'CI'
         tag System.getenv('JOB_NAME')
         link 'Jenkins Build', System.getenv('BUILD_URL')
+        link 'GCP Upload',
+                "https://console.cloud.google.com/storage/elasticsearch-ci-artifacts/jobs/${jobName}/${buildNumber}.tar.bz2"
         System.getenv('NODE_LABELS').split(' ').each {
             value 'Jenkins Worker Label', it
         }

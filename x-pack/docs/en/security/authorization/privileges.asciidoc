@@ -171,13 +171,17 @@ Privilege to index documents. Also grants access to the update mapping action.
 However, it does not enable a user to update existing documents.
 +
 --
-NOTE: This privilege relies on the `op_type` of indexing requests via <<docs-index_,Index API>>
-or <<docs-bulk,Bulk API>>.
-When ingesting documents as a user who has the `create_doc` privilege (and no higher privilege
-such as `index` or `write`), the `op_type` can be set to `create` through one of the following:
-1. Explicitly setting the `op_type` parameter
-2. Calling the `_create` endpoint
-3. Creating a document with an auto-generated `_id`
+[NOTE]
+====
+This privilege relies on the `op_type` of indexing requests (<<docs-index_>> and
+<<docs-bulk>>). When ingesting documents as a user who has the `create_doc`
+privilege (and no higher privilege such as `index` or `write`), the `op_type`
+can be set to `create` through one of the following:
+
+* Explicitly setting the `op_type` in the index or bulk APIs
+* Using the `_create` endpoint for the index API
+* Creating a document with an auto-generated `_id`
+====
 
 --
 

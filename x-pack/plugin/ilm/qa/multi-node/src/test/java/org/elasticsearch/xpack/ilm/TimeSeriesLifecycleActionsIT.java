@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -881,8 +882,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertNotNull(onlyErrorsResponse);
             assertThat(onlyErrorsResponse, allOf(hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
             assertThat(onlyErrorsResponse, allOf(not(hasKey(goodIndex)), not(hasKey(unmanagedIndex))));
+
+            Map<String, Object> errorIndexResponse = onlyErrorsResponse.get(errorIndex);
+            assertThat(errorIndex + "should've had the rollover step retried once",
+                errorIndexResponse.get("failed_step_retry_count"), is(1));
+            assertThat(errorIndexResponse.get("is_transitive_error"), is(true));
         });
     }
+
     public void testILMRolloverRetriesOnReadOnlyBlock() throws Exception {
         String firstIndex = index + "-000001";
 

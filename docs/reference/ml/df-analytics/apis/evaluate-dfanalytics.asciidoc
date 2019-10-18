@@ -263,7 +263,7 @@ POST _ml/data_frame/_evaluate
    "evaluation": {
       "classification": { <1>
          "actual_field": "animal_class", <2>
-         "predicted_field": "ml.animal_class_prediction.keyword" <3>
+         "predicted_field": "ml.animal_class_prediction.keyword", <3>
          "metrics": {  
            "multiclass_confusion_matrix" : {}
          }
@@ -289,10 +289,10 @@ The API returns the following result:
       "multiclass_confusion_matrix" : {
          "confusion_matrix" : [
          {
-            "actual_class" : "cat",
-            "actual_class_doc_count" : 12,
-            "other_predicted_class_doc_count" : 0,
-            "predicted_classes" : [
+            "actual_class" : "cat", <1>
+            "actual_class_doc_count" : 12, <2>
+            "other_predicted_class_doc_count" : 0, <3>
+            "predicted_classes" : [ <4>
               {
                 "count" : 12,
                 "predicted_class" : "cat"
@@ -324,3 +324,7 @@ The API returns the following result:
     }
   }
 --------------------------------------------------
+<1>
+<2>
+<3>
+<4>

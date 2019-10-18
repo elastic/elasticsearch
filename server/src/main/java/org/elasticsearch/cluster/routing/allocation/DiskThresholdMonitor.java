@@ -336,10 +336,10 @@ public class DiskThresholdMonitor {
             .execute(ActionListener.map(wrappedListener, r -> null));
     }
 
-    private static void cleanUpRemovedNodes(ObjectLookupContainer<String> nodes, Set<String> nodesOverLowThreshold) {
-        for (String node : nodesOverLowThreshold) {
-            if (nodes.contains(node) == false) {
-                nodesOverLowThreshold.remove(node);
+    private static void cleanUpRemovedNodes(ObjectLookupContainer<String> nodesToKeep, Set<String> nodesToCleanUp) {
+        for (String node : nodesToCleanUp) {
+            if (nodesToKeep.contains(node) == false) {
+                nodesToCleanUp.remove(node);
             }
         }
     }

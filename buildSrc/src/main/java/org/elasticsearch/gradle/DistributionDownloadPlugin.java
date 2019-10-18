@@ -227,7 +227,13 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 classifier = "";
             }
         } else if (distribution.getType() == Type.DEB) {
-            classifier = ":amd64";
+            if (distroVersion.onOrAfter("7.0.0")) {
+                classifier = ":amd64";
+            } else {
+                classifier = "";
+            }
+        } else if (distribution.getType() == Type.RPM && distroVersion.before("7.0.0")) {
+            classifier = "";
         }
         String flavor = "";
         if (distribution.getFlavor() == Flavor.OSS && distroVersion.onOrAfter("6.3.0")) {

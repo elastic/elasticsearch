@@ -7,11 +7,18 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.cbor.CborXContent;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
 
 public abstract class BaseRestSqlTestCase extends ESRestTestCase {
     
@@ -33,5 +40,28 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
 
     public static String randomMode() {
         return randomFrom(StringUtils.EMPTY, "jdbc", "plain");
+    }
+
+    /**
+     * CBOR XContent parser returns floating point numbers as Floats, while JSON parser as Doubles.
+     * To have the tests compare the correct data type, the floating point numbers types should be passed accordingly, to the comparators.
+     */
+    public static Number xContentDependentFloatingNumberValue(String mode, Number value) {
+        Mode m = Mode.fromString(mode);
+        if (Mode.isDriver(m) || m == Mode.CLI) {
+            return value.floatValue();
+        } else {
+            return value.doubleValue();
+        }
+    }
+    
+    public static Map<String, Object> toMap(Response response, String mode) throws IOException {
+        try (InputStream content = response.getEntity().getContent()) {
+            if (Mode.fromString(mode) == Mode.JDBC) {
+                return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);
+            } else {
+                return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+            }
+        }
     }
 }

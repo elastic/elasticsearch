@@ -76,10 +76,7 @@ public class ScoreScriptUtils {
                 throw ExceptionsHelper.convertToElastic(e);
             }
 
-            return docValues.getEncodedValue();
-        }
-
-        void validateDocVector(BytesRef vector) {
+            BytesRef vector = docValues.getEncodedValue();
             if (vector == null) {
                 throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
             }
@@ -89,6 +86,7 @@ public class ScoreScriptUtils {
                 throw new IllegalArgumentException("The query vector has a different number of dimensions [" +
                     queryVector.length + "] than the document vectors [" + vectorLength + "].");
             }
+            return vector;
         }
     }
 
@@ -101,8 +99,6 @@ public class ScoreScriptUtils {
 
         public double l1norm() {
             BytesRef vector = getEncodedVector();
-            validateDocVector(vector);
-
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
             double l1norm = 0;
 
@@ -122,8 +118,6 @@ public class ScoreScriptUtils {
 
         public double l2norm() {
             BytesRef vector = getEncodedVector();
-            validateDocVector(vector);
-
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double l2norm = 0;
@@ -144,8 +138,6 @@ public class ScoreScriptUtils {
 
         public double dotProduct() {
             BytesRef vector = getEncodedVector();
-            validateDocVector(vector);
-
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double dotProduct = 0;
@@ -165,8 +157,6 @@ public class ScoreScriptUtils {
 
         public double cosineSimilarity() {
             BytesRef vector = getEncodedVector();
-            validateDocVector(vector);
-
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double dotProduct = 0.0;
@@ -234,13 +224,11 @@ public class ScoreScriptUtils {
                 throw ExceptionsHelper.convertToElastic(e);
             }
 
-            return docValues.getEncodedValue();
-        }
-
-        void validateDocVector(BytesRef vector) {
+            BytesRef vector = docValues.getEncodedValue();
             if (vector == null) {
                 throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
             }
+            return vector;
         }
     }
 
@@ -252,7 +240,6 @@ public class ScoreScriptUtils {
 
         public double l1normSparse() {
             BytesRef vector = getEncodedVector();
-            validateDocVector(vector);
 
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
             float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), vector);
@@ -293,7 +280,6 @@ public class ScoreScriptUtils {
 
         public double l2normSparse() {
             BytesRef vector = getEncodedVector();
-            validateDocVector(vector);
 
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
             float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), vector);
@@ -336,7 +322,6 @@ public class ScoreScriptUtils {
 
         public double dotProductSparse() {
             BytesRef vector = getEncodedVector();
-            validateDocVector(vector);
 
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
             float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), vector);
@@ -359,7 +344,6 @@ public class ScoreScriptUtils {
 
         public double cosineSimilaritySparse() {
             BytesRef vector = getEncodedVector();
-            validateDocVector(vector);
 
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
             float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), vector);

@@ -543,12 +543,12 @@ public class TriangleTreeWriter implements Writeable {
             for (Rectangle r : rectangles) {
                 triangles.add(new TriangleTreeLeaf(
                     encoder.encodeX(r.getMinX()), encoder.encodeY(r.getMinY()),
-                    encoder.encodeX(r.getMaxX()), encoder.encodeX(r.getMinY()),
-                    encoder.encodeX(r.getMinX()), encoder.encodeX(r.getMaxY())));
+                    encoder.encodeX(r.getMaxX()), encoder.encodeY(r.getMinY()),
+                    encoder.encodeX(r.getMinX()), encoder.encodeY(r.getMaxY())));
                 triangles.add(new TriangleTreeLeaf(
                     encoder.encodeX(r.getMinX()), encoder.encodeY(r.getMaxY()),
-                    encoder.encodeX(r.getMaxX()), encoder.encodeX(r.getMinY()),
-                    encoder.encodeX(r.getMaxX()), encoder.encodeX(r.getMaxY())));
+                    encoder.encodeX(r.getMaxX()), encoder.encodeY(r.getMinY()),
+                    encoder.encodeX(r.getMaxX()), encoder.encodeY(r.getMaxY())));
             }
             return triangles;
         }
@@ -563,14 +563,14 @@ public class TriangleTreeWriter implements Writeable {
         }
 
         private static List<TriangleTreeLeaf> fromPolygon(CoordinateEncoder encoder, Polygon polygon) {
-            // TODO: We are going to be tesselating the polygon twice, can we do something?
+            // TODO: We are going to be tessellating the polygon twice, can we do something?
             // TODO: tessellator seems to have some reference to the encoding but does not need to have.
             List<Tessellator.Triangle> tessallation = Tessellator.tessellate(GeoShapeIndexer.toLucenePolygon(polygon));
             List<TriangleTreeLeaf> triangles = new ArrayList<>(tessallation.size());
             for (Tessellator.Triangle t : tessallation) {
-                triangles.add(new TriangleTreeLeaf(encoder.encodeX(t.getX(0)), encoder.encodeX(t.getY(0)),
-                    encoder.encodeX(t.getX(1)), encoder.encodeX(t.getY(1)),
-                    encoder.encodeX(t.getX(2)), encoder.encodeX(t.getY(2))));
+                triangles.add(new TriangleTreeLeaf(encoder.encodeX(t.getX(0)), encoder.encodeY(t.getY(0)),
+                    encoder.encodeX(t.getX(1)), encoder.encodeY(t.getY(1)),
+                    encoder.encodeX(t.getX(2)), encoder.encodeY(t.getY(2))));
             }
             return triangles;
         }

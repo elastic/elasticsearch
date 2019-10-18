@@ -1266,8 +1266,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("put-test-dest-index")
                 .build())
-            .setAnalysis(org.elasticsearch.client.ml.dataframe.Regression
-                .builder("my_dependent_variable")
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Regression.builder("my_dependent_variable")
                 .setTrainingPercent(80.0)
                 .build())
             .setDescription("this is a regression")
@@ -1301,9 +1300,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("put-test-dest-index")
                 .build())
-            .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification
-                .builder("my_dependent_variable")
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable")
                 .setTrainingPercent(80.0)
+                .setNumTopClasses(1)
                 .build())
             .setDescription("this is a classification")
             .build();

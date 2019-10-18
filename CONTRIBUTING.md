@@ -109,17 +109,16 @@ and `JAVA11_HOME` available so that the tests can pass.
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script in the root of the repository.
 
-We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
-minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
-IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+We support development in the Eclipse and IntelliJ IDEs. 
+For Eclipse, the minimum version that we support is [4.13][eclipse]. 
+For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
 
 ### Configuring IDEs And Running Tests
 
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`
-then `File: Import: Existing Projects into Workspace`. Select the
-option `Search for nested projects`. Additionally you will want to
-ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
-accordingly to avoid GC overhead errors.
+then `File: Import: Gradle : Existing Gradle Project`.
+Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying 
+`eclipse.ini` accordingly to avoid GC overhead and OOM errors.
 
 IntelliJ users can automatically configure their IDE: `./gradlew idea`
 then `File->New Project From Existing Sources`. Point to the root of
@@ -220,11 +219,47 @@ by running Gradle with `-Dspotless.paddedcell`.
 
 ### License Headers
 
-We require license headers on all Java files. You will notice that all the Java files in
-the top-level `x-pack` directory contain a separate license from the rest of the repository. This
-directory contains commercial code that is associated with a separate license. It can be helpful
-to have the IDE automatically insert the appropriate license header depending which part of the project
-contributions are made to.
+We require license headers on all Java files. With the exception of the
+top-level `x-pack` directory, all contributed code should have the following
+license header unless instructed otherwise:
+
+    /*
+     * Licensed to Elasticsearch under one or more contributor
+     * license agreements. See the NOTICE file distributed with
+     * this work for additional information regarding copyright
+     * ownership. Elasticsearch licenses this file to you under
+     * the Apache License, Version 2.0 (the "License"); you may
+     * not use this file except in compliance with the License.
+     * You may obtain a copy of the License at
+     *
+     *    http://www.apache.org/licenses/LICENSE-2.0
+     *
+     * Unless required by applicable law or agreed to in writing,
+     * software distributed under the License is distributed on an
+     * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+     * KIND, either express or implied.  See the License for the
+     * specific language governing permissions and limitations
+     * under the License.
+     */
+
+The top-level `x-pack` directory contains code covered by the [Elastic
+license](licenses/ELASTIC-LICENSE.txt). Community contributions to this code are
+welcome, and should have the following license header unless instructed
+otherwise:
+
+    /*
+     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+     * or more contributor license agreements. Licensed under the Elastic License;
+     * you may not use this file except in compliance with the Elastic License.
+     */
+
+It is important that the only code covered by the Elastic licence is contained
+within the top-level `x-pack` directory. The build will fail its pre-commit
+checks if contributed code does not have the appropriate license headers.
+
+You may find it helpful to configure your IDE to automatically insert the
+appropriate license header depending on the part of the project to which you are
+contributing.
 
 #### IntelliJ: Copyright & Scope Profiles
 
@@ -437,6 +472,6 @@ Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
-[eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
+[eclipse]: https://download.eclipse.org/eclipse/downloads/drops4/R-4.13-201909161045/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
 [shadow-plugin]: https://github.com/johnrengelman/shadow

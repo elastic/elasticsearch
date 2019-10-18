@@ -263,7 +263,9 @@ POST _ml/data_frame/_evaluate
    "evaluation": {
       "classification": { <1>
          "actual_field": "animal_class", <2>
-         "predicted_field": "animal_class_prediction" <3>
+         "predicted_field": "ml.animal_class_prediction.keyword" <3>
+         "metrics": {  
+           "multiclass_confusion_matrix" : {}
       }
    }
 }

@@ -106,6 +106,7 @@ public abstract class Exporter implements AutoCloseable {
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
                     key -> Setting.simpleString(
                         key,
+                        Exporter.INDEX_FORMAT,
                         new Setting.Validator<String>() {
                             @Override
                             public void validate(String value) {

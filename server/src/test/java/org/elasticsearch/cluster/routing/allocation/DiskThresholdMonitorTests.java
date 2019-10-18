@@ -451,6 +451,26 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
         assertSingleInfoMessage(monitor, allDisksOk,
             "low disk watermark [85%] no longer exceeded on *");
+
+        assertRepeatedWarningMessages(monitor, aboveFloodStageWatermark,
+            "flood stage disk watermark [95%] exceeded on * all indices on this node will be marked read-only");
+
+        assertSingleInfoMessage(monitor, allDisksOk,
+            "low disk watermark [85%] no longer exceeded on *");
+
+        assertRepeatedWarningMessages(monitor, aboveHighWatermark,
+            "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
+                "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
+
+        assertSingleInfoMessage(monitor, allDisksOk,
+            "low disk watermark [85%] no longer exceeded on *");
+
+        assertRepeatedWarningMessages(monitor, aboveFloodStageWatermark,
+            "flood stage disk watermark [95%] exceeded on * all indices on this node will be marked read-only");
+
+        assertSingleInfoMessage(monitor, aboveLowWatermark,
+            "high disk watermark [90%] no longer exceeded on * but low disk watermark [85%] is still exceeded");
+
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor,

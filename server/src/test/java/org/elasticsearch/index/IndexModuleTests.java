@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -84,13 +85,16 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -354,11 +358,19 @@ public class IndexModuleTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
-        module.forceQueryCacheProvider((a, b) -> new CustomQueryCache());
-        expectThrows(AlreadySetException.class, () -> module.forceQueryCacheProvider((a, b) -> new CustomQueryCache()));
+        final Set<CustomQueryCache> liveQueryCaches = new HashSet<>();
+        module.forceQueryCacheProvider((a, b) -> {
+            final CustomQueryCache customQueryCache = new CustomQueryCache(liveQueryCaches);
+            liveQueryCaches.add(customQueryCache);
+            return customQueryCache;
+        });
+        expectThrows(AlreadySetException.class, () -> module.forceQueryCacheProvider((a, b) -> {
+            throw new AssertionError("never called");
+        }));
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof CustomQueryCache);
         indexService.close("simon says", false);
+        assertThat(liveQueryCaches, empty());
     }
 
     public void testDefaultQueryCacheImplIsSelected() throws IOException {
@@ -379,10 +391,27 @@ public class IndexModuleTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
-        module.forceQueryCacheProvider((a, b) -> new CustomQueryCache());
+        module.forceQueryCacheProvider((a, b) -> new CustomQueryCache(null));
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof DisabledQueryCache);
         indexService.close("simon says", false);
+    }
+
+    public void testCustomQueryCacheCleanedUpIfIndexServiceCreationFails() {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
+        final Set<CustomQueryCache> liveQueryCaches = new HashSet<>();
+        module.forceQueryCacheProvider((a, b) -> {
+            final CustomQueryCache customQueryCache = new CustomQueryCache(liveQueryCaches);
+            liveQueryCaches.add(customQueryCache);
+            return customQueryCache;
+        });
+        threadPool.shutdown(); // causes index service creation to fail
+        expectThrows(EsRejectedExecutionException.class, () -> newIndexService(module));
+        assertThat(liveQueryCaches, empty());
     }
 
     public void testMmapNotAllowed() {
@@ -403,12 +432,19 @@ public class IndexModuleTests extends ESTestCase {
 
     class CustomQueryCache implements QueryCache {
 
+        private final Set<CustomQueryCache> liveQueryCaches;
+
+        CustomQueryCache(Set<CustomQueryCache> liveQueryCaches) {
+            this.liveQueryCaches = liveQueryCaches;
+        }
+
         @Override
         public void clear(String reason) {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
+            assertTrue(liveQueryCaches == null || liveQueryCaches.remove(this));
         }
 
         @Override

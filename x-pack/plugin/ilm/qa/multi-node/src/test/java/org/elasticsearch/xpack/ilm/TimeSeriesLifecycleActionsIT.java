@@ -38,10 +38,12 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
+import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -292,7 +294,18 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+            .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 1)
+        );
+
+        Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
+        updateLifecylePollSetting.setJsonEntity("{" +
+            "  \"transient\": {\n" +
+            "     \"indices.lifecycle.poll_interval\" : \"1s\" \n" +
+            "  }\n" +
+            "}");
+        client().performRequest(updateLifecylePollSetting);
+
         // create policy
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
         // update policy on index
@@ -828,15 +841,27 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String nonexistantPolicyIndex = index + "-nonexistant-policy";
         String unmanagedIndex = index + "-unmanaged";
 
+        Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
+        updateLifecylePollSetting.setJsonEntity("{" +
+            "  \"transient\": {\n" +
+            "     \"indices.lifecycle.poll_interval\" : \"1s\" \n" +
+            "  }\n" +
+            "}");
+        client().performRequest(updateLifecylePollSetting);
+
         createFullPolicy(TimeValue.ZERO);
 
         createIndexWithSettings(goodIndex, Settings.builder()
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 1)
+        );
         createIndexWithSettingsNoAlias(errorIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 1)
+        );
         createIndexWithSettingsNoAlias(nonexistantPolicyIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(3,10))));
@@ -859,6 +884,45 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(onlyErrorsResponse, allOf(hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
             assertThat(onlyErrorsResponse, allOf(not(hasKey(goodIndex)), not(hasKey(unmanagedIndex))));
         });
+    }
+    public void testILMRolloverRetriesOnReadOnlyBlock() throws Exception {
+        String firstIndex = index + "-000001";
+
+        Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
+        updateLifecylePollSetting.setJsonEntity("{" +
+            "  \"transient\": {\n" +
+            "     \"indices.lifecycle.poll_interval\" : \"1s\" \n" +
+            "  }\n" +
+            "}");
+        client().performRequest(updateLifecylePollSetting);
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null));
+
+        // create the index as readonly and associate the ILM policy to it
+        createIndexWithSettings(
+            firstIndex,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+                .put("index.blocks.read_only", true),
+            true
+        );
+
+        // wait for ILM to start retrying the step
+        assertBusy(() -> assertThat(getStepKeyForIndex(firstIndex).getName(), equalTo(WaitForRolloverReadyStep.NAME)));
+
+        // remove the read only block
+        Request allowWritesOnIndexSettingUpdate = new Request("PUT", firstIndex + "/_settings");
+        allowWritesOnIndexSettingUpdate.setJsonEntity("{" +
+            "  \"index\": {\n" +
+            "     \"blocks.read_only\" : \"false\" \n" +
+            "  }\n" +
+            "}");
+        client().performRequest(allowWritesOnIndexSettingUpdate);
+
+        // index is not readonly so the ILM should complete successfully
+        assertBusy(() -> assertThat(getStepKeyForIndex(firstIndex), equalTo(TerminalPolicyStep.KEY)));
     }
 
    public void testILMRolloverOnManuallyRolledIndex() throws Exception {

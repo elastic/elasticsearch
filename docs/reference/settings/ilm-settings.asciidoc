@@ -39,3 +39,9 @@ the index creation will fail.
 The timestamp that will be used to calculate the index age for its phase
 transitions. This allows the users to create an index containing old data and
 use the original creation date of the old data to calculate the index age.
+
+`index.lifecycle.max_failed_step_retries_count`::
+Some steps are safe to retry when they fail due to transitive errors. {ilm}
+will attempt to retry execution in these scenarios. This allows the users to
+configure how many times should {ilm} retry a step before abandoning and moving
+to the `ERROR` step.

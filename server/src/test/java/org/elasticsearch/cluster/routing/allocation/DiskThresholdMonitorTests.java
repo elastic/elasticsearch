@@ -402,7 +402,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
 
             @Override
-            long sizeOfRelocatingShards(ClusterInfo info, ClusterState reroutedClusterState, DiskUsage diskUsage, RoutingNode routingNode) {
+            long sizeOfRelocatingShards(RoutingNode routingNode, DiskUsage diskUsage, ClusterInfo info, ClusterState reroutedClusterState) {
                 return relocatingShardSizeRef.get();
             }
         };

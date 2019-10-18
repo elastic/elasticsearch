@@ -235,7 +235,7 @@ public class DiskThresholdMonitor {
                     final DiskUsage usageIncludingRelocations;
                     final long relocatingShardsSize;
                     if (routingNode != null) { // might be temporarily null if the ClusterInfoService and the ClusterService are out of step
-                        relocatingShardsSize = sizeOfRelocatingShards(info, reroutedClusterState, diskUsage, routingNode);
+                        relocatingShardsSize = sizeOfRelocatingShards(routingNode, diskUsage, info, reroutedClusterState);
                         usageIncludingRelocations = new DiskUsage(diskUsage.getNodeId(), diskUsage.getNodeName(),
                             diskUsage.getPath(), diskUsage.getTotalBytes(), diskUsage.getFreeBytes() - relocatingShardsSize);
                     } else {
@@ -297,7 +297,7 @@ public class DiskThresholdMonitor {
     }
 
     // exposed for tests to override
-    long sizeOfRelocatingShards(ClusterInfo info, ClusterState reroutedClusterState, DiskUsage diskUsage, RoutingNode routingNode) {
+    long sizeOfRelocatingShards(RoutingNode routingNode, DiskUsage diskUsage, ClusterInfo info, ClusterState reroutedClusterState) {
         return DiskThresholdDecider.sizeOfRelocatingShards(routingNode, true,
             diskUsage.getPath(), info, reroutedClusterState.metaData(), reroutedClusterState.routingTable());
     }

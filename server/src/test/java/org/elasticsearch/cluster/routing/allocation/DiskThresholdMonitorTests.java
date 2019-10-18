@@ -379,14 +379,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(clusterState);
+        final AtomicBoolean advanceTime = new AtomicBoolean(randomBoolean());
 
         final LongSupplier timeSupplier = new LongSupplier() {
             long time;
 
             @Override
             public long getAsLong() {
-                // advance time every check
-                time += DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).getMillis() + 1;
+                if (advanceTime.get()) {
+                    time += DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).getMillis() + 1;
+                }
+                logger.info("time: [{}]", time);
                 return time;
             }
         };
@@ -429,35 +432,54 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertSingleInfoMessage(monitor, aboveLowWatermark,
             "low disk watermark [85%] exceeded on * replicas will not be assigned to this node");
 
+        advanceTime.set(false); // will do one reroute and emit warnings, but subsequent reroutes and associated messages are delayed
+        assertSingleWarningMessage(monitor, aboveHighWatermark,
+            "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
+                "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
+
+        advanceTime.set(true);
         assertRepeatedWarningMessages(monitor, aboveHighWatermark,
             "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
                 "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
 
+        advanceTime.set(randomBoolean());
         assertRepeatedWarningMessages(monitor, aboveFloodStageWatermark,
             "flood stage disk watermark [95%] exceeded on * all indices on this node will be marked read-only");
 
         relocatingShardSizeRef.set(-5L);
+        advanceTime.set(true);
         assertSingleInfoMessage(monitor, aboveHighWatermark,
             "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
                 "the node is expected to be below the high disk watermark when these relocations are complete");
 
         relocatingShardSizeRef.set(0L);
+        timeSupplier.getAsLong(); // advance time long enough to do another reroute
+        advanceTime.set(false); // will do one reroute and emit warnings, but subsequent reroutes and associated messages are delayed
+        assertSingleWarningMessage(monitor, aboveHighWatermark,
+            "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
+                "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
+
+        advanceTime.set(true);
         assertRepeatedWarningMessages(monitor, aboveHighWatermark,
             "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
                 "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
 
+        advanceTime.set(randomBoolean());
         assertSingleInfoMessage(monitor, aboveLowWatermark,
             "high disk watermark [90%] no longer exceeded on * but low disk watermark [85%] is still exceeded");
 
+        advanceTime.set(true); // only log about dropping below the low disk watermark on a reroute
         assertSingleInfoMessage(monitor, allDisksOk,
             "low disk watermark [85%] no longer exceeded on *");
 
+        advanceTime.set(randomBoolean());
         assertRepeatedWarningMessages(monitor, aboveFloodStageWatermark,
             "flood stage disk watermark [95%] exceeded on * all indices on this node will be marked read-only");
 
         assertSingleInfoMessage(monitor, allDisksOk,
             "low disk watermark [85%] no longer exceeded on *");
 
+        advanceTime.set(true);
         assertRepeatedWarningMessages(monitor, aboveHighWatermark,
             "high disk watermark [90%] exceeded on * shards will be relocated away from this node* " +
                 "the node is expected to continue to exceed the high disk watermark when these relocations are complete");
@@ -506,6 +528,13 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         for (int i = between(1, 3); i >= 0; i--) {
             assertLogging(monitor, diskUsages, Level.WARN, message);
         }
+    }
+
+    private void assertSingleWarningMessage(DiskThresholdMonitor monitor,
+                                            ImmutableOpenMap<String, DiskUsage> diskUsages,
+                                            String message) throws IllegalAccessException {
+        assertLogging(monitor, diskUsages, Level.WARN, message);
+        assertNoLogging(monitor, diskUsages);
     }
 
     private void assertSingleInfoMessage(DiskThresholdMonitor monitor,

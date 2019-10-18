@@ -41,6 +41,7 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.
@@ -91,7 +92,10 @@ final class JvmOptionsParser {
                 substitutePlaceholders(jvmOptions, Map.of("ES_TMPDIR", System.getenv("ES_TMPDIR")));
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
             substitutedJvmOptions.addAll(ergonomicJvmOptions);
-            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(substitutedJvmOptions);
+            final List<String> finalJvmOptions = Stream.concat(
+                SystemJvmOptions.systemJvmOptions().stream(), Stream.concat(substitutedJvmOptions.stream(), ergonomicJvmOptions.stream()))
+                    .collect(Collectors.toList());
+            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(finalJvmOptions);
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);
         } else {

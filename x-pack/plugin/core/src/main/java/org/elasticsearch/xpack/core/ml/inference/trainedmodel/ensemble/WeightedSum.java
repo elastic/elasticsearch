@@ -51,7 +51,7 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
     private final List<Double> weights;
 
     WeightedSum() {
-        this.weights = null;
+        this((List<Double>) null);
     }
 
     public WeightedSum(List<Double> weights) {

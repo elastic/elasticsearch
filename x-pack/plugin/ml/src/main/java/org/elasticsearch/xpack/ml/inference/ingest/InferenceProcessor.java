@@ -44,7 +44,6 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-
 public class InferenceProcessor extends AbstractProcessor {
 
     // How many total inference processors are allowed to be used in the cluster.
@@ -62,11 +61,11 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final String MODEL_INFO_FIELD = "model_info_field";
 
     private final Client client;
+    private final String modelId;
 
     private final String targetField;
     private final String modelInfoField;
     private final Map<String, Object> modelInfo;
-    private final String modelId;
     private final InferenceConfig inferenceConfig;
     private final Map<String, String> fieldMapping;
 
@@ -86,6 +85,10 @@ public class InferenceProcessor extends AbstractProcessor {
         this.fieldMapping = fieldMapping;
         this.modelInfo = new HashMap<>();
         this.modelInfo.put("model_id", modelId);
+    }
+
+    public String getModelId() {
+        return modelId;
     }
 
     @Override

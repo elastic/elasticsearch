@@ -43,6 +43,10 @@ public class ExceptionsHelper {
         return new ResourceAlreadyExistsException("A data frame analytics with id [{}] already exists", id);
     }
 
+    public static ResourceNotFoundException missingTrainedModel(String modelId) {
+        return new ResourceNotFoundException("No known trained model with model_id [{}]", modelId);
+    }
+
     public static ElasticsearchException serverError(String msg) {
         return new ElasticsearchException(msg);
     }

@@ -15,50 +15,51 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
+import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.sigmoid;
 
-public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyParsedOutputAggregator {
+public class LogisticRegression implements StrictlyParsedOutputAggregator, LenientlyParsedOutputAggregator {
 
-    public static final ParseField NAME = new ParseField("weighted_mode");
+    public static final ParseField NAME = new ParseField("logistic_regression");
     public static final ParseField WEIGHTS = new ParseField("weights");
 
-    private static final ConstructingObjectParser<WeightedMode, Void> LENIENT_PARSER = createParser(true);
-    private static final ConstructingObjectParser<WeightedMode, Void> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<LogisticRegression, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<LogisticRegression, Void> STRICT_PARSER = createParser(false);
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<WeightedMode, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<WeightedMode, Void> parser = new ConstructingObjectParser<>(
+    private static ConstructingObjectParser<LogisticRegression, Void> createParser(boolean lenient) {
+        ConstructingObjectParser<LogisticRegression, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new WeightedMode((List<Double>)a[0]));
+            a -> new LogisticRegression((List<Double>)a[0]));
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
         return parser;
     }
 
-    public static WeightedMode fromXContentStrict(XContentParser parser) {
+    public static LogisticRegression fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
     }
 
-    public static WeightedMode fromXContentLenient(XContentParser parser) {
+    public static LogisticRegression fromXContentLenient(XContentParser parser) {
         return LENIENT_PARSER.apply(parser, null);
     }
 
     private final List<Double> weights;
 
-    WeightedMode() {
+    LogisticRegression() {
         this((List<Double>) null);
     }
 
-    public WeightedMode(List<Double> weights) {
+    public LogisticRegression(List<Double> weights) {
         this.weights = weights == null ? null : Collections.unmodifiableList(weights);
     }
 
-    public WeightedMode(StreamInput in) throws IOException {
+    public LogisticRegression(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             this.weights = Collections.unmodifiableList(in.readList(StreamInput::readDouble));
         } else {
@@ -77,42 +78,26 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
         if (weights != null && values.size() != weights.size()) {
             throw new IllegalArgumentException("values must be the same length as weights.");
         }
-        List<Integer> freqArray = new ArrayList<>();
-        Integer maxVal = 0;
-        for (Double value : values) {
-            if (value == null) {
-                throw new IllegalArgumentException("values must not contain null values");
-            }
-            if (Double.isNaN(value) || Double.isInfinite(value) || value < 0.0 || value != Math.rint(value)) {
-                throw new IllegalArgumentException("values must be whole, non-infinite, and positive");
-            }
-            Integer integerValue = value.intValue();
-            freqArray.add(integerValue);
-            if (integerValue > maxVal) {
-                maxVal = integerValue;
-            }
-        }
-        List<Double> frequencies = new ArrayList<>(Collections.nCopies(maxVal + 1, Double.NEGATIVE_INFINITY));
-        for (int i = 0; i < freqArray.size(); i++) {
-            Double weight = weights == null ? 1.0 : weights.get(i);
-            Integer value = freqArray.get(i);
-            Double frequency = frequencies.get(value) == Double.NEGATIVE_INFINITY ? weight : frequencies.get(value) + weight;
-            frequencies.set(value, frequency);
-        }
-        return softMax(frequencies);
+        double summation = weights == null ?
+            values.stream().mapToDouble(Double::valueOf).sum() :
+            IntStream.range(0, weights.size()).mapToDouble(i -> values.get(i) * weights.get(i)).sum();
+        double probOfClassOne = sigmoid(summation);
+        assert 0.0 <= probOfClassOne && probOfClassOne <= 1.0;
+        return Arrays.asList(1.0 - probOfClassOne, probOfClassOne);
     }
 
     @Override
     public double aggregate(List<Double> values) {
         Objects.requireNonNull(values, "values must not be null");
+        assert values.size() == 2;
         int bestValue = 0;
-        double bestFreq = Double.NEGATIVE_INFINITY;
+        double bestProb = Double.NEGATIVE_INFINITY;
         for (int i = 0; i < values.size(); i++) {
             if (values.get(i) == null) {
                 throw new IllegalArgumentException("values must not contain null values");
             }
-            if (values.get(i) > bestFreq) {
-                bestFreq = values.get(i);
+            if (values.get(i) > bestProb) {
+                bestProb = values.get(i);
                 bestValue = i;
             }
         }
@@ -156,7 +141,7 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        WeightedMode that = (WeightedMode) o;
+        LogisticRegression that = (LogisticRegression) o;
         return Objects.equals(weights, that.weights);
     }
 

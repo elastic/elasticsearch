@@ -91,7 +91,6 @@ final class JvmOptionsParser {
             final List<String> substitutedJvmOptions =
                 substitutePlaceholders(jvmOptions, Map.of("ES_TMPDIR", System.getenv("ES_TMPDIR")));
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
-            substitutedJvmOptions.addAll(ergonomicJvmOptions);
             final List<String> finalJvmOptions = Stream.concat(
                 SystemJvmOptions.systemJvmOptions().stream(), Stream.concat(substitutedJvmOptions.stream(), ergonomicJvmOptions.stream()))
                     .collect(Collectors.toList());

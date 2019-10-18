@@ -128,8 +128,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
-        return in.getShardSnapshotStatus(snapshotId, version, indexId, shardId);
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        return in.getShardSnapshotStatus(snapshotId, indexId, shardId);
     }
 
     @Override

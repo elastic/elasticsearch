@@ -210,7 +210,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
+        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
             return null;
         }
 

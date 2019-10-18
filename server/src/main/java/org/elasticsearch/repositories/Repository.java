@@ -216,12 +216,11 @@ public interface Repository extends LifecycleComponent {
      * Retrieve shard snapshot status for the stored snapshot
      *
      * @param snapshotId snapshot id
-     * @param version    version of elasticsearch that created this snapshot
      * @param indexId    the snapshotted index id for the shard to get status for
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId);
+    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
 
 
 }

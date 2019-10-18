@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+
 public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCase {
 
     @Override
@@ -47,10 +49,9 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
             for (int i = 0; i < length; i++) {
                 out.writeByte((byte) random().nextInt(1 << 8));
             }
-            assertEquals(length, out.size());
+            assertThat(length, equalTo(out.size()));
             BytesArray ref = new BytesArray(out.bytes().toBytesRef().bytes, 0, length);
-            assertEquals(length, ref.length());
-            assertTrue(ref instanceof BytesArray);
+            assertThat(length, equalTo(ref.length()));
             assertThat(ref.length(), Matchers.equalTo(length));
             delegate = ref;
         } else if (paged.equals(type)) {
@@ -61,7 +62,6 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
             assertThat(byteArray.size(), Matchers.equalTo((long) length));
             BytesReference ref = new PagedBytesReference(byteArray, length);
             assertThat(ref.length(), Matchers.equalTo(length));
-            assertThat(ref, Matchers.instanceOf(PagedBytesReference.class));
             delegate = ref;
         } else {
             assert composite.equals(type);
@@ -73,12 +73,12 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
                 for (int j = 0; j < sliceLength; j++) {
                     out.writeByte((byte) random().nextInt(1 << 8));
                 }
-                assertEquals(sliceLength, out.size());
+                assertThat(sliceLength, equalTo(out.size()));
                 referenceList.add(out.bytes());
                 i += sliceLength;
             }
             BytesReference ref = new CompositeBytesReference(referenceList.toArray(new BytesReference[0]));
-            assertEquals(length, ref.length());
+            assertThat(length, equalTo(ref.length()));
             delegate = ref;
         }
         return new ReleasableBytesReference(delegate, () -> {

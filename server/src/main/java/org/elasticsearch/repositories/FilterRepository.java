@@ -77,14 +77,14 @@ public class FilterRepository implements Repository {
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                 Version version, ActionListener<SnapshotInfo> listener) {
+                                 boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
         in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, metaData, userMetadata, version, listener);
+            includeGlobalState, metaData, userMetadata, writeShardGens, listener);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener) {
-        in.deleteSnapshot(snapshotId, repositoryStateId, version, listener);
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
+        in.deleteSnapshot(snapshotId, repositoryStateId, writeShardGens, listener);
     }
 
     @Override
@@ -119,9 +119,9 @@ public class FilterRepository implements Repository {
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version version,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
                               ActionListener<String> listener) {
-        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, version, listener);
+        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
     }
     @Override
     public void restoreShard(Store store, SnapshotId snapshotId,

@@ -123,23 +123,23 @@ public interface Repository extends LifecycleComponent {
      * @param includeGlobalState include cluster global state
      * @param clusterMetaData    cluster metadata
      * @param userMetadata       user metadata
-     * @param version            minimum ES version the repository should be readable by
+     * @param writeShardGens     if shard generations should be written to the repository
      * @param listener listener to be called on completion of the snapshot
      */
     void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                           int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                           boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                          Version version, ActionListener<SnapshotInfo> listener);
+                          boolean writeShardGens, ActionListener<SnapshotInfo> listener);
 
     /**
      * Deletes snapshot
      *
      * @param snapshotId        snapshot id
      * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
-     * @param version           minimum ES version the repository should be readable by
+     * @param writeShardGens    if shard generations should be written to the repository
      * @param listener          completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener);
+    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener);
 
     /**
      * Returns snapshot throttle time in nanoseconds
@@ -201,7 +201,7 @@ public interface Repository extends LifecycleComponent {
      * @param listener            listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus,  Version version, ActionListener<String> listener);
+                       IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens, ActionListener<String> listener);
 
     /**
      * Restores snapshot of the shard.

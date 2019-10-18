@@ -566,7 +566,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             snapshot.includeGlobalState(),
                             metaDataForSnapshot(snapshot, clusterService.state().metaData()),
                             snapshot.userMetadata(),
-                            compatibleVersion(snapshot),
+                            snapshot.useShardGenerations(),
                             ActionListener.runAfter(ActionListener.wrap(ignored -> {
                             }, inner -> {
                                 inner.addSuppressed(exception);
@@ -1031,7 +1031,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.includeGlobalState(),
                     metaDataForSnapshot(entry, metaData),
                     entry.userMetadata(),
-                    compatibleVersion(entry),
+                    entry.useShardGenerations(),
                     ActionListener.wrap(snapshotInfo -> {
                         removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
@@ -1045,17 +1045,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 removeSnapshotFromClusterState(snapshot, null, e);
             }
         });
-    }
-
-    /**
-     * Determine the oldest {@link Version} of a node that must be able to read the snapshot that is written to the repository.
-     *
-     * @param entry SnapshotsInProgress Entry
-     * @return Oldest node version that the snapshot in the repository must be readable by
-     */
-    static Version compatibleVersion(SnapshotsInProgress.Entry entry) {
-        return entry.useShardGenerations()
-            ? Version.CURRENT : SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion();
     }
 
     /**
@@ -1370,11 +1359,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                               Version version) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(snapshot.getRepository());
-            repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, version, ActionListener.wrap(v -> {
-                    logger.info("snapshot [{}] deleted", snapshot);
-                    removeSnapshotDeletionFromClusterState(snapshot, null, l);
-                }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
-            ));
+            repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
+                ActionListener.wrap(v -> {
+                        logger.info("snapshot [{}] deleted", snapshot);
+                        removeSnapshotDeletionFromClusterState(snapshot, null, l);
+                    }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
+                ));
         }));
     }
 
@@ -1436,7 +1426,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         MetaData metaData = clusterState.metaData();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
-        final boolean newFormat = compatibleVersion(snapshot).onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
         for (IndexId index : snapshot.indices()) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
@@ -1450,7 +1439,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
                     ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                     final String shardRepoGeneration;
-                    if (newFormat) {
+                    if (snapshot.useShardGenerations()) {
                         if (isNewIndex) {
                             assert shardGenerations.getShardGen(index, shardId.getId()) == null
                                 : "Found shard generation for new index [" + index + "]";

@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContent;
@@ -73,7 +72,7 @@ public class RepositoryDataTests extends ESTestCase {
     public void testXContent() throws IOException {
         RepositoryData repositoryData = generateRandomRepoData();
         XContentBuilder builder = JsonXContent.contentBuilder();
-        repositoryData.snapshotsToXContent(builder, Version.CURRENT);
+        repositoryData.snapshotsToXContent(builder, true);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             long gen = (long) randomIntBetween(0, 500);
             RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
@@ -179,7 +178,7 @@ public class RepositoryDataTests extends ESTestCase {
         final RepositoryData repositoryData = generateRandomRepoData();
 
         XContentBuilder builder = XContentBuilder.builder(xContent);
-        repositoryData.snapshotsToXContent(builder, Version.CURRENT);
+        repositoryData.snapshotsToXContent(builder, true);
         RepositoryData parsedRepositoryData;
         try (XContentParser xParser = createParser(builder)) {
             parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId());
@@ -215,7 +214,7 @@ public class RepositoryDataTests extends ESTestCase {
             indexSnapshots, shardGenBuilder.build());
 
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
-        corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, Version.CURRENT);
+        corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, true);
 
         try (XContentParser xParser = createParser(corruptedBuilder)) {
             ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->

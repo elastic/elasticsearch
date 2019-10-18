@@ -48,12 +48,12 @@ PUT my_index/_doc/2
 
 The `ignore_malformed` setting is currently supported by the following <<mapping-types,mapping types>>:
 
-* <<number>>::         `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
-* <<date>>::           `date`
-* <<date_nanos>>::     `date_nanos`
-* <<geo-point>>::     `geo_point` for lat/lon points
-* <<geo-shape>>::     `geo_shape` for complex shapes like polygons
-* <<ip>>::            `ip` for IPv4 and IPv6 addresses
+<<number>>::         `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
+<<date>>::           `date`
+<<date_nanos>>::     `date_nanos`
+<<geo-point>>::     `geo_point` for lat/lon points
+<<geo-shape>>::     `geo_shape` for complex shapes like polygons
+<<ip>>::            `ip` for IPv4 and IPv6 addresses
 
 TIP: The `ignore_malformed` setting value can be updated on
 existing fields using the <<indices-put-mapping,PUT mapping API>>.

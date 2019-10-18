@@ -266,6 +266,7 @@ POST _ml/data_frame/_evaluate
          "predicted_field": "ml.animal_class_prediction.keyword" <3>
          "metrics": {  
            "multiclass_confusion_matrix" : {}
+         }
       }
    }
 }
@@ -286,17 +287,40 @@ The API returns the following result:
 {
    "classification" : {
       "multiclass_confusion_matrix" : {
-         "confusion_matrix" : {
-            "cat" : {
-               "cat" : 12,
-               "dog" : 3,
-            },
-            "dog" : {
-               "dog" : 11,
-               "cat" : 4,
-            }
-         }
+         "confusion_matrix" : [
+         {
+            "actual_class" : "cat",
+            "actual_class_doc_count" : 12,
+            "other_predicted_class_doc_count" : 0,
+            "predicted_classes" : [
+              {
+                "count" : 12,
+                "predicted_class" : "cat"
+              },
+              {
+                "count" : 0,
+                "predicted_class" : "dog"
+              }
+            ]
+          },
+          {
+            "actual_class" : "dog",
+            "actual_class_doc_count" : 11,
+            "other_predicted_class_doc_count" : 4,
+            "predicted_classes" : [
+              {
+                "count" : 11,
+                "predicted_class" : "dog"
+              },
+              {
+                "count" : 4,
+                "predicted_class" : "cat"
+              }
+            ]
+          }
+        ],
+        "other_actual_class_count" : 0
       }
-   }
-}
+    }
+  }
 --------------------------------------------------

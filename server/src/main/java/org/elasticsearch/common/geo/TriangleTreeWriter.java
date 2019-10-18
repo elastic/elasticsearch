@@ -564,10 +564,10 @@ public class TriangleTreeWriter implements Writeable {
 
         private static List<TriangleTreeLeaf> fromPolygon(CoordinateEncoder encoder, Polygon polygon) {
             // TODO: We are going to be tessellating the polygon twice, can we do something?
-            // TODO: tessellator seems to have some reference to the encoding but does not need to have.
-            List<Tessellator.Triangle> tessallation = Tessellator.tessellate(GeoShapeIndexer.toLucenePolygon(polygon));
-            List<TriangleTreeLeaf> triangles = new ArrayList<>(tessallation.size());
-            for (Tessellator.Triangle t : tessallation) {
+            // TODO: Tessellator seems to have some reference to the encoding but does not need to have.
+            List<Tessellator.Triangle> tessellation = Tessellator.tessellate(GeoShapeIndexer.toLucenePolygon(polygon));
+            List<TriangleTreeLeaf> triangles = new ArrayList<>(tessellation.size());
+            for (Tessellator.Triangle t : tessellation) {
                 triangles.add(new TriangleTreeLeaf(encoder.encodeX(t.getX(0)), encoder.encodeY(t.getY(0)),
                     encoder.encodeX(t.getX(1)), encoder.encodeY(t.getY(1)),
                     encoder.encodeX(t.getX(2)), encoder.encodeY(t.getY(2))));

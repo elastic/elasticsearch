@@ -56,8 +56,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.CopyBytesServerSocketChannel;
-import org.elasticsearch.transport.CopyBytesSocketChannel;
 import org.elasticsearch.transport.NettyAllocator;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
@@ -149,8 +147,10 @@ public class Netty4Transport extends TcpTransport {
     private Bootstrap createClientBootstrap(NioEventLoopGroup eventLoopGroup) {
         final Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(eventLoopGroup);
-        bootstrap.channel(CopyBytesSocketChannel.class);
-        bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.ALLOCATOR);
+
+        // NettyAllocator will return the channel type designed to work with the configured allocator
+        bootstrap.channel(NettyAllocator.getChannelType());
+        bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
@@ -208,14 +208,12 @@ public class Netty4Transport extends TcpTransport {
 
         serverBootstrap.group(eventLoopGroup);
 
-        // CopyBytesServerSocketChannel which will create child channels of type CopyBytesSocketChannel.
-        // CopyBytesSocketChannel pool a single direct buffer per-event-loop thread to be used for IO
-        // operations.
-        serverBootstrap.channel(CopyBytesServerSocketChannel.class);
+        // NettyAllocator will return the channel type designed to work with the configuredAllocator
+        serverBootstrap.channel(NettyAllocator.getServerChannelType());
 
         // Set the allocators for both the server channel and the child channels created
-        serverBootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.ALLOCATOR);
-        serverBootstrap.childOption(ChannelOption.ALLOCATOR, NettyAllocator.ALLOCATOR);
+        serverBootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
+        serverBootstrap.childOption(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
         serverBootstrap.childHandler(getServerChannelInitializer(name));
         serverBootstrap.handler(new ServerChannelExceptionHandler());

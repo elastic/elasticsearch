@@ -45,7 +45,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.CopyBytesSocketChannel;
 import org.elasticsearch.transport.NettyAllocator;
 
 import java.io.Closeable;
@@ -87,8 +86,8 @@ class Netty4HttpClient implements Closeable {
 
     Netty4HttpClient() {
         clientBootstrap = new Bootstrap()
-            .channel(CopyBytesSocketChannel.class)
-            .option(ChannelOption.ALLOCATOR, NettyAllocator.ALLOCATOR)
+            .channel(NettyAllocator.getChannelType())
+            .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
             .group(new NioEventLoopGroup());
     }
 

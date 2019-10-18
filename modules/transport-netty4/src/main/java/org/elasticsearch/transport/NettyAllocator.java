@@ -24,13 +24,18 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
+import io.netty.channel.Channel;
+import io.netty.channel.ServerChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 public class NettyAllocator {
 
-    public static final ByteBufAllocator ALLOCATOR;
+    private static final ByteBufAllocator ALLOCATOR;
 
-    private static final String USE_UNPOOLED = "es.unsafe.use_unpooled_allocator";
+    private static final String USE_UNPOOLED = "es.use_unpooled_allocator";
     private static final String USE_NETTY_DEFAULT = "es.unsafe.use_netty_default_allocator";
 
     static {
@@ -38,8 +43,8 @@ public class NettyAllocator {
             ALLOCATOR = ByteBufAllocator.DEFAULT;
         } else {
             ByteBufAllocator delegate;
-            if (Booleans.parseBoolean(System.getProperty(USE_UNPOOLED), false)) {
-                delegate = UnpooledByteBufAllocator.DEFAULT;
+            if (useUnpooled()) {
+                delegate = new NoDirectBuffers(UnpooledByteBufAllocator.DEFAULT);
             } else {
                 int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
                 int pageSize = PooledByteBufAllocator.defaultPageSize();
@@ -52,6 +57,39 @@ public class NettyAllocator {
                     smallCacheSize, normalCacheSize, useCacheForAllThreads);
             }
             ALLOCATOR = new NoDirectBuffers(delegate);
+        }
+    }
+
+    public static boolean useCopySocket() {
+        return ALLOCATOR instanceof NoDirectBuffers;
+    }
+
+    public static ByteBufAllocator getAllocator() {
+        return ALLOCATOR;
+    }
+
+    public static Class<? extends Channel> getChannelType() {
+        if (ALLOCATOR instanceof NoDirectBuffers) {
+            return CopyBytesSocketChannel.class;
+        } else {
+            return NioSocketChannel.class;
+        }
+    }
+
+    public static Class<? extends ServerChannel> getServerChannelType() {
+        if (ALLOCATOR instanceof NoDirectBuffers) {
+            return CopyBytesServerSocketChannel.class;
+        } else {
+            return NioServerSocketChannel.class;
+        }
+    }
+
+    private static boolean useUnpooled() {
+        if (Booleans.parseBoolean(System.getProperty(USE_UNPOOLED), false)) {
+            return true;
+        } else {
+            long heapSize = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+            return heapSize <= 1 << 30;
         }
     }
 

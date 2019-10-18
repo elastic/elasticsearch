@@ -55,14 +55,6 @@ final class JvmErgonomics {
         final List<String> ergonomicChoices = new ArrayList<>();
         final Map<String, Optional<String>> finalJvmOptions = finalJvmOptions(userDefinedJvmOptions);
         final long heapSize = extractHeapSize(finalJvmOptions);
-        final Map<String, String> systemProperties = extractSystemProperties(userDefinedJvmOptions);
-        if (systemProperties.containsKey("es.unsafe.use_unpooled_allocator") == false) {
-            if (heapSize <= 1 << 30) {
-                ergonomicChoices.add("-Des.unsafe.use_unpooled_allocator=true");
-            } else {
-                ergonomicChoices.add("-Des.unsafe.use_unpooled_allocator=false");
-            }
-        }
         final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);
         if (maxDirectMemorySize == 0) {
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);

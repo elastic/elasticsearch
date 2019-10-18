@@ -123,7 +123,6 @@ import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -917,12 +916,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 logger.error("Error loading the template for the " + AnomalyDetectorsIndex.jobResultsIndexPrefix() + " indices", e);
             }
 
-            try {
-                templates.put(InferenceIndexConstants.LATEST_INDEX_NAME, InferenceInternalIndex.getIndexTemplateMetaData());
-            } catch (IOException e) {
-                logger.error("Error loading the template for the " + InferenceIndexConstants.LATEST_INDEX_NAME + " index", e);
-            }
-
             return templates;
         };
     }
@@ -934,8 +927,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 AuditorField.NOTIFICATIONS_INDEX,
                 MlMetaIndex.INDEX_NAME,
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                InferenceIndexConstants.LATEST_INDEX_NAME);
+                AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }

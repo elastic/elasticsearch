@@ -88,7 +88,9 @@ public class InboundDecoder implements Closeable {
                     content = releasable;
                 }
                 if (decompressor != null) {
-                    decompressor.decompress(content.getReference());
+                    int consumed = decompressor.decompress(content.getReference());
+                    assert consumed == content.getReference().length();
+                    releasable.close();
                     success = true;
                     ReleasableBytesReference decompressed;
                     while ((decompressed = decompressor.pollDecompressedPage()) != null) {

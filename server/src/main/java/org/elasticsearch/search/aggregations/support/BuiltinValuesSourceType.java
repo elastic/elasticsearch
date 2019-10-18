@@ -19,19 +19,175 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.function.LongSupplier;
 
 public enum BuiltinValuesSourceType implements Writeable {
-    ANY,
-    NUMERIC,
-    BYTES,
-    GEOPOINT,
-    RANGE;
+    ANY {
+        @Override
+        public ValuesSource getEmpty() {
+            // TODO: Implement this or get rid of ANY
+            throw new UnsupportedOperationException("ValuesSourceType.ANY is still a special case");
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            // TODO: Implement this or get rid of ANY
+            throw new UnsupportedOperationException("ValuesSourceType.ANY is still a special case");
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            // TODO: Implement this or get rid of ANY
+            throw new UnsupportedOperationException("ValuesSourceType.ANY is still a special case");
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            return BYTES.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        }
+    },
+    NUMERIC {
+        @Override
+        public ValuesSource getEmpty() {
+            return ValuesSource.Numeric.EMPTY;
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            return new ValuesSource.Numeric.Script(script, scriptValueType);
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+
+            if (!(fieldContext.indexFieldData() instanceof IndexNumericFieldData)) {
+                throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
+                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+            }
+
+            ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData)fieldContext.indexFieldData());
+            if (script != null) {
+                // What's the difference between ValuesSource.Numeric.Script and ValuesSource.Numeric.WithScript?
+                dataSource = new ValuesSource.Numeric.WithScript(dataSource, script);
+            }
+            return dataSource;
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            Number missing = docValueFormat.parseDouble(rawMissing.toString(), false, now);
+            return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
+        }
+    },
+    BYTES {
+        @Override
+        public ValuesSource getEmpty() {
+            return ValuesSource.Bytes.WithOrdinals.EMPTY;
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            return new ValuesSource.Bytes.Script(script);
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
+            ValuesSource dataSource;
+            if (indexFieldData instanceof IndexOrdinalsFieldData) {
+                dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData((IndexOrdinalsFieldData) indexFieldData);
+            } else {
+                dataSource = new ValuesSource.Bytes.FieldData(indexFieldData);
+            }
+            if (script != null) {
+                // Again, what's the difference between WithScript and Script?
+                dataSource = new ValuesSource.WithScript(dataSource, script);
+            }
+            return dataSource;
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            final BytesRef missing = docValueFormat.parseBytesRef(rawMissing.toString());
+            if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
+                return MissingValues.replaceMissing((ValuesSource.Bytes.WithOrdinals) valuesSource, missing);
+            } else {
+                return MissingValues.replaceMissing((ValuesSource.Bytes) valuesSource, missing);
+            }
+        }
+    },
+    GEOPOINT {
+        @Override
+        public ValuesSource getEmpty() {
+            return ValuesSource.GeoPoint.EMPTY;
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            if (!(fieldContext.indexFieldData() instanceof IndexGeoPointFieldData)) {
+                throw new IllegalArgumentException("Expected geo_point type on field [" + fieldContext.field() +
+                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+            }
+
+            return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            // TODO: also support the structured formats of geo points
+            final GeoPoint missing = new GeoPoint(rawMissing.toString());
+            return MissingValues.replaceMissing((ValuesSource.GeoPoint) valuesSource, missing);
+        }
+    },
+    RANGE {
+        @Override
+        public ValuesSource getEmpty() {
+            throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + this.value());
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            MappedFieldType fieldType = fieldContext.fieldType();
+
+            if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
+                throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
+            }
+            RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType)fieldType;
+            return new ValuesSource.Range(fieldContext.indexFieldData(), rangeFieldType.rangeType());
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
+        }
+    };
 
     public static BuiltinValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -50,4 +206,10 @@ public enum BuiltinValuesSourceType implements Writeable {
     public String value() {
         return name().toLowerCase(Locale.ROOT);
     }
+
+    public abstract ValuesSource getEmpty();
+    public abstract ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType);
+    public abstract ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
+    public abstract ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                                LongSupplier now);
 }

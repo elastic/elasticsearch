@@ -18,14 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -33,7 +30,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -262,126 +258,29 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             if (missing() == null) {
                 // otherwise we will have values because of the missing value
                 vs = null;
-            } else if (valueSourceType() == BuiltinValuesSourceType.NUMERIC) {
-                vs = (VS) ValuesSource.Numeric.EMPTY;
-            } else if (valueSourceType() == BuiltinValuesSourceType.GEOPOINT) {
-                vs = (VS) ValuesSource.GeoPoint.EMPTY;
-            } else if (valueSourceType() == BuiltinValuesSourceType.BYTES) {
-                vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
             } else if (valueSourceType() == BuiltinValuesSourceType.ANY) {
+                // TODO: Clean up special cases around BuiltinValuesSourceType.ANY
                 vs = (VS) resolveMissingAny.apply(missing());
             } else {
-                throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + valueSourceType());
+                vs = (VS) valueSourceType().getEmpty();
             }
         } else {
-            vs = originalValuesSource();
+            if (fieldContext() == null) {
+                vs = (VS) valueSourceType().getScript(script(), scriptValueType());
+            } else {
+                if (valueSourceType() == BuiltinValuesSourceType.ANY) {
+                    // TODO: Clean up special cases around BuiltinValuesSourceType.ANY
+                    // falling back to bytes values
+                    vs = (VS) BuiltinValuesSourceType.BYTES.getField(fieldContext(), script());
+                } else {
+                    vs = (VS) valueSourceType().getField(fieldContext(), script());
+                }
+            }
         }
 
         if (missing() == null) {
             return vs;
         }
-
-        if (vs instanceof ValuesSource.Bytes) {
-            final BytesRef missing = format.parseBytesRef(missing().toString());
-            if (vs instanceof ValuesSource.Bytes.WithOrdinals) {
-                return (VS) MissingValues.replaceMissing((ValuesSource.Bytes.WithOrdinals) vs, missing);
-            } else {
-                return (VS) MissingValues.replaceMissing((ValuesSource.Bytes) vs, missing);
-            }
-        } else if (vs instanceof ValuesSource.Numeric) {
-            Number missing = format.parseDouble(missing().toString(), false, context::nowInMillis);
-            return (VS) MissingValues.replaceMissing((ValuesSource.Numeric) vs, missing);
-        } else if (vs instanceof ValuesSource.GeoPoint) {
-            // TODO: also support the structured formats of geo points
-            final GeoPoint missing = new GeoPoint(missing().toString());
-            return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
-        } else {
-            // Should not happen
-            throw new IllegalArgumentException("Can't apply missing values on a " + vs.getClass());
-        }
-    }
-
-    /**
-     * Return the original values source, before we apply `missing`.
-     */
-    private VS originalValuesSource() {
-        if (fieldContext() == null) {
-            if (valueSourceType() == BuiltinValuesSourceType.NUMERIC) {
-                return (VS) numericScript();
-            }
-            if (valueSourceType() == BuiltinValuesSourceType.BYTES) {
-                return (VS) bytesScript();
-            }
-            throw new AggregationExecutionException("value source of type [" + valueSourceType().name()
-                    + "] is not supported by scripts");
-        }
-
-        if (valueSourceType() == BuiltinValuesSourceType.NUMERIC) {
-            return (VS) numericField();
-        }
-        if (valueSourceType() == BuiltinValuesSourceType.GEOPOINT) {
-            return (VS) geoPointField();
-        }
-        if (valueSourceType() == BuiltinValuesSourceType.RANGE) {
-            return (VS) rangeField();
-        }
-        // falling back to bytes values
-        return (VS) bytesField();
-    }
-
-    private ValuesSource.Numeric numericScript() {
-        return new ValuesSource.Numeric.Script(script(), scriptValueType());
-    }
-
-    private ValuesSource.Numeric numericField() {
-
-        if (!(fieldContext().indexFieldData() instanceof IndexNumericFieldData)) {
-            throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext().field() +
-                    "], but got [" + fieldContext().fieldType().typeName() + "]");
-        }
-
-        ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData)fieldContext().indexFieldData());
-        if (script() != null) {
-            dataSource = new ValuesSource.Numeric.WithScript(dataSource, script());
-        }
-        return dataSource;
-    }
-
-    private ValuesSource bytesField() {
-        final IndexFieldData<?> indexFieldData = fieldContext().indexFieldData();
-        ValuesSource dataSource;
-        if (indexFieldData instanceof IndexOrdinalsFieldData) {
-            dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData((IndexOrdinalsFieldData) indexFieldData);
-        } else {
-            dataSource = new ValuesSource.Bytes.FieldData(indexFieldData);
-        }
-        if (script() != null) {
-            dataSource = new ValuesSource.WithScript(dataSource, script());
-        }
-        return dataSource;
-    }
-
-    private ValuesSource.Bytes bytesScript() {
-        return new ValuesSource.Bytes.Script(script());
-    }
-
-    private ValuesSource.GeoPoint geoPointField() {
-
-        if (!(fieldContext().indexFieldData() instanceof IndexGeoPointFieldData)) {
-            throw new IllegalArgumentException("Expected geo_point type on field [" + fieldContext().field() +
-                    "], but got [" + fieldContext().fieldType().typeName() + "]");
-        }
-
-        return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext().indexFieldData());
-    }
-
-    private ValuesSource rangeField() {
-        MappedFieldType fieldType = fieldContext.fieldType();
-
-        if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
-            throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
-        }
-        RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType)fieldType;
-        return new ValuesSource.Range(fieldContext().indexFieldData(), rangeFieldType.rangeType());
+        return (VS) valueSourceType().replaceMissing(vs, missing, format, context::nowInMillis);
     }
 }

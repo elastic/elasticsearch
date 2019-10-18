@@ -22,7 +22,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -195,44 +194,8 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            /*
-             * Check if requested API key name already exists to avoid duplicate key names,
-             * this check is best effort as there could be two nodes executing search and
-             * then index concurrently allowing a duplicate name.
-             */
-            checkDuplicateApiKeyNameAndCreateApiKey(authentication, request, userRoles, listener);
+            createApiKeyAndIndexIt(authentication, request, userRoles, listener);
         }
-    }
-
-    private void checkDuplicateApiKeyNameAndCreateApiKey(Authentication authentication, CreateApiKeyRequest request,
-                                                         Set<RoleDescriptor> userRoles,
-                                                         ActionListener<CreateApiKeyResponse> listener) {
-        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("doc_type", "api_key"))
-                .filter(QueryBuilders.termQuery("name", request.getName()))
-                .filter(QueryBuilders.termQuery("api_key_invalidated", false));
-        final BoolQueryBuilder expiredQuery = QueryBuilders.boolQuery()
-                .should(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli()))
-                .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
-        boolQuery.filter(expiredQuery);
-
-        final SearchRequest searchRequest = client.prepareSearch(SECURITY_MAIN_ALIAS)
-            .setQuery(boolQuery)
-            .setVersion(false)
-            .setSize(1)
-            .request();
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, SearchAction.INSTANCE, searchRequest,
-                ActionListener.wrap(
-                        indexResponse -> {
-                            if (indexResponse.getHits().getTotalHits().value > 0) {
-                                listener.onFailure(traceLog("create api key", new ElasticsearchSecurityException(
-                                        "Error creating api key as api key with name [{}] already exists", request.getName())));
-                            } else {
-                                createApiKeyAndIndexIt(authentication, request, userRoles, listener);
-                            }
-                        },
-                        listener::onFailure)));
     }
 
     private void createApiKeyAndIndexIt(Authentication authentication, CreateApiKeyRequest request, Set<RoleDescriptor> roleDescriptorSet,
@@ -884,22 +847,16 @@ public class ApiKeyService {
     public void getApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
                            ActionListener<GetApiKeyResponse> listener) {
         ensureEnabled();
-        if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
-            && Strings.hasText(apiKeyId) == false) {
-            logger.trace("none of the parameters [api key id, api key name, username, realm name] were specified for retrieval");
-            listener.onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
-        } else {
-            findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
-                ActionListener.wrap(apiKeyInfos -> {
-                    if (apiKeyInfos.isEmpty()) {
-                        logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
-                            realmName, username, apiKeyName, apiKeyId);
-                        listener.onResponse(GetApiKeyResponse.emptyResponse());
-                    } else {
-                        listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
-                    }
-                }, listener::onFailure));
-        }
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
+            ActionListener.wrap(apiKeyInfos -> {
+                if (apiKeyInfos.isEmpty()) {
+                    logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
+                        realmName, username, apiKeyName, apiKeyId);
+                    listener.onResponse(GetApiKeyResponse.emptyResponse());
+                } else {
+                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
+                }
+            }, listener::onFailure));
     }
 
     /**

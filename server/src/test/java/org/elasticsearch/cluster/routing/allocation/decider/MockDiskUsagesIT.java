@@ -188,13 +188,13 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 4) : between(0, 9));
 
         assertBusy(() -> assertBlocked(
-            client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar"),
+            client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar"),
             IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
 
         assertFalse(client().admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         // Cannot add further documents
-        assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
+        assertBlocked(client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
             IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
         assertSearchHits(client().prepareSearch("test").get(), "1");
 

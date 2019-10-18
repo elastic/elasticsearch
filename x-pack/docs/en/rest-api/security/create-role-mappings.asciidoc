@@ -27,7 +27,7 @@ Role mappings define which roles are assigned to each user. Each mapping has
 _rules_ that identify users and a list of _roles_ that are granted to those users.
 
 The role mapping APIs are generally the preferred way to manage role mappings
-rather than using {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files].
+rather than using <<mapping-roles-file,role mapping files>>.
 The create or update role mappings API cannot update role mappings that are defined
 in role mapping files.
 

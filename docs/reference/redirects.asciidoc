@@ -920,3 +920,20 @@ See <<monitoring-overview>>.
 
 See <<monitor-elasticsearch-cluster>>.
 
+[role="exclude",id="how-monitoring-works"]
+=== How monitoring works
+
+This page has moved.
+//TBD
+
+[role="exclude",id="monitoring-production"]
+=== Monitoring in a production cluster
+
+This page has moved.
+//TBD
+
+[role="exclude",id="es-monitoring-exporters"]
+=== Exporters
+
+This page has moved.
+//TBD

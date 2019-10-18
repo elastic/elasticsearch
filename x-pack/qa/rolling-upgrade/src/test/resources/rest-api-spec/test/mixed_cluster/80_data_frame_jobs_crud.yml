@@ -1,1 +1,1 @@
-// transform in mixed cluster is effectively disabled till 7.4, therefore tests are removed, see gh#48019
+# transform in mixed cluster is effectively disabled till 7.4, therefore tests are removed, see https://github.com/elastic/elasticsearch/issues/48019

@@ -53,6 +53,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     private static RestHighLevelClient restHighLevelClient;
+    private static boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
 
     @Before
     public void initHighLevelClient() throws IOException {
@@ -85,8 +86,6 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
      */
     protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
                                        AsyncMethod<Req, Resp> asyncMethod, RequestOptions options) throws IOException {
-        final boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
-
         if (async == false) {
             return syncMethod.execute(request, options);
         } else {
@@ -103,8 +102,6 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
      */
     protected static <Resp> Resp execute(SyncMethodNoRequest<Resp> syncMethodNoRequest, AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
             RequestOptions requestOptions) throws IOException {
-        final boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
-
         if (async == false) {
             return syncMethodNoRequest.execute(requestOptions);
         } else {

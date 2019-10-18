@@ -40,8 +40,9 @@ settings configured, this step is automatically performed by the nodes
 themselves. As this auto-bootstrapping is <<modules-discovery-quorums,inherently
 unsafe>>, when you start a brand new cluster in <<dev-vs-prod-mode,production
 mode>>, you must explicitly list the master-eligible nodes whose votes should be
-counted in the very first election.  This list is set using the
-`cluster.initial_master_nodes` setting.
+counted in the very first election. This list is set using the
+`cluster.initial_master_nodes` setting. You should not use this setting when
+restarting a cluster or adding a new node to an existing cluster.
 
 [source,yaml]
 --------------------------------------------------

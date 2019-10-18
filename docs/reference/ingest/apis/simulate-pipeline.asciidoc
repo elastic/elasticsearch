@@ -176,7 +176,6 @@ The API returns the following response:
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "bar"
@@ -190,7 +189,6 @@ The API returns the following response:
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "rab"
@@ -255,7 +253,6 @@ The API returns the following response:
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "bar"
@@ -269,7 +266,6 @@ The API returns the following response:
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "rab"
@@ -349,7 +345,6 @@ The API returns the following response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_doc",
                   "_source": {
                      "field2": "_value2",
                      "foo": "bar"
@@ -363,7 +358,6 @@ The API returns the following response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_doc",
                   "_source": {
                      "field3": "_value3",
                      "field2": "_value2",
@@ -382,7 +376,6 @@ The API returns the following response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_doc",
                   "_source": {
                      "field2": "_value2",
                      "foo": "rab"
@@ -396,7 +389,6 @@ The API returns the following response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_doc",
                   "_source": {
                      "field3": "_value3",
                      "field2": "_value2",

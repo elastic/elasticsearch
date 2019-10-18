@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
@@ -47,6 +48,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -66,6 +69,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
@@ -92,6 +96,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -178,7 +183,7 @@ public class IndexModuleTests extends ESTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "foo_store")
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = Collections.singletonMap(
+        final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = singletonMap(
             "foo_store", new FooFunction());
         final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), indexStoreFactories);
 
@@ -412,6 +417,50 @@ public class IndexModuleTests extends ESTestCase {
         threadPool.shutdown(); // causes index service creation to fail
         expectThrows(EsRejectedExecutionException.class, () -> newIndexService(module));
         assertThat(liveQueryCaches, empty());
+    }
+
+    public void testIndexAnalyzersCleanedUpIfIndexServiceCreationFails() {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+
+        final HashSet<Analyzer> openAnalyzers = new HashSet<>();
+        final AnalysisModule.AnalysisProvider<AnalyzerProvider<?>> analysisProvider = (i,e,n,s) -> new AnalyzerProvider<>() {
+            @Override
+            public String name() {
+                return "test";
+            }
+
+            @Override
+            public AnalyzerScope scope() {
+                return AnalyzerScope.INDEX;
+            }
+
+            @Override
+            public Analyzer get() {
+                final Analyzer analyzer = new Analyzer() {
+                    @Override
+                    protected TokenStreamComponents createComponents(String fieldName) {
+                        throw new AssertionError("should not be here");
+                    }
+
+                    @Override
+                    public void close() {
+                        super.close();
+                        openAnalyzers.remove(this);
+                    }
+                };
+                openAnalyzers.add(analyzer);
+                return analyzer;
+            }
+        };
+        final AnalysisRegistry analysisRegistry = new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(),
+            singletonMap("test", analysisProvider), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
+        IndexModule module = new IndexModule(indexSettings, analysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
+        threadPool.shutdown(); // causes index service creation to fail
+        expectThrows(EsRejectedExecutionException.class, () -> newIndexService(module));
+        assertThat(openAnalyzers, empty());
     }
 
     public void testMmapNotAllowed() {

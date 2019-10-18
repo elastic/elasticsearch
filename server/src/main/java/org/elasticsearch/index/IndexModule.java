@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -401,6 +402,7 @@ public final class IndexModule {
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         QueryCache queryCache = null;
+        IndexAnalyzers indexAnalyzers = null;
         boolean success = false;
         try {
             if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
@@ -413,16 +415,19 @@ public final class IndexModule {
             } else {
                 queryCache = new DisabledQueryCache(indexSettings);
             }
+            if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
+                indexAnalyzers = analysisRegistry.build(indexSettings);
+            }
             final IndexService indexService = new IndexService(indexSettings, indexCreationContext, environment, xContentRegistry,
-                new SimilarityService(indexSettings, scriptService, similarities),
-                shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
-                clusterService, client, queryCache, directoryFactory, eventListener, readerWrapperFactory, mapperRegistry,
-                indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
+                new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
+                engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
+                directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
+                indexOperationListeners, namedWriteableRegistry);
             success = true;
             return indexService;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(queryCache);
+                IOUtils.closeWhileHandlingException(queryCache, indexAnalyzers);
             }
         }
     }

@@ -81,6 +81,8 @@ public final class ShardGenerations {
             for (int i = 0; i < Math.min(oldGens.size(), updatedGenerations.size()); i++) {
                 final String oldGeneration = oldGens.get(i);
                 final String updatedGeneration = updatedGenerations.get(i);
+                // If we had a previous generation that is different from an updated generation it's obsolete
+                // Since this method assumes only additions and no removals of shards, a null updated generation means no update
                 if (updatedGeneration != null && oldGeneration != null && oldGeneration.equals(updatedGeneration) == false) {
                     obsoleteShardIndices.put(i, oldGeneration);
                 }

@@ -19,7 +19,6 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -122,9 +121,8 @@ public class FilterRepository implements Repository {
         in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, listener);
     }
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId,
-                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-        in.restoreShard(store, snapshotId, version, indexId, snapshotShardId, recoveryState);
+    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState);
     }
 
     @Override

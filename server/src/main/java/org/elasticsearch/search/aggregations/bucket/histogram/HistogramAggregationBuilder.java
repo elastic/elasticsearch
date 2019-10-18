@@ -34,13 +34,13 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -97,14 +97,14 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     private long minDocCount = 0;
 
     @Override
-    protected ValuesSourceType resolveScriptAny(Script script) {
+    protected BuiltinValuesSourceType resolveScriptAny(Script script) {
         // TODO: No idea how we'd support Range scripts here.
-        return ValuesSourceType.NUMERIC;
+        return BuiltinValuesSourceType.NUMERIC;
     }
 
     /** Create a new builder with the given name. */
     public HistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.ANY, ValueType.NUMERIC);
+        super(name, BuiltinValuesSourceType.ANY, ValueType.NUMERIC);
     }
 
     protected HistogramAggregationBuilder(HistogramAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -125,7 +125,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Read from a stream, for internal use only. */
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY, ValueType.NUMERIC);
+        super(in, BuiltinValuesSourceType.ANY, ValueType.NUMERIC);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();

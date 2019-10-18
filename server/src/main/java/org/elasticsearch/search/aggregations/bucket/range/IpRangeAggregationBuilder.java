@@ -42,7 +42,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -220,7 +220,7 @@ public final class IpRangeAggregationBuilder
     private List<Range> ranges = new ArrayList<>();
 
     public IpRangeAggregationBuilder(String name) {
-        super(name, ValuesSourceType.BYTES, ValueType.IP);
+        super(name, BuiltinValuesSourceType.BYTES, ValueType.IP);
     }
 
     protected IpRangeAggregationBuilder(IpRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -337,7 +337,7 @@ public final class IpRangeAggregationBuilder
     }
 
     public IpRangeAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.BYTES, ValueType.IP);
+        super(in, BuiltinValuesSourceType.BYTES, ValueType.IP);
         final int numRanges = in.readVInt();
         for (int i = 0; i < numRanges; ++i) {
             addRange(new Range(in));

@@ -27,8 +27,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -187,8 +187,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     }
 
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
-        public ValuesSourceType getValueSourceType() {
-            return ValuesSourceType.NUMERIC;
+        public BuiltinValuesSourceType getValueSourceType() {
+            return BuiltinValuesSourceType.NUMERIC;
         }
 
         public ValueType getValueType() {

@@ -26,24 +26,24 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum ValuesSourceType implements Writeable {
+public enum BuiltinValuesSourceType implements Writeable {
     ANY,
     NUMERIC,
     BYTES,
     GEOPOINT,
     RANGE;
 
-    public static ValuesSourceType fromString(String name) {
+    public static BuiltinValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static ValuesSourceType fromStream(StreamInput in) throws IOException {
-        return in.readEnum(ValuesSourceType.class);
+    public static BuiltinValuesSourceType fromStream(StreamInput in) throws IOException {
+        return in.readEnum(BuiltinValuesSourceType.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        ValuesSourceType state = this;
+        BuiltinValuesSourceType state = this;
         out.writeEnum(state);
     }
 

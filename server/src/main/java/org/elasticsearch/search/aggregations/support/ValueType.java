@@ -35,25 +35,25 @@ import java.time.ZoneOffset;
 
 public enum ValueType implements Writeable {
 
-    STRING((byte) 1, "string", "string", ValuesSourceType.BYTES,
+    STRING((byte) 1, "string", "string", BuiltinValuesSourceType.BYTES,
             IndexFieldData.class, DocValueFormat.RAW),
     LONG((byte) 2, "byte|short|integer|long", "long",
-                    ValuesSourceType.NUMERIC,
+                    BuiltinValuesSourceType.NUMERIC,
             IndexNumericFieldData.class, DocValueFormat.RAW),
-    DOUBLE((byte) 3, "float|double", "double", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
-    NUMBER((byte) 4, "number", "number", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
-    DATE((byte) 5, "date", "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class,
+    DOUBLE((byte) 3, "float|double", "double", BuiltinValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
+    NUMBER((byte) 4, "number", "number", BuiltinValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
+    DATE((byte) 5, "date", "date", BuiltinValuesSourceType.NUMERIC, IndexNumericFieldData.class,
             new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
                 DateFieldMapper.Resolution.MILLISECONDS)),
-    IP((byte) 6, "ip", "ip", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
+    IP((byte) 6, "ip", "ip", BuiltinValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
     // TODO: what is the difference between "number" and "numeric"?
-    NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
-    GEOPOINT((byte) 8, "geo_point", "geo_point", ValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH),
-    BOOLEAN((byte) 9, "boolean", "boolean", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN),
-    RANGE((byte) 10, "range", "range", ValuesSourceType.RANGE, BinaryDVIndexFieldData.class, DocValueFormat.RAW);
+    NUMERIC((byte) 7, "numeric", "numeric", BuiltinValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
+    GEOPOINT((byte) 8, "geo_point", "geo_point", BuiltinValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH),
+    BOOLEAN((byte) 9, "boolean", "boolean", BuiltinValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN),
+    RANGE((byte) 10, "range", "range", BuiltinValuesSourceType.RANGE, BinaryDVIndexFieldData.class, DocValueFormat.RAW);
 
     final String description;
-    final ValuesSourceType valuesSourceType;
+    final BuiltinValuesSourceType valuesSourceType;
     final Class<? extends IndexFieldData> fieldDataType;
     final DocValueFormat defaultFormat;
     private final byte id;
@@ -61,7 +61,7 @@ public enum ValueType implements Writeable {
 
     public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
-    ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
+    ValueType(byte id, String description, String preferredName, BuiltinValuesSourceType valuesSourceType,
             Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
         this.id = id;
         this.description = description;
@@ -75,7 +75,7 @@ public enum ValueType implements Writeable {
         return preferredName;
     }
 
-    public ValuesSourceType getValuesSourceType() {
+    public BuiltinValuesSourceType getValuesSourceType() {
         return valuesSourceType;
     }
 

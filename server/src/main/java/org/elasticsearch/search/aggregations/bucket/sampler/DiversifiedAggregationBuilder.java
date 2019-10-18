@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -62,7 +62,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     private String executionHint = null;
 
     public DiversifiedAggregationBuilder(String name) {
-        super(name, ValuesSourceType.ANY, null);
+        super(name, BuiltinValuesSourceType.ANY, null);
     }
 
     protected DiversifiedAggregationBuilder(DiversifiedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -81,7 +81,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
      * Read from a stream.
      */
     public DiversifiedAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY, null);
+        super(in, BuiltinValuesSourceType.ANY, null);
         shardSize = in.readVInt();
         maxDocsPerValue = in.readVInt();
         executionHint = in.readOptionalString();

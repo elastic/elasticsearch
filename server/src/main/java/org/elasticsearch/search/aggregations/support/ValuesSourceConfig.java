@@ -55,7 +55,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         Object missing,
         ZoneId timeZone,
         String format) {
-        return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES);
+        return resolve(context, valueType, field, script, missing, timeZone, format, s -> BuiltinValuesSourceType.BYTES);
     }
 
     /**
@@ -68,17 +68,17 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         Object missing,
         ZoneId timeZone,
         String format,
-        Function<Script, ValuesSourceType> resolveScriptAny
+        Function<Script, BuiltinValuesSourceType> resolveScriptAny
     ) {
 
         if (field == null) {
             if (script == null) {
-                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
+                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(BuiltinValuesSourceType.ANY);
                 config.format(resolveFormat(null, valueType, timeZone));
                 return config;
             }
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
-            if (valuesSourceType == ValuesSourceType.ANY) {
+            BuiltinValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : BuiltinValuesSourceType.ANY;
+            if (valuesSourceType == BuiltinValuesSourceType.ANY) {
                 // the specific value source type is undefined, but for scripts,
                 // we need to have a specific value source
                 // type to know how to handle the script values, so we fallback
@@ -96,7 +96,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
+            BuiltinValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : BuiltinValuesSourceType.ANY;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
@@ -113,14 +113,14 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         ValuesSourceConfig<VS> config;
         if (indexFieldData instanceof IndexNumericFieldData) {
-            config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
+            config = new ValuesSourceConfig<>(BuiltinValuesSourceType.NUMERIC);
         } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-            config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
+            config = new ValuesSourceConfig<>(BuiltinValuesSourceType.GEOPOINT);
         } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
-            config = new ValuesSourceConfig<>(ValuesSourceType.RANGE);
+            config = new ValuesSourceConfig<>(BuiltinValuesSourceType.RANGE);
         } else {
             if (valueType == null) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
+                config = new ValuesSourceConfig<>(BuiltinValuesSourceType.BYTES);
             } else {
                 config = new ValuesSourceConfig<>(valueType.getValuesSourceType());
             }
@@ -159,7 +159,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return valueFormat;
     }
 
-    private final ValuesSourceType valueSourceType;
+    private final BuiltinValuesSourceType valueSourceType;
     private FieldContext fieldContext;
     private AggregationScript.LeafFactory script;
     private ValueType scriptValueType;
@@ -168,11 +168,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private Object missing;
     private ZoneId timeZone;
 
-    public ValuesSourceConfig(ValuesSourceType valueSourceType) {
+    public ValuesSourceConfig(BuiltinValuesSourceType valueSourceType) {
         this.valueSourceType = valueSourceType;
     }
 
-    public ValuesSourceType valueSourceType() {
+    public BuiltinValuesSourceType valueSourceType() {
         return valueSourceType;
     }
 
@@ -262,13 +262,13 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             if (missing() == null) {
                 // otherwise we will have values because of the missing value
                 vs = null;
-            } else if (valueSourceType() == ValuesSourceType.NUMERIC) {
+            } else if (valueSourceType() == BuiltinValuesSourceType.NUMERIC) {
                 vs = (VS) ValuesSource.Numeric.EMPTY;
-            } else if (valueSourceType() == ValuesSourceType.GEOPOINT) {
+            } else if (valueSourceType() == BuiltinValuesSourceType.GEOPOINT) {
                 vs = (VS) ValuesSource.GeoPoint.EMPTY;
-            } else if (valueSourceType() == ValuesSourceType.BYTES) {
+            } else if (valueSourceType() == BuiltinValuesSourceType.BYTES) {
                 vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
-            } else if (valueSourceType() == ValuesSourceType.ANY) {
+            } else if (valueSourceType() == BuiltinValuesSourceType.ANY) {
                 vs = (VS) resolveMissingAny.apply(missing());
             } else {
                 throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + valueSourceType());
@@ -306,23 +306,23 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
      */
     private VS originalValuesSource() {
         if (fieldContext() == null) {
-            if (valueSourceType() == ValuesSourceType.NUMERIC) {
+            if (valueSourceType() == BuiltinValuesSourceType.NUMERIC) {
                 return (VS) numericScript();
             }
-            if (valueSourceType() == ValuesSourceType.BYTES) {
+            if (valueSourceType() == BuiltinValuesSourceType.BYTES) {
                 return (VS) bytesScript();
             }
             throw new AggregationExecutionException("value source of type [" + valueSourceType().name()
                     + "] is not supported by scripts");
         }
 
-        if (valueSourceType() == ValuesSourceType.NUMERIC) {
+        if (valueSourceType() == BuiltinValuesSourceType.NUMERIC) {
             return (VS) numericField();
         }
-        if (valueSourceType() == ValuesSourceType.GEOPOINT) {
+        if (valueSourceType() == BuiltinValuesSourceType.GEOPOINT) {
             return (VS) geoPointField();
         }
-        if (valueSourceType() == ValuesSourceType.RANGE) {
+        if (valueSourceType() == BuiltinValuesSourceType.RANGE) {
             return (VS) rangeField();
         }
         // falling back to bytes values

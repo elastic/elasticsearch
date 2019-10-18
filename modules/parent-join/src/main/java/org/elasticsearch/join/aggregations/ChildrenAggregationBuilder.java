@@ -39,7 +39,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdi
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -61,7 +61,7 @@ public class ChildrenAggregationBuilder
      *            the type of children documents
      */
     public ChildrenAggregationBuilder(String name, String childType) {
-        super(name, ValuesSourceType.BYTES, ValueType.STRING);
+        super(name, BuiltinValuesSourceType.BYTES, ValueType.STRING);
         if (childType == null) {
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
@@ -85,7 +85,7 @@ public class ChildrenAggregationBuilder
      * Read from a stream.
      */
     public ChildrenAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.BYTES, ValueType.STRING);
+        super(in, BuiltinValuesSourceType.BYTES, ValueType.STRING);
         childType = in.readString();
     }
 
@@ -105,7 +105,7 @@ public class ChildrenAggregationBuilder
 
     @Override
     protected ValuesSourceConfig<WithOrdinals> resolveConfig(QueryShardContext queryShardContext) {
-        ValuesSourceConfig<WithOrdinals> config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
+        ValuesSourceConfig<WithOrdinals> config = new ValuesSourceConfig<>(BuiltinValuesSourceType.BYTES);
         joinFieldResolveConfig(queryShardContext, config);
         return config;
     }

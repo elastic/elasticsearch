@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -115,7 +115,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     public PercentileRanksAggregationBuilder(String name, double[] values) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, BuiltinValuesSourceType.NUMERIC, ValueType.NUMERIC);
         if (values == null) {
             throw new IllegalArgumentException("[values] must not be null: [" + name + "]");
         }
@@ -147,7 +147,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
      * Read from a stream.
      */
     public PercentileRanksAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, BuiltinValuesSourceType.NUMERIC, ValueType.NUMERIC);
         values = in.readDoubleArray();
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();

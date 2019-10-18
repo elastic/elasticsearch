@@ -23,8 +23,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,8 +55,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
         @Override
-        public ValuesSourceType getValueSourceType() {
-            return ValuesSourceType.GEOPOINT;
+        public BuiltinValuesSourceType getValueSourceType() {
+            return BuiltinValuesSourceType.GEOPOINT;
         }
 
         @Override

@@ -40,7 +40,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
             extends ValuesSourceAggregationBuilder<VS, AB> {
 
-        protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+        protected LeafOnly(String name, BuiltinValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, valuesSourceType, targetValueType);
         }
 
@@ -55,7 +55,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         /**
          * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
          */
-        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
+        protected LeafOnly(StreamInput in, BuiltinValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
             super(in, valuesSourceType, targetValueType);
         }
 
@@ -63,7 +63,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
          * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
          * {@link #serializeTargetValueType(Version)} to return true.
          */
-        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+        protected LeafOnly(StreamInput in, BuiltinValuesSourceType valuesSourceType) throws IOException {
             super(in, valuesSourceType);
         }
 
@@ -74,7 +74,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
     }
 
-    private final ValuesSourceType valuesSourceType;
+    private final BuiltinValuesSourceType valuesSourceType;
     private final ValueType targetValueType;
     private String field = null;
     private Script script = null;
@@ -84,7 +84,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private ZoneId timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
-    protected ValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    protected ValuesSourceAggregationBuilder(String name, BuiltinValuesSourceType valuesSourceType, ValueType targetValueType) {
         super(name);
         if (valuesSourceType == null) {
             throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
@@ -113,7 +113,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * constructor, providing the old, constant value for TargetValueType and override {@link #serializeTargetValueType(Version)} to return
      * true only for versions that support the serialization.
      */
-    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
+    protected ValuesSourceAggregationBuilder(StreamInput in, BuiltinValuesSourceType valuesSourceType, ValueType targetValueType)
             throws IOException {
         super(in);
         this.valuesSourceType = valuesSourceType;
@@ -129,7 +129,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
      * {@link #serializeTargetValueType(Version)} to return true.
      */
-    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+    protected ValuesSourceAggregationBuilder(StreamInput in, BuiltinValuesSourceType valuesSourceType) throws IOException {
         super(in);
         // TODO: Can we get rid of this constructor and always use the three value version? Does this assert provide any value?
         assert serializeTargetValueType(in.getVersion()) : "Wrong read constructor called for subclass that serializes its targetValueType";
@@ -315,14 +315,14 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     /**
-     * Provide a hook for aggregations to have finer grained control of the ValuesSourceType for script values.  This will only be called if
-     * the user did not supply a type hint for the script.  The script object is provided for reference.
+     * Provide a hook for aggregations to have finer grained control of the BuiltinValuesSourceType for script values.  This will only be
+     * called if the user did not supply a type hint for the script.  The script object is provided for reference.
      *
      * @param script - The user supplied script
-     * @return The ValuesSourceType we expect this script to yield.
+     * @return The BuiltinValuesSourceType we expect this script to yield.
      */
-    protected ValuesSourceType resolveScriptAny(Script script) {
-        return ValuesSourceType.BYTES;
+    protected BuiltinValuesSourceType resolveScriptAny(Script script) {
+        return BuiltinValuesSourceType.BYTES;
     }
 
     /**

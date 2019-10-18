@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -70,7 +70,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     }
 
     public GeoGridAggregationBuilder(String name) {
-        super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name, BuiltinValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
     protected GeoGridAggregationBuilder(GeoGridAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -85,7 +85,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
      * Read from a stream.
      */
     public GeoGridAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(in, BuiltinValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();

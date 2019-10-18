@@ -13,16 +13,18 @@ import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.ZoneId;
+import java.util.StringJoiner;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 
 
-public class TestUtils {
+public final class TestUtils {
 
     private TestUtils() {}
 
@@ -58,4 +60,11 @@ public class TestUtils {
                 randomBoolean());
     }
 
+    public static String randomWhitespaces() {
+        StringJoiner sj = new StringJoiner("");
+        for (int i = 0; i < randomInt(10); i++) {
+            sj.add(randomFrom(" ", "\t", "\r", "\n"));
+        }
+        return sj.toString();
+    }
 }

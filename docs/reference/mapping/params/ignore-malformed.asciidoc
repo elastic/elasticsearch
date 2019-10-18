@@ -47,6 +47,7 @@ PUT my_index/_doc/2
 <2> This document will be rejected because `number_two` does not allow malformed values.
 
 The `ignore_malformed` setting is currently supported by the following <<mapping-types,mapping types>>:
+
 * <<number>>::         `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
 * <<date>>::           `date`
 * <<date_nanos>>::     `date_nanos`
@@ -61,7 +62,7 @@ existing fields using the <<indices-put-mapping,PUT mapping API>>.
 ==== Index-level default
 
 The `index.mapping.ignore_malformed` setting can be set on the index level to
-allow to ignore malformed content globally across all mapping types that allow it.
+ignore malformed content globally across all allowed mapping types.
 Mapping types that don't support the setting will ignore it if set on the index level.
 
 [source,console]

@@ -6,29 +6,21 @@
 package org.elasticsearch.xpack.core.ml.notifications;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Date;
 
-import static org.hamcrest.Matchers.equalTo;
+public class AnomalyDetectionAuditMessageTests extends AuditMessageTests<AnomalyDetectionAuditMessage> {
 
-public class AnomalyDetectionAuditMessageTests extends AbstractXContentTestCase<AnomalyDetectionAuditMessage> {
-
-    public void testGetJobType() {
-        AnomalyDetectionAuditMessage message = createTestInstance();
-        assertThat(message.getJobType(), equalTo(Job.ANOMALY_DETECTOR_JOB_TYPE));
+    @Override
+    public String getJobType() {
+        return Job.ANOMALY_DETECTOR_JOB_TYPE;
     }
 
     @Override
     protected AnomalyDetectionAuditMessage doParseInstance(XContentParser parser) {
         return AnomalyDetectionAuditMessage.PARSER.apply(parser, null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
     }
 
     @Override

@@ -10,21 +10,21 @@ import org.elasticsearch.xpack.core.common.notifications.Level;
 
 import java.util.Date;
 
-public class DataFrameAnalyticsAuditMessageTests extends AuditMessageTests<DataFrameAnalyticsAuditMessage> {
+public class InferenceAuditMessageTests extends AuditMessageTests<InferenceAuditMessage> {
 
     @Override
     public String getJobType() {
-        return "data_frame_analytics";
+        return "inference";
     }
 
     @Override
-    protected DataFrameAnalyticsAuditMessage doParseInstance(XContentParser parser) {
-        return DataFrameAnalyticsAuditMessage.PARSER.apply(parser, null);
+    protected InferenceAuditMessage doParseInstance(XContentParser parser) {
+        return InferenceAuditMessage.PARSER.apply(parser, null);
     }
 
     @Override
-    protected DataFrameAnalyticsAuditMessage createTestInstance() {
-        return new DataFrameAnalyticsAuditMessage(
+    protected InferenceAuditMessage createTestInstance() {
+        return new InferenceAuditMessage(
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomAlphaOfLengthBetween(1, 20),
             randomFrom(Level.values()),

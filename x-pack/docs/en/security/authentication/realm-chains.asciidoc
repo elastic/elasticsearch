@@ -67,7 +67,7 @@ xpack.security.authc:
 As can be seen above, each realm has a unique name that identifies it. Each type
 of realm dictates its own set of required and optional settings. That said,
 there are 
-{ref}/security-settings.html#ref-realm-settings[settings that are common to all realms]. 
+<<ref-realm-settings,settings that are common to all realms>>. 
 
 [[authorization_realms]]
 ==== Delegating authorization to another realm
@@ -87,7 +87,7 @@ further explanation on which realms support this.
 
 For realms that support this feature, it can be enabled by configuring the
 `authorization_realms` setting on the authenticating realm. Check the list of
-{ref}/security-settings.html#realm-settings[supported settings] for each realm
+<<realm-settings,supported settings>> for each realm
 to see if they support the `authorization_realms` setting. 
 
 If delegated authorization is enabled for a realm, it authenticates the user in 

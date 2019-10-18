@@ -465,7 +465,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             this.throttleListener = throttleListener;
         }
 
-        void restoreFiles(Store store) throws IOException {
+        void restoreFiles(Store store) {
             ArrayList<FileInfo> fileInfos = new ArrayList<>();
             for (StoreFileMetaData fileMetaData : sourceMetaData) {
                 ByteSizeValue fileSize = new ByteSizeValue(fileMetaData.length());

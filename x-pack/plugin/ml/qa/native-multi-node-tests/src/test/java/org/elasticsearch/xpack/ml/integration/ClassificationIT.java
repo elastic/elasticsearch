@@ -83,7 +83,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat((String) resultsObject.get("keyword-field_prediction"), is(in(KEYWORD_FIELD_VALUES)));
             assertThat(resultsObject.containsKey("is_training"), is(true));
             assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
-            assertThat(resultsObject.containsKey("top_classes"), is(false));
+            assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES, String::valueOf);
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
@@ -120,7 +120,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat((String) resultsObject.get("keyword-field_prediction"), is(in(KEYWORD_FIELD_VALUES)));
             assertThat(resultsObject.containsKey("is_training"), is(true));
             assertThat(resultsObject.get("is_training"), is(true));
-            assertThat(resultsObject.containsKey("top_classes"), is(false));
+            assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES, String::valueOf);
         }
 
         assertProgress(jobId, 100, 100, 100, 100);

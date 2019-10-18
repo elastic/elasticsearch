@@ -40,6 +40,37 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class DateFormattersTests extends ESTestCase {
 
+//    public void testWeekBasedYear(){
+//        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+//            .appendPattern("YYYY")
+//            .toFormatter(Locale.ROOT);
+//        TemporalAccessor parse = formatter.parse("2018");
+//        assertTrue(parse.isSupported(WeekFields.ISO.weekBasedYear())); // never passes..
+//        assertTrue(parse.isSupported(WeekFields.of(Locale.ROOT).weekBasedYear()));
+// always passes, we will run with SPI CalendarDataProvider, so the one below have to pass too
+//        assertTrue(parse.isSupported(WeekFields.of(DayOfWeek.MONDAY,4).weekBasedYear())); // passes with SPI
+//        /*
+//        public class IsoCalendarDataProvider extends CalendarDataProvider {
+//
+//    @Override
+//    public int getFirstDayOfWeek(Locale locale) {
+//        return Calendar.MONDAY;
+//    }
+//
+//    @Override
+//    public int getMinimalDaysInFirstWeek(Locale locale) {
+//        return 4;
+//    }
+//
+//    @Override
+//    public Locale[] getAvailableLocales() {
+//        return new Locale[]{Locale.ROOT};
+//    }
+//}
+//         */
+//
+//
+//    }
     // this is not in the duelling tests, because the epoch millis parser in joda time drops the milliseconds after the comma
     // but is able to parse the rest
     // as this feature is supported it also makes sense to make it exact

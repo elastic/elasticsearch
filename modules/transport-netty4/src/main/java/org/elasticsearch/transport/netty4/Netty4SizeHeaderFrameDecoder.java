@@ -67,12 +67,11 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
                 if (in.readableBytes() < HEADER_SIZE) {
                     return;
                 } else {
-                    remainingBytes = TcpTransport.readMessageLength(Netty4Utils.toBytesReference(in));
-                    if (remainingBytes < 0) {
-                        remainingBytes = 0;
+                    int messageLength = TcpTransport.readMessageLength(Netty4Utils.toBytesReference(in));
+                    if (messageLength < 0) {
                         throw new DecoderException("Invalid message length: " + remainingBytes);
                     } else {
-                        remainingBytes = remainingBytes + HEADER_SIZE;
+                        remainingBytes = messageLength + HEADER_SIZE;
                     }
                 }
             }
@@ -84,7 +83,7 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
         int bytesToConsume = Math.min(in.readableBytes(), remainingBytes);
         final ByteBuf message = in.retainedSlice(0, bytesToConsume);
         out.add(message);
-        in.readerIndex(bytesToConsume);
+        in.readerIndex(in.readerIndex() + bytesToConsume);
         remainingBytes = remainingBytes - bytesToConsume;
     }
 

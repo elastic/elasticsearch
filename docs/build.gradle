@@ -93,6 +93,8 @@ buildRestTests.docs = fileTree(projectDir) {
 
 listSnippets.docs = buildRestTests.docs
 
+listConsoleCandidates.docs = buildRestTests.docs
+
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
@@ -1186,7 +1188,7 @@ buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups[
   - do:
       raw:
         method: PUT
-        path: _data_frame/transforms/simple-kibana-ecomm-pivot
+        path: _transform/simple-kibana-ecomm-pivot
         body:  >
           {
             "source": {

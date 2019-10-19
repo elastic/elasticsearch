@@ -228,7 +228,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(analysis.getWriteableName(), analysis);
         builder.endObject();
 
-        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
         if (analyzedFields != null) {

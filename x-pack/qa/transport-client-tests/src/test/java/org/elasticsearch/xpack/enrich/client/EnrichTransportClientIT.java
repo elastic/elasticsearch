@@ -42,7 +42,7 @@ public class EnrichTransportClientIT extends ESXPackSmokeClientTestCase {
         XPackClient xPackClient = new XPackClient(client);
         EnrichClient enrichClient = xPackClient.enrichClient();
 
-        EnrichPolicy policy = new EnrichPolicy("exact_match", null, Collections.emptyList(), "test", Collections.emptyList());
+        EnrichPolicy policy = new EnrichPolicy("match", null, Collections.emptyList(), "test", Collections.emptyList());
         String policyName = "my-policy";
 
         AcknowledgedResponse acknowledgedResponse = enrichClient.putEnrichPolicy(

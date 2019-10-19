@@ -91,9 +91,12 @@ final class JvmOptionsParser {
             final List<String> substitutedJvmOptions =
                 substitutePlaceholders(jvmOptions, Map.of("ES_TMPDIR", System.getenv("ES_TMPDIR")));
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
-            final List<String> finalJvmOptions = Stream.concat(
-                SystemJvmOptions.systemJvmOptions().stream(), Stream.concat(substitutedJvmOptions.stream(), ergonomicJvmOptions.stream()))
-                    .collect(Collectors.toList());
+            final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
+            final List<String> finalJvmOptions =
+                new ArrayList<>(systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size());
+            finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
+            finalJvmOptions.addAll(substitutedJvmOptions);
+            finalJvmOptions.addAll(ergonomicJvmOptions);
             final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(finalJvmOptions);
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);

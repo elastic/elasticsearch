@@ -76,7 +76,6 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
                 }
             }
         } catch (IllegalArgumentException ex) {
-            remainingBytes = 0;
             throw new TooLongFrameException(ex);
         }
 
@@ -90,5 +89,4 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
     private boolean isBeginningOfMessage() {
         return remainingBytes == 0;
     }
-
 }

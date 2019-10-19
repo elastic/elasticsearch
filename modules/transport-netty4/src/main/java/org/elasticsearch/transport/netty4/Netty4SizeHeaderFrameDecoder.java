@@ -81,7 +81,7 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
             throw new TooLongFrameException(ex);
         }
 
-        int bytesToConsume = Math.max(in.readableBytes(), remainingBytes);
+        int bytesToConsume = Math.min(in.readableBytes(), remainingBytes);
         final ByteBuf message = in.retainedSlice(0, bytesToConsume);
         out.add(message);
         in.readerIndex(bytesToConsume);

@@ -81,6 +81,11 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) parentToChild.getAggregations().get("in_child")).getValue(),
                     Double.MIN_VALUE);
         });
+        testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), parentToChild -> {
+            assertEquals(0, parentToChild.getDocCount());
+            assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) parentToChild.getAggregations().get("in_child")).getValue(),
+                Double.MIN_VALUE);
+        }, null);
         indexReader.close();
         directory.close();
     }
@@ -108,6 +113,17 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             assertTrue(JoinAggregationInspectionHelper.hasValue(child));
             assertEquals(expectedMinValue, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
         });
+        testCase(new MatchAllDocsQuery(), indexSearcher, child -> {
+            int expectedTotalChildren = 0;
+            int expectedMinValue = Integer.MAX_VALUE;
+            for (Tuple<Integer, Integer> expectedValues : expectedParentChildRelations.values()) {
+                expectedTotalChildren += expectedValues.v1();
+                expectedMinValue = Math.min(expectedMinValue, expectedValues.v2());
+            }
+            assertEquals(expectedTotalChildren, child.getDocCount());
+            assertTrue(JoinAggregationInspectionHelper.hasValue(child));
+            assertEquals(expectedMinValue, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
+        }, null);
 
         for (String parent : expectedParentChildRelations.keySet()) {
             testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(parent)), indexSearcher, child -> {
@@ -115,6 +131,11 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                 assertEquals(expectedParentChildRelations.get(parent).v2(),
                         ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
             });
+            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(parent)), indexSearcher, child -> {
+                assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
+                assertEquals(expectedParentChildRelations.get(parent).v2(),
+                    ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
+            }, null);
         }
         indexReader.close();
         directory.close();
@@ -184,6 +205,15 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
+        InternalChildren result = search(indexSearcher, query, aggregationBuilder, fieldType);
+        verify.accept(result);
+    }
+
+    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify, MappedFieldType fieldType)
+        throws IOException {
+
+        ChildrenAggregationBuilder aggregationBuilder = new ChildrenAggregationBuilder("_name", CHILD_TYPE);
+        aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
         InternalChildren result = search(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
     }

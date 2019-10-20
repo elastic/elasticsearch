@@ -41,12 +41,3 @@ realm directly.
 The `transport.profiles.*.xpack.security.type` setting has been removed since
 the Transport Client has been removed and therefore all client traffic now uses
 the HTTP transport. Transport profiles using this setting should be removed.
-
-[float]
-[[ldap-ad-realms-tcp-read-timeout-removed]]
-==== The `timeout.tcp_read` AD and LDAP realm settings have been removed
-
-The `timeout.tcp_read` Active Directory and LDAP realm settings have been
-deprecated in favor of `timeout.response` since 7.5. They both have the exact
-same effect but the new name clearly exposes that the timeout value represents
-the time interval that the client waits for a response to a query.

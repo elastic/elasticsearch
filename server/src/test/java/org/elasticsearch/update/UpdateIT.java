@@ -500,7 +500,6 @@ public class UpdateIT extends ESIntegTestCase {
         // Index some documents
         client().prepareIndex()
                 .setIndex("test")
-                .setType("type1")
                 .setId("id1")
                 .setRouting("routing1")
                 .setSource("field1", 1, "content", "foo")
@@ -508,7 +507,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         client().prepareIndex()
                 .setIndex("test")
-                .setType("type1")
                 .setId("id2")
                 .setSource("field1", 0, "content", "bar")
                 .execute().actionGet();

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -31,7 +30,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48085")
 public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String NUMERICAL_FEATURE_FIELD = "feature";
@@ -116,7 +114,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis");
+            "Finished analysis",
+            "Stored trained model with id");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
@@ -168,7 +167,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis");
+            "Finished analysis",
+            "Stored trained model with id");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty() throws Exception {
@@ -235,7 +235,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis");
+            "Finished analysis",
+            "Stored trained model with id");
     }
 
     public void testStopAndRestart() throws Exception {

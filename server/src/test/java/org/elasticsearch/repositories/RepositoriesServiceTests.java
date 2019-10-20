@@ -67,6 +67,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             Collections.emptySet());
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
             transportService, Collections.emptyMap(), Collections.singletonMap(TestRepository.TYPE, TestRepository::new), threadPool);
+        repositoriesService.start();
     }
 
     public void testRegisterInternalRepository() {
@@ -151,11 +152,6 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public RepositoryData getRepositoryData() {
             return null;
-        }
-
-        @Override
-        public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
-
         }
 
         @Override

@@ -11,9 +11,6 @@ testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "peppa"
 dependencies {
     testCompile project(':x-pack:plugin:core')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 

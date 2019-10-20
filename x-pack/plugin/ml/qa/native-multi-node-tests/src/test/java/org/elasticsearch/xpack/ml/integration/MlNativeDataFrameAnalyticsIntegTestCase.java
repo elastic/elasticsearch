@@ -27,22 +27,26 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Base class of ML integration tests that use a native data_frame_analytics process
@@ -120,8 +124,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected void waitUntilAnalyticsIsStopped(String id, TimeValue waitTime) throws Exception {
-        assertBusy(() -> assertThat(getAnalyticsStats(id).get(0).getState(), equalTo(DataFrameAnalyticsState.STOPPED)),
-                waitTime.getMillis(), TimeUnit.MILLISECONDS);
+        assertBusy(() -> assertIsStopped(id), waitTime.getMillis(), TimeUnit.MILLISECONDS);
     }
 
     protected List<DataFrameAnalyticsConfig> getAnalytics(String id) {
@@ -129,35 +132,36 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return client().execute(GetDataFrameAnalyticsAction.INSTANCE, request).actionGet().getResources().results();
     }
 
-    protected List<GetDataFrameAnalyticsStatsAction.Response.Stats> getAnalyticsStats(String id) {
+    protected GetDataFrameAnalyticsStatsAction.Response.Stats getAnalyticsStats(String id) {
         GetDataFrameAnalyticsStatsAction.Request request = new GetDataFrameAnalyticsStatsAction.Request(id);
         GetDataFrameAnalyticsStatsAction.Response response = client().execute(GetDataFrameAnalyticsStatsAction.INSTANCE, request)
             .actionGet();
-        return response.getResponse().results();
+        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = response.getResponse().results();
+        assertThat("Got: " + stats.toString(), stats.size(), equalTo(1));
+        return stats.get(0);
     }
 
-    protected static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String[] sourceIndex, String destIndex,
-                                                                             @Nullable String resultsField) {
+    protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
+                                                             @Nullable String resultsField, DataFrameAnalysis analysis) {
         DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder();
         configBuilder.setId(id);
-        configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
+        configBuilder.setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null));
         configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
-        configBuilder.setAnalysis(new OutlierDetection());
+        configBuilder.setAnalysis(analysis);
         return configBuilder.build();
     }
 
-    protected void assertState(String id, DataFrameAnalyticsState state) {
-        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = getAnalyticsStats(id);
-        assertThat(stats.size(), equalTo(1));
-        assertThat(stats.get(0).getId(), equalTo(id));
-        assertThat(stats.get(0).getState(), equalTo(state));
+    protected void assertIsStopped(String id) {
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
+        assertThat(stats.getId(), equalTo(id));
+        assertThat(stats.getFailureReason(), is(nullValue()));
+        assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
     protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {
-        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = getAnalyticsStats(id);
-        List<PhaseProgress> progress = stats.get(0).getProgress();
-        assertThat(stats.size(), equalTo(1));
-        assertThat(stats.get(0).getId(), equalTo(id));
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
+        assertThat(stats.getId(), equalTo(id));
+        List<PhaseProgress> progress = stats.getProgress();
         assertThat(progress.size(), equalTo(4));
         assertThat(progress.get(0).getPhase(), equalTo("reindexing"));
         assertThat(progress.get(1).getPhase(), equalTo("loading_data"));
@@ -175,16 +179,6 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             .get();
     }
 
-    protected static DataFrameAnalyticsConfig buildRegressionAnalytics(String id, String[] sourceIndex, String destIndex,
-                                                                       @Nullable String resultsField, Regression regression) {
-        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder();
-        configBuilder.setId(id);
-        configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
-        configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
-        configBuilder.setAnalysis(regression);
-        return configBuilder.build();
-    }
-
     /**
      * Asserts whether the audit messages fetched from index match provided prefixes.
      * More specifically, in order to pass:
@@ -197,18 +191,16 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
         assertBusy(() -> assertTrue(indexExists(AuditorField.NOTIFICATIONS_INDEX)));
+        @SuppressWarnings("unchecked")
+        Matcher<String>[] itemMatchers = Arrays.stream(expectedAuditMessagePrefixes).map(Matchers::startsWith).toArray(Matcher[]::new);
         assertBusy(() -> {
-            String[] actualAuditMessages = fetchAllAuditMessages(configId);
-            assertThat("Messages: " + Arrays.toString(actualAuditMessages), actualAuditMessages.length,
-                equalTo(expectedAuditMessagePrefixes.length));
-            for (int i = 0; i < actualAuditMessages.length; i++) {
-                assertThat(actualAuditMessages[i], startsWith(expectedAuditMessagePrefixes[i]));
-            }
+            final List<String> allAuditMessages = fetchAllAuditMessages(configId);
+            assertThat(allAuditMessages, hasItems(itemMatchers));
+            assertThat("Messages: " + allAuditMessages, allAuditMessages, hasSize(expectedAuditMessagePrefixes.length));
         });
     }
 
-    @SuppressWarnings("unchecked")
-    private static String[] fetchAllAuditMessages(String dataFrameAnalyticsId) throws Exception {
+    private static List<String> fetchAllAuditMessages(String dataFrameAnalyticsId) {
         RefreshRequest refreshRequest = new RefreshRequest(AuditorField.NOTIFICATIONS_INDEX);
         RefreshResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
@@ -222,6 +214,6 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
         return Arrays.stream(searchResponse.getHits().getHits())
             .map(hit -> (String) hit.getSourceAsMap().get("message"))
-            .toArray(String[]::new);
+            .collect(Collectors.toList());
     }
 }

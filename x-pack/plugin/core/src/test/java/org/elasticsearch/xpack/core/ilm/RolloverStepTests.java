@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.client.AdminClient;
@@ -15,6 +17,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -25,6 +28,7 @@ import java.util.Collections;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.core.Is.is;
 
 public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
@@ -152,6 +156,39 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         });
 
         assertEquals(true, actionCompleted.get());
+    }
+
+    public void testPerformActionSkipsRolloverForAlreadyRolledIndex() {
+        String rolloverAlias = randomAlphaOfLength(5);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetaData.builder(rolloverAlias))
+            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
+            .putRolloverInfo(new RolloverInfo(rolloverAlias,
+                Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
+                System.currentTimeMillis())
+            )
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        RolloverStep step = createRandomInstance();
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                assertThat(complete, is(true));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        Mockito.verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
     public void testPerformActionFailure() {

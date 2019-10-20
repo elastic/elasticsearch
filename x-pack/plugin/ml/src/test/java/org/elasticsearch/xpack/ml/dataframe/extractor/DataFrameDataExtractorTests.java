@@ -24,6 +24,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
@@ -41,7 +44,9 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -382,6 +387,36 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         rows = dataExtractor.next();
         assertThat(rows.isEmpty(), is(true));
         assertThat(dataExtractor.hasNext(), is(false));
+    }
+
+    public void testGetCategoricalFields() {
+        extractedFields = new ExtractedFields(Arrays.asList(
+            ExtractedField.newField("field_boolean", Collections.singleton("boolean"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_float", Collections.singleton("float"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_double", Collections.singleton("double"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_byte", Collections.singleton("byte"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_short", Collections.singleton("short"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_integer", Collections.singleton("integer"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_long", Collections.singleton("long"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_keyword", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_text", Collections.singleton("text"), ExtractedField.ExtractionMethod.SOURCE)));
+        TestExtractor dataExtractor = createExtractor(true, true);
+
+        assertThat(dataExtractor.getCategoricalFields(OutlierDetectionTests.createRandom()), empty());
+
+        assertThat(dataExtractor.getCategoricalFields(new Regression("field_double")), containsInAnyOrder("field_keyword", "field_text"));
+        assertThat(dataExtractor.getCategoricalFields(new Regression("field_long")), containsInAnyOrder("field_keyword", "field_text"));
+        assertThat(dataExtractor.getCategoricalFields(new Regression("field_boolean")), containsInAnyOrder("field_keyword", "field_text"));
+
+        assertThat(
+            dataExtractor.getCategoricalFields(new Classification("field_keyword")),
+            containsInAnyOrder("field_keyword", "field_text"));
+        assertThat(
+            dataExtractor.getCategoricalFields(new Classification("field_long")),
+            containsInAnyOrder("field_keyword", "field_text", "field_long"));
+        assertThat(
+            dataExtractor.getCategoricalFields(new Classification("field_boolean")),
+            containsInAnyOrder("field_keyword", "field_text", "field_boolean"));
     }
 
     private TestExtractor createExtractor(boolean includeSource, boolean includeRowsWithMissingValues) {

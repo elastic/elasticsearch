@@ -6,12 +6,15 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +26,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,11 +48,28 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected static final String REVIEWS_INDEX_NAME = "reviews";
 
-    protected static final String TRANSFORM_ENDPOINT = TransformField.REST_BASE_PATH + "transforms/";
+    private static boolean useDeprecatedEndpoints;
+
+    @BeforeClass
+    public static void init() {
+        // randomly return the old or the new endpoints, old endpoints to be removed for 8.0.0
+        useDeprecatedEndpoints = randomBoolean();
+    }
 
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
+    }
+
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        if (useDeprecatedEndpoints) {
+            RestClientBuilder builder = RestClient.builder(hosts);
+            configureClient(builder, settings);
+            builder.setStrictDeprecationMode(false);
+            return builder.build();
+        }
+        return super.buildClient(settings, hosts);
     }
 
     protected void createReviewsIndex(String indexName, int numDocs) throws IOException {
@@ -159,7 +180,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected void createContinuousPivotReviewsTransform(String transformId, String dataFrameIndex, String authHeader) throws IOException {
 
-        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId, authHeader);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
 
         String config = "{ \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
             + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
@@ -188,7 +209,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String pipeline, String authHeader)
         throws IOException {
-        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId, authHeader);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
 
         String config = "{";
 
@@ -230,7 +251,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected void startDataframeTransform(String transformId, String authHeader, String... warnings) throws IOException {
         // start the transform
-        final Request startTransformRequest = createRequestWithAuth("POST", TRANSFORM_ENDPOINT + transformId + "/_start", authHeader);
+        final Request startTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_start", authHeader);
         if (warnings.length > 0) {
             startTransformRequest.setOptions(expectWarnings(warnings));
         }
@@ -240,7 +261,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected void stopTransform(String transformId, boolean force) throws Exception {
         // start the transform
-        final Request stopTransformRequest = createRequestWithAuth("POST", TRANSFORM_ENDPOINT + transformId + "/_stop", null);
+        final Request stopTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_stop", null);
         stopTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
         stopTransformRequest.addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
@@ -317,7 +338,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> getDataFrameTransforms() throws IOException {
-        Response response = adminClient().performRequest(new Request("GET", TRANSFORM_ENDPOINT + "_all"));
+        Response response = adminClient().performRequest(new Request("GET", getTransformEndpoint() + "_all"));
         Map<String, Object> transforms = entityAsMap(response);
         List<Map<String, Object>> transformConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", transforms);
 
@@ -330,7 +351,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected static Map<?, ?> getDataFrameState(String transformId) throws IOException {
-        Response statsResponse = client().performRequest(new Request("GET", TRANSFORM_ENDPOINT + transformId + "/_stats"));
+        Response statsResponse = client().performRequest(new Request("GET", getTransformEndpoint() + transformId + "/_stats"));
         List<?> transforms = ((List<?>) entityAsMap(statsResponse).get("transforms"));
         if (transforms.isEmpty()) {
             return null;
@@ -339,7 +360,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected static void deleteTransform(String transformId) throws IOException {
-        Request request = new Request("DELETE", TRANSFORM_ENDPOINT + transformId);
+        Request request = new Request("DELETE", getTransformEndpoint() + transformId);
         request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
         adminClient().performRequest(request);
     }
@@ -361,7 +382,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         List<Map<String, Object>> transformConfigs = getDataFrameTransforms();
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");
-            Request request = new Request("POST", TRANSFORM_ENDPOINT + transformId + "/_stop");
+            Request request = new Request("POST", getTransformEndpoint() + transformId + "/_stop");
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
             request.addParameter("ignore", "404");
@@ -403,7 +424,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     static int getDataFrameCheckpoint(String transformId) throws IOException {
-        Response statsResponse = client().performRequest(new Request("GET", TRANSFORM_ENDPOINT + transformId + "/_stats"));
+        Response statsResponse = client().performRequest(new Request("GET", getTransformEndpoint() + transformId + "/_stats"));
 
         Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
         return (int) XContentMapValues.extractValue("checkpointing.last.checkpoint", transformStatsAsMap);
@@ -430,5 +451,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + "  \"roles\" : [ " + rolesStr + " ]"
             + "}");
         client().performRequest(request);
+    }
+
+    protected static String getTransformEndpoint() {
+        return useDeprecatedEndpoints ? TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED : TransformField.REST_BASE_PATH_TRANSFORMS;
     }
 }

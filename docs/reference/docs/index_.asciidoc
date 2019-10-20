@@ -46,7 +46,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 if it does not already exist (_put if absent_). If a document with the specified
 `_id` already exists, the indexing operation will fail. Same as using the
 `<index>/_create` endpoint. Valid values: `index`, `create`.
-If document id is specified, it defaults to `index` or else it defaults to `create`.
+If document id is specified, it defaults to `index`. Otherwise, it defaults to `create`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
 

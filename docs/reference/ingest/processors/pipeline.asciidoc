@@ -83,7 +83,6 @@ Response from the index request:
 --------------------------------------------------
 {
   "_index": "myindex",
-  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "result": "created",

@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -33,6 +34,7 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -53,6 +55,7 @@ public final class ECallLocal extends AExpression {
     private PainlessClassBinding classBinding = null;
     private int classBindingOffset = 0;
     private PainlessInstanceBinding instanceBinding = null;
+    private String bindingName = null;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
         super(location);
@@ -76,8 +79,8 @@ public final class ECallLocal extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        localFunction = functions.getFunction(name, arguments.size());
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        localFunction = scriptRoot.getFunctionTable().getFunction(name, arguments.size());
 
         // user cannot call internal functions, reset to null if an internal function is found
         if (localFunction != null && localFunction.isInternal()) {
@@ -85,14 +88,14 @@ public final class ECallLocal extends AExpression {
         }
 
         if (localFunction == null) {
-            importedMethod = locals.getPainlessLookup().lookupImportedPainlessMethod(name, arguments.size());
+            importedMethod = scriptRoot.getPainlessLookup().lookupImportedPainlessMethod(name, arguments.size());
 
             if (importedMethod == null) {
-                classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
+                classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
 
                 // check to see if this class binding requires an implicit this reference
                 if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
-                        classBinding.typeParameters.get(0) == locals.getBaseClass()) {
+                        classBinding.typeParameters.get(0) == scriptRoot.getScriptClassInfo().getBaseClass()) {
                     classBinding = null;
                 }
 
@@ -103,11 +106,11 @@ public final class ECallLocal extends AExpression {
                     // will likely involve adding a class instance binding where any instance can have a class binding
                     // as part of its API.  However, the situation at run-time is difficult and will modifications that
                     // are a substantial change if even possible to do.
-                    classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
+                    classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
 
                     if (classBinding != null) {
                         if (classBinding.typeParameters.isEmpty() == false &&
-                                classBinding.typeParameters.get(0) == locals.getBaseClass()) {
+                                classBinding.typeParameters.get(0) == scriptRoot.getScriptClassInfo().getBaseClass()) {
                             classBindingOffset = 1;
                         } else {
                             classBinding = null;
@@ -115,7 +118,7 @@ public final class ECallLocal extends AExpression {
                     }
 
                     if (classBinding == null) {
-                        instanceBinding = locals.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
+                        instanceBinding = scriptRoot.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
 
                         if (instanceBinding == null) {
                             throw createError(new IllegalArgumentException(
@@ -137,9 +140,15 @@ public final class ECallLocal extends AExpression {
         } else if (classBinding != null) {
             typeParameters = new ArrayList<>(classBinding.typeParameters);
             actual = classBinding.returnType;
+            bindingName = scriptRoot.getNextSyntheticName("class_binding");
+            scriptRoot.getClassNode().addField(new SField(location,
+                    Modifier.PRIVATE, bindingName, classBinding.javaConstructor.getDeclaringClass(), null));
         } else if (instanceBinding != null) {
             typeParameters = new ArrayList<>(instanceBinding.typeParameters);
             actual = instanceBinding.returnType;
+            bindingName = scriptRoot.getNextSyntheticName("instance_binding");
+            scriptRoot.getClassNode().addField(new SField(location, Modifier.STATIC | Modifier.PUBLIC,
+                    bindingName, instanceBinding.targetInstance.getClass(), instanceBinding.targetInstance));
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
@@ -152,8 +161,8 @@ public final class ECallLocal extends AExpression {
 
             expression.expected = typeParameters.get(argument + classBindingOffset);
             expression.internal = true;
-            expression.analyze(functions, locals);
-            arguments.set(argument, expression.cast(functions, locals));
+            expression.analyze(scriptRoot, locals);
+            arguments.set(argument, expression.cast(scriptRoot, locals));
         }
 
         statement = true;
@@ -177,14 +186,13 @@ public final class ECallLocal extends AExpression {
             methodWriter.invokeStatic(Type.getType(importedMethod.targetClass),
                     new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString()));
         } else if (classBinding != null) {
-            String name = globals.addClassBinding(classBinding.javaConstructor.getDeclaringClass());
             Type type = Type.getType(classBinding.javaConstructor.getDeclaringClass());
             int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount() - classBindingOffset;
 
             Label nonNull = new Label();
 
             methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, name, type);
+            methodWriter.getField(CLASS_TYPE, bindingName, type);
             methodWriter.ifNonNull(nonNull);
             methodWriter.loadThis();
             methodWriter.newInstance(type);
@@ -199,11 +207,11 @@ public final class ECallLocal extends AExpression {
             }
 
             methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
-            methodWriter.putField(CLASS_TYPE, name, type);
+            methodWriter.putField(CLASS_TYPE, bindingName, type);
 
             methodWriter.mark(nonNull);
             methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, name, type);
+            methodWriter.getField(CLASS_TYPE, bindingName, type);
 
             for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
                 arguments.get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, globals);
@@ -211,11 +219,10 @@ public final class ECallLocal extends AExpression {
 
             methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
         } else if (instanceBinding != null) {
-            String name = globals.addInstanceBinding(instanceBinding.targetInstance);
             Type type = Type.getType(instanceBinding.targetInstance.getClass());
 
             methodWriter.loadThis();
-            methodWriter.getStatic(CLASS_TYPE, name, type);
+            methodWriter.getStatic(CLASS_TYPE, bindingName, type);
 
             for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
                 arguments.get(argument).write(classWriter, methodWriter, globals);

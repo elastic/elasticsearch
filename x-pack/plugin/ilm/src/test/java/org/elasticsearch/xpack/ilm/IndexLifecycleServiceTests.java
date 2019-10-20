@@ -289,7 +289,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         doAnswer(invocationOnMock -> {
             OperationModeUpdateTask task = (OperationModeUpdateTask) invocationOnMock.getArguments()[1];
-            assertThat(task.getOperationMode(), equalTo(OperationMode.STOPPED));
+            assertThat(task.getILMOperationMode(), equalTo(OperationMode.STOPPED));
             moveToMaintenance.set(true);
             return null;
         }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class));

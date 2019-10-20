@@ -158,7 +158,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             "indices",
             (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
 
-    private static final Marker AUDIT_MARKER = MarkerManager.getMarker("AUDIT");
+    private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.security.audit");
 
     private final Logger logger;
     private final ThreadContext threadContext;

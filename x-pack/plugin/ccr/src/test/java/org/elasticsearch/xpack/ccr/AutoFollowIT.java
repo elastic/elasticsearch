@@ -491,9 +491,10 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // start creating new indices on the remote cluster
         final Thread createNewLeaderIndicesThread = new Thread(() -> {
-            while (running.get() && leaderIndices.get() < 20) {
+            int leaderIndicesCount;
+            while (running.get() && (leaderIndicesCount = leaderIndices.incrementAndGet()) < 20) {
                 final String prefix = randomFrom(prefixes);
-                final String leaderIndex = prefix + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+                final String leaderIndex = prefix + leaderIndicesCount;
                 try {
                     createLeaderIndex(leaderIndex, leaderIndexSettings);
                     ensureLeaderGreen(leaderIndex);
@@ -503,7 +504,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
                     } else {
                         Thread.sleep(200L);
                     }
-                    leaderIndices.incrementAndGet();
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }

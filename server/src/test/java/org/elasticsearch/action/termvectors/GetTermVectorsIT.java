@@ -159,7 +159,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         for (int i = 0; i < 6; i++) {
             indexBuilders.add(client().prepareIndex()
                     .setIndex("test")
-                    .setType("type1")
                     .setId(String.valueOf(i))
                     .setSource("field" + i, i));
         }
@@ -495,7 +494,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             for (int id = 0; id < content.length; id++) {
                 indexBuilders.add(client().prepareIndex()
                         .setIndex(indexName)
-                        .setType("type1")
                         .setId(String.valueOf(id))
                         .setSource("field1", content[id]));
             }
@@ -607,7 +605,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         for (int i = 0; i < content.length; i++) {
             indexBuilders.add(client().prepareIndex()
                     .setIndex("test")
-                    .setType("type1")
                     .setId(String.valueOf(i))
                     .setSource("field1", content[i]));
         }
@@ -1055,7 +1052,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             for (int id = 0; id < content.length; id++) {
                 indexBuilders.add(client().prepareIndex()
                     .setIndex(indexName)
-                    .setType("type1")
                     .setId(String.valueOf(id))
                     .setSource("field1", content[id], "field2", content[id]));
             }

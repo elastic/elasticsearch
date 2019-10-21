@@ -3368,19 +3368,19 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     List.of(
                         new ActualClass(
                             "ant",
-                            1,
+                            1L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
-                            0),
+                            0L),
                         new ActualClass(
                             "cat",
-                            5,
+                            5L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
-                            1),
+                            1L),
                         new ActualClass(
                             "dog",
-                            4,
+                            4L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
-                            0))));
+                            0L))));
             assertThat(otherClassesCount, equalTo(0L));
         }
     }

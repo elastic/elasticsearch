@@ -220,13 +220,13 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
         private final long otherActualClassCount;
 
         public Result(List<ActualClass> actualClasses, long otherActualClassCount) {
-            this.actualClasses = Collections.unmodifiableList(Objects.requireNonNull(actualClasses));
-            this.otherActualClassCount = otherActualClassCount;
+            this.actualClasses = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(actualClasses, CONFUSION_MATRIX));
+            this.otherActualClassCount = requireNonNegative(otherActualClassCount, OTHER_ACTUAL_CLASS_COUNT);
         }
 
         public Result(StreamInput in) throws IOException {
             this.actualClasses = Collections.unmodifiableList(in.readList(ActualClass::new));
-            this.otherActualClassCount = in.readLong();
+            this.otherActualClassCount = in.readVLong();
         }
 
         @Override
@@ -250,7 +250,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(actualClasses);
-            out.writeLong(otherActualClassCount);
+            out.writeVLong(otherActualClassCount);
         }
 
         @Override
@@ -309,25 +309,25 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
 
         public ActualClass(
                 String actualClass, long actualClassDocCount, List<PredictedClass> predictedClasses, long otherPredictedClassDocCount) {
-            this.actualClass = actualClass;
-            this.actualClassDocCount = actualClassDocCount;
-            this.predictedClasses = Collections.unmodifiableList(predictedClasses);
-            this.otherPredictedClassDocCount = otherPredictedClassDocCount;
+            this.actualClass = ExceptionsHelper.requireNonNull(actualClass, ACTUAL_CLASS);
+            this.actualClassDocCount = requireNonNegative(actualClassDocCount, ACTUAL_CLASS_DOC_COUNT);
+            this.predictedClasses = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(predictedClasses, PREDICTED_CLASSES));
+            this.otherPredictedClassDocCount = requireNonNegative(otherPredictedClassDocCount, OTHER_PREDICTED_CLASS_DOC_COUNT);
         }
 
         public ActualClass(StreamInput in) throws IOException {
             this.actualClass = in.readString();
-            this.actualClassDocCount = in.readLong();
+            this.actualClassDocCount = in.readVLong();
             this.predictedClasses = Collections.unmodifiableList(in.readList(PredictedClass::new));
-            this.otherPredictedClassDocCount = in.readLong();
+            this.otherPredictedClassDocCount = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(actualClass);
-            out.writeLong(actualClassDocCount);
+            out.writeVLong(actualClassDocCount);
             out.writeList(predictedClasses);
-            out.writeLong(otherPredictedClassDocCount);
+            out.writeVLong(otherPredictedClassDocCount);
         }
 
         @Override
@@ -377,13 +377,13 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
         private final long count;
 
         public PredictedClass(String predictedClass, long count) {
-            this.predictedClass = predictedClass;
-            this.count = count;
+            this.predictedClass = ExceptionsHelper.requireNonNull(predictedClass, PREDICTED_CLASS);
+            this.count = requireNonNegative(count, COUNT);
         }
 
         public PredictedClass(StreamInput in) throws IOException {
             this.predictedClass = in.readString();
-            this.count = in.readLong();
+            this.count = in.readVLong();
         }
 
         public String getPredictedClass() {
@@ -393,7 +393,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(predictedClass);
-            out.writeLong(count);
+            out.writeVLong(count);
         }
 
         @Override
@@ -418,5 +418,12 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
         public int hashCode() {
             return Objects.hash(predictedClass, count);
         }
+    }
+
+    private static long requireNonNegative(long value, ParseField field) {
+        if (value < 0) {
+            throw ExceptionsHelper.serverError("[" + field.getPreferredName() + "] must be >= 0, was: " + value);
+        }
+        return value;
     }
 }

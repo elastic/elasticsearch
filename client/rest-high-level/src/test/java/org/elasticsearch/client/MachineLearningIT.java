@@ -1805,19 +1805,19 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                     List.of(
                         new ActualClass(
                             "ant",
-                            1,
+                            1L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
-                            0),
+                            0L),
                         new ActualClass(
                             "cat",
-                            5,
+                            5L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
-                            1),
+                            1L),
                         new ActualClass(
                             "dog",
-                            4,
+                            4L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
-                            0))));
+                            0L))));
             assertThat(mcmResult.getOtherActualClassCount(), equalTo(0L));
         }
         {  // Explicit size provided for MulticlassConfusionMatrixMetric metric
@@ -1839,8 +1839,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 mcmResult.getConfusionMatrix(),
                 equalTo(
                     List.of(
-                        new ActualClass("cat", 5, List.of(new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1),
-                        new ActualClass("dog", 4, List.of(new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0)
+                        new ActualClass("cat", 5L, List.of(new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1L),
+                        new ActualClass("dog", 4L, List.of(new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0L)
                     )));
             assertThat(mcmResult.getOtherActualClassCount(), equalTo(1L));
         }

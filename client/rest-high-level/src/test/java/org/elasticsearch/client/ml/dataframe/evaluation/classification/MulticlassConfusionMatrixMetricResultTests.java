@@ -48,11 +48,16 @@ public class MulticlassConfusionMatrixMetricResultTests extends AbstractXContent
         for (int i = 0; i < numClasses; i++) {
             List<PredictedClass> predictedClasses = new ArrayList<>(numClasses);
             for (int j = 0; j < numClasses; j++) {
-                predictedClasses.add(new PredictedClass(classNames.get(j), randomNonNegativeLong()));
+                predictedClasses.add(new PredictedClass(classNames.get(j), randomBoolean() ? randomNonNegativeLong() : null));
             }
-            actualClasses.add(new ActualClass(classNames.get(i), randomNonNegativeLong(), predictedClasses, randomNonNegativeLong()));
+            actualClasses.add(
+                new ActualClass(
+                    classNames.get(i),
+                    randomBoolean() ? randomNonNegativeLong() : null,
+                    predictedClasses,
+                    randomBoolean() ? randomNonNegativeLong() : null));
         }
-        return new Result(actualClasses, randomNonNegativeLong());
+        return new Result(actualClasses, randomBoolean() ? randomNonNegativeLong() : null);
     }
 
     @Override

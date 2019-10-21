@@ -18,7 +18,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;

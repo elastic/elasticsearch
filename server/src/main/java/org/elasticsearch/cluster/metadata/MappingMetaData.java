@@ -32,6 +32,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -40,6 +42,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  * Mapping configuration for a type.
  */
 public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
+
+    public static final MappingMetaData EMPTY_MAPPINGS = new MappingMetaData("_doc", Collections.emptyMap());
 
     public static class Routing {
 
@@ -75,7 +79,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     private final CompressedXContent source;
 
-    private Routing routing;
+    private final Routing routing;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -83,6 +87,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         this.routing = new Routing(docMapper.routingFieldMapper().required());
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetaData(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -90,21 +95,28 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
-        initMappers((Map<String, Object>) mappingMap.get(this.type));
+        this.routing = initRouting((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
+    @SuppressWarnings("unchecked")
+    public MappingMetaData(String type, Map<String, Object> mapping) {
         this.type = type;
-        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
-        this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
+        try {
+            XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
+            this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
+        }
+        catch (IOException e) {
+            throw new UncheckedIOException(e);  // XContent exception, should never happen
+        }
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
-        initMappers(withoutType);
+        this.routing = initRouting(withoutType);
     }
 
-    private void initMappers(Map<String, Object> withoutType) {
+    @SuppressWarnings("unchecked")
+    private Routing initRouting(Map<String, Object> withoutType) {
         if (withoutType.containsKey("_routing")) {
             boolean required = false;
             Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_routing");
@@ -120,9 +132,9 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
                     }
                 }
             }
-            this.routing = new Routing(required);
+            return new Routing(required);
         } else {
-            this.routing = Routing.EMPTY;
+            return Routing.EMPTY;
         }
     }
 

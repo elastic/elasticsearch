@@ -5,16 +5,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -37,10 +27,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.smile.SmileXContent;
-import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -59,6 +49,16 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -145,7 +145,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
@@ -230,7 +230,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
@@ -328,7 +328,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
@@ -435,7 +435,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -542,7 +542,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -806,7 +806,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
@@ -929,7 +929,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
@@ -1060,7 +1060,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
@@ -1182,7 +1182,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
@@ -1338,7 +1338,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
 
         // Validate Mapping
-        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");

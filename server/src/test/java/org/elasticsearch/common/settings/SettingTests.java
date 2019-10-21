@@ -189,13 +189,9 @@ public class SettingTests extends ESTestCase {
 
         // try update bogus value
         Settings build = Settings.builder().put("foo.bar", "I am not a boolean").build();
-        try {
-            settingUpdater.apply(build, Settings.EMPTY);
-            fail("not a boolean");
-        } catch (IllegalArgumentException ex) {
-            assertThat(ex, hasToString(equalTo("java.lang.IllegalArgumentException: illegal value can't update [foo.bar]")));
-            assertNull(ex.getCause());
-        }
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> settingUpdater.apply(build, Settings.EMPTY));
+        assertThat(ex, hasToString(equalTo("java.lang.IllegalArgumentException: illegal value can't update [foo.bar]")));
+        assertNull(ex.getCause());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33135")
@@ -499,15 +495,11 @@ public class SettingTests extends ESTestCase {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", Property.Filtered, Property.Dynamic);
 
-        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger,(s) -> assertFalse(true));
-        try {
-            predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
-                Settings.EMPTY);
-            fail("not accepted");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("illegal value can't update [foo.bar.]", ex.getMessage());
-        }
-
+        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> assertFalse(true));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
+                Settings.EMPTY));
+        assertEquals("illegal value can't update [foo.bar.]", ex.getMessage());
     }
 
     public static class ComplexType {

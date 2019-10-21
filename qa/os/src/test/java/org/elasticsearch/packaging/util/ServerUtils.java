@@ -38,6 +38,7 @@ public class ServerUtils {
     protected static final Logger logger =  LogManager.getLogger(ServerUtils.class);
 
     private static final long waitTime = TimeUnit.SECONDS.toMillis(60);
+    private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
 
     public static void waitForElasticsearch(Installation installation) throws IOException {
@@ -50,9 +51,11 @@ public class ServerUtils {
 
         // we loop here rather than letting httpclient handle retries so we can measure the entire waiting time
         final long startTime = System.currentTimeMillis();
+        long lastRequest = 0;
         long timeElapsed = 0;
         boolean started = false;
-        while (started == false && timeElapsed < waitTime) {
+        Throwable lastException = null;
+        while (started == false && timeElapsed < waitTime && (System.currentTimeMillis() - lastRequest) > requestInterval) {
             try {
 
                 final HttpResponse response = Request.Get("http://localhost:9200/_cluster/health")
@@ -70,17 +73,19 @@ public class ServerUtils {
                 started = true;
 
             } catch (IOException e) {
-                logger.info("Got exception when waiting for cluster health", e);
+                lastException = e;
             }
 
             timeElapsed = System.currentTimeMillis() - startTime;
+            lastRequest = System.currentTimeMillis();
         }
 
         if (started == false) {
             if (installation != null) {
                 FileUtils.logAllLogs(installation.logs, logger);
             }
-            throw new RuntimeException("Elasticsearch did not start");
+
+            throw new RuntimeException("Elasticsearch did not start", lastException);
         }
 
         final String url;

@@ -49,8 +49,6 @@ public final class SearchSlowLog implements SearchOperationListener {
     private long fetchDebugThreshold;
     private long fetchTraceThreshold;
 
-    private SlowLogLevel level;
-
     private final Logger queryLogger;
     private final Logger fetchLogger;
 
@@ -87,8 +85,8 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     public SearchSlowLog(IndexSettings indexSettings) {
 
-        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
-        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query." + indexSettings.getUUID());
+        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch." + indexSettings.getUUID());
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
             this::setQueryWarnThreshold);
@@ -121,7 +119,6 @@ public final class SearchSlowLog implements SearchOperationListener {
     }
 
     private void setLevel(SlowLogLevel level) {
-        this.level = level;
         Loggers.setLevel(queryLogger, level.name());
         Loggers.setLevel(fetchLogger, level.name());
     }
@@ -291,6 +288,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     }
 
     SlowLogLevel getLevel() {
-        return level;
+        assert queryLogger.getLevel().equals(fetchLogger.getLevel());
+        return SlowLogLevel.parse(queryLogger.getLevel().name());
     }
 }

@@ -1160,17 +1160,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
 
-                private InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-                    final InputStream dataBlobCompositeStream = new SlicedInputStream(fileInfo.numberOfParts()) {
-                        @Override
-                        protected InputStream openSlice(long slice) throws IOException {
-                            return container.readBlob(fileInfo.partName(slice));
-                        }
-                    };
-                    return restoreRateLimiter == null ? dataBlobCompositeStream :
-                        new RateLimitingInputStream(dataBlobCompositeStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
-                }
-
                 /**
                  * Restores a file
                  * @param fileInfo file to be restored
@@ -1178,7 +1167,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
                     boolean success = false;
 
-                    try (InputStream stream = fileInputStream(fileInfo)) {
+                    try (InputStream stream = maybeRateLimit(new SlicedInputStream(fileInfo.numberOfParts()) {
+                                                                 @Override
+                                                                 protected InputStream openSlice(long slice) throws IOException {
+                                                                     return container.readBlob(fileInfo.partName(slice));
+                                                                 }
+                                                             },
+                        restoreRateLimiter, restoreRateLimitingTimeInNanos)) {
                         try (IndexOutput indexOutput =
                                  store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                             final byte[] buffer = new byte[BUFFER_SIZE];

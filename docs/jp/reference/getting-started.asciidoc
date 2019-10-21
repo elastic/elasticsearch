@@ -702,7 +702,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-違いは、URIで`q=*`を渡すのではなく、JSON形式のクエリリクエストボディを`_search` APIにPOSTする点です。このJSONクエリについては、次のセクションで説明します。
+違いは、URIで&#8203;`q=*`&#8203;を渡すのではなく、JSON形式のクエリリクエストボディを&#8203;`_search`&#8203; APIにPOSTする点です。このJSONクエリについては、次のセクションで説明します。
 
 ////
 Hidden response just so we can assert that it is indeed the same but don't have

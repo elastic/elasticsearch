@@ -190,7 +190,7 @@ public class PackageTests extends PackagingTestCase {
             } else {
 
                 final Result versionResult = sh.run("systemctl --version");
-                final Matcher matcher = Pattern.compile("^systemd (\\d+)\n").matcher(versionResult.stdout);
+                final Matcher matcher = Pattern.compile("^systemd (\\d+)").matcher(versionResult.stdout);
                 matcher.find();
                 final int version = Integer.parseInt(matcher.group(1));
 

@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.3.99"
-      reason:  "only backported to 7.4 (7x)"
+      version: " - 7.99.99" #TODO change this after backport
+      reason:  "not backported yet"
 
   - do:
         indices.create:

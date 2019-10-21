@@ -64,6 +64,8 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -857,9 +859,15 @@ public class StoreTests extends ESTestCase {
 
     public void testStreamStoreFilesMetaData() throws Exception {
         Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
+        int numOfLeases = randomIntBetween(0, 10);
+        List<RetentionLease> peerRecoveryRetentionLeases = new ArrayList<>();
+        for (int i = 0; i < numOfLeases; i++) {
+            peerRecoveryRetentionLeases.add(new RetentionLease(ReplicationTracker.getPeerRecoveryRetentionLeaseId(UUIDs.randomBase64UUID()),
+                randomNonNegativeLong(), randomNonNegativeLong(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+        }
         TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData =
             new TransportNodesListShardStoreMetaData.StoreFilesMetaData(new ShardId("test", "_na_", 0),
-                metadataSnapshot);
+                metadataSnapshot, peerRecoveryRetentionLeases);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.elasticsearch.Version targetNodeVersion = randomVersion(random());
@@ -875,6 +883,7 @@ public class StoreTests extends ESTestCase {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
         }
         assertThat(outStoreFileMetaData.syncId(), equalTo(inStoreFileMetaData.syncId()));
+        assertThat(outStoreFileMetaData.peerRecoveryRetentionLeases(), equalTo(peerRecoveryRetentionLeases));
     }
 
     public void testMarkCorruptedOnTruncatedSegmentsFile() throws IOException {

@@ -70,10 +70,8 @@ public class ESLoggerUsageChecker {
     public static final String IGNORE_CHECKS_ANNOTATION = "org.elasticsearch.common.SuppressLoggerChecks";
     // types which are subject to checking when used in logger. <code>TestMessage<code> is also declared here to
     // make sure this functionality works
-    public static final Set<Type> DEPRECATED_TYPES = Set.of(
-        Type.getObjectType("org/elasticsearch/common/logging/DeprecatedMessage"),
-        Type.getObjectType("org/elasticsearch/test/loggerusage/TestMessage")
-    );
+    public static final Set<Type> CUSTOM_MESSAGE_TYPE = Set.of(
+        Type.getObjectType("org/elasticsearch/common/logging/ESLogMessage"));
 
     public static final Type PARAMETERIZED_MESSAGE_CLASS = Type.getType(ParameterizedMessage.class);
 
@@ -301,13 +299,12 @@ public class ESLoggerUsageChecker {
                     MethodInsnNode methodInsn = (MethodInsnNode) insn;
                     Type objectType = Type.getObjectType(methodInsn.owner);
 
-                    if (DEPRECATED_TYPES.contains(objectType)) {
+                    if (CUSTOM_MESSAGE_TYPE.contains(objectType)) {
                         Type[] argumentTypes = Type.getArgumentTypes(methodInsn.desc);
-                        if (argumentTypes.length == 3 &&
+                        if (argumentTypes.length == 2 &&
                             argumentTypes[0].equals(STRING_CLASS) &&
-                            argumentTypes[1].equals(STRING_CLASS) &&
-                            argumentTypes[2].equals(OBJECT_ARRAY_CLASS)) {
-                            checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, 0, 2);
+                            argumentTypes[1].equals(OBJECT_ARRAY_CLASS)) {
+                            checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, 0, 1);
                         }
                     }else if (objectType.equals(PARAMETERIZED_MESSAGE_CLASS)) {
                         Type[] argumentTypes = Type.getArgumentTypes(methodInsn.desc);
@@ -379,11 +376,29 @@ public class ESLoggerUsageChecker {
                 return;
             }
             assert logMessageLength.minValue == logMessageLength.maxValue && arraySize.minValue == arraySize.maxValue;
-            if (logMessageLength.minValue != arraySize.minValue) {
+            int chainedParams = getChainedParams(methodInsn);
+            int args = arraySize.minValue + chainedParams;
+            if (logMessageLength.minValue != args) {
                 wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
                     "Expected " + logMessageLength.minValue + " arguments but got " + arraySize.minValue));
                 return;
             }
+        }
+
+        //counts how many times argAndField  was called on the method chain
+        private int getChainedParams(AbstractInsnNode startNode) {
+            int c = 0;
+            AbstractInsnNode current = startNode;
+            while(current.getNext() != null){
+                current = current.getNext();
+                if(current instanceof MethodInsnNode){
+                    MethodInsnNode method = (MethodInsnNode)current;
+                    if(method.name.equals("argAndField")){
+                        c++;
+                    }
+                }
+            }
+            return c;
         }
 
         private PlaceHolderStringBasicValue checkLogMessageConsistency(MethodNode methodNode, Frame<BasicValue> logMessageFrame,

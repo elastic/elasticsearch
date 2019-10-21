@@ -19,6 +19,9 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -76,6 +79,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -88,6 +92,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
@@ -111,7 +116,42 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FailOnRewriteQueryPlugin.class, CustomScriptPlugin.class, InternalOrPrivateSettingsPlugin.class);
+        return pluginList(FailOnRewriteQueryPlugin.class, CustomScriptPlugin.class,
+            ReaderWrapperCountPlugin.class, InternalOrPrivateSettingsPlugin.class);
+    }
+
+    public static class ReaderWrapperCountPlugin extends Plugin {
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.setReaderWrapper(service -> SearchServiceTests::apply);
+        }
+    }
+
+    @Before
+    private void resetCount() {
+        numWrapInvocations = new AtomicInteger(0);
+    }
+
+    private static AtomicInteger numWrapInvocations = new AtomicInteger(0);
+    private static DirectoryReader apply(DirectoryReader directoryReader) throws IOException {
+        numWrapInvocations.incrementAndGet();
+        return new FilterDirectoryReader(directoryReader,
+            new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader reader) {
+                return reader;
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                return in;
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return directoryReader.getReaderCacheHelper();
+            }
+        };
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -559,6 +599,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        int numWrapReader = numWrapInvocations.get();
         assertTrue(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
@@ -582,6 +623,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder()));
         assertFalse(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
+        assertEquals(numWrapReader, numWrapInvocations.get());
+
+        // make sure that the wrapper is called when the context is actually created
+        service.createContext(new ShardSearchRequest(OriginalIndices.NONE, searchRequest,
+            indexShard.shardId(), 1, new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1f, -1, null, null)).close();
+        assertEquals(numWrapReader+1, numWrapInvocations.get());
     }
 
     public void testCanRewriteToMatchNone() {

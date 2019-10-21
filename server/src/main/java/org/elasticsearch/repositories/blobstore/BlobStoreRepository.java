@@ -22,13 +22,16 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
@@ -37,6 +40,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -448,14 +452,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, listener::onFailure), 2);
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        executor.execute(ActionRunnable.wrap(groupedListener, l -> {
+        executor.execute(ActionRunnable.supply(groupedListener, () -> {
             List<String> deletedBlobs = cleanupStaleRootFiles(staleRootBlobs(newRepoData, rootBlobs.keySet()));
-            l.onResponse(
-                new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum()));
+            return new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum());
         }));
 
         final Set<String> survivingIndexIds = newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
-        executor.execute(ActionRunnable.wrap(groupedListener, l -> l.onResponse(cleanupStaleIndices(foundIndices, survivingIndexIds))));
+        executor.execute(ActionRunnable.supply(groupedListener, () -> cleanupStaleIndices(foundIndices, survivingIndexIds)));
     }
 
     /**
@@ -670,26 +673,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // that decrements the generation it points at
 
         // Write Global MetaData
-        executor.execute(ActionRunnable.wrap(allMetaListener, l -> {
-            globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false);
-            l.onResponse(null);
-        }));
+        executor.execute(ActionRunnable.run(allMetaListener,
+            () -> globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false)));
 
         // write the index metadata for each index in the snapshot
         for (IndexId index : indices) {
-            executor.execute(ActionRunnable.wrap(allMetaListener, l -> {
-                indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false);
-                l.onResponse(null);
-            }));
+            executor.execute(ActionRunnable.run(allMetaListener, () ->
+                indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false)));
         }
 
-        executor.execute(ActionRunnable.wrap(allMetaListener, afterMetaListener -> {
+        executor.execute(ActionRunnable.supply(allMetaListener, () -> {
             final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 indices.stream().map(IndexId::getName).collect(Collectors.toList()),
                 startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
                 includeGlobalState, userMetadata);
             snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
-            afterMetaListener.onResponse(snapshotInfo);
+            return snapshotInfo;
         }));
     }
 
@@ -1147,24 +1146,58 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
                              RecoveryState recoveryState) {
         ShardId shardId = store.shardId();
         try {
             final BlobContainer container = shardContainer(indexId, snapshotShardId);
             BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
             SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-            new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE) {
+            new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState) {
                 @Override
-                protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-                    final InputStream dataBlobCompositeStream = new SlicedInputStream(fileInfo.numberOfParts()) {
-                        @Override
-                        protected InputStream openSlice(long slice) throws IOException {
-                            return container.readBlob(fileInfo.partName(slice));
+                protected void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store) throws IOException {
+                    // restore the files from the snapshot to the Lucene store
+                    for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
+                        logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
+                        restoreFile(fileToRecover, store);
+                    }
+                }
+
+                private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
+                    boolean success = false;
+
+                    try (InputStream stream = maybeRateLimit(new SlicedInputStream(fileInfo.numberOfParts()) {
+                                                                 @Override
+                                                                 protected InputStream openSlice(long slice) throws IOException {
+                                                                     return container.readBlob(fileInfo.partName(slice));
+                                                                 }
+                                                             },
+                        restoreRateLimiter, restoreRateLimitingTimeInNanos)) {
+                        try (IndexOutput indexOutput =
+                                 store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
+                            final byte[] buffer = new byte[BUFFER_SIZE];
+                            int length;
+                            while ((length = stream.read(buffer)) > 0) {
+                                indexOutput.writeBytes(buffer, 0, length);
+                                recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
+                            }
+                            Store.verify(indexOutput);
+                            indexOutput.close();
+                            store.directory().sync(Collections.singleton(fileInfo.physicalName()));
+                            success = true;
+                        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+                            try {
+                                store.markStoreCorrupted(ex);
+                            } catch (IOException e) {
+                                logger.warn("store cannot be marked as corrupted", e);
+                            }
+                            throw ex;
+                        } finally {
+                            if (success == false) {
+                                store.deleteQuiet(fileInfo.physicalName());
+                            }
                         }
-                    };
-                    return restoreRateLimiter == null ? dataBlobCompositeStream
-                        : new RateLimitingInputStream(dataBlobCompositeStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
+                    }
                 }
             }.restore(snapshotFiles, store);
         } catch (Exception e) {
@@ -1172,8 +1205,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    private static InputStream maybeRateLimit(InputStream stream, @Nullable RateLimiter rateLimiter, CounterMetric metric) {
+        return rateLimiter == null ? stream : new RateLimitingInputStream(stream, rateLimiter, metric::inc);
+    }
+
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
         return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(),
             snapshot.incrementalFileCount(), snapshot.totalFileCount(),
@@ -1333,13 +1370,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
 
-                InputStream inputStream = new InputStreamIndexInput(indexInput, partBytes);
-                if (snapshotRateLimiter != null) {
-                    inputStream = new RateLimitingInputStream(inputStream, snapshotRateLimiter,
-                        snapshotRateLimitingTimeInNanos::inc);
-                }
                 // Make reads abortable by mutating the snapshotStatus object
-                inputStream = new FilterInputStream(inputStream) {
+                final InputStream inputStream = new FilterInputStream(maybeRateLimit(
+                    new InputStreamIndexInput(indexInput, partBytes), snapshotRateLimiter, snapshotRateLimitingTimeInNanos)) {
                     @Override
                     public int read() throws IOException {
                         checkAborted();

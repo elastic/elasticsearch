@@ -74,7 +74,7 @@ public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(Netty4Plugin.class);
+        return Collections.singletonList(Netty4Plugin.class);
     }
 
 }

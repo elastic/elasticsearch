@@ -60,7 +60,7 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
     void process(SearchResponse searchResponse);
 
     /**
-     * @return true iff all the metrics have their results computed
+     * @return true if all the metrics have their results computed
      */
     default boolean hasAllResults() {
         return getMetrics().stream().map(EvaluationMetric::getResult).allMatch(Optional::isPresent);

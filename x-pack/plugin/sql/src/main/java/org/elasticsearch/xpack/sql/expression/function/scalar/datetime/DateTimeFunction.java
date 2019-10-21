@@ -17,6 +17,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.Temporal;
+import java.time.temporal.TemporalField;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -31,10 +32,10 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
     public static Integer dateTimeChrono(ZonedDateTime dateTime, String tzId, String chronoName) {
         ZonedDateTime zdt = dateTime.withZoneSameInstant(ZoneId.of(tzId));
-        return dateTimeChrono(zdt, ChronoField.valueOf(chronoName));
+        return dateTimeChrono(zdt, DateTimeProcessor.DateTimeExtractor.valueOf(chronoName).chronoField());
     }
 
-    protected static Integer dateTimeChrono(Temporal dateTime, ChronoField field) {
+    protected static Integer dateTimeChrono(Temporal dateTime, TemporalField field) {
         return Integer.valueOf(dateTime.get(field));
     }
     
@@ -46,7 +47,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
         String template = formatTemplate("{sql}.dateTimeChrono(" + script.template() + ", {}, {})");
         params.script(script.params())
               .variable(zoneId().getId())
-              .variable(extractor.chronoField().name());
+              .variable(extractor.name());
         
         return new ScriptTemplate(template, params.build(), dataType());
     }

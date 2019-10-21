@@ -26,21 +26,11 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
     
     public enum NonIsoDateTimeExtractor {
         DAY_OF_WEEK(zdt -> {
-            // by ISO 8601 standard, Monday is the first day of the week and has the value 1
-            // non-ISO 8601 standard considers Sunday as the first day of the week and value 1
-            int dayOfWeek = zdt.get(ChronoField.DAY_OF_WEEK) + 1;
-            return dayOfWeek == 8 ? 1 : dayOfWeek;
+            return zdt.get(WeekFields.of(DayOfWeek.SUNDAY,1).dayOfWeek());
         }),
         WEEK_OF_YEAR(zdt -> {
-            // by ISO 8601 standard, the first week of a year is the first week with a majority (4 or more) of its days in January.
-            // Other Locales may have their own standards (see Arabic or Japanese calendars).
-            LocalDateTime ld = zdt.toLocalDateTime();
-            Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(zdt.getZone()), Locale.ROOT);
-            cal.clear();
-            cal.set(ld.get(ChronoField.YEAR), ld.get(ChronoField.MONTH_OF_YEAR) - 1, ld.get(ChronoField.DAY_OF_MONTH),
-                    ld.get(ChronoField.HOUR_OF_DAY), ld.get(ChronoField.MINUTE_OF_HOUR), ld.get(ChronoField.SECOND_OF_MINUTE));
-// for Locale.ROOT I would expect the same behavior as ISO, if there is a different locale, then it should be used WeekFields.of(Locale)
-            return zdt.get(WeekFields.of(DayOfWeek.SUNDAY,1).weekOfWeekBasedYear());//cal.get(Calendar.WEEK_OF_YEAR);
+            // for non-iso week of year we expect a week to start on Sunday and require only 1 day on the first week of th year
+            return zdt.get(WeekFields.of(DayOfWeek.SUNDAY,1).weekOfWeekBasedYear());
         });
 
         private final Function<ZonedDateTime, Integer> apply;

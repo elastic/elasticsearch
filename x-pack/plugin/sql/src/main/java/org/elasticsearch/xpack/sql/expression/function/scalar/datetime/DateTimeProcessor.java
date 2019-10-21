@@ -13,6 +13,8 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalField;
+import java.time.temporal.WeekFields;
 import java.util.Objects;
 
 public class DateTimeProcessor extends BaseDateTimeProcessor {
@@ -26,12 +28,13 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
         MINUTE_OF_HOUR(ChronoField.MINUTE_OF_HOUR),
         MONTH_OF_YEAR(ChronoField.MONTH_OF_YEAR),
         SECOND_OF_MINUTE(ChronoField.SECOND_OF_MINUTE),
-        ISO_WEEK_OF_YEAR(ChronoField.ALIGNED_WEEK_OF_YEAR),
+        ISO_WEEK_OF_YEAR(WeekFields.ISO.weekOfWeekBasedYear()),
         YEAR(ChronoField.YEAR);
+        //TODO we don't have ISO_DAY_OF_WEEK ?
 
-        private final ChronoField field;
+        private final TemporalField field;
 
-        DateTimeExtractor(ChronoField field) {
+        DateTimeExtractor(TemporalField field) {
             this.field = field;
         }
 
@@ -43,7 +46,7 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
             return time.get(field);
         }
 
-        public ChronoField chronoField() {
+        public TemporalField chronoField() {
             return field;
         }
     }

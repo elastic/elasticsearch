@@ -1241,7 +1241,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + "InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0),"
                 + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3,params.v4)\","
                 + "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\","
-                + "\"v3\":\"Z\",\"v4\":\"" + randomFunction.chronoField().name() + "\"}},\"missing_bucket\":true,"
+                + "\"v3\":\"Z\",\"v4\":\"" + randomFunction.name() + "\"}},\"missing_bucket\":true,"
                 + "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}}"));
     }
 

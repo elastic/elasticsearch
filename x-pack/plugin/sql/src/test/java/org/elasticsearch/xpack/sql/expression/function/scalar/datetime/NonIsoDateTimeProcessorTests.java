@@ -38,11 +38,6 @@ public class NonIsoDateTimeProcessorTests extends AbstractSqlWireSerializingTest
         return new NonIsoDateTimeProcessor(replaced, UTC);
     }
 
-    @Override
-    protected ZoneId instanceZoneId(NonIsoDateTimeProcessor instance) {
-        return instance.zoneId();
-    }
-
     public void testNonISOWeekOfYearInUTC() {
         NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.WEEK_OF_YEAR, UTC);
         assertEquals(2, proc.process(dateTime(568372930000L)));  //1988-01-05T09:22:10Z[UTC]

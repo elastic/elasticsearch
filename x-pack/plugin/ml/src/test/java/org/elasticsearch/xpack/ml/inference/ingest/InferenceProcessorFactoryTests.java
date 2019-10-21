@@ -75,12 +75,12 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         MetaData metaData = null;
 
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY, ingestService);
-        processorFactory.accept(buildState(metaData));
+        processorFactory.accept(buildClusterState(metaData));
 
         assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
         metaData = MetaData.builder().build();
 
-        processorFactory.accept(buildState(metaData));
+        processorFactory.accept(buildClusterState(metaData));
         assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
 
         processorFactory.accept(buildClusterStateWithModelReferences("model1", "model2", "model3"));
@@ -220,7 +220,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    private static ClusterState buildState(MetaData metaData) {
+    private static ClusterState buildClusterState(MetaData metaData) {
        return ClusterState.builder(new ClusterName("_name")).metaData(metaData).build();
     }
 

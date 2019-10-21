@@ -21,6 +21,7 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,22 +93,12 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("index_for_inference_test", "_doc")
-                .setSource(new HashMap<>(){{
-                    put("col1", randomFrom("female", "male"));
-                    put("col2", randomFrom("S", "M", "L", "XL"));
-                    put("col3", randomFrom("true", "false", "none", "other"));
-                    put("col4", randomIntBetween(0, 10));
-                }})
+                .setSource(generateSourceDoc())
                 .setPipeline("simple_classification_pipeline")
                 .get();
 
             client().prepareIndex("index_for_inference_test", "_doc")
-                .setSource(new HashMap<>(){{
-                    put("col1", randomFrom("female", "male"));
-                    put("col2", randomFrom("S", "M", "L", "XL"));
-                    put("col3", randomFrom("true", "false", "none", "other"));
-                    put("col4", randomIntBetween(0, 10));
-                }})
+                .setSource(generateSourceDoc())
                 .setPipeline("simple_regression_pipeline")
                 .get();
         }
@@ -233,6 +224,15 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
 
         assertThat(((SimulateDocumentBaseResult) response.getResults().get(0)).getFailure().getMessage(),
             containsString("Could not find trained model [test_classification_missing]"));
+    }
+
+    private Map<String, Object> generateSourceDoc() {
+        return new HashMap<>(){{
+            put("col1", randomFrom("female", "male"));
+            put("col2", randomFrom("S", "M", "L", "XL"));
+            put("col3", randomFrom("true", "false", "none", "other"));
+            put("col4", randomIntBetween(0, 10));
+        }};
     }
 
     private static final String REGRESSION_MODEL = "{" +

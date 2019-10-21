@@ -124,6 +124,9 @@ public class InferenceProcessor extends AbstractProcessor {
     }
 
     void mutateDocument(InferModelAction.Response response, IngestDocument ingestDocument) {
+        if (response.getInferenceResults().isEmpty()) {
+            throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
+        }
         response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
         if (modelInfoField != null) {
             ingestDocument.setFieldValue(modelInfoField, modelInfo);
@@ -149,6 +152,7 @@ public class InferenceProcessor extends AbstractProcessor {
         private volatile int currentInferenceProcessors;
         private volatile int maxIngestProcessors;
         private volatile Version minNodeVersion = Version.CURRENT;
+
         public Factory(Client client, ClusterService clusterService, Settings settings, IngestService ingestService) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
@@ -223,7 +227,7 @@ public class InferenceProcessor extends AbstractProcessor {
         InferenceConfig inferenceConfigFromMap(Map<String, Object> inferenceConfig) throws IOException {
             ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
 
-            if (inferenceConfig.keySet().size() != 1) {
+            if (inferenceConfig.size() != 1) {
                 throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",
                     INFERENCE_CONFIG);
             }

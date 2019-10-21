@@ -807,7 +807,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repository.restoreShard(shard.store(),
-            snapshot.getSnapshotId(), version,
+            snapshot.getSnapshotId(),
             indexId,
             shard.shardId(),
             shard.recoveryState(),

@@ -496,8 +496,8 @@ final class StoreRecovery {
             }
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             assert indexShard.getEngineOrNull() == null;
-            repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId,
-                snapshotShardId, indexShard.recoveryState(), restoreListener);
+            repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
+                indexShard.recoveryState(), restoreListener);
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }

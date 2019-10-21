@@ -119,16 +119,14 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = getIndexResponse.mappings();
-        ImmutableOpenMap<String, MappingMetaData> indexMapping = mappings.get(sourceIndexName);
-        if (indexMapping.keys().size() == 0) {
+        ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.mappings();
+        MappingMetaData indexMapping = mappings.get(sourceIndexName);
+        if (indexMapping == MappingMetaData.EMPTY_MAPPINGS) {
             throw new ElasticsearchException(
                 "Enrich policy execution for [{}] failed. No mapping available on source [{}] included in [{}]",
                 policyName, sourceIndexName, policy.getIndices());
         }
-        assert indexMapping.keys().size() == 1 : "Expecting only one type per index";
-        MappingMetaData typeMapping = indexMapping.iterator().next().value;
-        return typeMapping.sourceAsMap();
+        return indexMapping.sourceAsMap();
     }
 
     private void validateMappings(final GetIndexResponse getIndexResponse) {

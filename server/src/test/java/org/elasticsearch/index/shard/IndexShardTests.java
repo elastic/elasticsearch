@@ -2341,7 +2341,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
-            public void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+            public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
                                      RecoveryState recoveryState, ActionListener<Void> listener) {
                 ActionListener.completeWith(listener, () -> {
                     cleanLuceneIndex(targetStore.directory());

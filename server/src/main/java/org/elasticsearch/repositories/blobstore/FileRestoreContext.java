@@ -57,7 +57,6 @@ public abstract class FileRestoreContext {
     protected final RecoveryState recoveryState;
     protected final SnapshotId snapshotId;
     protected final ShardId shardId;
-    protected final int bufferSize;
 
     /**
      * Constructs new restore context
@@ -65,15 +64,12 @@ public abstract class FileRestoreContext {
      * @param shardId       shard id to restore into
      * @param snapshotId    snapshot id
      * @param recoveryState recovery state to report progress
-     * @param bufferSize    buffer size for restore
      */
-    protected FileRestoreContext(String repositoryName, ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState,
-                                 int bufferSize) {
+    protected FileRestoreContext(String repositoryName, ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState) {
         this.repositoryName = repositoryName;
         this.recoveryState = recoveryState;
         this.snapshotId = snapshotId;
         this.shardId = shardId;
-        this.bufferSize = bufferSize;
     }
 
     /**
@@ -83,22 +79,6 @@ public abstract class FileRestoreContext {
         store.incRef();
         try {
             logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
-
-            if (snapshotFiles.indexFiles().size() == 1
-                && snapshotFiles.indexFiles().get(0).physicalName().startsWith("segments_")
-                && snapshotFiles.indexFiles().get(0).hasUnknownChecksum()) {
-                // If the shard has no documents, it will only contain a single segments_N file for the
-                // shard's snapshot.  If we are restoring a snapshot created by a previous supported version,
-                // it is still possible that in that version, an empty shard has a segments_N file with an unsupported
-                // version (and no checksum), because we don't know the Lucene version to assign segments_N until we
-                // have written some data.  Since the segments_N for an empty shard could have an incompatible Lucene
-                // version number and no checksum, even though the index itself is perfectly fine to restore, this
-                // empty shard would cause exceptions to be thrown.  Since there is no data to restore from an empty
-                // shard anyway, we just create the empty shard here and then exit.
-                store.createEmpty(store.indexSettings().getIndexVersionCreated().luceneVersion);
-                return;
-            }
-
             Store.MetadataSnapshot recoveryTargetMetadata;
             try {
                 // this will throw an IOException if the store has no segments infos file. The
@@ -211,6 +191,12 @@ public abstract class FileRestoreContext {
         listener.onResponse(null);
     }
 
+    /**
+     * Restores given list of {@link BlobStoreIndexShardSnapshot.FileInfo} to the given {@link Store}.
+     *
+     * @param filesToRecover List of files to restore
+     * @param store          Store to restore into
+     */
     protected abstract void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store,
                                          ActionListener<Void> listener);
 

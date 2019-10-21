@@ -454,7 +454,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
                 primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
-                    public void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+                    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
                                              RecoveryState recoveryState, ActionListener<Void> listener) {
                         ActionListener.completeWith(listener, () -> {
                             try {

@@ -16,7 +16,7 @@ FROM centos:7 AS builder
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 ENV JAVA_HOME /opt/jdk-${jdkVersion}
 
-RUN curl -L --retry 8 -s ${jdkUrl} --continue-at - --output /tmp/jdk.tar.gz && \
+RUN curl -L --retry 8 -s -S ${jdkUrl} --continue-at - --output /tmp/jdk.tar.gz && \
     tar -C /opt -zxf /tmp/jdk.tar.gz && \
     rm -Rf /tmp/jdk.tar.gz
 

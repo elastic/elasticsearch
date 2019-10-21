@@ -302,8 +302,8 @@ The API returns the following result:
                 "predicted_class" : "dog",
                 "count" : 0 <5>
               }
-            "other_predicted_class_doc_count" : 0, <6>
-            ]
+            ],
+            "other_predicted_class_doc_count" : 0 <6>
           },
           {
             "actual_class" : "dog",
@@ -317,8 +317,8 @@ The API returns the following result:
                 "predicted_class" : "cat",
                 "count" : 4
               }
-            "other_predicted_class_doc_count" : 4,
-            ]
+            ],
+            "other_predicted_class_doc_count" : 4
           }
         ],
         "other_actual_class_count" : 0

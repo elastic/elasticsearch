@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -23,7 +22,7 @@ public class LogisticRegressionTests extends WeightedAggregatorTests<LogisticReg
 
     @Override
     LogisticRegression createTestInstance(int numberOfWeights) {
-        List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).collect(Collectors.toList());
+        double[] weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).mapToDouble(Double::valueOf).toArray();
         return new LogisticRegression(weights);
     }
 
@@ -43,13 +42,13 @@ public class LogisticRegressionTests extends WeightedAggregatorTests<LogisticReg
     }
 
     public void testAggregate() {
-        List<Double> ones = Arrays.asList(1.0, 1.0, 1.0, 1.0, 1.0);
+        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
         List<Double> values = Arrays.asList(1.0, 2.0, 2.0, 3.0, 5.0);
 
         LogisticRegression logisticRegression = new LogisticRegression(ones);
         assertThat(logisticRegression.aggregate(logisticRegression.processValues(values)), equalTo(1.0));
 
-        List<Double> variedWeights = Arrays.asList(.01, -1.0, .1, 0.0, 0.0);
+        double[] variedWeights = new double[]{.01, -1.0, .1, 0.0, 0.0};
 
         logisticRegression = new LogisticRegression(variedWeights);
         assertThat(logisticRegression.aggregate(logisticRegression.processValues(values)), equalTo(0.0));

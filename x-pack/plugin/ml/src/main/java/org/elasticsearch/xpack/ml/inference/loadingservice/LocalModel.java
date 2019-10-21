@@ -25,6 +25,15 @@ public class LocalModel implements Model {
         this.modelId = modelId;
     }
 
+    long ramBytesUsed() {
+        return trainedModelDefinition.ramBytesUsed();
+    }
+
+    @Override
+    public String getModelId() {
+        return modelId;
+    }
+
     @Override
     public String getResultsType() {
         switch (trainedModelDefinition.getTrainedModel().targetType()) {

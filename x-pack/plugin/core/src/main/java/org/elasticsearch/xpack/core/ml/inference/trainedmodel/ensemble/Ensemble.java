@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +30,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +42,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHe
 
 public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ensemble.class);
     // TODO should we have regression/classification sub-classes that accept the builder?
     public static final ParseField NAME = new ParseField("ensemble");
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
@@ -241,6 +247,26 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOfCollection(featureNames);
+        size += RamUsageEstimator.sizeOfCollection(classificationLabels);
+        size += RamUsageEstimator.sizeOfCollection(models);
+        size += outputAggregator.ramBytesUsed();
+        return size;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> accountables = new ArrayList<>(models.size() + 1);
+        for (TrainedModel model : models) {
+            accountables.add(Accountables.namedAccountable(model.getName(), model));
+        }
+        accountables.add(Accountables.namedAccountable(outputAggregator.getName(), outputAggregator));
+        return Collections.unmodifiableCollection(accountables);
     }
 
     public static class Builder {

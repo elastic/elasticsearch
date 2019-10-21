@@ -80,7 +80,6 @@ import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionReque
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -452,7 +451,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         RestoreSession(String repositoryName, Client remoteClient, String sessionUUID, DiscoveryNode node, ShardId shardId,
                        RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData, long mappingVersion,
                        ThreadPool threadPool, CcrSettings ccrSettings, LongConsumer throttleListener) {
-            super(repositoryName, shardId, SNAPSHOT_ID, recoveryState, Math.toIntExact(ccrSettings.getChunkSize().getBytes()));
+            super(repositoryName, shardId, SNAPSHOT_ID, recoveryState);
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;
@@ -565,11 +564,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             } else {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
-        }
-
-        @Override
-        protected InputStream fileInputStream(FileInfo fileInfo) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

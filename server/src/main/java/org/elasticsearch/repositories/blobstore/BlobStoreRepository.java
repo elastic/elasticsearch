@@ -22,9 +22,13 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
@@ -36,6 +40,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1148,22 +1153,60 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer container = shardContainer(indexId, snapshotShardId);
             BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
             SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-            new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE) {
+            new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState) {
                 @Override
-                protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-                    final InputStream dataBlobCompositeStream = new SlicedInputStream(fileInfo.numberOfParts()) {
-                        @Override
-                        protected InputStream openSlice(long slice) throws IOException {
-                            return container.readBlob(fileInfo.partName(slice));
+                protected void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store) throws IOException {
+                    // restore the files from the snapshot to the Lucene store
+                    for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
+                        logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
+                        restoreFile(fileToRecover, store);
+                    }
+                }
+
+                private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
+                    boolean success = false;
+
+                    try (InputStream stream = maybeRateLimit(new SlicedInputStream(fileInfo.numberOfParts()) {
+                                                                 @Override
+                                                                 protected InputStream openSlice(long slice) throws IOException {
+                                                                     return container.readBlob(fileInfo.partName(slice));
+                                                                 }
+                                                             },
+                        restoreRateLimiter, restoreRateLimitingTimeInNanos)) {
+                        try (IndexOutput indexOutput =
+                                 store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
+                            final byte[] buffer = new byte[BUFFER_SIZE];
+                            int length;
+                            while ((length = stream.read(buffer)) > 0) {
+                                indexOutput.writeBytes(buffer, 0, length);
+                                recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
+                            }
+                            Store.verify(indexOutput);
+                            indexOutput.close();
+                            store.directory().sync(Collections.singleton(fileInfo.physicalName()));
+                            success = true;
+                        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+                            try {
+                                store.markStoreCorrupted(ex);
+                            } catch (IOException e) {
+                                logger.warn("store cannot be marked as corrupted", e);
+                            }
+                            throw ex;
+                        } finally {
+                            if (success == false) {
+                                store.deleteQuiet(fileInfo.physicalName());
+                            }
                         }
-                    };
-                    return restoreRateLimiter == null ? dataBlobCompositeStream
-                        : new RateLimitingInputStream(dataBlobCompositeStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
+                    }
                 }
             }.restore(snapshotFiles, store);
         } catch (Exception e) {
             throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
         }
+    }
+
+    private static InputStream maybeRateLimit(InputStream stream, @Nullable RateLimiter rateLimiter, CounterMetric metric) {
+        return rateLimiter == null ? stream : new RateLimitingInputStream(stream, rateLimiter, metric::inc);
     }
 
     @Override
@@ -1327,13 +1370,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
 
-                InputStream inputStream = new InputStreamIndexInput(indexInput, partBytes);
-                if (snapshotRateLimiter != null) {
-                    inputStream = new RateLimitingInputStream(inputStream, snapshotRateLimiter,
-                        snapshotRateLimitingTimeInNanos::inc);
-                }
                 // Make reads abortable by mutating the snapshotStatus object
-                inputStream = new FilterInputStream(inputStream) {
+                final InputStream inputStream = new FilterInputStream(maybeRateLimit(
+                    new InputStreamIndexInput(indexInput, partBytes), snapshotRateLimiter, snapshotRateLimitingTimeInNanos)) {
                     @Override
                     public int read() throws IOException {
                         checkAborted();

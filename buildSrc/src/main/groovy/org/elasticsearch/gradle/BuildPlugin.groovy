@@ -689,6 +689,10 @@ class BuildPlugin implements Plugin<Project> {
              */
             (javadoc.options as CoreJavadocOptions).addBooleanOption('html5', true)
         }
+        // ensure javadoc task is run with 'check'
+        project.pluginManager.withPlugin('lifecycle-base') {
+            project.tasks.getByName(LifecycleBasePlugin.CHECK_TASK_NAME).dependsOn(project.tasks.withType(Javadoc))
+        }
         configureJavadocJar(project)
     }
 

@@ -41,6 +41,12 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
                                                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
     /**
+     * Instantiate a {@link InternalGeoGrid}-derived class using the same parameters as constructor.
+     */
+    protected abstract T createInternalGeoGrid(String name, int size, long minDocCount, List<InternalGeoGridBucket> buckets,
+                                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+
+    /**
      * Instantiate a {@link InternalGeoGridBucket}-derived class using the same parameters as constructor.
      */
     protected abstract B createInternalGeoGridBucket(Long key, long docCount, InternalAggregations aggregations);

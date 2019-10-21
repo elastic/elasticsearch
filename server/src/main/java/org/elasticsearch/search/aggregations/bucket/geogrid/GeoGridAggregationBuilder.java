@@ -49,10 +49,12 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     static final ParseField FIELD_PRECISION = new ParseField("precision");
     static final ParseField FIELD_SIZE = new ParseField("size");
     static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
+    static final ParseField FIELD_MIN_DOC_COUNT = new ParseField("min_doc_count");
 
     protected int precision;
     protected int requiredSize;
     protected int shardSize;
+    protected long minDocCount;
 
     @FunctionalInterface
     protected interface PrecisionParser {
@@ -66,6 +68,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
             org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
         parser.declareInt(GeoGridAggregationBuilder::size, FIELD_SIZE);
         parser.declareInt(GeoGridAggregationBuilder::shardSize, FIELD_SHARD_SIZE);
+        parser.declareLong(GeoGridAggregationBuilder::minDocCount, FIELD_MIN_DOC_COUNT);
         return parser;
     }
 
@@ -78,6 +81,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         this.precision = clone.precision;
         this.requiredSize = clone.requiredSize;
         this.shardSize = clone.shardSize;
+        this.minDocCount = clone.minDocCount;
 
     }
 
@@ -89,6 +93,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
+        minDocCount = in.readVLong();
     }
 
     @Override
@@ -96,6 +101,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
+        out.writeVLong(minDocCount);
     }
 
     /**
@@ -109,7 +115,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
      * Creates a new instance of the {@link ValuesSourceAggregatorFactory}-derived class specific to the geo aggregation.
      */
     protected abstract ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> createFactory(
-        String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize,
+        String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize, long minDocCount,
         QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder, Map<String, Object> metaData
     ) throws IOException;
 
@@ -143,6 +149,19 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         return shardSize;
     }
 
+    public GeoGridAggregationBuilder minDocCount(long minDocCount) {
+        if (minDocCount < 1) {
+            throw new IllegalArgumentException(
+                    "[minDocCount] must be greater than 0. Found [" + minDocCount + "] in [" + name + "]");
+            }
+        this.minDocCount = minDocCount;
+        return this;
+        }
+
+    public long minDocCount() {
+        return minDocCount;
+    }
+
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerBuild(QueryShardContext queryShardContext,
                                                                                 ValuesSourceConfig<ValuesSource.GeoPoint> config,
@@ -151,6 +170,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         int shardSize = this.shardSize;
 
         int requiredSize = this.requiredSize;
+
+        long minDocCount = this.minDocCount;
 
         if (shardSize < 0) {
             // Use default heuristic to avoid any wrong-ranking caused by
@@ -166,7 +187,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
         }
-        return createFactory(name, config, precision, requiredSize, shardSize, queryShardContext, parent,
+        return createFactory(name, config, precision, requiredSize, shardSize, minDocCount, queryShardContext, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -176,6 +197,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         builder.field(FIELD_SIZE.getPreferredName(), requiredSize);
         if (shardSize > -1) {
             builder.field(FIELD_SHARD_SIZE.getPreferredName(), shardSize);
+        }
+        if (minDocCount > -1) {
+            builder.field(FIELD_MIN_DOC_COUNT.getPreferredName(), minDocCount);
         }
         return builder;
     }
@@ -188,11 +212,12 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         GeoGridAggregationBuilder other = (GeoGridAggregationBuilder) obj;
         return precision == other.precision
             && requiredSize == other.requiredSize
-            && shardSize == other.shardSize;
+            && shardSize == other.shardSize
+            && minDocCount == other.minDocCount;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), precision, requiredSize, shardSize);
+        return Objects.hash(super.hashCode(), precision, requiredSize, shardSize, minDocCount);
     }
 }

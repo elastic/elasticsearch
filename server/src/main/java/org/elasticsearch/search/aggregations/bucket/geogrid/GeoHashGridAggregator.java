@@ -34,20 +34,21 @@ import java.util.Map;
 public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid> {
 
     GeoHashGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
-                          int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
+                          int requiredSize, int shardSize, long minDocCount, SearchContext aggregationContext, Aggregator parent,
                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, valuesSource, requiredSize, shardSize, minDocCount,
+              aggregationContext, parent, pipelineAggregators, metaData);
     }
 
     @Override
-    InternalGeoHashGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+    InternalGeoHashGrid buildAggregation(String name, int requiredSize, long minDocCount, List<InternalGeoGridBucket> buckets,
                                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, pipelineAggregators, metaData);
+        return new InternalGeoHashGrid(name, requiredSize, minDocCount, buckets, pipelineAggregators, metaData);
     }
 
     @Override
     public InternalGeoHashGrid buildEmptyAggregation() {
-        return new InternalGeoHashGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
+        return new InternalGeoHashGrid(name, requiredSize, minDocCount, Collections.emptyList(), pipelineAggregators(), metaData());
     }
 
     InternalGeoGridBucket newEmptyBucket() {

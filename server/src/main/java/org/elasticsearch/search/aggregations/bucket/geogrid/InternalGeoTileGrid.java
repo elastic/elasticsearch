@@ -33,9 +33,9 @@ import java.util.Map;
  */
 public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBucket> {
 
-    InternalGeoTileGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+    InternalGeoTileGrid(String name, int requiredSize, long minDocCount, List<InternalGeoGridBucket> buckets,
                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, requiredSize, buckets, pipelineAggregators, metaData);
+        super(name, requiredSize, minDocCount, buckets, pipelineAggregators, metaData);
     }
 
     public InternalGeoTileGrid(StreamInput in) throws IOException {
@@ -44,7 +44,7 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
 
     @Override
     public InternalGeoGrid create(List<InternalGeoGridBucket> buckets) {
-        return new InternalGeoTileGrid(name, requiredSize, buckets, pipelineAggregators(), metaData);
+        return new InternalGeoTileGrid(name, requiredSize, minDocCount, buckets, pipelineAggregators(), metaData);
     }
 
     @Override
@@ -53,8 +53,8 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
     }
 
     @Override
-    InternalGeoGrid create(String name, int requiredSize, List buckets, List list, Map metaData) {
-        return new InternalGeoTileGrid(name, requiredSize, buckets, list, metaData);
+    InternalGeoGrid create(String name, int requiredSize, long minDocCount, List buckets, List list, Map metaData) {
+        return new InternalGeoTileGrid(name, requiredSize, minDocCount, buckets, list, metaData);
     }
 
     @Override

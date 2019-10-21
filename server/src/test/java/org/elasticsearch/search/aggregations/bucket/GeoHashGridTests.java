@@ -39,6 +39,21 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
         if (randomBoolean()) {
             factory.shardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
+        if (randomBoolean()) {
+            int minDocCount = randomIntBetween(1, 4);
+            switch (minDocCount) {
+            case 1:
+                break;
+            case 2:
+            case 3:
+            case 4:
+                minDocCount = randomIntBetween(1, Integer.MAX_VALUE);
+                break;
+            default:
+                fail();
+            }
+            factory.minDocCount(minDocCount);
+        }
         return factory;
     }
 

@@ -42,14 +42,16 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
+    private final long minDocCount;
 
     GeoTileGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-                                 int shardSize, QueryShardContext queryShardContext, AggregatorFactory parent,
+                                 int shardSize, long minDocCount, QueryShardContext queryShardContext, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.minDocCount = minDocCount;
     }
 
     @Override
@@ -57,7 +59,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize,
+        final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize, minDocCount,
                 Collections.emptyList(), pipelineAggregators, metaData);
         return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
             @Override
@@ -78,7 +80,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoTileUtils::longEncode);
-        return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, searchContext, parent,
+        return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, minDocCount, searchContext, parent,
                 pipelineAggregators, metaData);
     }
 }

@@ -44,16 +44,18 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
     protected final int requiredSize;
     protected final int shardSize;
+    protected final long minDocCount;
     protected final CellIdSource valuesSource;
     protected final LongHash bucketOrds;
 
     GeoGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
-                      int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
+                      int requiredSize, int shardSize, long minDocCount, SearchContext aggregationContext, Aggregator parent,
                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.minDocCount = minDocCount;
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
 
@@ -95,7 +97,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         };
     }
 
-    abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+    abstract T buildAggregation(String name, int requiredSize, long minDocCount, List<InternalGeoGridBucket> buckets,
                                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
     /**
@@ -132,12 +134,12 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return buildAggregation(name, requiredSize, Arrays.asList(list), pipelineAggregators(), metaData());
+        return buildAggregation(name, requiredSize, minDocCount, Arrays.asList(list), pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalGeoGrid buildEmptyAggregation() {
-        return buildAggregation(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
+        return buildAggregation(name, requiredSize, minDocCount, Collections.emptyList(), pipelineAggregators(), metaData());
     }
 
     @Override

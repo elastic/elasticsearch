@@ -40,6 +40,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -301,6 +302,51 @@ public class GeoHashGridIT extends ESIntegTestCase {
                         expectedBucketCount, bucketCount);
             }
         }
+    }
+
+    public void testMinDocCount() throws Exception {
+        for (int precision = 1; precision <= PRECISION; precision++) {
+            SearchResponse response = client().prepareSearch("idx")
+                    .addAggregation(geohashGrid("geohashgrid")
+                            .field("location")
+                            .precision(precision)
+                    )
+                    .get();
+
+            assertSearchResponse(response);
+
+            GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
+
+            for (long minDocCount = 1; minDocCount < 20; minDocCount++) {
+                response = client().prepareSearch("idx")
+                        .addAggregation(geohashGrid("geohashgrid")
+                                .field("location")
+                                .precision(precision)
+                                .minDocCount(minDocCount)
+                        )
+                        .get();
+
+                assertSearchResponse(response);
+
+                GeoGrid subsetGeoGrid = response.getAggregations().get("geohashgrid");
+                assertSubset(geoGrid, subsetGeoGrid, minDocCount);
+            }
+        }
+    }
+
+    private void assertSubset(GeoGrid allGeoGrid, GeoGrid subsetGeoGrid, long minDocCount) {
+        final Iterator<? extends GeoGrid.Bucket> it1 = allGeoGrid.getBuckets().iterator();
+        final Iterator<? extends GeoGrid.Bucket> it2 = subsetGeoGrid.getBuckets().iterator();
+        while(it1.hasNext()) {
+            final GeoGrid.Bucket cell1 = it1.next();
+            if (cell1.getDocCount() < minDocCount) {
+                break;
+            }
+            assertTrue("minDocCount: " + minDocCount, it2.hasNext());
+            final GeoGrid.Bucket cell2 = it2.next();
+            assertEquals("minDocCount: " + minDocCount, cell1.getDocCount(), cell2.getDocCount());
+        }
+        assertFalse(it2.hasNext());
     }
 
     public void testSizeIsZero() {

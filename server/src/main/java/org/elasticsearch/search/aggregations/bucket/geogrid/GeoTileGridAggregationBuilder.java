@@ -37,6 +37,7 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geotile_grid";
     public static final int DEFAULT_PRECISION = 7;
     private static final int DEFAULT_MAX_NUM_CELLS = 10000;
+    private static final long DEFAULT_MIN_DOC_COUNT = 1;
 
     private static final ObjectParser<GeoGridAggregationBuilder, Void> PARSER = createParser(NAME, GeoTileUtils::parsePrecision);
 
@@ -45,6 +46,7 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
         precision(DEFAULT_PRECISION);
         size(DEFAULT_MAX_NUM_CELLS);
         shardSize = -1;
+        minDocCount(DEFAULT_MIN_DOC_COUNT);
     }
 
     public GeoTileGridAggregationBuilder(StreamInput in) throws IOException {
@@ -59,11 +61,11 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> createFactory(
-        String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize,
+        String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize, long minDocCount,
         QueryShardContext queryShardContext, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metaData
     ) throws IOException {
-        return new GeoTileGridAggregatorFactory(name, config, precision, requiredSize, shardSize, queryShardContext, parent,
+        return new GeoTileGridAggregatorFactory(name, config, precision, requiredSize, shardSize, minDocCount, queryShardContext, parent,
             subFactoriesBuilder, metaData);
     }
 

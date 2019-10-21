@@ -33,7 +33,7 @@ public class GeoHashGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-                "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
+                "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550, \"min_doc_count\": 5}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -43,7 +43,8 @@ public class GeoHashGridParserTests extends ESTestCase {
     public void testParseValidFromStrings() throws Exception {
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-                "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
+                "{\"field\":\"my_loc\", \"precision\":\"" + precision
+                + "\", \"size\": \"500\", \"shard_size\": \"550\", \"min_doc_count\": \"5\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -58,7 +59,8 @@ public class GeoHashGridParserTests extends ESTestCase {
         }
         String distanceString = distance + unit.toString();
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-                "{\"field\":\"my_loc\", \"precision\": \"" + distanceString + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
+                "{\"field\":\"my_loc\", \"precision\": \"" + distanceString
+                + "\", \"size\": \"500\", \"shard_size\": \"550\", \"min_doc_count\": 5}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -111,6 +113,20 @@ public class GeoHashGridParserTests extends ESTestCase {
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             assertEquals("Invalid geohash aggregation precision of 13. Must be between 1 and 12.", ex.getCause().getMessage());
+        }
+    }
+
+    public void testParseMinDocCountTooSmall() throws Exception {
+        XContentParser stParser = createParser(JsonXContent.jsonXContent,
+                                               "{\"field\":\"my_loc\", \"precision\": 10, \"min_doc_count\": 0}");
+        XContentParser.Token token = stParser.nextToken();
+        assertSame(XContentParser.Token.START_OBJECT, token);
+        try {
+            GeoHashGridAggregationBuilder.parse("geohash_grid", stParser);
+            fail();
+        } catch (XContentParseException ex) {
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            assertEquals("[minDocCount] must be greater than 0. Found [0] in [geohash_grid]", ex.getCause().getMessage());
         }
     }
 }

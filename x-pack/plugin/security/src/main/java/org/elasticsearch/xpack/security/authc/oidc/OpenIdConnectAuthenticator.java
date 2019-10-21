@@ -514,12 +514,12 @@ public class OpenIdConnectAuthenticator {
                 return;
             }
             final Charset encoding = encodingHeader == null ? StandardCharsets.UTF_8 : Charsets.toCharset(encodingHeader.getValue());
-            final String json = EntityUtils.toString(entity, encoding);
             if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace("Received Token Response from OP with status [{}] and content [{}] ",
-                    httpResponse.getStatusLine().getStatusCode(), json);
+                LOGGER.trace("Received Token Response from OP with status [{}]",
+                    httpResponse.getStatusLine().getStatusCode());
             }
-            final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(JSONObjectUtils.parse(json));
+            final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(
+                JSONObjectUtils.parse(EntityUtils.toString(entity, encoding)));
             if (oidcTokenResponse.indicatesSuccess() == false) {
                 TokenErrorResponse errorResponse = oidcTokenResponse.toErrorResponse();
                 tokensListener.onFailure(
@@ -531,8 +531,8 @@ public class OpenIdConnectAuthenticator {
                 final AccessToken accessToken = oidcTokens.getAccessToken();
                 final JWT idToken = oidcTokens.getIDToken();
                 if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Successfully exchanged code for ID Token: [{}] and Access Token [{}]",
-                        idToken, accessToken);
+                    LOGGER.trace("Successfully exchanged code. ID Token [{}] and Access Token [{}]",
+                        (idToken == null) ? "is null" : "is not null", (accessToken == null) ? "is null" : "is not null");
                 }
                 if (idToken == null) {
                     tokensListener.onFailure(new ElasticsearchSecurityException("Token Response did not contain an ID Token or parsing of" +

@@ -277,7 +277,8 @@ POST _ml/data_frame/_evaluate
 <2> The field that contains the ground truth value for the actual animal 
 classification. This is required in order to evaluate results.
 <3> The field that contains the predicted value for animal classification by 
-the {classanalysis}.
+the {classanalysis}. Note that you need to add the `.keyword` suffix to the 
+name.
 
 
 The API returns the following result:
@@ -324,7 +325,9 @@ The API returns the following result:
     }
   }
 --------------------------------------------------
-<1>
-<2>
-<3>
-<4>
+<1> The name of the actual class that the analysis tried to predict.
+<2> The number of documents that the {classanalysis} successfully predicted as 
+the member of the actual class.
+<3> The number of documents that the {classanalysis} misclassified.
+<4> This object contains the list of the possible classes and the number of 
+predictions associated with the class.

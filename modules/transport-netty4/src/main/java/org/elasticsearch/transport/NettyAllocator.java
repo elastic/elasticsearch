@@ -202,6 +202,7 @@ public class NettyAllocator {
 
         @Override
         public boolean isDirectBufferPooled() {
+            assert delegate.isDirectBufferPooled() == false;
             return false;
         }
 

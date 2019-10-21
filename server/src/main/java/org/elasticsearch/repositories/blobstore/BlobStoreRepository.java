@@ -413,7 +413,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     final RepositoryData updatedRepoData = repositoryData.removeSnapshot(snapshotId, builder.build());
                     writeIndexGen(updatedRepoData, repositoryStateId, true);
                     writeUpdatedRepoDataStep.onResponse(updatedRepoData);
-                }, writeUpdatedRepoDataStep::onFailure);
+                }, listener::onFailure);
             // Once we have updated the repository, run the clean-ups
             writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion

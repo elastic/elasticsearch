@@ -97,7 +97,10 @@
             "processors": [
               {
                 "inference" : {
-                  "model_id" : "used-regression-model"
+                  "model_id" : "used-regression-model",
+                  "inference_config": {"regression": {}},
+                  "target_field": "regression_field",
+                  "field_mappings": {}
                 }
               }
             ]

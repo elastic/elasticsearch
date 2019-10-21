@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -24,6 +25,11 @@ class NullInferenceConfig implements InferenceConfig {
     @Override
     public boolean isTargetTypeSupported(TargetType targetType) {
         return true;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT;
     }
 
     @Override

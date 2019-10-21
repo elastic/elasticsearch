@@ -52,20 +52,21 @@ public class ModelLoadingService implements ClusterStateListener {
         if (cachedModel != null) {
             if (cachedModel.isSuccess()) {
                 modelActionListener.onResponse(cachedModel.getModel());
+                logger.trace("[{}] loaded from cache", modelId);
                 return;
             }
         }
         if (loadModelIfNecessary(modelId, modelActionListener) == false) {
             // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
             // by a simulated pipeline
-            logger.debug("[{}] not actively loading, eager loading without cache", modelId);
+            logger.trace("[{}] not actively loading, eager loading without cache", modelId);
             provider.getTrainedModel(modelId, ActionListener.wrap(
                 trainedModelConfig ->
                     modelActionListener.onResponse(new LocalModel(trainedModelConfig.getModelId(), trainedModelConfig.getDefinition())),
                 modelActionListener::onFailure
             ));
         } else {
-            logger.debug("[{}] is currently loading, added new listener to queue", modelId);
+            logger.trace("[{}] is loading or loaded, added new listener to queue", modelId);
         }
     }
 
@@ -87,7 +88,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 if (loadingListeners.computeIfPresent(
                     modelId,
                     (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)) == null) {
-                    logger.debug("[{}] attempting to load and cache", modelId);
+                    logger.trace("[{}] attempting to load and cache", modelId);
                     loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
                     loadModel(modelId);
                 }
@@ -156,6 +157,8 @@ public class ModelLoadingService implements ClusterStateListener {
             // The listeners still waiting for a model and we are canceling the load?
             List<Tuple<String, List<ActionListener<Model>>>> drainWithFailure = new ArrayList<>();
             synchronized (loadingListeners) {
+                HashSet<String> loadedModelBeforeClusterState = logger.isTraceEnabled() ? new HashSet<>(loadedModels.keySet()) : null;
+                HashSet<String> loadingModelBeforeClusterState = logger.isTraceEnabled() ? new HashSet<>(loadingListeners.keySet()) : null;
                 // If we had models still loading here but are no longer referenced
                 // we should remove them from loadingListeners and alert the listeners
                 for (String modelId : loadingListeners.keySet()) {
@@ -180,6 +183,17 @@ public class ModelLoadingService implements ClusterStateListener {
                 for (String modelId : allReferencedModelKeys) {
                     loadingListeners.put(modelId, new ArrayDeque<>());
                 }
+                if (loadedModelBeforeClusterState != null && loadingModelBeforeClusterState != null) {
+                    if (loadingListeners.keySet().equals(loadingModelBeforeClusterState) == false) {
+                        logger.trace("cluster state event changed loading models: before {} after {}", loadingModelBeforeClusterState,
+                            loadingListeners.keySet());
+                    }
+                    if (loadedModels.keySet().equals(loadedModelBeforeClusterState) == false) {
+                        logger.trace("cluster state event changed loaded models: before {} after {}", loadedModelBeforeClusterState,
+                            loadedModels.keySet());
+                    }
+                }
+
             }
             for (Tuple<String, List<ActionListener<Model>>> modelAndListeners : drainWithFailure) {
                 final String msg = new ParameterizedMessage(
@@ -223,7 +237,6 @@ public class ModelLoadingService implements ClusterStateListener {
                                 Object modelId = ((Map<?, ?>)processorConfig).get(InferenceProcessor.MODEL_ID);
                                 if (modelId != null) {
                                     assert modelId instanceof String;
-                                    // TODO also read model version
                                     allReferencedModelKeys.add(modelId.toString());
                                 }
                             }

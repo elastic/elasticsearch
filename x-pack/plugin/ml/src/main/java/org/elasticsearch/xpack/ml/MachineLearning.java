@@ -208,6 +208,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.InferenceInternalIndex;
@@ -313,7 +314,7 @@ import java.util.function.UnaryOperator;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
-public class MachineLearning extends Plugin implements ActionPlugin, IngestPlugin, AnalysisPlugin, PersistentTaskPlugin {
+public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, IngestPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
@@ -341,7 +342,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, IngestPlugi
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(parameters.client,
             parameters.ingestService.getClusterService(),
-            this.settings);
+            this.settings,
+            parameters.ingestService);
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
     }
@@ -435,7 +437,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, IngestPlugi
                 AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
                 MAX_OPEN_JOBS_PER_NODE,
                 MIN_DISK_SPACE_OFF_HEAP,
-                MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION);
+                MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION,
+                InferenceProcessor.MAX_INFERENCE_PROCESSORS
+            );
     }
 
     public Settings additionalSettings() {

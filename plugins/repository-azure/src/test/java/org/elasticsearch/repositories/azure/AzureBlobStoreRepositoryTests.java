@@ -82,7 +82,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new AzureErroneousHttpHandler(delegate, 2);
+        return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
     }
 
     @Override

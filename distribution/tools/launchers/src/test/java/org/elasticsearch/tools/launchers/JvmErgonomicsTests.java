@@ -56,8 +56,12 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testExtractValidHeapSizeNoOptionPresent() throws InterruptedException, IOException {
-        // Muting on Windows, awaitsfix: https://github.com/elastic/elasticsearch/issues/47384
-        assumeFalse(System.getProperty("os.name").startsWith("Windows"));
+        // This test fails on Windows due to a bug in JDK 8; it is fixed in JDK 9
+        // A symptom of the bug is that 4g is cast to a 32-bit int and printed as 0
+        assumeTrue("Fails with JDK 8 on systems where memory sizes are printed as 32-bit integers",
+            JavaVersion.majorVersion(JavaVersion.CURRENT) > 8 ||
+            0L == JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.singletonList("-XX:MaxHeapSize=4g")))
+        );
         assertThat(
                 JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.emptyList())),
                 greaterThan(0L));

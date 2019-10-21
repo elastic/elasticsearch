@@ -113,7 +113,7 @@ belongs.
 
 `actual_field`::
   (string) The field of the `index` which contains the ground truth. The data 
-  type of this field must be string.
+  type of this field must be keyword.
   
 `metrics`::
   (object) Specifies the metrics that are used for the evaluation. Available 

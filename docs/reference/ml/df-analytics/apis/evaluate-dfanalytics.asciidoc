@@ -327,8 +327,8 @@ The API returns the following result:
   }
 --------------------------------------------------
 <1> The name of the actual class that the analysis tried to predict.
-<2> The number of documents that belong to the `actual_class`.
-<3> This object contains the list of the possible classes and the number of 
+<2> The number of documents in the index that belong to the `actual_class`.
+<3> This object contains the list of the predicted classes and the number of 
 predictions associated with the class.
 <4> The number of cats in the dataset that are correctly identified as cats.
 <5> The number of cats in the dataset that are incorrectly classified as dogs.

@@ -4,7 +4,7 @@
 <titleabbrev>CJK bigram</titleabbrev>
 ++++
 
-Forms https://en.wikipedia.org/wiki/Bigram[bigrams] out of the CJK (Chinese,
+Forms https://en.wikipedia.org/wiki/Bigram[bigrams] out of CJK (Chinese,
 Japanese, and Korean) tokens.
 
 This filter is included in {es}'s built-in <<cjk-analyzer,CJK language

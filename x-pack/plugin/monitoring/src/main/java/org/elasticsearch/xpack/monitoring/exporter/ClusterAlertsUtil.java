@@ -76,6 +76,14 @@ public class ClusterAlertsUtil {
     };
 
     /**
+     * An unsorted list of blacklisted Watch IDs. They are blacklisted because they have been
+     * migrated to Kibana alerting.
+     */
+    public static final String[] BLACKLISTED_WATCH_IDS = {
+        "xpack_license_expiration",
+    };
+
+    /**
      * Create a unique identifier for the watch and cluster.
      *
      * @param clusterService The cluster service used to fetch the latest cluster state.
@@ -151,8 +159,14 @@ public class ClusterAlertsUtil {
 
             if (unknownIds.isEmpty() == false) {
                 throw new SettingsException(
-                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + 
+                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() +
                             "] contains unrecognized Cluster Alert IDs [" + String.join(", ", unknownIds) + "]");
+            }
+        }
+
+        for (String blacklistedClusterAlert : BLACKLISTED_WATCH_IDS) {
+            if (!blacklist.contains(blacklistedClusterAlert)) {
+                blacklist.add(blacklistedClusterAlert);
             }
         }
 

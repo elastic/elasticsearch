@@ -187,7 +187,7 @@ public final class Grok {
             String pattern = patternBank.get(patternName);
             if (pattern == null) {
                 throw new IllegalArgumentException("Unable to find pattern [" + patternName + "] in Grok's pattern dictionary\n" +
-                    String.format("grokPattern=%s,result=%d,region=%s", grokPattern, result, region));
+                    String.format(Locale.ROOT, "grokPattern=%s,result=%d,region=%s", grokPattern, result, region));
             }
             if (pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":")) {
                 throw new IllegalArgumentException("circular reference in pattern back [" + patternName + "]");

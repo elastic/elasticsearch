@@ -142,6 +142,8 @@ import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -3355,33 +3357,31 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
                 response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <1>
 
-            Map<String, Map<String, Long>> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <2>
-            long otherClassesCount = multiclassConfusionMatrix.getOtherClassesCount(); // <3>
+            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <2>
+            long otherActualClassCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <3>
             // end::evaluate-data-frame-results-classification
 
             assertThat(multiclassConfusionMatrix.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
             assertThat(
                 confusionMatrix,
                 equalTo(
-                    new HashMap<String, Map<String, Long>>() {{
-                        put("cat", new HashMap<String, Long>() {{
-                            put("cat", 3L);
-                            put("dog", 1L);
-                            put("ant", 0L);
-                            put("_other_", 1L);
-                        }});
-                        put("dog", new HashMap<String, Long>() {{
-                            put("cat", 1L);
-                            put("dog", 3L);
-                            put("ant", 0L);
-                        }});
-                        put("ant", new HashMap<String, Long>() {{
-                            put("cat", 1L);
-                            put("dog", 0L);
-                            put("ant", 0L);
-                        }});
-                    }}));
-            assertThat(otherClassesCount, equalTo(0L));
+                    Arrays.asList(
+                        new ActualClass(
+                            "ant",
+                            1L,
+                            Arrays.asList(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
+                            0L),
+                        new ActualClass(
+                            "cat",
+                            5L,
+                            Arrays.asList(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
+                            1L),
+                        new ActualClass(
+                            "dog",
+                            4L,
+                            Arrays.asList(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
+                            0L))));
+            assertThat(otherActualClassCount, equalTo(0L));
         }
     }
 

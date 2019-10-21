@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.singletonMap;
+
 public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After
@@ -60,7 +62,7 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testPutPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-            .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+            .mapping(singletonMap("properties", singletonMap("email", singletonMap("type", "keyword"))));
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // tag::enrich-put-policy-request
@@ -111,7 +113,7 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-                .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+                .mapping(singletonMap("properties", singletonMap("email", singletonMap("type", "keyword"))));
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
             // Add a policy, so that it can be deleted:
@@ -167,7 +169,7 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-            .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+            .mapping(singletonMap("properties", singletonMap("email", singletonMap("type", "keyword"))));
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
@@ -271,8 +273,8 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-                .mapping(Collections.singletonMap("properties", Collections.singletonMap("email",
-                    Collections.singletonMap("type", "keyword"))));
+                .mapping(singletonMap("properties", singletonMap("email",
+                    singletonMap("type", "keyword"))));
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
                 "users-policy", "match", Collections.singletonList("users"),

@@ -83,7 +83,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
             out.writeString(indexEntry.key);
             if (out.getVersion().before(Version.V_8_0_0)) {
                 out.writeVInt(indexEntry.value == MappingMetaData.EMPTY_MAPPINGS ? 0 : 1);
-                if (indexEntry.value != null) {
+                if (indexEntry.value != MappingMetaData.EMPTY_MAPPINGS) {
                     out.writeString(MapperService.SINGLE_MAPPING_NAME);
                     indexEntry.value.writeTo(out);
                 }

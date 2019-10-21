@@ -79,6 +79,10 @@ setup:
   - do:
       transform.delete_transform:
         transform_id: "old-simple-transform"
+  - do:
+      transform.get_transform_stats:
+        transform_id: "old-simple-transform"
+  - match: { count: 0 }
 
 ---
 "Get start, stop mixed cluster batch data frame transforms":
@@ -158,11 +162,9 @@ setup:
   - do:
       transform.delete_transform:
         transform_id: "mixed-complex-transform"
----
-"Test old, mixed transform deleted":
-  - do:
+   - do:
       transform.get_transform_stats:
-        transform_id: "old-simple-transform,mixed-simple-transform,mixed-complex-transform"
+        transform_id: "mixed-simple-transform,mixed-complex-transform"
   - match: { count: 0 }
 
 ---

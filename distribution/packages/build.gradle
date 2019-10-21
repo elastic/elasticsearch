@@ -107,7 +107,7 @@ addProcessFilesTask('rpm', false, false)
 Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
   return {
     onlyIf {
-      OS.current().equals(OS.LINUX)
+      OS.current().equals(OS.WINDOWS) == false
     }
     dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"

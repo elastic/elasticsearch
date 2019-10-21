@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateFormatters;
 
 import java.io.IOException;
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -40,7 +40,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             cal.set(ld.get(ChronoField.YEAR), ld.get(ChronoField.MONTH_OF_YEAR) - 1, ld.get(ChronoField.DAY_OF_MONTH),
                     ld.get(ChronoField.HOUR_OF_DAY), ld.get(ChronoField.MINUTE_OF_HOUR), ld.get(ChronoField.SECOND_OF_MINUTE));
 // for Locale.ROOT I would expect the same behavior as ISO, if there is a different locale, then it should be used WeekFields.of(Locale)
-            return zdt.get(WeekFields.SUNDAY_START.weekOfWeekBasedYear());//cal.get(Calendar.WEEK_OF_YEAR);
+            return zdt.get(WeekFields.of(DayOfWeek.SUNDAY,1).weekOfWeekBasedYear());//cal.get(Calendar.WEEK_OF_YEAR);
         });
 
         private final Function<ZonedDateTime, Integer> apply;

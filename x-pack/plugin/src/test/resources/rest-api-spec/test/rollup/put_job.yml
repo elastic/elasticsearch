@@ -140,7 +140,7 @@ setup:
       indices.create:
         index: non-rollup
   - do:
-      catch: /foo/
+      catch: /Rollup data cannot be added to existing indices that contain non-rollup data/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:

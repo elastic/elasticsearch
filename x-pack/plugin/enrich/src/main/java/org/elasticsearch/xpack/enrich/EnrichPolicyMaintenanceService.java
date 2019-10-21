@@ -18,13 +18,11 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -169,8 +167,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     private boolean shouldRemoveIndex(GetIndexResponse getIndexResponse, Map<String, EnrichPolicy> policies, String indexName) {
         // Find the policy on the index
         logger.debug("Checking if should remove enrich index [{}]", indexName);
-        ImmutableOpenMap<String, MappingMetaData> indexMapping = getIndexResponse.getMappings().get(indexName);
-        MappingMetaData mappingMetaData = indexMapping.get(MapperService.SINGLE_MAPPING_NAME);
+        MappingMetaData mappingMetaData = getIndexResponse.getMappings().get(indexName);
         Map<String, Object> mapping = mappingMetaData.getSourceAsMap();
         String policyName = ObjectPath.eval(MAPPING_POLICY_FIELD_PATH, mapping);
         // Check if index has a corresponding policy

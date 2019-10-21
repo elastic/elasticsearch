@@ -298,55 +298,6 @@ public final class IndicesClient {
     }
 
     /**
-     * Retrieves the mappings on an index or indices using the Get Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
-     * Get Mapping API on elastic.co</a>
-     * @param getMappingsRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     *
-     * @deprecated This method uses old request and response objects which still refer to types, a deprecated
-     * feature. The method {@link #getMapping(GetMappingsRequest, RequestOptions)} should be used instead, which
-     * accepts a new request object.
-     */
-    @Deprecated
-    public org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse getMapping(
-            org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest,
-            RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getMappingsRequest,
-            IndicesRequestConverters::getMappings,
-            options,
-            org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse::fromXContent,
-            emptySet());
-    }
-
-    /**
-     * Asynchronously retrieves the mappings on an index on indices using the Get Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
-     * Get Mapping API on elastic.co</a>
-     * @param getMappingsRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     *
-     * @deprecated This method uses old request and response objects which still refer to types, a deprecated feature.
-     * The method {@link #getMapping(GetMappingsRequest, RequestOptions)} should be used instead, which accepts a new
-     * request object.
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public Cancellable getMappingAsync(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest,
-                                       RequestOptions options,
-                                       ActionListener<org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest,
-            IndicesRequestConverters::getMappings,
-            options,
-            org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse::fromXContent,
-            listener,
-            emptySet());
-    }
-
-    /**
      * Retrieves the field mappings on an index or indices using the Get Field Mapping API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-field-mapping.html">
      * Get Field Mapping API on elastic.co</a>
@@ -677,42 +628,6 @@ public final class IndicesClient {
                                 ActionListener<GetIndexResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
             GetIndexResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
-     * Retrieve information about one or more indexes
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
-     * Indices Get Index API on elastic.co</a>
-     * @param getIndexRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
-     * {@link #get(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
-     */
-    @Deprecated
-    public org.elasticsearch.action.admin.indices.get.GetIndexResponse get(
-            org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
-                org.elasticsearch.action.admin.indices.get.GetIndexResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Retrieve information about one or more indexes
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
-     * Indices Get Index API on elastic.co</a>
-     * @param getIndexRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
-     * {@link #getAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public Cancellable getAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options,
-                                ActionListener<org.elasticsearch.action.admin.indices.get.GetIndexResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
-                org.elasticsearch.action.admin.indices.get.GetIndexResponse::fromXContent, listener, emptySet());
     }
 
     /**

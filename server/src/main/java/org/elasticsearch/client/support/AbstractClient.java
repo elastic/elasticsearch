@@ -406,7 +406,7 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id) {
-        return prepareIndex().setIndex(index).setType(type).setId(id);
+        return prepareIndex().setIndex(index).setId(id);
     }
 
     @Override

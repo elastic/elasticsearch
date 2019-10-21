@@ -367,61 +367,36 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Finds all mappings for types and concrete indices. Types are expanded to include all types that match the glob
-     * patterns in the types array. Empty types array, null or {"_all"} will be expanded to all types available for
-     * the given indices. Only fields that match the provided field filter will be returned (default is a predicate
-     * that always returns true, which can be overridden via plugins)
+     * Finds all mappings for concrete indices. Only fields that match the provided field
+     * filter will be returned (default is a predicate that always returns true, which can be
+     * overridden via plugins)
      *
      * @see MapperPlugin#getFieldFilter()
      *
      */
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices,
-                                                                                            final String[] types,
-                                                                                            Function<String, Predicate<String>> fieldFilter)
+    public ImmutableOpenMap<String, MappingMetaData> findMappings(String[] concreteIndices,
+                                                                  Function<String, Predicate<String>> fieldFilter)
             throws IOException {
-        assert types != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
         }
 
-        boolean isAllTypes = isAllTypes(types);
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetaData> indexMapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
-            if (isAllTypes) {
-                indexMapBuilder.put(index, filterFields(indexMetaData.getMappings(), fieldPredicate));
-            } else {
-                ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings = ImmutableOpenMap.builder();
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
-                    if (Regex.simpleMatch(types, cursor.key)) {
-                        filteredMappings.put(cursor.key, filterFields(cursor.value, fieldPredicate));
-                    }
-                }
-                if (!filteredMappings.isEmpty()) {
-                    indexMapBuilder.put(index, filteredMappings.build());
-                }
-            }
+            indexMapBuilder.put(index, filterFields(indexMetaData.mapping(), fieldPredicate));
         }
         return indexMapBuilder.build();
     }
 
-    private static ImmutableOpenMap<String, MappingMetaData> filterFields(ImmutableOpenMap<String, MappingMetaData> mappings,
-                                                                          Predicate<String> fieldPredicate) throws IOException {
-        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
-            return mappings;
-        }
-        ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(mappings.size());
-        for (ObjectObjectCursor<String, MappingMetaData> cursor : mappings) {
-            builder.put(cursor.key, filterFields(cursor.value, fieldPredicate));
-        }
-        return builder.build(); // No types specified means return them all
-    }
-
     @SuppressWarnings("unchecked")
-    private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) throws IOException {
+    private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) {
+        if (mappingMetaData == null) {
+            return MappingMetaData.EMPTY_MAPPINGS;
+        }
         if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
             return mappingMetaData;
         }

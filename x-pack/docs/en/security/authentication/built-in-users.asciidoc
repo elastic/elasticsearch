@@ -30,7 +30,7 @@ Although they share the same API, the built-in users are separate and distinct
 from users managed by the <<native-realm, native realm>>. Disabling the native
 realm will not have any effect on the built-in users. The built-in users can
 be disabled individually, using the
-{ref}/security-api-disable-user.html[disable users API].
+<<security-api-disable-user,disable users API>>.
 
 [float]
 [[bootstrap-elastic-passwords]]
@@ -45,7 +45,7 @@ setting, which is added to the keystore during installation. You do not need
 to know or change this bootstrap password. If you have defined a
 `bootstrap.password` setting in the keystore, however, that value is used instead.
 For more information about interacting with the keystore, see
-{ref}/secure-settings.html[Secure Settings].
+<<secure-settings>>.
 
 NOTE: After you <<set-built-in-user-passwords,set passwords for the built-in users>>,
 in particular for the `elastic` user, there is no further use for the bootstrap
@@ -70,7 +70,7 @@ bin/elasticsearch-setup-passwords interactive
 --------------------------------------------------
 
 For more information about the command options, see
-{ref}/setup-passwords.html[elasticsearch-setup-passwords].
+<<setup-passwords,elasticsearch-setup-passwords>>.
 
 IMPORTANT: After you set a password for the `elastic` user, the bootstrap
 password is no longer valid; you cannot run the `elasticsearch-setup-passwords`
@@ -78,7 +78,7 @@ command a second time.
 
 Alternatively, you can set the initial passwords for the built-in users by using
 the *Management > Users* page in {kib} or the
-{ref}/security-api-change-password.html[Change Password API]. These methods are
+<<security-api-change-password,change password API>>. These methods are
 more complex. You must supply the `elastic` user and its bootstrap password to
 log into {kib} or run the API. This requirement means that you cannot use the
 default bootstrap password that is derived from the `keystore.seed` setting.
@@ -165,7 +165,7 @@ monitoring data for the {stack}. See <<monitoring-production>>.
 If you have upgraded from an older version of {es}, then you may not have set a
 password for the `beats_system` or `remote_monitoring_user` users. If this is 
 the case, then you should use the *Management > Users* page in {kib} or the
-{ref}/security-api-change-password.html[Change Password API] to set a password
+<<security-api-change-password,change password API>> to set a password
 for these users.
 
 [float]
@@ -189,7 +189,7 @@ See {apm-server-ref}/monitoring.html[Monitoring APM Server].
 If you have upgraded from an older version of {es}, then you may not have set a
 password for the `apm_system` user. If this is the case, 
 then you should use the *Management > Users* page in {kib} or the
-{ref}/security-api-change-password.html[Change Password API] to set a password
+<<security-api-change-password,change password API>> to set a password
 for these users.
 
 [float]

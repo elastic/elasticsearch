@@ -162,7 +162,7 @@ setup:
   - do:
       transform.delete_transform:
         transform_id: "mixed-complex-transform"
-   - do:
+  - do:
       transform.get_transform_stats:
         transform_id: "mixed-simple-transform,mixed-complex-transform"
   - match: { count: 0 }

@@ -24,13 +24,49 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.util.function.LongSupplier;
 
+/**
+ * ValuesSourceType wraps the creation of specific per-source instances each {@link ValuesSource} needs to provide.  Every top-level
+ * subclass of {@link ValuesSource} should have a corresponding implementation of this interface.  In general, new data types seeking
+ * aggregation support should create a top level {@link ValuesSource}, then implement this to return wrappers for the specific sources of
+ * values.
+ */
 public interface ValuesSourceType {
+    /**
+     * Called when an aggregation is operating over a known empty set (usually because the field isn't specified), this method allows for
+     * returning a no-op implementation.  All {@link ValuesSource}s should implement this method.
+     * @return
+     */
     ValuesSource getEmpty();
 
+    /**
+     * Returns the type-specific sub class for a script data source.  {@link ValuesSource}s that do not support scripts should throw
+     * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}.  Note that this method is called when a script is
+     * operating without an underlying field.  Scripts operating over fields are handled by the script argument to getField below.
+     *
+     * @param script
+     * @param scriptValueType
+     * @return
+     */
     ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType);
 
+    /**
+     * Return a {@link ValuesSource} wrapping a field for the given type.  All {@link ValuesSource}s must implement this method.
+     * @param fieldContext
+     * @param script
+     * @return
+     */
     ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
 
+    /**
+     * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw
+     * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}
+     * 
+     * @param valuesSource
+     * @param rawMissing
+     * @param docValueFormat
+     * @param now
+     * @return
+     */
     ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
                                 LongSupplier now);
 }

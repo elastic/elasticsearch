@@ -122,5 +122,7 @@ belongs.
 `predicted_field`::
   (string) The field in the `index` that contains the predicted value, in other 
   words the results of the {classanalysis}. The data type of this field is 
-  string. You need to add `.keyword` to the predicted field name. For example, 
+  string. You need to add `.keyword` to the predicted field name (the name you 
+  put in the {classanalysis} object as `prediction_field_name` or the default 
+  value of the same field if you didn't specified explicitly). For example, 
   `predicted_field` : `ml.animal_class_prediction.keyword`.

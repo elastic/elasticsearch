@@ -277,8 +277,8 @@ POST _ml/data_frame/_evaluate
 <2> The field that contains the ground truth value for the actual animal 
 classification. This is required in order to evaluate results.
 <3> The field that contains the predicted value for animal classification by 
-the {classanalysis}. Note that you need to add the `.keyword` suffix to the 
-name.
+the {classanalysis}. Since the field storing predicted class is dynamically 
+mapped as text and keyword, you need to add the `.keyword` suffix to the name.
 
 
 The API returns the following result:
@@ -292,31 +292,31 @@ The API returns the following result:
          {
             "actual_class" : "cat", <1>
             "actual_class_doc_count" : 12, <2>
-            "other_predicted_class_doc_count" : 0, <3>
-            "predicted_classes" : [ <4>
+            "predicted_classes" : [ <3>
               {
-                "count" : 12,
-                "predicted_class" : "cat"
+                "predicted_class" : "cat",
+                "count" : 12 <4>
               },
               {
-                "count" : 0,
-                "predicted_class" : "dog"
+                "predicted_class" : "dog",
+                "count" : 0 <5>
               }
+            "other_predicted_class_doc_count" : 0, <6>
             ]
           },
           {
             "actual_class" : "dog",
             "actual_class_doc_count" : 11,
-            "other_predicted_class_doc_count" : 4,
             "predicted_classes" : [
               {
-                "count" : 11,
-                "predicted_class" : "dog"
+                "predicted_class" : "dog",
+                "count" : 11
               },
               {
-                "count" : 4,
-                "predicted_class" : "cat"
+                "predicted_class" : "cat",
+                "count" : 4
               }
+            "other_predicted_class_doc_count" : 4,
             ]
           }
         ],
@@ -326,8 +326,10 @@ The API returns the following result:
   }
 --------------------------------------------------
 <1> The name of the actual class that the analysis tried to predict.
-<2> The number of documents that the {classanalysis} successfully predicted as 
-the member of the actual class.
-<3> The number of documents that the {classanalysis} misclassified.
-<4> This object contains the list of the possible classes and the number of 
+<2> The number of documents that belong to the `actual_class`.
+<3> This object contains the list of the possible classes and the number of 
 predictions associated with the class.
+<4> The number of cats in the dataset that are correctly identified as cats.
+<5> The number of cats in the dataset that are incorrectly classified as dogs.
+<6> The number of documents that are classified as a class that is not listed as 
+a `predicted_class`.

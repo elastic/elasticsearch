@@ -889,7 +889,6 @@ class BuildPlugin implements Plugin<Project> {
                 test.systemProperty('io.netty.noUnsafe', 'true')
                 test.systemProperty('io.netty.noKeySetOptimization', 'true')
                 test.systemProperty('io.netty.recycler.maxCapacityPerThread', '0')
-                test.systemProperty('io.netty.allocator.numDirectArenas', '0')
 
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true

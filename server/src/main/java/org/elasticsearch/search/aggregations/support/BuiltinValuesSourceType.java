@@ -118,7 +118,7 @@ public enum BuiltinValuesSourceType implements Writeable, ValuesSourceType {
             }
             if (script != null) {
                 // Again, what's the difference between WithScript and Script?
-                dataSource = new ValuesSource.WithScript(dataSource, script);
+                dataSource = new ValuesSource.Bytes.WithScript(dataSource, script);
             }
             return dataSource;
         }

@@ -60,7 +60,7 @@ public interface ValuesSourceType {
     /**
      * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw
      * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}
-     * 
+     *
      * @param valuesSource
      * @param rawMissing
      * @param docValueFormat

@@ -41,9 +41,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -57,14 +54,11 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreRepositoryIntegTestCase {
 
     private static HttpServer httpServer;
-    private static ExecutorService executorService;
     private Map<String, HttpHandler> handlers;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
-        executorService = Executors.newCachedThreadPool();
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.setExecutor(executorService);
         httpServer.start();
     }
 
@@ -81,11 +75,9 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     }
 
     @AfterClass
-    public static void stopHttpServer() throws Exception {
+    public static void stopHttpServer() {
         httpServer.stop(0);
         httpServer = null;
-        executorService.shutdown();
-        assertTrue(executorService.awaitTermination(10L, TimeUnit.SECONDS));
     }
 
     @After

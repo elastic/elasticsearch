@@ -265,7 +265,7 @@ POST _ml/data_frame/_evaluate
          "actual_field": "animal_class", <2>
          "predicted_field": "ml.animal_class_prediction.keyword", <3>
          "metrics": {  
-           "multiclass_confusion_matrix" : {}
+           "multiclass_confusion_matrix" : {} <4>
          }
       }
    }
@@ -279,6 +279,7 @@ classification. This is required in order to evaluate results.
 <3> The field that contains the predicted value for animal classification by 
 the {classanalysis}. Since the field storing predicted class is dynamically 
 mapped as text and keyword, you need to add the `.keyword` suffix to the name.
+<4> Specifies the metric for the evaluation.
 
 
 The API returns the following result:

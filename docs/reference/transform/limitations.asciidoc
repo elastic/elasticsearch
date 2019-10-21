@@ -38,7 +38,7 @@ nodes have been upgraded to the newer version before using the {transforms} UI.
 ==== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
 
 If your cluster contains mixed version nodes, for example during a rolling
-upgrade from 7.2, 7.3 to a newer version, transforms whose nodes are stopped will
+upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped will
 not be reassigned until the upgrade is complete. After the upgrade is done, {transforms}
 resume automatically; no action is required.
 

@@ -426,7 +426,7 @@ public class IndexModuleTests extends ESTestCase {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
 
         final HashSet<Analyzer> openAnalyzers = new HashSet<>();
-        final AnalysisModule.AnalysisProvider<AnalyzerProvider<?>> analysisProvider = (i,e,n,s) -> new AnalyzerProvider<>() {
+        final AnalysisModule.AnalysisProvider<AnalyzerProvider<?>> analysisProvider = (i,e,n,s) -> new AnalyzerProvider<Analyzer>() {
             @Override
             public String name() {
                 return "test";

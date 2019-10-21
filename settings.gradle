@@ -1,5 +1,12 @@
+
+plugins {
+    id "com.gradle.enterprise" version "3.0"
+}
+
 String dirName = rootProject.projectDir.name
 rootProject.name = dirName
+
+
 
 List projects = [
   'build-tools',
@@ -114,3 +121,4 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+

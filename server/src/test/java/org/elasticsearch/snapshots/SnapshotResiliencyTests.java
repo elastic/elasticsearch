@@ -1172,6 +1172,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 snapshotsService.start();
                 snapshotShardsService.start();
+                repositoriesService.start();
                 final CoordinationState.PersistedState persistedState =
                     new InMemoryPersistedState(initialState.term(), stateForNode(initialState, node));
                 coordinator = new Coordinator(node.getName(), clusterService.getSettings(),

@@ -73,11 +73,11 @@ public class RetryTests extends ESTestCase {
 
     private BulkRequest createBulkRequest() {
         BulkRequest request = new BulkRequest();
-        request.add(new UpdateRequest("shop", "products", "1"));
-        request.add(new UpdateRequest("shop", "products", "2"));
-        request.add(new UpdateRequest("shop", "products", "3"));
-        request.add(new UpdateRequest("shop", "products", "4"));
-        request.add(new UpdateRequest("shop", "products", "5"));
+        request.add(new UpdateRequest("shop", "1"));
+        request.add(new UpdateRequest("shop", "2"));
+        request.add(new UpdateRequest("shop", "3"));
+        request.add(new UpdateRequest("shop", "4"));
+        request.add(new UpdateRequest("shop", "5"));
         return request;
     }
 
@@ -228,7 +228,7 @@ public class RetryTests extends ESTestCase {
 
         private BulkItemResponse successfulResponse() {
             return new BulkItemResponse(1, OpType.DELETE, new DeleteResponse(
-                new ShardId("test", "test", 0), "_doc", "test", 0, 0, 0, false));
+                new ShardId("test", "test", 0), "test", 0, 0, 0, false));
         }
 
         private BulkItemResponse failedResponse() {

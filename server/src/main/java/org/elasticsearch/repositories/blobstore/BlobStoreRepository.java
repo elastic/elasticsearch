@@ -1135,10 +1135,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ActionListener<Void> restoreListener = ActionListener.delegateResponse(listener,
             (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e)));
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final BlobContainer container = shardContainer(indexId, snapshotShardId);
         executor.execute(ActionRunnable.wrap(restoreListener, l -> {
-            final BlobContainer container = shardContainer(indexId, snapshotShardId);
-            BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
-            SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
+            final BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
+            final SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
             new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState) {
                 @Override
                 protected void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store,
@@ -1150,7 +1150,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         final int workers =
                             Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), snapshotFiles.indexFiles().size());
                         final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(filesToRecover);
-                        ActionListener<Void> allFilesListener = fileQueueListener(files, workers, ActionListener.map(listener, v -> null));
+                        final ActionListener<Void> allFilesListener =
+                            fileQueueListener(files, workers, ActionListener.map(listener, v -> null));
                         // restore the files from the snapshot to the Lucene store
                         for (int i = 0; i < workers; ++i) {
                             executor.execute(ActionRunnable.run(allFilesListener, () -> {

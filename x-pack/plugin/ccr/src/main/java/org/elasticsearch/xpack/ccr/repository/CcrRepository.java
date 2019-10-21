@@ -481,6 +481,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         @Override
         protected void restoreFiles(List<FileInfo> filesToRecover, Store store, ActionListener<Void> doneListener) {
             logger.trace("[{}] starting CCR restore of {} files", shardId, filesToRecover);
+            // TODO: now that the restoreFiles API is async we should stop blocking a thread here and make the following logic fully
+            //       async
             ActionListener.completeWith(doneListener, () -> {
                 try (MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {
                 })) {

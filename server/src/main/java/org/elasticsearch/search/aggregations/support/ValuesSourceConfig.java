@@ -273,6 +273,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                     // falling back to bytes values
                     vs = (VS) BuiltinValuesSourceType.BYTES.getField(fieldContext(), script());
                 } else {
+                    // TODO: Better docs for Scripts vs Scripted Fields
                     vs = (VS) valueSourceType().getField(fieldContext(), script());
                 }
             }

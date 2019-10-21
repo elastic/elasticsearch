@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -29,14 +28,9 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
         MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("_doc", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("_doc", index2MappingMetaData);
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingsMap.build());
-        mappings.put("index_2", index2MappingsMap.build());
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetaData);
+        mappings.put("index_2", index2MappingMetaData);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
@@ -47,32 +41,6 @@ public class MappingsMergerTests extends ESTestCase {
         assertThat(mergedMappings.valuesIt().next().getSourceAsMap(), equalTo(index1Mappings));
     }
 
-    public void testMergeMappings_GivenIndicesWithDifferentTypes() throws IOException {
-        Map<String, Object> index1Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings"));
-        MappingMetaData index1MappingMetaData = new MappingMetaData("_doc", index1Mappings);
-
-        Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings"));
-        MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
-
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("type_1", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("type_2", index2MappingMetaData);
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingsMap.build());
-        mappings.put("index_2", index2MappingsMap.build());
-
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> MappingsMerger.mergeMappings(getMappingsResponse));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), containsString("source indices contain mappings for different types:"));
-        assertThat(e.getMessage(), containsString("type_1"));
-        assertThat(e.getMessage(), containsString("type_2"));
-    }
-
     public void testMergeMappings_GivenFieldWithDifferentMapping() throws IOException {
         Map<String, Object> index1Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings"));
         MappingMetaData index1MappingMetaData = new MappingMetaData("_doc", index1Mappings);
@@ -80,14 +48,9 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "different_field_1_mappings"));
         MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("_doc", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("_doc", index2MappingMetaData);
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingsMap.build());
-        mappings.put("index_2", index2MappingsMap.build());
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetaData);
+        mappings.put("index_2", index2MappingMetaData);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
@@ -106,14 +69,9 @@ public class MappingsMergerTests extends ESTestCase {
             Map.of("field_1", "field_1_mappings", "field_3", "field_3_mappings"));
         MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("_doc", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("_doc", index2MappingMetaData);
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingsMap.build());
-        mappings.put("index_2", index2MappingsMap.build());
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetaData);
+        mappings.put("index_2", index2MappingMetaData);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 

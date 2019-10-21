@@ -11,35 +11,30 @@ if (buildNumber) {
             project.delete(uploadFile)
         }
 
-        OS.current()
-                .conditional()
-                .onUnix {
-                    project.exec {
-                        ignoreExitValue = true
-                        workingDir projectDir
-                        commandLine 'bash', '-c', 'journalctl --since "1 hour ago" 2>&1 > journalctl.log'
-                    }
-                }
-                .onWindows {
-
-                }
-                .onMac {
-
-                }
+        if (OS.current() != OS.WINDOWS) {
+            project.exec {
+                ignoreExitValue = true
+                workingDir projectDir
+                commandLine 'bash', '-c', 'journalctl --since "1 hour ago" 2>&1 > journalctl.log'
+            }
+        }
 
         ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
-            fileTree(projectDir)
-                    .include("**/*.hprof")
-                    .include("**/reaper.log")
-                    .include("**/journalctl.log")
-                    .include("**/build/testclusters/**")
-                    .exclude("**/build/testclusters/**/data/**")
-                    .exclude("**/build/testclusters/**/distro/**")
-                    .exclude("**/build/testclusters/**/repo/**")
-                    .exclude("**/build/testclusters/**/extract/**")
-                    .filter { Files.isRegularFile(it.toPath()) }
-                    .each { fileset(file: it) }
-
+            fileset(dir: projectDir) {
+                fileTree(projectDir)
+                        .include("**/*.hprof")
+                        .include("**/reaper.log")
+                        .include("**/journalctl.log")
+                        .include("**/build/testclusters/**")
+                        .exclude("**/build/testclusters/**/data/**")
+                        .exclude("**/build/testclusters/**/distro/**")
+                        .exclude("**/build/testclusters/**/repo/**")
+                        .exclude("**/build/testclusters/**/extract/**")
+                        .filter { Files.isRegularFile(it.toPath()) }
+                        .each {
+                            include(name: projectDir.toPath().relativize(it.toPath()))
+                        }
+            }
 
             fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
                 include(name: "**/daemon-${ProcessHandle.current().pid()}*.log")

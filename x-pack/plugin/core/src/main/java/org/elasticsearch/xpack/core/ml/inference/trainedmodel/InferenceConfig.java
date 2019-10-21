@@ -14,5 +14,8 @@ public interface InferenceConfig extends NamedXContentObject, NamedWriteable {
 
     boolean isTargetTypeSupported(TargetType targetType);
 
+    /**
+     * All nodes in the cluster must be at least this version
+     */
     Version getMinimalSupportedVersion();
 }

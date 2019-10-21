@@ -44,7 +44,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -142,8 +141,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             NamedXContentRegistry xContentRegistry,
             SimilarityService similarityService,
             ShardStoreDeleter shardStoreDeleter,
-            AnalysisRegistry registry,
-            EngineFactory engineFactory,
+            IndexAnalyzers indexAnalyzers, EngineFactory engineFactory,
             CircuitBreakerService circuitBreakerService,
             BigArrays bigArrays,
             ThreadPool threadPool,
@@ -157,14 +155,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             IndicesFieldDataCache indicesFieldDataCache,
             List<SearchOperationListener> searchOperationListeners,
             List<IndexingOperationListener> indexingOperationListeners,
-            NamedWriteableRegistry namedWriteableRegistry) throws IOException {
+            NamedWriteableRegistry namedWriteableRegistry) {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
-        this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
+        this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService,
             mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
             () -> newQueryShardContext(0, null, System::currentTimeMillis, null));

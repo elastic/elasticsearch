@@ -32,11 +32,7 @@ if (buildNumber) {
                     .include("**/*.hprof")
                     .include("**/reaper.log")
                     .include("**/journalctl.log")
-                    .include("**/build/testclusters/**")
-                    .exclude("**/build/testclusters/**/data/**")
-                    .exclude("**/build/testclusters/**/distro/**")
-                    .exclude("**/build/testclusters/**/repo/**")
-                    .exclude("**/build/testclusters/**/extract/**")
+                    .include("**/build/testclusters/**/logs/**")
                     .filter { Files.isRegularFile(it.toPath()) }
                     .each { fileset(file: it) }
 

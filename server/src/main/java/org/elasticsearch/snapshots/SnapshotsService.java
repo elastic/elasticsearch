@@ -701,7 +701,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         } else {
                             shardSnapshotStatus = repository.getShardSnapshotStatus(
                                 snapshotInfo.snapshotId(),
-                                snapshotInfo.version(),
                                 indexId,
                                 shardId);
                         }

@@ -55,29 +55,32 @@ public class ServerUtils {
         long timeElapsed = 0;
         boolean started = false;
         Throwable lastException = null;
-        while (started == false && timeElapsed < waitTime && (System.currentTimeMillis() - lastRequest) > requestInterval) {
-            try {
+        while (started == false && timeElapsed < waitTime) {
+            if (System.currentTimeMillis() - lastRequest > requestInterval) {
+                try {
 
-                final HttpResponse response = Request.Get("http://localhost:9200/_cluster/health")
-                    .connectTimeout((int) timeoutLength)
-                    .socketTimeout((int) timeoutLength)
-                    .execute()
-                    .returnResponse();
+                    final HttpResponse response = Request.Get("http://localhost:9200/_cluster/health")
+                        .connectTimeout((int) timeoutLength)
+                        .socketTimeout((int) timeoutLength)
+                        .execute()
+                        .returnResponse();
 
-                if (response.getStatusLine().getStatusCode() >= 300) {
-                    final String statusLine = response.getStatusLine().toString();
-                    final String body = EntityUtils.toString(response.getEntity());
-                    throw new RuntimeException("Connecting to elasticsearch cluster health API failed:\n" + statusLine+ "\n" + body);
+                    if (response.getStatusLine().getStatusCode() >= 300) {
+                        final String statusLine = response.getStatusLine().toString();
+                        final String body = EntityUtils.toString(response.getEntity());
+                        throw new RuntimeException("Connecting to elasticsearch cluster health API failed:\n" + statusLine + "\n" + body);
+                    }
+
+                    started = true;
+
+                } catch (IOException e) {
+                    lastException = e;
                 }
 
-                started = true;
-
-            } catch (IOException e) {
-                lastException = e;
+                lastRequest = System.currentTimeMillis();
             }
 
             timeElapsed = System.currentTimeMillis() - startTime;
-            lastRequest = System.currentTimeMillis();
         }
 
         if (started == false) {

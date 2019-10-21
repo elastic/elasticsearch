@@ -59,7 +59,7 @@ Which returns
     "user_agent": {
       "name": "Chrome",
       "original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36",
-      "version": "51.0.2704",
+      "version": "51.0.2704.103",
       "os": {
         "name": "Mac OS X",
         "version": "10.10.5",

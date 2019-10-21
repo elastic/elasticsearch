@@ -85,8 +85,8 @@ public class NettyAllocator {
     }
 
     private static boolean useUnpooled() {
-        if (Booleans.parseBoolean(System.getProperty(USE_UNPOOLED), false)) {
-            return true;
+        if (System.getProperty(USE_UNPOOLED) != null) {
+            return Booleans.parseBoolean(System.getProperty(USE_UNPOOLED));
         } else {
             long heapSize = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
             return heapSize <= 1 << 30;
@@ -202,7 +202,7 @@ public class NettyAllocator {
 
         @Override
         public boolean isDirectBufferPooled() {
-            return delegate.isDirectBufferPooled();
+            return false;
         }
 
         @Override

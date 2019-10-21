@@ -88,7 +88,7 @@ class Netty4HttpClient implements Closeable {
         clientBootstrap = new Bootstrap()
             .channel(NettyAllocator.getChannelType())
             .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
-            .group(new NioEventLoopGroup());
+            .group(new NioEventLoopGroup(1));
     }
 
     public Collection<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {

@@ -82,7 +82,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        return new AzureErroneousHttpHandler(delegate, 2);
     }
 
     @Override
@@ -264,11 +264,5 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 + " " + requestId
                 + (range != null ? " " + range : "");
         }
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47948")
-    public void testIndicesDeletedFromRepository() throws Exception {
-
     }
 }

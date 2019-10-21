@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 averageWithOneValue
 schema::languages:bt|'F':d
 SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F'));
@@ -80,6 +82,17 @@ null           |48396.28571428572|62140.666666666664
 3              |51741.90909090909|53660.0           
 4              |47058.90909090909|49291.5           
 5              |39052.875        |46705.555555555555
+;
+
+averageWithOneValueAndLimit
+schema::languages:bt|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F')) LIMIT 3;
+
+   languages   |       'F'        
+---------------+------------------
+null           |62140.666666666664
+1              |47073.25          
+2              |50684.4           
 ;
 
 averageWithTwoValuesAndLimit

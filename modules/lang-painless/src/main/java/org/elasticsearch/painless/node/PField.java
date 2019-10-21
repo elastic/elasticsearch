@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -65,38 +66,38 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void analyze(Locals locals) {
-        prefix.analyze(locals);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        prefix.analyze(scriptRoot, locals);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        prefix = prefix.cast(scriptRoot, locals);
 
         if (prefix.actual.isArray()) {
             sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            PainlessField field = locals.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value);
+            PainlessField field = scriptRoot.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value);
 
             if (field == null) {
                 PainlessMethod getter;
                 PainlessMethod setter;
 
-                getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
                         "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter == null) {
-                    getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                    getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
                             "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
                 }
 
-                setter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
                         "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter != null || setter != null) {
                     sub = new PSubShortcut(location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
-                    index.analyze(locals);
+                    index.analyze(scriptRoot, locals);
 
                     if (Map.class.isAssignableFrom(prefix.actual)) {
                         sub = new PSubMapShortcut(location, prefix.actual, index);
@@ -124,7 +125,7 @@ public final class PField extends AStoreable {
         sub.read = read;
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(locals);
+        sub.analyze(scriptRoot, locals);
         actual = sub.actual;
     }
 

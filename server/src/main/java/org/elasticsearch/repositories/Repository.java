@@ -19,7 +19,6 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -109,19 +108,6 @@ public interface Repository extends LifecycleComponent {
     RepositoryData getRepositoryData();
 
     /**
-     * Starts snapshotting process
-     *
-     * @param snapshotId snapshot id
-     * @param indices    list of indices to be snapshotted
-     * @param metaData   cluster metadata
-     *
-     * @deprecated this method is only used when taking snapshots in a mixed version cluster where a master node older than
-     *             {@link org.elasticsearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION} is present.
-     */
-    @Deprecated
-    void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData);
-
-    /**
      * Finalizes snapshotting process
      * <p>
      * This method is called on master after all shards are snapshotted.
@@ -134,11 +120,11 @@ public interface Repository extends LifecycleComponent {
      * @param shardFailures list of shard failures
      * @param repositoryStateId the unique id identifying the state of the repository when the snapshot began
      * @param includeGlobalState include cluster global state
-     * @return snapshot description
+     * @param listener listener to be called on completion of the snapshot
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                  MetaData clusterMetaData, Map<String, Object> userMetadata);
+    void finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+                          List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
+                          MetaData clusterMetaData, Map<String, Object> userMetadata, ActionListener<SnapshotInfo> listener);
 
     /**
      * Deletes snapshot
@@ -217,24 +203,19 @@ public interface Repository extends LifecycleComponent {
      * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
      * @param store           the store to restore the index into
      * @param snapshotId      snapshot id
-     * @param version         version of elasticsearch that created this snapshot
      * @param indexId         id of the index in the repository from which the restore is occurring
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                      RecoveryState recoveryState);
+    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
      * @param snapshotId snapshot id
-     * @param version    version of elasticsearch that created this snapshot
      * @param indexId    the snapshotted index id for the shard to get status for
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId);
-
-
+    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
 }

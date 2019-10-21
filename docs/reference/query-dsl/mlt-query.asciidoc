@@ -246,3 +246,6 @@ results returned. Defaults to `false`.
 
 `boost`::
 Sets the boost value of the whole query. Defaults to `1.0`.
+
+==== Alternative
+To take more control over the construction of a query for similar documents it is worth considering writing custom client code to assemble selected terms from an example document into a Boolean query with the desired settings. The logic in `more_like_this` that selects "interesting" words from a piece of text is also accessible via the <<docs-termvectors,TermVectors API>>. For example, using the termvectors API it would be possible to present users with a selection of topical keywords found in a document's text, allowing them to select words of interest to drill down on, rather than using the more "black-box" approach of matching used by `more_like_this`.

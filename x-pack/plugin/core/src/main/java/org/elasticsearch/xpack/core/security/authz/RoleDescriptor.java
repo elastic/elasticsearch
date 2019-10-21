@@ -761,6 +761,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 return this;
             }
 
+            public Builder indices(Collection<String> indices) {
+                return indices(indices.toArray(new String[indices.size()]));
+            }
+
             public Builder privileges(String... privileges) {
                 indicesPrivileges.privileges = privileges;
                 return this;

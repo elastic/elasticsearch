@@ -88,7 +88,6 @@ import java.util.regex.Matcher
 
 import static org.elasticsearch.gradle.tool.Boilerplate.findByName
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
-
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -132,7 +131,6 @@ class BuildPlugin implements Plugin<Project> {
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
 
-        setupSeed(project)
         configureRepositories(project)
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
         configureInputNormalization(project)
@@ -678,6 +676,10 @@ class BuildPlugin implements Plugin<Project> {
              */
             (javadoc.options as CoreJavadocOptions).addBooleanOption('html5', true)
         }
+        // ensure javadoc task is run with 'check'
+        project.pluginManager.withPlugin('lifecycle-base') {
+            project.tasks.getByName(LifecycleBasePlugin.CHECK_TASK_NAME).dependsOn(project.tasks.withType(Javadoc))
+        }
         configureJavadocJar(project)
     }
 
@@ -891,12 +893,16 @@ class BuildPlugin implements Plugin<Project> {
                 test.systemProperty('io.netty.noUnsafe', 'true')
                 test.systemProperty('io.netty.noKeySetOptimization', 'true')
                 test.systemProperty('io.netty.recycler.maxCapacityPerThread', '0')
-                test.systemProperty('io.netty.allocator.numDirectArenas', '0')
 
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true
                     logging.showCauses = true
                     logging.exceptionFormat = 'full'
+                }
+
+                if (OS.current().equals(OS.WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
+                    // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
+                    test.systemProperty 'tests.timeoutSuite', '1800000!'
                 }
 
                 project.plugins.withType(ShadowPlugin).whenPluginAdded {
@@ -944,32 +950,6 @@ class BuildPlugin implements Plugin<Project> {
                 task.runtimeConfiguration.extendsFrom(project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME), project.configurations.getByName('bundle'))
             }
         }
-    }
-
-    /**
-     * Pins the test seed at configuration time so it isn't different on every
-     * {@link Test} execution. This is useful if random
-     * decisions in one run of {@linkplain Test} influence the
-     * outcome of subsequent runs. Pinning the seed up front like this makes
-     * the reproduction line from one run be useful on another run.
-     */
-    static String setupSeed(Project project) {
-        ExtraPropertiesExtension ext = project.rootProject.extensions.getByType(ExtraPropertiesExtension)
-        if (ext.has('testSeed')) {
-            /* Skip this if we've already pinned the testSeed. It is important
-             * that this checks the rootProject so that we know we've only ever
-             * initialized one time. */
-            return ext.get('testSeed')
-        }
-
-        String testSeed = System.getProperty('tests.seed')
-        if (testSeed == null) {
-            long seed = new Random(System.currentTimeMillis()).nextLong()
-            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT)
-        }
-
-        ext.set('testSeed', testSeed)
-        return testSeed
     }
 
     private static class TestFailureReportingPlugin implements Plugin<Project> {

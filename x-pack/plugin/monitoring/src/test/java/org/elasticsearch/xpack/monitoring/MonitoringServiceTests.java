@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -57,6 +58,7 @@ public class MonitoringServiceTests extends ESTestCase {
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(monitoring.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(mock(ClusterState.class));
+        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
     }
 
     @After

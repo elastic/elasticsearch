@@ -28,69 +28,55 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptContextInfo;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
-import static org.elasticsearch.common.xcontent.XContentParser.Token.START_OBJECT;
 
 public class GetScriptContextResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField CONTEXTS = new ParseField("contexts");
-    private final List<String> contextNames;
+    final Set<ScriptContextInfo> contexts;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetScriptContextResponse,Void> PARSER =
         new ConstructingObjectParser<>("get_script_context", true,
             (a) -> {
-                Map<String, Object> contexts = ((List<String>) a[0]).stream().collect(Collectors.toMap(
-                    name -> name, name -> new Object()
-                ));
-                return new GetScriptContextResponse(contexts);
+                    return new GetScriptContextResponse((List<ScriptContextInfo>)a[0]);
             }
         );
 
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) ->
-            {
-                // advance empty object
-                assert(p.nextToken() == START_OBJECT);
-                assert(p.nextToken() == END_OBJECT);
-                return n;
-            },
-            CONTEXTS
-        );
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+            (parser, ctx) -> ScriptContextInfo.PARSER.apply(parser, ctx), CONTEXTS);
     }
 
     GetScriptContextResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readInt();
-        ArrayList<String> contextNames = new ArrayList<>(size);
+        HashSet<ScriptContextInfo> contexts = new HashSet<>(size);
         for (int i = 0; i < size; i++) {
-            contextNames.add(in.readString());
+            contexts.add(new ScriptContextInfo(in));
         }
-        this.contextNames = Collections.unmodifiableList(contextNames);
+        this.contexts = Collections.unmodifiableSet(contexts);
     }
 
-    GetScriptContextResponse(Map<String,Object> contexts) {
-        List<String> contextNames = new ArrayList<>(contexts.keySet());
-        contextNames.sort(String::compareTo);
-        this.contextNames = Collections.unmodifiableList(contextNames);
+    GetScriptContextResponse(Collection<ScriptContextInfo> contexts) {
+        this.contexts = Set.copyOf(contexts);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(this.contextNames.size());
-        for (String context: this.contextNames) {
-            out.writeString(context);
+        out.writeInt(this.contexts.size());
+        for (ScriptContextInfo context: this.contexts) {
+            context.writeTo(out);
         }
     }
 
@@ -101,11 +87,11 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().startObject(CONTEXTS.getPreferredName());
-        for (String contextName: this.contextNames) {
-            builder.startObject(contextName).endObject();
+        builder.startObject().startArray(CONTEXTS.getPreferredName());
+        for (ScriptContextInfo context: contexts.stream().sorted(Comparator.comparing(s -> s.name)).collect(Collectors.toList())) {
+            context.toXContent(builder, params);
         }
-        builder.endObject().endObject(); // CONTEXTS
+        builder.endArray().endObject(); // CONTEXTS
         return builder;
     }
 
@@ -122,11 +108,11 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
             return false;
         }
         GetScriptContextResponse that = (GetScriptContextResponse) o;
-        return contextNames.equals(that.contextNames);
+        return new HashSet<>(contexts).equals(new HashSet<>(that.contexts));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(contextNames);
+        return Objects.hash(new HashSet<>(contexts));
     }
 }

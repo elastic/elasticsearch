@@ -4,24 +4,68 @@
       reason: "get_all_contexts introduced in 7.6.0"
   - do:
       get_script_context: {}
-  - match: { contexts.aggregation_selector: {} }
-  - match: { contexts.aggs: {} }
-  - match: { contexts.aggs_combine: {} }
-  - match: { contexts.aggs_init: {} }
-  - match: { contexts.aggs_map: {} }
-  - match: { contexts.aggs_reduce: {} }
-  - match: { contexts.bucket_aggregation: {} }
-  - match: { contexts.field: {} }
-  - match: { contexts.filter: {} }
-  - match: { contexts.ingest: {} }
-  - match: { contexts.interval: {} }
-  - match: { contexts.number_sort: {} }
-  - match: { contexts.processor_conditional: {} }
-  - match: { contexts.score: {} }
-  - match: { contexts.script_heuristic: {} }
-  - match: { contexts.similarity: {} }
-  - match: { contexts.similarity_weight: {} }
-  - match: { contexts.string_sort: {} }
-  - match: { contexts.template: {} }
-  - match: { contexts.terms_set: {} }
-  - match: { contexts.update: {} }
+  - match: { contexts.0.name: "aggregation_selector" }
+  - match: { contexts.0.methods: [{"name": "execute", "return_type": "boolean", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }
+
+  - match: { contexts.1.name: "aggs" }
+  - match: { contexts.1.methods: [{"name": "execute", "return_type": "java.lang.Object", "params": []}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "get_score", "return_type": "java.lang.Number", "params": []}, {"name": "get_value", "return_type": "java.lang.Object", "params": []}] }
+
+  - match: { contexts.2.name: "aggs_combine" }
+  - match: { contexts.2.methods: [{"name": "execute", "return_type": "java.lang.Object", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "getState", "return_type": "java.util.Map", "params": []}] }
+
+  - match: { contexts.3.name: "aggs_init" }
+  - match: { contexts.3.methods: [{"name": "execute", "return_type": "void", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "getState", "return_type": "java.lang.Object", "params": []}] }
+
+  - match: { contexts.4.name: "aggs_map" }
+  - match: { contexts.4.methods: [{"name": "execute", "return_type": "void", "params": []}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "getState", "return_type": "java.util.Map", "params": []}, {"name": "get_score", "return_type": "double", "params": []}] }
+
+  - match: { contexts.5.name: "aggs_reduce" }
+  - match: { contexts.5.methods: [{"name": "execute", "return_type": "java.lang.Object", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "getStates", "return_type": "java.util.List", "params": []}] }
+
+  - match: { contexts.6.name: "bucket_aggregation" }
+  - match: { contexts.6.methods: [{"name": "execute", "return_type": "java.lang.Number", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }
+
+  - match: { contexts.7.name: "field" }
+  - match: { contexts.7.methods: [{"name": "execute", "return_type": "java.lang.Object", "params": []}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }
+
+  - match: { contexts.8.name: "filter" }
+  - match: { contexts.8.methods: [{"name": "execute", "return_type": "boolean", "params": []}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }
+
+  - match: { contexts.9.name: "ingest" }
+  - match: { contexts.9.methods: [{"name": "execute", "return_type": "void", "params": [{"type": "java.util.Map", "name": "ctx"}]}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }
+
+  - match: { contexts.10.name: "interval" }
+  - match: { contexts.10.methods: [{"name": "execute", "return_type": "boolean", "params": [{"type": "org.elasticsearch.index.query.IntervalFilterScript$Interval", "name": "interval"}]}] }
+
+  - match: { contexts.11.name: "moving-function" }
+  - match: { contexts.11.methods: [{"name": "execute", "return_type": "double", "params": [{"type": "java.util.Map", "name": "params"}, {"type": "double[]", "name": "values"}]}] }
+
+  - match: { contexts.12.name: "number_sort" }
+  - match: { contexts.12.methods: [{"name": "execute", "return_type": "double", "params": []}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "get_score", "return_type": "double", "params": []}] }
+
+  - match: { contexts.13.name: "processor_conditional" }
+  - match: { contexts.13.methods: [{"name": "execute", "return_type": "boolean", "params": [{"type": "java.util.Map", "name": "ctx"}]}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }
+
+  - match: { contexts.14.name: "score" }
+  - match: { contexts.14.methods: [{"name": "execute", "return_type": "double", "params": [{"type": "org.elasticsearch.script.ScoreScript$ExplanationHolder", "name": "explanation"}]}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "get_score", "return_type": "double", "params": []}] }
+
+  - match: { contexts.15.name: "script_heuristic" }
+  - match: { contexts.15.methods: [{"name": "execute", "return_type": "double", "params": [{"type": "java.util.Map", "name": "params"}]}] }
+
+  - match: { contexts.16.name: "similarity" }
+  - match: { contexts.16.methods: [{"name": "execute", "return_type": "double", "params": [{"type": "double", "name": "weight"}, {"type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Query", "name": "query"}, {"type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Field", "name": "field"}, {"type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Term", "name": "term"}, {"type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Doc", "name": "doc"}]}] }
+
+  - match: { contexts.17.name: "similarity_weight" }
+  - match: { contexts.17.methods: [{"name": "execute", "return_type": "double", "params": [{"type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Query", "name": "query"}, {"type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Field", "name": "field"}, {"type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Term", "name": "term"}]}] }
+
+  - match: { contexts.18.name: "string_sort" }
+  - match: { contexts.18.methods: [{"name": "execute", "return_type": "java.lang.String", "params": []}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "get_score", "return_type": "double", "params": []}] }
+
+  - match: { contexts.19.name: "template" }
+  - match: { contexts.19.methods: [{"name": "execute", "return_type": "java.lang.String", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }
+
+  - match: { contexts.20.name: "terms_set" }
+  - match: { contexts.20.methods: [{"name": "execute", "return_type": "java.lang.Number", "params": []}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }
+
+  - match: { contexts.21.name: "update" }
+  - match: { contexts.21.methods: [{"name": "execute", "return_type": "void", "params": []}, {"name": "getCtx", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }

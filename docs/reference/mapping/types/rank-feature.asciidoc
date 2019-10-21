@@ -7,7 +7,7 @@
 A `rank_feature` field can index numbers so that they can later be used to boost
 documents in queries with a <<query-dsl-rank-feature-query,`rank_feature`>> query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -39,7 +39,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Rank feature fields must use the `rank_feature` field type
 <2> Rank features that correlate negatively with the score need to declare it
 

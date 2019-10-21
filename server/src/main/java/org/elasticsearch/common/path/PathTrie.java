@@ -96,7 +96,12 @@ public class PathTrie<T> {
 
         private void updateKeyWithNamedWildcard(String key) {
             this.key = key;
-            namedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
+            String newNamedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
+            if (namedWildcard != null && newNamedWildcard.equals(namedWildcard) == false) {
+                throw new IllegalArgumentException("Trying to use conflicting wildcard names for same path: "
+                    + namedWildcard + " and " + newNamedWildcard);
+            }
+            namedWildcard = newNamedWildcard;
         }
 
         private void addInnerChild(String key, TrieNode child) {

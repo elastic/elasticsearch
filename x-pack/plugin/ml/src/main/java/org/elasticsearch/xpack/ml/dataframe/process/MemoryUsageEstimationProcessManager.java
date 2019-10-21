@@ -57,12 +57,13 @@ public class MemoryUsageEstimationProcessManager {
                                                DataFrameDataExtractorFactory dataExtractorFactory) {
         DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
         DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-        Set<String> categoricalFields = dataExtractor.getCategoricalFields();
+        Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
         if (dataSummary.rows == 0) {
             return new MemoryUsageEstimationResult(ByteSizeValue.ZERO, ByteSizeValue.ZERO);
         }
         AnalyticsProcessConfig processConfig =
             new AnalyticsProcessConfig(
+                jobId,
                 dataSummary.rows,
                 dataSummary.cols,
                 // For memory estimation the model memory limit here should be set high enough not to trigger an error when C++ code
@@ -74,8 +75,9 @@ public class MemoryUsageEstimationProcessManager {
                 config.getAnalysis());
         AnalyticsProcess<MemoryUsageEstimationResult> process =
             processFactory.createAnalyticsProcess(
-                jobId,
+                config,
                 processConfig,
+                null,
                 executorServiceForProcess,
                 // The handler passed here will never be called as AbstractNativeProcess.detectCrash method returns early when
                 // (processInStream == null) which is the case for MemoryUsageEstimationProcess.

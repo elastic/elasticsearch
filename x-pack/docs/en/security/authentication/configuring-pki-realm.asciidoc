@@ -14,7 +14,7 @@ requires some <<pki-realm-for-proxied-clients,additional configuration>>. On
 authentication and to submit the client certificates to {es} for further
 validation by a PKI realm.
 
-For more general information, see {stack-ov}/pki-realm.html[PKI user authentication].
+For more general information, see <<pki-realm>>.
 
 [float]
 [role="xpack"]
@@ -169,7 +169,8 @@ For example, the following mapping configuration maps `John Doe` to the
 `user` role:
 
 Using the role-mapping API:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/users
 {
@@ -180,7 +181,7 @@ PUT /_security/role_mapping/users
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The distinguished name (DN) of a PKI user.
 
 Or, alternatively, configured inside a role-mapping file. The file's path
@@ -208,11 +209,9 @@ certificate as the means of authentication) and inspect the metadata field in
 the result. The user's distinguished name will be populated under the `pki_dn`
 key. You can also use the authenticate API to validate your role mapping.
 
-For more information, see 
-{stack-ov}/mapping-roles.html[Mapping Users and Groups to Roles].
+For more information, see <<mapping-roles>>.
 
-NOTE: The PKI realm supports
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+NOTE: The PKI realm supports <<authorization_realms,authorization realms>> as an
 alternative to role mapping.
 
 --
@@ -246,14 +245,15 @@ NOTE: PKI authentication delegation requires that the
 `xpack.security.authc.token.enabled` setting be `true` and that SSL/TLS be
 configured (without SSL/TLS client authentication).
 
-NOTE: {kib} also needs to be configured to allow PKI certificate authentication.
+NOTE: {kib} also needs to be
+{kibana-ref}/kibana-authentication.html#pki-authentication[configured to allow
+PKI certificate authentication].
 
 A PKI realm with `delegation.enabled` still works unchanged for clients
 connecting directly to {es}. Directly authenticated users, and users that are PKI
 authenticated by delegation to {kib} both follow the same
-{stack-ov}/mapping-roles.html[role mapping rules] or
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms
-configurations].
+<<mapping-roles,role mapping rules>> or
+<<authorization_realms,authorization realms configurations>>.
 
 However, if you use the <<security-role-mapping-apis,role mapping APIs>>,
 you can distinguish between users that are authenticated by delegation and
@@ -265,7 +265,7 @@ the following role mapping rule will assign the `role_for_pki1_direct` role to
 all users that have been authenticated directly by the `pki1` realm, by
 connecting to {es} instead of going through {kib}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/direct_pki_only
 {
@@ -285,7 +285,7 @@ PUT /_security/role_mapping/direct_pki_only
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> only when this metadata field is set (it is *not* `null`) the user has been
 authenticated in the delegation scenario.
 

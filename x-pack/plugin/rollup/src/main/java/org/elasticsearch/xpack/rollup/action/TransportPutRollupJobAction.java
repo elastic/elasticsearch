@@ -62,6 +62,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobAction.Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutRollupJobAction.class);
+
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -210,7 +213,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         final String indexName = job.getConfig().getRollupIndex();
 
         CheckedConsumer<GetMappingsResponse, Exception> getMappingResponseHandler = getMappingResponse -> {
-            MappingMetaData mappings = getMappingResponse.getMappings().get(indexName).get(RollupField.TYPE_NAME);
+            MappingMetaData mappings = getMappingResponse.getMappings().get(indexName);
             Object m = mappings.getSourceAsMap().get("_meta");
             if (m == null) {
                 String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +

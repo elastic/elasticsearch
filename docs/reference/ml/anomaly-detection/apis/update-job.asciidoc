@@ -18,7 +18,7 @@ Updates certain properties of an {anomaly-job}.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 
 [[ml-update-job-path-parms]]
@@ -36,8 +36,11 @@ The following properties can be updated after the job is created:
 |=======================================================================
 |Name |Description |Requires Restart
 
-|`analysis_limits`: `model_memory_limit` |The approximate maximum amount of
-memory resources required for analytical processing. See <<ml-apilimits>>. | Yes
+|`analysis_limits.model_memory_limit` |The approximate maximum amount of
+memory resources required for analytical processing. See <<ml-apilimits>>. You 
+can update the `analysis_limits` only while the job is closed. The 
+`model_memory_limit` property value cannot be decreased below the current usage. 
+| Yes  
 
 |`background_persist_interval` |Advanced configuration option. The time between
 each periodic persistence of the model. See <<ml-job-resource>>. | Yes
@@ -46,11 +49,18 @@ each periodic persistence of the model. See <<ml-job-resource>>. | Yes
 
 |`description` |A description of the job. See <<ml-job-resource>>. | No
 
-|`detectors` |An array of <<ml-detector-update, detector update objects>>. | No
+|`detectors` |An array of detector update objects. | No
+
+|`detector_index` |The identifier of the detector to update (integer).| No
+
+|`detectors.description` |The new description for the detector.| No
+
+|`detectors.custom_rules` |The new list of <<ml-detector-custom-rule, rules>> 
+for the detector. | No
 
 |`groups` |A list of job groups. See <<ml-job-resource>>. | No
 
-|`model_plot_config`: `enabled` |If true, enables calculation and storage of the
+|`model_plot_config.enabled` |If true, enables calculation and storage of the
 model bounds for each entity that is being analyzed.
 See <<ml-apimodelplotconfig>>. | No
 
@@ -64,44 +74,30 @@ See <<ml-job-resource>>. | Yes
 |`results_retention_days` |Advanced configuration option. The number of days
 for which job results are retained. See <<ml-job-resource>>. | Yes
 
+|`allow_lazy_open` |Advanced configuration option. Whether to allow the job to be
+opened when no {ml} node has sufficient capacity. See <<ml-job-resource>>. | Yes
+
 |=======================================================================
 
 For those properties that have `Requires Restart` set to `Yes` in this table,
 if the job is open when you make the update, you must stop the data feed, close
-the job, then restart the data feed and open the job for the changes to take
+the job, then reopen the job and restart the data feed for the changes to take
 effect.
 
 [NOTE]
 --
-* You can update the `analysis_limits` only while the job is closed.
-* The `model_memory_limit` property value cannot be decreased below the current usage.
 * If the `memory_status` property in the `model_size_stats` object has a value
 of `hard_limit`, this means that it was unable to process some data. You might
 want to re-run this job with an increased `model_memory_limit`.
 --
 
-[[ml-detector-update]]
-==== Detector update objects
-
-A detector update object has the following properties:
-
-`detector_index`::
-  (integer) The identifier of the detector to update.
-
-`description`::
-  (string) The new description for the detector.
-
-`custom_rules`::
-  (array) The new list of <<ml-detector-custom-rule, rules>> for the detector.
-
-No other detector property can be updated.
 
 [[ml-update-job-example]]
 ==== {api-examples-title}
 
 The following example updates the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_update
 {
@@ -125,13 +121,12 @@ POST _ml/anomaly_detectors/total-requests/_update
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_job]
 
 When the {anomaly-job} is updated, you receive a summary of the job
 configuration information, including the updated property values. For example:
 
-[source,js]
+[source,console-result]
 ----
 {
   "job_id": "total-requests",
@@ -178,7 +173,8 @@ configuration information, including the updated property values. For example:
       }
     ]
   },
-  "results_index_name": "shared"
+  "results_index_name": "shared",
+  "allow_lazy_open": false
 }
 ----
 // TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]

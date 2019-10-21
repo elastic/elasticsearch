@@ -622,11 +622,14 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(NULL, commonType(NULL, NULL));
         assertEquals(INTEGER, commonType(INTEGER, KEYWORD));
         assertEquals(LONG, commonType(TEXT, LONG));
-        assertNull(commonType(TEXT, KEYWORD));
         assertEquals(SHORT, commonType(SHORT, BYTE));
         assertEquals(FLOAT, commonType(BYTE, FLOAT));
         assertEquals(FLOAT, commonType(FLOAT, INTEGER));
         assertEquals(DOUBLE, commonType(DOUBLE, FLOAT));
+
+        // strings
+        assertEquals(TEXT, commonType(TEXT, KEYWORD));
+        assertEquals(TEXT, commonType(KEYWORD, TEXT));
 
         // numeric and intervals
         assertEquals(INTERVAL_YEAR_TO_MONTH, commonType(INTERVAL_YEAR_TO_MONTH, LONG));
@@ -682,6 +685,6 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     private DataType randomInterval() {
-        return randomFrom(Stream.of(DataType.values()).filter(DataTypes::isInterval).collect(Collectors.toList()));
+        return randomFrom(Stream.of(DataType.values()).filter(DataType::isInterval).collect(Collectors.toList()));
     }
 }

@@ -1,55 +1,143 @@
 [[indices-clearcache]]
-=== Clear Cache
+=== Clear cache API
+++++
+<titleabbrev>Clear cache</titleabbrev>
+++++
 
-The clear cache API allows to clear either all caches or specific cached
-associated with one or more indices.
+Clears caches for one or more indices.
 
-[source,js]
---------------------------------------------------
+[source,console]
+----
 POST /twitter/_cache/clear
---------------------------------------------------
-// CONSOLE
+----
 // TEST[setup:twitter]
 
-The API, by default, will clear all caches. Specific caches can be cleaned
-explicitly by setting the `query`, `fielddata` or `request` url parameter to `true`.
 
-[source,js]
---------------------------------------------------
-POST /twitter/_cache/clear?query=true      <1>
-POST /twitter/_cache/clear?request=true    <2>
-POST /twitter/_cache/clear?fielddata=true   <3>
---------------------------------------------------
-// CONSOLE
+[[clear-cache-api-request]]
+==== {api-request-title}
+
+`POST /<index>/_cache/clear`
+
+`POST /_cache/clear`
+
+
+[[clear-cache-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+
+
+[[clear-cache-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+`fielddata`::
++
+--
+(Optional, boolean)
+If `true`,
+clears the fields cache.
+
+Use the `fields` parameter
+to clear the cache of specific fields only.
+--
+
+`fields`::
++
+--
+(Optional, string)
+Comma-separated list of field names
+used to limit the `fielddata` parameter.
+
+Defaults to all fields.
+
+NOTE: This parameter does *not* support objects
+or field aliases.
+--
+
+
+`index`::
+(Optional, string)
+Comma-separated list of index names
+used to limit the request.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`query`::
+(Optional, boolean)
+If `true`,
+clears the query cache.
+
+`request`::
+(Optional, boolean)
+If `true`,
+clears the request cache.
+
+
+[[clear-cache-api-example]]
+==== {api-examples-title}
+
+
+[[clear-cache-api-specific-ex]]
+===== Clear a specific cache
+
+By default,
+the clear cache API clears all caches.
+You can clear only specific caches
+by setting the following query parameters to `true`:
+
+* `fielddata`
+* `query`
+* `request`
+
+[source,console]
+----
+POST /twitter/_cache/clear?fielddata=true  <1>
+POST /twitter/_cache/clear?query=true      <2>
+POST /twitter/_cache/clear?request=true    <3>
+----
 // TEST[continued]
-<1> Cleans only the query cache
-<2> Cleans only the request cache
-<3> Cleans only the fielddata cache
 
-In addition to this, all caches relating to a specific field can also be
-cleared by specifying `fields` url parameter with a comma delimited list of
-the fields that should be cleared. Note that the provided names must refer to
-concrete fields -- objects and field aliases are not supported.
+<1> Clears only the fields cache
+<2> Clears only the query cache
+<3> Clears only the request cache
 
-[source,js]
---------------------------------------------------
+
+
+[[clear-cache-api-specific-fields-ex]]
+===== Clear the cache of specific fields
+
+To only clear the cache of specific fields,
+use the `fields` query parameter.
+
+[source,console]
+----
 POST /twitter/_cache/clear?fields=foo,bar   <1>
---------------------------------------------------
-// CONSOLE
+----
 // TEST[continued]
-<1> Clear the cache for the `foo` an `bar` field
 
-[float]
-==== Multi Index
+<1> Clear the cache for the `foo` and `bar` field
 
-The clear cache API can be applied to more than one index with a single
-call, or even on `_all` the indices.
 
-[source,js]
---------------------------------------------------
+[[clear-cache-api-multi-ex]]
+===== Clear caches for several indices
+
+[source,console]
+----
 POST /kimchy,elasticsearch/_cache/clear
-
-POST /_cache/clear
---------------------------------------------------
-// CONSOLE
+----
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+
+
+[[clear-cache-api-all-ex]]
+===== Clear caches for all indices
+
+[source,console]
+----
+POST /_cache/clear
+----

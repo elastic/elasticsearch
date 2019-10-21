@@ -383,22 +383,24 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param retainingSequenceNumber the retaining sequence number
      * @param source                  the source of the retention lease
      * @return the renewed retention lease
-     * @throws RetentionLeaseNotFoundException if the specified retention lease does not exist
+     * @throws RetentionLeaseNotFoundException              if the specified retention lease does not exist
+     * @throws RetentionLeaseInvalidRetainingSeqNoException if the new retaining sequence number is lower than
+     *                                                      the retaining sequence number of the current retention lease.
      */
     public synchronized RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert primaryMode;
-        if (retentionLeases.contains(id) == false) {
+        final RetentionLease existingRetentionLease = retentionLeases.get(id);
+        if (existingRetentionLease == null) {
             throw new RetentionLeaseNotFoundException(id);
         }
+        if (retainingSequenceNumber < existingRetentionLease.retainingSequenceNumber()) {
+            assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(source) == false :
+                "renewing peer recovery retention lease [" + existingRetentionLease + "]" +
+                    " with a lower retaining sequence number [" + retainingSequenceNumber + "]";
+            throw new RetentionLeaseInvalidRetainingSeqNoException(id, source, retainingSequenceNumber, existingRetentionLease);
+        }
         final RetentionLease retentionLease =
-                new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
-        final RetentionLease existingRetentionLease = retentionLeases.get(id);
-        assert existingRetentionLease != null;
-        assert existingRetentionLease.retainingSequenceNumber() <= retentionLease.retainingSequenceNumber() :
-                "retention lease renewal for [" + id + "]"
-                        + " from [" + source + "]"
-                        + " renewed a lower retaining sequence number [" + retentionLease.retainingSequenceNumber() + "]"
-                        + " than the current lease retaining sequence number [" + existingRetentionLease.retainingSequenceNumber() + "]";
+            new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
         retentionLeases = new RetentionLeases(
                 operationPrimaryTerm,
                 retentionLeases.version() + 1,
@@ -527,7 +529,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Id for a peer recovery retention lease for the given node. See {@link ReplicationTracker#addPeerRecoveryRetentionLease}.
      */
-    static String getPeerRecoveryRetentionLeaseId(String nodeId) {
+    public static String getPeerRecoveryRetentionLeaseId(String nodeId) {
         return "peer_recovery/" + nodeId;
     }
 
@@ -537,6 +539,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public static String getPeerRecoveryRetentionLeaseId(ShardRouting shardRouting) {
         return getPeerRecoveryRetentionLeaseId(shardRouting.currentNodeId());
+    }
+
+    /**
+     * Returns a list of peer recovery retention leases installed in this replication group
+     */
+    public List<RetentionLease> getPeerRecoveryRetentionLeases() {
+        return getRetentionLeases().leases().stream()
+            .filter(lease -> PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(lease.source()))
+            .collect(Collectors.toUnmodifiableList());
     }
 
     /**

@@ -45,7 +45,7 @@ programming languages known by the job candidate.
 * `required_matches`, a <<number, numeric>> `long` field. This field contains
 the number of matching terms required to return a document.
 
-[source,js]
+[source,console]
 ----
 PUT /job-candidates
 {
@@ -64,7 +64,6 @@ PUT /job-candidates
     }
 }
 ----
-// CONSOLE
 // TESTSETUP
 
 --
@@ -82,7 +81,7 @@ PUT /job-candidates
 Include the `?refresh` parameter so the document is immediately available for
 search.
 
-[source,js]
+[source,console]
 ----
 PUT /job-candidates/_doc/1?refresh
 {
@@ -91,7 +90,6 @@ PUT /job-candidates/_doc/1?refresh
     "required_matches": 2
 }
 ----
-// CONSOLE
 
 --
 
@@ -105,7 +103,7 @@ PUT /job-candidates/_doc/1?refresh
 
 * `2` in the `required_matches` field.
 
-[source,js]
+[source,console]
 ----
 PUT /job-candidates/_doc/2?refresh
 {
@@ -114,7 +112,6 @@ PUT /job-candidates/_doc/2?refresh
     "required_matches": 2
 }
 ----
-// CONSOLE
 
 --
 
@@ -135,7 +132,7 @@ The `minimum_should_match_field` is `required_matches`. This means the
 number of matching terms required is `2`, the value of the `required_matches`
 field.
 
-[source,js]
+[source,console]
 ----
 GET /job-candidates/_search
 {
@@ -149,7 +146,6 @@ GET /job-candidates/_search
     }
 }
 ----
-// CONSOLE
 
 [[terms-set-top-level-params]]
 ==== Top-level parameters for `terms_set`
@@ -214,7 +210,7 @@ number of terms provided in the `terms` field.
 * The required number of terms to match is `2`, the value of the
 `required_matches` field.
 
-[source,js]
+[source,console]
 ----
 GET /job-candidates/_search
 {
@@ -231,4 +227,3 @@ GET /job-candidates/_search
     }
 }
 ----
-// CONSOLE

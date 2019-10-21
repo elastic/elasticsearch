@@ -58,29 +58,31 @@ import java.util.Set;
  * Taken from JsonThrowablePatternConverter</li>
  * </ul>
  * <p>
- * It is possible to add more or override them with <code>esmessagefield</code>
- * <code>appender.logger.layout.esmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id</code>
- * Each of these will be expanded into a json field with a value taken {@link ESLogMessage} field. In the example above
- * <code>... "message":  %ESMessageField{message}, "took": %ESMessageField{took} ...</code>
- * the message passed to a logger will be overriden with a value from %ESMessageField{message}
+ * It is possible to add more field by  using {@link ESLogMessage#with} method which allow adding key value pairs
+ * or override field with <code>overrideFields</code>
+ * <code>appender.logger.layout.overrideFields=message</code>.
+ * In the example above the pattern will be <code>... "message":  %OverrideField{message} ...</code>
+ * the message passed to a logger will be overridden with a value from %OverrideField{message}
+ * Once an appender is defined to be overriding a field, all the log events should contain this field.
  * <p>
- * The value taken from %ESMessageField{message} has to be a simple escaped JSON value and is populated in subclasses of
- * <code>ESLogMessage</code>
+ * The value taken from ESLogMessage has to be a simple escaped JSON value.
  */
 @Plugin(name = "ESJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class ESJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
+    private String overridenFields;
 
-    protected ESJsonLayout(String typeName, Charset charset, String[] esmessagefields) {
+    protected ESJsonLayout(String typeName, Charset charset, String[] overrideFields) {
         super(charset);
+        this.overridenFields = String.join(",",overrideFields);
         this.patternLayout = PatternLayout.newBuilder()
-                                          .withPattern(pattern(typeName, esmessagefields))
+                                          .withPattern(pattern(typeName, overrideFields))
                                           .withAlwaysWriteExceptions(false)
                                           .build();
     }
 
-    private String pattern(String type, String[] esMessageFields) {
+    private String pattern(String type, String[] overrideFields) {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
@@ -93,21 +95,23 @@ public class ESJsonLayout extends AbstractStringLayout {
         map.put("node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
-        for (String key : esMessageFields) {
-            map.put(key, inQuotes("%ESMessageField{" + key + "}"));
+
+        // overridden fields are expected to be present in a log message
+        for (String key : overrideFields) {
+            map.remove(key);
         }
 
-        return createPattern(map, Set.of(esMessageFields));
+        return createPattern(map, Set.of(overrideFields));
     }
 
 
-    private String createPattern(Map<String, Object> map, Set<String> esMessageFields) {
+    private String createPattern(Map<String, Object> map, Set<String> overrideFields) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         String separator = "";
         for (Map.Entry<String, Object> entry : map.entrySet()) {
 
-            if (esMessageFields.contains(entry.getKey())) {
+            if (overrideFields.contains(entry.getKey())) {
                 sb.append("%notEmpty{");
                 sb.append(separator);
                 appendField(sb, entry);
@@ -120,6 +124,7 @@ public class ESJsonLayout extends AbstractStringLayout {
             separator = ", ";
         }
         sb.append(notEmpty(", %node_and_cluster_id "));
+        sb.append(notEmpty(", %CustomMapFields{"+overridenFields+"} "));
         sb.append("%exceptionAsJson ");
         sb.append("}");
         sb.append(System.lineSeparator());
@@ -147,8 +152,8 @@ public class ESJsonLayout extends AbstractStringLayout {
     @PluginFactory
     public static ESJsonLayout createLayout(String type,
                                             Charset charset,
-                                            String[] esmessagefields) {
-        return new ESJsonLayout(type, charset, esmessagefields);
+                                            String[] overrideFields) {
+        return new ESJsonLayout(type, charset, overrideFields);
     }
 
     PatternLayout getPatternLayout() {
@@ -164,8 +169,8 @@ public class ESJsonLayout extends AbstractStringLayout {
         @PluginAttribute(value = "charset", defaultString = "UTF-8")
         Charset charset;
 
-        @PluginAttribute("esmessagefields")
-        private String esMessageFields;
+        @PluginAttribute("overrideFields")
+        private String overrideFields;
 
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
@@ -173,7 +178,7 @@ public class ESJsonLayout extends AbstractStringLayout {
 
         @Override
         public ESJsonLayout build() {
-            String[] split = Strings.isNullOrEmpty(esMessageFields) ? new String[]{} : esMessageFields.split(",");
+            String[] split = Strings.isNullOrEmpty(overrideFields) ? new String[]{} : overrideFields.split(",");
             return ESJsonLayout.createLayout(type, charset, split);
         }
 
@@ -195,12 +200,12 @@ public class ESJsonLayout extends AbstractStringLayout {
             return asBuilder();
         }
 
-        public String getESMessageFields() {
-            return esMessageFields;
+        public String getOverrideFields() {
+            return overrideFields;
         }
 
-        public B setESMessageFields(String esmessagefields) {
-            this.esMessageFields = esmessagefields;
+        public B setOverrideFields(String overrideFields) {
+            this.overrideFields = overrideFields;
             return asBuilder();
         }
     }

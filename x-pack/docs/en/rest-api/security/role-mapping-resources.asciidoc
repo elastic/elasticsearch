@@ -26,7 +26,7 @@ A rule is a logical condition that is expressed by using a JSON DSL. The DSL sup
 (array of rules) If *all* of its children are true, it evaluates to `true`.
 `field`::: 
 (object) See <<mapping-roles-rule-field>>. 
-`except`::
+`except`:::
 (object) A single rule as an object. Only valid as a child of an `all` rule. If 
 its child is `false`, the `except` is `true`.
 
@@ -49,7 +49,7 @@ The value specified in the field rule can be one of the following types:
 | Simple String      | Exactly matches the provided value.                             | "esadmin"
 | Wildcard String    | Matches the provided value using a wildcard.                    | "*,dc=example,dc=com"
 | Regular Expression | Matches the provided value using a
-                       {ref}/regexp-syntax.html[Lucene regexp]. | "/.\*-admin[0-9]*/"
+                       <<regexp-syntax,Lucene regexp>>. | "/.\*-admin[0-9]*/"
 | Number             | Matches an equivalent numerical value.                          | 7
 | Null               | Matches a null or missing value.                                | null
 | Array              | Tests each element in the array in
@@ -80,11 +80,11 @@ if _at least one_ of the member values matches. For example, the following rule
 matches any user who is a member of the `admin` group, regardless of any
 other groups they belong to:
 
-[source, js]
+[source,js]
 ------------------------------------------------------------
 { "field" : { "groups" : "admin" } }
 ------------------------------------------------------------
 // NOTCONSOLE
 
 For additional realm-specific details, see
-{stack-ov}/mapping-roles.html#ldap-role-mapping[Mapping Users and Groups to Roles].
+<<ldap-role-mapping>>.

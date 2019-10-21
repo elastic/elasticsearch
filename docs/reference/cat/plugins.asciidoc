@@ -34,18 +34,17 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-plugins-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 ------------------------------------------------------------------------------
 GET /_cat/plugins?v&s=component&h=name,component,version,description
 ------------------------------------------------------------------------------
-// CONSOLE
 
 The API returns the following response:
 
 ["source","txt",subs="attributes,callouts"]
 ------------------------------------------------------------------------------
 name    component               version   description
-U7321H6 analysis-icu            {version_qualified} The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
+U7321H6 analysis-icu            {version_qualified} The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.
 U7321H6 analysis-kuromoji       {version_qualified} The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
 U7321H6 analysis-nori           {version_qualified} The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.
 U7321H6 analysis-phonetic       {version_qualified} The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.

@@ -21,7 +21,7 @@ experimental[]
 
 * If the {es} {security-features} are enabled, you must have `manage` or
 `manage_rollup` cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[rollup-delete-job-desc]]
 ==== {api-description-title}
@@ -76,19 +76,17 @@ POST my_rollup_index/_delete_by_query
 
 If we have a rollup job named `sensor`, it can be deleted with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _rollup/job/sensor
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 
 Which will return the response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

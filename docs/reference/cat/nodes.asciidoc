@@ -14,6 +14,8 @@ Returns information about a cluster's nodes.
 [[cat-nodes-api-query-params]]
 ==== {api-query-parms-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 `full_id`::
@@ -287,6 +289,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
@@ -296,11 +300,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-nodes-api-ex-default]]
 ===== Example with default columns
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/nodes?v
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following response:
 
@@ -325,11 +328,10 @@ monitoring an entire cluster, particularly large ones.
 The following API request returns the `id`, `ip`, `port`, `v` (version), and `m`
 (master) columns.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/nodes?v&h=id,ip,port,v,m
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following response:
 

@@ -5,12 +5,9 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
 }
 
-testFixtures.useFixture ":x-pack:test:idp-fixture"
+testFixtures.useFixture ":x-pack:test:idp-fixture", "openldap"
 
 Project idpFixtureProject = xpackProject("test:idp-fixture")
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"

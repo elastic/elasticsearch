@@ -66,7 +66,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -1112,19 +1111,6 @@ public class QueryAnalyzerTests extends ESTestCase {
 
     private static void assertTermsEqual(Set<QueryExtraction> actual, Term... expected) {
         assertEquals(Arrays.stream(expected).map(QueryExtraction::new).collect(Collectors.toSet()), actual);
-    }
-
-    private static Set<QueryExtraction> terms(int[] intervals, String... values) {
-        Set<QueryExtraction> queryExtractions = new HashSet<>();
-        for (int interval : intervals) {
-            byte[] encodedInterval = new byte[4];
-            IntPoint.encodeDimension(interval, encodedInterval, 0);
-            queryExtractions.add(new QueryAnalyzer.QueryExtraction(new QueryAnalyzer.Range("_field", null, null, encodedInterval)));
-        }
-        for (String value : values) {
-            queryExtractions.add(new QueryExtraction(new Term("_field", value)));
-        }
-        return queryExtractions;
     }
 
 }

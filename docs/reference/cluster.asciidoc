@@ -52,7 +52,7 @@ is not supported in the {oss-dist}.
 Here are some examples of the use of node filters with the
 <<cluster-nodes-info,Nodes Info>> APIs.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # If no filters are given, the default is to select all nodes
 GET /_nodes
@@ -78,7 +78,6 @@ GET /_nodes/rack:2
 GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 --------------------------------------------------
-// CONSOLE
 
 include::cluster/health.asciidoc[]
 

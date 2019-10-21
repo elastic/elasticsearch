@@ -83,6 +83,7 @@ s|SQL precision
 | interval_minute_to_second | 23
 | geo_point                 | 52
 | geo_shape                 | 2,147,483,647
+| shape                     | 2,147,483,647
 
 |===
 
@@ -102,7 +103,7 @@ To do that, it will search for the first `keyword` that it can find that is _not
 
 Consider the following `string` mapping:
 
-[source, js]
+[source,js]
 ----
 {
     "first_name" : {

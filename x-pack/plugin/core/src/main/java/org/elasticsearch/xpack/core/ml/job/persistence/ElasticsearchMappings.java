@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -449,25 +451,56 @@ public class ElasticsearchMappings {
                         .startObject(Regression.DEPENDENT_VARIABLE.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
-                        .startObject(Regression.LAMBDA.getPreferredName())
+                        .startObject(BoostedTreeParams.LAMBDA.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
-                        .startObject(Regression.GAMMA.getPreferredName())
+                        .startObject(BoostedTreeParams.GAMMA.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
-                        .startObject(Regression.ETA.getPreferredName())
+                        .startObject(BoostedTreeParams.ETA.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
-                        .startObject(Regression.MAXIMUM_NUMBER_TREES.getPreferredName())
+                        .startObject(BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName())
                             .field(TYPE, INTEGER)
                         .endObject()
-                        .startObject(Regression.FEATURE_BAG_FRACTION.getPreferredName())
+                        .startObject(BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
                         .startObject(Regression.PREDICTION_FIELD_NAME.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
                         .startObject(Regression.TRAINING_PERCENT.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject(Classification.NAME.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(Classification.DEPENDENT_VARIABLE.getPreferredName())
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                        .startObject(BoostedTreeParams.LAMBDA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(BoostedTreeParams.GAMMA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(BoostedTreeParams.ETA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName())
+                            .field(TYPE, INTEGER)
+                        .endObject()
+                        .startObject(BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Classification.PREDICTION_FIELD_NAME.getPreferredName())
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                        .startObject(Classification.NUM_TOP_CLASSES.getPreferredName())
+                            .field(TYPE, INTEGER)
+                        .endObject()
+                        .startObject(Classification.TRAINING_PERCENT.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
                     .endObject()
@@ -1121,12 +1154,13 @@ public class ElasticsearchMappings {
         XContentBuilder builder = jsonBuilder().startObject();
         builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
+        builder.field(DYNAMIC, "false");
         builder.startObject(PROPERTIES)
                 .startObject(Job.ID.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
                 .startObject(AnomalyDetectionAuditMessage.LEVEL.getPreferredName())
-                   .field(TYPE, KEYWORD)
+                    .field(TYPE, KEYWORD)
                 .endObject()
                 .startObject(AnomalyDetectionAuditMessage.MESSAGE.getPreferredName())
                     .field(TYPE, TEXT)
@@ -1142,6 +1176,9 @@ public class ElasticsearchMappings {
                 .startObject(AnomalyDetectionAuditMessage.NODE_NAME.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
+                .startObject(AnomalyDetectionAuditMessage.JOB_TYPE.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
         .endObject()
         .endObject()
         .endObject();
@@ -1152,13 +1189,12 @@ public class ElasticsearchMappings {
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {
         List<String> indicesToUpdate = new ArrayList<>();
 
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
-                new String[0], MapperPlugin.NOOP_FIELD_FILTER);
+        ImmutableOpenMap<String, MappingMetaData> currentMapping = state.metaData().findMappings(concreteIndices,
+                MapperPlugin.NOOP_FIELD_FILTER);
 
         for (String index : concreteIndices) {
-            ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
-            if (innerMap != null) {
-                MappingMetaData metaData = innerMap.valuesIt().next();
+            MappingMetaData metaData = currentMapping.get(index);
+            if (metaData != null) {
                 try {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");

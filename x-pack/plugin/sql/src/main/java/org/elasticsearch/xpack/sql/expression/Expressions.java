@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -132,6 +135,30 @@ public final class Expressions {
             return (l != null && l.semanticEquals(attribute(right)));
         }
         return true;
+    }
+
+    public static List<Attribute> onlyPrimitiveFieldAttributes(Collection<Attribute> attributes) {
+        List<Attribute> filtered = new ArrayList<>();
+        // add only primitives
+        // but filter out multi fields (allow only the top-level value)
+        Set<Attribute> seenMultiFields = new LinkedHashSet<>();
+
+        for (Attribute a : attributes) {
+            if (!DataTypes.isUnsupported(a.dataType()) && a.dataType().isPrimitive()) {
+                if (a instanceof FieldAttribute) {
+                    FieldAttribute fa = (FieldAttribute) a;
+                    // skip nested fields and seen multi-fields
+                    if (!fa.isNested() && !seenMultiFields.contains(fa.parent())) {
+                        filtered.add(a);
+                        seenMultiFields.add(a);
+                    }
+                } else {
+                    filtered.add(a);
+                }
+            }
+        }
+
+        return filtered;
     }
 
     public static Pipe pipe(Expression e) {

@@ -19,34 +19,35 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.http.AmazonHttpClient;
-import com.amazonaws.services.s3.Headers;
+import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
+import com.amazonaws.util.Base16;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
-import org.apache.http.HttpStatus;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
+import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -57,41 +58,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.nullValue;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
-
-    private static HttpServer httpServer;
-
-    @BeforeClass
-    public static void startHttpServer() throws Exception {
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.start();
-    }
-
-    @Before
-    public void setUpHttpServer() {
-        HttpHandler handler = new InternalHttpHandler();
-        if (randomBoolean()) {
-            handler = new ErroneousHttpHandler(handler, randomIntBetween(2, 3));
-        }
-        httpServer.createContext("/bucket", handler);
-    }
-
-    @AfterClass
-    public static void stopHttpServer() {
-        httpServer.stop(0);
-        httpServer = null;
-    }
-
-    @After
-    public void tearDownHttpServer() {
-        httpServer.removeContext("/bucket");
-    }
+public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     @Override
     protected String repositoryType() {
@@ -101,6 +73,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     @Override
     protected Settings repositorySettings() {
         return Settings.builder()
+            .put(super.repositorySettings())
             .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
             .put(S3Repository.CLIENT_NAME.getKey(), "test")
             .build();
@@ -112,16 +85,23 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     }
 
     @Override
+    protected Map<String, HttpHandler> createHttpHandlers() {
+        return Collections.singletonMap("/bucket", new InternalHttpHandler());
+    }
+
+    @Override
+    protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
+        return new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
         secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret");
 
-        final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
-
         return Settings.builder()
-            .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
+            .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
             // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
             .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
             // Disable request throttling because some random values in tests might generate too many failures for the S3 client
@@ -131,6 +111,9 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             .build();
     }
 
+    /**
+     * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
+     */
     public static class TestS3RepositoryPlugin extends S3RepositoryPlugin {
 
         public TestS3RepositoryPlugin(final Settings settings) {
@@ -142,6 +125,31 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             final List<Setting<?>> settings = new ArrayList<>(super.getSettings());
             settings.add(S3ClientSettings.DISABLE_CHUNKED_ENCODING);
             return settings;
+        }
+
+        @Override
+        protected S3Repository createRepository(RepositoryMetaData metadata, NamedXContentRegistry registry, ThreadPool threadPool) {
+            return new S3Repository(metadata, registry, service, threadPool) {
+
+                @Override
+                public BlobStore blobStore() {
+                    return new BlobStoreWrapper(super.blobStore()) {
+                        @Override
+                        public BlobContainer blobContainer(final BlobPath path) {
+                            return new S3BlobContainer(path, (S3BlobStore) delegate()) {
+                                @Override
+                                long getLargeBlobThresholdInBytes() {
+                                    return ByteSizeUnit.MB.toBytes(1L);
+                                }
+
+                                @Override
+                                void ensureMultiPartUploadSize(long blobSize) {
+                                }
+                            };
+                        }
+                    };
+                }
+            };
         }
     }
 
@@ -157,7 +165,65 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         public void handle(final HttpExchange exchange) throws IOException {
             final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
             try {
-                if (Regex.simpleMatch("PUT /bucket/*", request)) {
+                if (Regex.simpleMatch("POST /bucket/*?uploads", request)) {
+                    final String uploadId = UUIDs.randomBase64UUID();
+                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                        "<InitiateMultipartUploadResult>\n" +
+                        "  <Bucket>bucket</Bucket>\n" +
+                        "  <Key>" + exchange.getRequestURI().getPath() + "</Key>\n" +
+                        "  <UploadId>" + uploadId + "</UploadId>\n" +
+                        "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    blobs.put(multipartKey(uploadId, 0), BytesArray.EMPTY);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+
+                } else if (Regex.simpleMatch("PUT /bucket/*?uploadId=*&partNumber=*", request)) {
+                    final Map<String, String> params = new HashMap<>();
+                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+
+                    final String uploadId = params.get("uploadId");
+                    if (blobs.containsKey(multipartKey(uploadId, 0))) {
+                        final int partNumber = Integer.parseInt(params.get("partNumber"));
+                        MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
+                        blobs.put(multipartKey(uploadId, partNumber), Streams.readFully(md5));
+                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    } else {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    }
+
+                } else if (Regex.simpleMatch("POST /bucket/*?uploadId=*", request)) {
+                    Streams.readFully(exchange.getRequestBody());
+                    final Map<String, String> params = new HashMap<>();
+                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                    final String uploadId = params.get("uploadId");
+
+                    final int nbParts = blobs.keySet().stream()
+                        .filter(blobName -> blobName.startsWith(uploadId))
+                        .map(blobName -> blobName.replaceFirst(uploadId + '\n', ""))
+                        .mapToInt(Integer::parseInt)
+                        .max()
+                        .orElse(0);
+
+                    final ByteArrayOutputStream blob = new ByteArrayOutputStream();
+                    for (int partNumber = 0; partNumber <= nbParts; partNumber++) {
+                        BytesReference part = blobs.remove(multipartKey(uploadId, partNumber));
+                        assertNotNull(part);
+                        part.writeTo(blob);
+                    }
+                    blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
+
+                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                        "<CompleteMultipartUploadResult>\n" +
+                        "  <Bucket>bucket</Bucket>\n" +
+                        "  <Key>" + exchange.getRequestURI().getPath() + "</Key>\n" +
+                        "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+
+                }else if (Regex.simpleMatch("PUT /bucket/*", request)) {
                     blobs.put(exchange.getRequestURI().toString(), Streams.readFully(exchange.getRequestBody()));
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
@@ -237,51 +303,29 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
                 exchange.close();
             }
         }
+
+        private static String multipartKey(final String uploadId, int partNumber) {
+            return uploadId + "\n" + partNumber;
+        }
     }
 
     /**
      * HTTP handler that injects random S3 service errors
      *
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
-     * slow down the test suite and/or could trigger SDK client request throttling (and request
-     * would fail before reaching the max retry attempts - this can be mitigated by disabling
-     * {@link S3ClientSettings#USE_THROTTLE_RETRIES_SETTING})
+     * slow down the test suite.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    private static class ErroneousHttpHandler implements HttpHandler {
+    private static class S3ErroneousHttpHandler extends ErroneousHttpHandler {
 
-        // first key is the remote address, second key is the HTTP request unique id provided by the AWS SDK client,
-        // value is the number of times the request has been seen
-        private final Map<String, AtomicInteger> requests;
-        private final HttpHandler delegate;
-        private final int maxErrorsPerRequest;
-
-        private ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
-            this.requests = new ConcurrentHashMap<>();
-            this.delegate = delegate;
-            this.maxErrorsPerRequest = maxErrorsPerRequest;
-            assert maxErrorsPerRequest > 1;
+        S3ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
+            super(delegate, maxErrorsPerRequest);
         }
 
         @Override
-        public void handle(final HttpExchange exchange) throws IOException {
-            final String requestId = exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
-            assert Strings.hasText(requestId);
-
-            final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
-            if (count >= maxErrorsPerRequest || randomBoolean()) {
-                requests.remove(requestId);
-                delegate.handle(exchange);
-            } else {
-                handleAsError(exchange, requestId);
-            }
-        }
-
-        private void handleAsError(final HttpExchange exchange, final String requestId) throws IOException {
-            Streams.readFully(exchange.getRequestBody());
-            exchange.getResponseHeaders().add(Headers.REQUEST_ID, requestId);
-            exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
-            exchange.close();
+        protected String requestUniqueId(final HttpExchange exchange) {
+            // Amazon SDK client provides a unique ID per request
+            return exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
         }
     }
 }

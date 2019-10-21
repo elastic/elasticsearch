@@ -31,6 +31,7 @@ if (buildNumber) {
                         .exclude("**/build/testclusters/**/repo/**")
                         .exclude("**/build/testclusters/**/extract/**")
                         .filter { Files.isRegularFile(it.toPath()) }
+                        .filter { it != uploadFile }
                         .each {
                             include(name: projectDir.toPath().relativize(it.toPath()))
                         }

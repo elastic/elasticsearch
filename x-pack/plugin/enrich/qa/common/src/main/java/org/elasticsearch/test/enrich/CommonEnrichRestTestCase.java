@@ -10,6 +10,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -38,6 +39,15 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         for (Map<?, ?> entry: policies) {
             client().performRequest(new Request("DELETE", "/_enrich/policy/" +
                 XContentMapValues.extractValue("config.match.name", entry)));
+
+            List<?> sourceIndices = (List<?>) XContentMapValues.extractValue("config.match.indices", entry);
+            for (Object sourceIndex : sourceIndices) {
+                try {
+                    client().performRequest(new Request("DELETE", "/" + sourceIndex));
+                } catch (ResponseException e) {
+                    // and that is ok
+                }
+            }
         }
     }
 
@@ -48,6 +58,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     private void setupGenericLifecycleTest(boolean deletePipeilne) throws Exception {
+        // Create source index:
+        createSourceIndex("my-source-index");
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
         putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index"));
@@ -99,6 +111,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public void testImmutablePolicy() throws IOException {
+        createSourceIndex("my-source-index");
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
         putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index"));
         assertOK(client().performRequest(putPolicyRequest));
@@ -108,6 +121,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public void testDeleteIsCaseSensitive() throws Exception {
+        createSourceIndex("my-source-index");
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
         putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index"));
         assertOK(client().performRequest(putPolicyRequest));
@@ -153,6 +167,20 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         }
         source.endObject().endObject();
         return Strings.toString(source);
+    }
+
+    public static void createSourceIndex(String index) throws IOException {
+        String mapping = createSourceIndexMapping();
+        createIndex(index, Settings.EMPTY, mapping);
+    }
+
+    public static String createSourceIndexMapping() {
+        return "\"properties\":" +
+            "{\"host\": {\"type\":\"keyword\"}," +
+            "\"globalRank\":{\"type\":\"keyword\"}," +
+            "\"tldRank\":{\"type\":\"keyword\"}," +
+            "\"tld\":{\"type\":\"keyword\"}" +
+            "}";
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

@@ -49,7 +49,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -299,24 +298,22 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(200, 500))
             .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
         client().admin().indices().prepareFlush(indexName).get();
-        AtomicReference<String> brokenNode = new AtomicReference<>();
+        String brokenNode = internalCluster().startDataOnlyNode();
         MockTransportService transportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.TRANSLOG_OPS)) {
-                String nodeName = connection.getNode().getName();
-                brokenNode.compareAndSet(null, nodeName);
-                if (brokenNode.get().equals(nodeName)) {
+                if (brokenNode.equals(connection.getNode().getName())) {
                     throw new CircuitBreakingException("not enough memory for indexing", 100, 50, CircuitBreaker.Durability.TRANSIENT);
                 }
             }
             connection.sendRequest(requestId, action, request, options);
         });
-        internalCluster().startDataOnlyNodes(2);
-        client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)));
+        internalCluster().startDataOnlyNode();
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         ensureGreen(indexName);
-        assertThat(internalCluster().nodesInclude(indexName), not(hasItem(brokenNode.get())));
         transportService.clearAllRules();
     }
 

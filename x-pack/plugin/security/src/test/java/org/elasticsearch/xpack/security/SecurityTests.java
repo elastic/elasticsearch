@@ -277,7 +277,7 @@ public class SecurityTests extends ESTestCase {
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
         MetaData.Builder builder = MetaData.builder();
         final String forbiddenLicenseType =
-            randomFrom(List.of(License.OperationMode.values()).stream()
+            randomFrom(Arrays.stream(License.OperationMode.values())
                 .filter(l -> FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(l) == false).collect(Collectors.toList())).toString();
         License license = TestUtils.generateSignedLicense(forbiddenLicenseType, TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);

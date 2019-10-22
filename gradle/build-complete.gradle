@@ -7,8 +7,10 @@ def isLocked(File file) {
      // The rename will not succeed on Windows if the file is opened by another process.
      file.withInputStream {
          try {
-             it.readNBytes(1);
-             return true;
+             while (it.readNBytes(1024*100).length != 0) {
+
+             }
+             return true
          } catch (IOException e) {
              logger.lifecycle("Skipping {}", file, e)
              return false;
@@ -25,7 +27,7 @@ if (buildNumber) {
         }
 
         def isWindows = OS.current() == OS.WINDOWS
-        if (isWindows == false) {
+        if (OS.current() == OS.LINUX) {
             project.exec {
                 ignoreExitValue = true
                 workingDir projectDir

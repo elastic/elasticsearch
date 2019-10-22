@@ -244,15 +244,7 @@ public final class RepositoryData {
      * throwing an exception if the index could not be resolved.
      */
     public IndexId resolveIndexId(final String indexName) {
-        if (indices.containsKey(indexName)) {
-            return indices.get(indexName);
-        } else {
-            // on repositories created before 5.0, there was no indices information in the index
-            // blob, so if the repository hasn't been updated with new snapshots, no new index blob
-            // would have been written, so we only have old snapshots without the index information.
-            // in this case, the index id is just the index name
-            return new IndexId(indexName, indexName);
-        }
+        return Objects.requireNonNull(indices.get(indexName), () -> "Tried to resolve unknown index [" + indexName + "]");
     }
 
     /**
@@ -341,31 +333,23 @@ public final class RepositoryData {
                 if (SNAPSHOTS.equals(field)) {
                     if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            final SnapshotId snapshotId;
-                            // the new format from 5.0 which contains the snapshot name and uuid
-                            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                                String name = null;
-                                String uuid = null;
-                                SnapshotState state = null;
-                                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                                    String currentFieldName = parser.currentName();
-                                    parser.nextToken();
-                                    if (NAME.equals(currentFieldName)) {
-                                        name = parser.text();
-                                    } else if (UUID.equals(currentFieldName)) {
-                                        uuid = parser.text();
-                                    } else if (STATE.equals(currentFieldName)) {
-                                        state = SnapshotState.fromValue(parser.numberValue().byteValue());
-                                    }
+                            String name = null;
+                            String uuid = null;
+                            SnapshotState state = null;
+                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                String currentFieldName = parser.currentName();
+                                parser.nextToken();
+                                if (NAME.equals(currentFieldName)) {
+                                    name = parser.text();
+                                } else if (UUID.equals(currentFieldName)) {
+                                    uuid = parser.text();
+                                } else if (STATE.equals(currentFieldName)) {
+                                    state = SnapshotState.fromValue(parser.numberValue().byteValue());
                                 }
-                                snapshotId = new SnapshotId(name, uuid);
-                                if (state != null) {
-                                    snapshotStates.put(uuid, state);
-                                }
-                            } else {
-                                // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
-                                final String name = parser.text();
-                                snapshotId = new SnapshotId(name, name);
+                            }
+                            final SnapshotId snapshotId = new SnapshotId(name, uuid);
+                            if (state != null) {
+                                snapshotStates.put(uuid, state);
                             }
                             snapshots.put(snapshotId.getUUID(), snapshotId);
                         }

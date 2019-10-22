@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase {
 
     @After
-    private void cleanupPolicies() throws InterruptedException {
+    public void cleanupPolicies() throws InterruptedException {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         final CountDownLatch latch = new CountDownLatch(1);

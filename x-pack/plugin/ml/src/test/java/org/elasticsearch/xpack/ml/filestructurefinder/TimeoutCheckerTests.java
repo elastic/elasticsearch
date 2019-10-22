@@ -16,7 +16,6 @@ import org.junit.Before;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 

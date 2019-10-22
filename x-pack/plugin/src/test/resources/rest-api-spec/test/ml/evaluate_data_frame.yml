@@ -618,8 +618,40 @@ setup:
             }
           }
 
-  - match: { classification.multiclass_confusion_matrix.confusion_matrix: {cat: {cat: 2, dog: 1, mouse: 0}, dog: {cat: 1, dog: 2, mouse: 0}, mouse: {cat: 1, dog: 0, mouse: 1} } }
-  - match: { classification.multiclass_confusion_matrix._other_: 0 }
+  - match:
+      classification.multiclass_confusion_matrix:
+        confusion_matrix:
+          - actual_class: "cat"
+            actual_class_doc_count: 3
+            predicted_classes:
+            - predicted_class: "cat"
+              count: 2
+            - predicted_class: "dog"
+              count: 1
+            - predicted_class: "mouse"
+              count: 0
+            other_predicted_class_doc_count: 0
+          - actual_class: "dog"
+            actual_class_doc_count: 3
+            predicted_classes:
+            - predicted_class: "cat"
+              count: 1
+            - predicted_class: "dog"
+              count: 2
+            - predicted_class: "mouse"
+              count: 0
+            other_predicted_class_doc_count: 0
+          - actual_class: "mouse"
+            actual_class_doc_count: 2
+            predicted_classes:
+            - predicted_class: "cat"
+              count: 1
+            - predicted_class: "dog"
+              count: 0
+            - predicted_class: "mouse"
+              count: 1
+            other_predicted_class_doc_count: 0
+        other_actual_class_count: 0
 ---
 "Test classification multiclass_confusion_matrix with explicit size":
   - do:
@@ -636,8 +668,26 @@ setup:
             }
           }
 
-  - match: { classification.multiclass_confusion_matrix.confusion_matrix: {cat: {cat: 2, dog: 1}, dog: {cat: 1, dog: 2} } }
-  - match: { classification.multiclass_confusion_matrix._other_: 1 }
+  - match:
+      classification.multiclass_confusion_matrix:
+        confusion_matrix:
+          - actual_class: "cat"
+            actual_class_doc_count: 3
+            predicted_classes:
+              - predicted_class: "cat"
+                count: 2
+              - predicted_class: "dog"
+                count: 1
+            other_predicted_class_doc_count: 0
+          - actual_class: "dog"
+            actual_class_doc_count: 3
+            predicted_classes:
+              - predicted_class: "cat"
+                count: 1
+              - predicted_class: "dog"
+                count: 2
+            other_predicted_class_doc_count: 0
+        other_actual_class_count: 1
 ---
 "Test classification with null metrics":
   - do:
@@ -653,8 +703,7 @@ setup:
             }
           }
 
-  - match: { classification.multiclass_confusion_matrix.confusion_matrix: {cat: {cat: 2, dog: 1, mouse: 0}, dog: {cat: 1, dog: 2, mouse: 0}, mouse: {cat: 1, dog: 0, mouse: 1} } }
-  - match: { classification.multiclass_confusion_matrix._other_: 0 }
+  - is_true: classification.multiclass_confusion_matrix
 ---
 "Test classification given missing actual_field":
   - do:

@@ -244,10 +244,10 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .setTimeout("60s").get());
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
         MappingMetaData masterMappingMetaData = client().admin().indices()
-            .prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
+            .prepareGetMappings("test").get().getMappings().get("test");
         for (Client client : clients()) {
             MappingMetaData mappingMetadata = client.admin().indices()
-                .prepareGetMappings("test").setTypes("type").setLocal(true).get().getMappings().get("test").get("type");
+                .prepareGetMappings("test").setLocal(true).get().getMappings().get("test");
             assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetaData.source().string()));
             assertThat(mappingMetadata, equalTo(masterMappingMetaData));
         }

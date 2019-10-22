@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoField;
 import java.time.temporal.Temporal;
 import java.time.temporal.TemporalField;
 

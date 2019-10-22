@@ -11,15 +11,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.time.DayOfWeek;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoField;
 import java.time.temporal.WeekFields;
-import java.util.Calendar;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.Function;
 
 public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {

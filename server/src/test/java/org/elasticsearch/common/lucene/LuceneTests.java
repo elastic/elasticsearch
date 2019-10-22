@@ -515,7 +515,8 @@ public class LuceneTests extends ESTestCase {
 
                     // Moves to sequential access if Bits#get is called more than the number of matches
                     ScorerSupplier scorerSupplier2 = weight.scorerSupplier(reader.leaves().get(0));
-                    expectThrows(UnsupportedOperationException.class, () -> Lucene.asSequentialAccessBits(reader.maxDoc(), scorerSupplier2, reader.maxDoc()));
+                    expectThrows(UnsupportedOperationException.class,
+                            () -> Lucene.asSequentialAccessBits(reader.maxDoc(), scorerSupplier2, reader.maxDoc()));
                 }
             }
         }

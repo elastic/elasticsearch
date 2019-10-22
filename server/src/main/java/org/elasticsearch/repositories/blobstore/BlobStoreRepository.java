@@ -432,11 +432,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final ActionListener<Void> afterCleanupsListener =
                 new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
             asyncCleanupUnlinkedRootAndIndicesBlobs(foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
-            writeUpdatedShardMetaDataAndComputeDeletes(snapshotId, repositoryData, false, ActionListener.map(afterCleanupsListener,
-                deleteResults -> {
-                    asyncCleanupUnlinkedShardLevelBlobs(snapshotId, deleteResults, afterCleanupsListener);
-                    return null;
-                }));
+            final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
+            writeUpdatedShardMetaDataAndComputeDeletes(snapshotId, repositoryData, false, writeMetaAndComputeDeletesStep);
+            writeMetaAndComputeDeletesStep.whenComplete(deleteResults ->
+                asyncCleanupUnlinkedShardLevelBlobs(snapshotId, deleteResults, afterCleanupsListener), afterCleanupsListener::onFailure);
         }
     }
 

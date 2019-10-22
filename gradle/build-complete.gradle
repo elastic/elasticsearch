@@ -3,6 +3,11 @@ import org.elasticsearch.gradle.OS
 
 String buildNumber = System.getenv('BUILD_NUMBER')
 
+def isLocked(File file) {
+     // The rename will not succeed on Windows if the file is opened by another process.
+     return file.renameTo(file) == false
+}
+
 if (buildNumber) {
     File uploadFile = file("build/${buildNumber}.tar.bz2")
     project.gradle.buildFinished { result ->
@@ -11,7 +16,8 @@ if (buildNumber) {
             project.delete(uploadFile)
         }
 
-        if (OS.current() != OS.WINDOWS) {
+        def isWindows = OS.current() == OS.WINDOWS
+        if (isWindows == false) {
             project.exec {
                 ignoreExitValue = true
                 workingDir projectDir
@@ -31,6 +37,8 @@ if (buildNumber) {
                         .exclude("**/build/testclusters/**/repo/**")
                         .exclude("**/build/testclusters/**/extract/**")
                         .filter { Files.isRegularFile(it.toPath()) }
+                        .filter { Files.isReadable(it.toPath()) }
+                        .filter { isWindows == false || isLocked(it) == false }
                         .filter { it != uploadFile }
                         .each {
                             include(name: projectDir.toPath().relativize(it.toPath()))

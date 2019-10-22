@@ -18,7 +18,7 @@ buildScan {
         tag 'CI'
         tag jobName
         link 'Jenkins Build', buildUrl
-        link 'GCP Upload', "https://console.cloud.google.com/storage/elasticsearch-ci-artifacts/jobs/${jobName}/${buildNumber}.tar.bz2"
+        link 'GCP Upload', "https://console.cloud.google.com/storage/elasticsearch-ci-artifacts/jobs/${jobName}/build/${buildNumber}.tar.bz2"
         System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {
             value 'Jenkins Worker Label', it
         }

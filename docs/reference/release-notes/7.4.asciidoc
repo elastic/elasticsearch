@@ -1,8 +1,6 @@
 [[release-notes-7.4.1]]
 == {es} version 7.4.1
 
-coming[7.4.1]
-
 Also see <<breaking-changes-7.4,Breaking changes in 7.4>>.
 
 [[enhancement-7.4.1]]

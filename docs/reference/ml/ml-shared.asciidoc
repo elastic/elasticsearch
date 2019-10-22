@@ -4,8 +4,7 @@ tag::dependent_variable[]
 This parameter is supplied by field name and must match one of the fields in 
 the index being used to train. If this field is missing from a document, then 
 that document will not be used for training, but a prediction with the trained 
-model will be generated for it. The data type of the field must be numeric. It 
-is also known as continuous target variable.
+model will be generated for it. It is also known as continuous target variable.
 end::dependent_variable[]
 
 

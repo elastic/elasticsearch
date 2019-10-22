@@ -180,14 +180,11 @@ hyperparameter optimization to give minimum validation errors.
 [[regression-resources-standard]]
 ===== Standard parameters
 
-`dependent_variable`::
- (Required, string) Defines which field of the document is to be predicted. 
- This parameter is supplied by field name and must match one of the fields in 
- the index being used to train. If this field is missing from a document, then 
- that document will not be used for training, but a prediction with the trained 
- model will be generated for it. The data type of the field must be numeric. It 
- is also known as continuous target variable.
-
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent_variable]
++
+--
+The data type of the field must be numeric.
+--
 
 include::{docdir}/ml/ml-shared.asciidoc[tag=prediction_field_name]
 
@@ -225,13 +222,11 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 [[classification-resources-standard]]
 ===== Standard parameters
  
-`dependent_variable`::
-  (Required, string) Defines which field of the document is to be predicted. 
-  This parameter is supplied by field name and must match one of the fields in 
-  the index being used to train. If this field is missing from a document, then 
-  that document will not be used for training, but a prediction with the 
-  trained model will be generated for it. The data type of the field must be 
-  numeric or boolean. It is also known as continuous target variable.
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent_variable]
++
+--
+The data type of the field must be numeric or boolean.
+--
   
 `num_top_classes`::
   (Optional, integer) Defines the number of categories for which the predicted 

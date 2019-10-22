@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -42,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -173,10 +176,18 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertThat(progress.get(3).getProgressPercent(), equalTo(writingResults));
     }
 
-    protected SearchResponse searchStoredProgress(String id) {
+    protected SearchResponse searchStoredProgress(String jobId) {
+        String docId = DataFrameAnalyticsTask.progressDocId(jobId);
         return client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setQuery(QueryBuilders.idsQuery().addIds(DataFrameAnalyticsTask.progressDocId(id)))
+            .setQuery(QueryBuilders.idsQuery().addIds(docId))
             .get();
+    }
+
+    protected void assertInferenceModelPersisted(String jobId) {
+        SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setQuery(QueryBuilders.prefixQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), jobId + "-"))
+            .get();
+        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
     }
 
     /**

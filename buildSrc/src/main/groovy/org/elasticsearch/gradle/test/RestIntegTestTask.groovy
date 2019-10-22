@@ -21,10 +21,10 @@ package org.elasticsearch.gradle.test
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.tool.Boilerplate
 import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.DefaultTask
+import org.gradle.api.JavaVersion
 import org.gradle.api.Task
 import org.gradle.api.file.FileCopyDetails
 import org.gradle.api.tasks.Copy
@@ -124,7 +124,7 @@ class RestIntegTestTask extends DefaultTask {
         Boilerplate.maybeCreate(project.configurations, 'restSpec') {
             project.dependencies.add(
                     'restSpec',
-                    ClasspathUtils.isElasticsearchProject() ? project.project(':rest-api-spec') :
+                    ClasspathUtils.isElasticsearchProject(project) ? project.project(':rest-api-spec') :
                             "org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch}"
             )
         }

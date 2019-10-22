@@ -70,10 +70,8 @@ dependencies {
   testCompile project(":rest-api-spec")
   // Needed for serialization tests:
   // (In order to serialize a server side class to a client side class or the other way around)
-  if (isEclipse == false || project.path == ":client:rest-high-level-tests") {
-    testCompile(project(':x-pack:plugin:core')) {
-        exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
-    }
+  testCompile(project(':x-pack:plugin:core')) {
+      exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
 
   restSpec project(':rest-api-spec')
@@ -101,19 +99,6 @@ forbiddenApisMain {
   // specified
   addSignatureFiles 'http-signatures'
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
-}
-
-if (isEclipse) {
-    // in eclipse the project is under a fake root, we need to change around the source sets
-    sourceSets {
-        if (project.path == ":client:rest-high-level") {
-            main.java.srcDirs = ['java']
-            main.resources.srcDirs = ['resources']
-        } else {
-            test.java.srcDirs = ['java']
-            test.resources.srcDirs = ['resources']
-        }
-    }
 }
 
 File nodeCert = file("./testnode.crt")
@@ -144,8 +129,11 @@ testClusters.integTest {
 
   setting 'indices.lifecycle.poll_interval', '1000ms'
   keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
+  extraConfigFile 'roles.yml', file('roles.yml')
   user username:  System.getProperty('tests.rest.cluster.username', 'test_user'),
-          password:  System.getProperty('tests.rest.cluster.password', 'test-password')
+          password:  System.getProperty('tests.rest.cluster.password', 'test-password'),
+          role:  System.getProperty('tests.rest.cluster.role', 'admin')
+  user username:  'admin_user', password: 'admin-password'
 
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore

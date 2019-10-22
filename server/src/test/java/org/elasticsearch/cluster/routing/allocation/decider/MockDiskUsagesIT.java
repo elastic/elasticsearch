@@ -185,16 +185,16 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Move all nodes above the low watermark so no shard movement can occur, and at least one node above the flood stage watermark so
         // the index is blocked
         clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100,
-            discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 4) : between(0, 14));
+            discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 4) : between(0, 9));
 
         assertBusy(() -> assertBlocked(
-            client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar"),
+            client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar"),
             IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
 
         assertFalse(client().admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         // Cannot add further documents
-        assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
+        assertBlocked(client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
             IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
         assertSearchHits(client().prepareSearch("test").get(), "1");
 

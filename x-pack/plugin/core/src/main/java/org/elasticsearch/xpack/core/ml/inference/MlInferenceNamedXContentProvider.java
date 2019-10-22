@@ -11,6 +11,13 @@ import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.LenientlyParsedOutputAggregator;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.LogisticRegression;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.OutputAggregator;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.StrictlyParsedOutputAggregator;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedMode;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
@@ -46,9 +53,33 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
 
         // Model Lenient
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedTrainedModel.class, Tree.NAME, Tree::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedTrainedModel.class, Ensemble.NAME, Ensemble::fromXContentLenient));
+
+        // Output Aggregator Lenient
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedOutputAggregator.class,
+            WeightedMode.NAME,
+            WeightedMode::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedOutputAggregator.class,
+            WeightedSum.NAME,
+            WeightedSum::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedOutputAggregator.class,
+            LogisticRegression.NAME,
+            LogisticRegression::fromXContentLenient));
 
         // Model Strict
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedTrainedModel.class, Tree.NAME, Tree::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedTrainedModel.class, Ensemble.NAME, Ensemble::fromXContentStrict));
+
+        // Output Aggregator Strict
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedOutputAggregator.class,
+            WeightedMode.NAME,
+            WeightedMode::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedOutputAggregator.class,
+            WeightedSum.NAME,
+            WeightedSum::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedOutputAggregator.class,
+            LogisticRegression.NAME,
+            LogisticRegression::fromXContentStrict));
 
         return namedXContent;
     }
@@ -66,6 +97,18 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
 
         // Model
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class, Ensemble.NAME.getPreferredName(), Ensemble::new));
+
+        // Output Aggregator
+        namedWriteables.add(new NamedWriteableRegistry.Entry(OutputAggregator.class,
+            WeightedSum.NAME.getPreferredName(),
+            WeightedSum::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(OutputAggregator.class,
+            WeightedMode.NAME.getPreferredName(),
+            WeightedMode::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(OutputAggregator.class,
+            LogisticRegression.NAME.getPreferredName(),
+            LogisticRegression::new));
 
         return namedWriteables;
     }

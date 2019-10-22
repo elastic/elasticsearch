@@ -19,7 +19,6 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,6 +31,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedModelConfig> {
@@ -59,9 +60,9 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
-            randomBoolean() ? null : randomNonNegativeLong(),
-            randomAlphaOfLength(10),
-            randomFrom(TreeTests.createRandom()),
+            randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
+            randomBoolean() ? null :
+                Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
     }
 

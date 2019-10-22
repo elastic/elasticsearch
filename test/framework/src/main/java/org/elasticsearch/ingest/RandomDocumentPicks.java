@@ -136,7 +136,6 @@ public final class RandomDocumentPicks {
      */
     public static IngestDocument randomIngestDocument(Random random, Map<String, Object> source) {
         String index = randomString(random);
-        String type = randomString(random);
         String id = randomString(random);
         String routing = null;
         Long version = randomNonNegtiveLong(random);
@@ -145,7 +144,7 @@ public final class RandomDocumentPicks {
         if (random.nextBoolean()) {
             routing = randomString(random);
         }
-        return new IngestDocument(index, type, id, routing, version, versionType, source);
+        return new IngestDocument(index, id, routing, version, versionType, source);
     }
 
     public static Map<String, Object> randomSource(Random random) {

@@ -126,8 +126,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     .snapshots(snapshots).timeout(request.masterNodeTimeout()),
                 ActionListener.wrap(
                     nodeSnapshotStatuses -> threadPool.executor(ThreadPool.Names.GENERIC).execute(
-                        ActionRunnable.wrap(listener, l -> l.onResponse(buildResponse(request, snapshotsService.currentSnapshots(
-                            request.repository(), Arrays.asList(request.snapshots())), nodeSnapshotStatuses)))), listener::onFailure));
+                        ActionRunnable.supply(listener, () -> buildResponse(request, snapshotsService.currentSnapshots(
+                            request.repository(), Arrays.asList(request.snapshots())), nodeSnapshotStatuses))), listener::onFailure));
         } else {
             // We don't have any in-progress shards, just return current stats
             listener.onResponse(buildResponse(request, currentSnapshots, null));

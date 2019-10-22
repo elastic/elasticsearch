@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 
 public class EnrichPolicyExecutor {
 
+    public static final String TASK_ACTION = "policy_execution";
+
     private final ClusterService clusterService;
     private final Client client;
     private final TaskManager taskManager;
@@ -165,7 +167,7 @@ public class EnrichPolicyExecutor {
 
     private Task runPolicyTask(final ExecuteEnrichPolicyAction.Request request, EnrichPolicy policy,
                                BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse, BiConsumer<Task, Exception> onFailure) {
-        Task asyncTask = taskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
+        Task asyncTask = taskManager.register("enrich", TASK_ACTION, new TaskAwareRequest() {
             @Override
             public void setParentTask(TaskId taskId) {
                 request.setParentTask(taskId);

@@ -21,11 +21,6 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,10 +33,8 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +56,6 @@ public abstract class FileRestoreContext {
     protected final RecoveryState recoveryState;
     protected final SnapshotId snapshotId;
     protected final ShardId shardId;
-    protected final int bufferSize;
 
     /**
      * Constructs new restore context
@@ -71,15 +63,12 @@ public abstract class FileRestoreContext {
      * @param shardId       shard id to restore into
      * @param snapshotId    snapshot id
      * @param recoveryState recovery state to report progress
-     * @param bufferSize    buffer size for restore
      */
-    protected FileRestoreContext(String repositoryName, ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState,
-                                 int bufferSize) {
+    protected FileRestoreContext(String repositoryName, ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState) {
         this.repositoryName = repositoryName;
         this.recoveryState = recoveryState;
         this.snapshotId = snapshotId;
         this.shardId = shardId;
-        this.bufferSize = bufferSize;
     }
 
     /**
@@ -194,54 +183,16 @@ public abstract class FileRestoreContext {
         }
     }
 
-    protected void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store) throws IOException {
-        // restore the files from the snapshot to the Lucene store
-        for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
-            logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
-            restoreFile(fileToRecover, store);
-        }
-    }
-
-    protected abstract InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo);
+    /**
+     * Restores given list of {@link BlobStoreIndexShardSnapshot.FileInfo} to the given {@link Store}.
+     *
+     * @param filesToRecover List of files to restore
+     * @param store          Store to restore into
+     */
+    protected abstract void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store) throws IOException;
 
     @SuppressWarnings("unchecked")
     private static Iterable<StoreFileMetaData> concat(Store.RecoveryDiff diff) {
         return Iterables.concat(diff.different, diff.missing);
     }
-
-    /**
-     * Restores a file
-     *
-     * @param fileInfo file to be restored
-     */
-    private void restoreFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo, final Store store) throws IOException {
-        boolean success = false;
-
-        try (InputStream stream = fileInputStream(fileInfo)) {
-            try (IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
-                final byte[] buffer = new byte[bufferSize];
-                int length;
-                while ((length = stream.read(buffer)) > 0) {
-                    indexOutput.writeBytes(buffer, 0, length);
-                    recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
-                }
-                Store.verify(indexOutput);
-                indexOutput.close();
-                store.directory().sync(Collections.singleton(fileInfo.physicalName()));
-                success = true;
-            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-                try {
-                    store.markStoreCorrupted(ex);
-                } catch (IOException e) {
-                    logger.warn("store cannot be marked as corrupted", e);
-                }
-                throw ex;
-            } finally {
-                if (success == false) {
-                    store.deleteQuiet(fileInfo.physicalName());
-                }
-            }
-        }
-    }
-
 }

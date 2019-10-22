@@ -192,6 +192,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("protectedterm", Void.class)
         // LUCENE-8332
         .put("concatenategraph", Void.class)
+        // LUCENE-8936
+        .put("spanishminimalstem", Void.class)
 
         .immutableMap();
 

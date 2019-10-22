@@ -5,7 +5,15 @@ String buildNumber = System.getenv('BUILD_NUMBER')
 
 def isLocked(File file) {
      // The rename will not succeed on Windows if the file is opened by another process.
-     return file.renameTo(file) == false
+     file.withInputStream {
+         try {
+             it.readNBytes(1);
+             return true;
+         } catch (IOException e) {
+             logger.lifecycle("Skipping {}", file, e)
+             return false;
+         }
+     }
 }
 
 if (buildNumber) {

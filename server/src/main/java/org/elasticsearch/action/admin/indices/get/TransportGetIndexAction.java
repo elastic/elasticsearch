@@ -86,7 +86,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     @Override
     protected void doMasterOperation(final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetIndexResponse> listener) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
+        ImmutableOpenMap<String, MappingMetaData> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, List<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
@@ -99,8 +99,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             case MAPPINGS:
                     if (!doneMappings) {
                         try {
-                            mappingsResult = state.metaData().findMappings(concreteIndices, request.types(),
-                                    indicesService.getFieldFilter());
+                            mappingsResult = state.metaData().findMappings(concreteIndices, indicesService.getFieldFilter());
                             doneMappings = true;
                         } catch (IOException e) {
                             listener.onFailure(e);

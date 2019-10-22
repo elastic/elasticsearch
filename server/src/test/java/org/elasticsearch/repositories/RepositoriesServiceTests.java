@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -204,13 +203,12 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void restoreShard(Store store, SnapshotId snapshotId,
-                                 Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-
+        public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
+                                 RecoveryState recoveryState) {
         }
 
         @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
+        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
             return null;
         }
 

@@ -68,12 +68,6 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
             return null;
         }
 
-        // This will be displayed in tasks api and allows stats api to figure out which policies are being executed.
-        @Override
-        public String getDescription() {
-            return name;
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

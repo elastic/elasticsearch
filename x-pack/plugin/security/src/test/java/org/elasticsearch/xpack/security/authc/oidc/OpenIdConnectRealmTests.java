@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -90,6 +91,8 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         if (notPopulateMetadata == false) {
             assertThat(result.getUser().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
             assertThat(result.getUser().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
+        } else {
+            assertThat(result.getUser().metadata().size(), equalTo(0));
         }
     }
 
@@ -308,7 +311,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
         final Settings.Builder builder = getBasicRealmSettings();
         if (notPopulateMetadata) {
-            builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.POPULATE_USER_METADATA),
+            builder.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.POPULATE_USER_METADATA),
                 false);
         }
         if (useAuthorizingRealm) {

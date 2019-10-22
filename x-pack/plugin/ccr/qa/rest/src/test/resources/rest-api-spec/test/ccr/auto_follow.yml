@@ -19,6 +19,13 @@
 
   - match: {transient: {cluster.remote.local.seeds: $local_ip}}
 
+  - assert_busy:
+    - max_wait_time: "30s"
+    - do:
+        cluster.remote_info: {}
+    - is_true: local.connected
+    - match: { local.num_nodes_connected: 1}
+
   - do:
       ccr.put_auto_follow_pattern:
         name: my_pattern

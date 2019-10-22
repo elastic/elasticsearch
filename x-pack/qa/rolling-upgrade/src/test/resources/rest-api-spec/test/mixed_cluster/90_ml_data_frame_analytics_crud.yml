@@ -1,9 +1,6 @@
 ---
 "Get old outlier_detection job":
 
-  - skip:
-      version: "7.5.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/47993
   - do:
       ml.get_data_frame_analytics:
         id: "old_cluster_outlier_detection_job"
@@ -23,9 +20,6 @@
 ---
 "Get old outlier_detection job stats":
 
-  - skip:
-      version: "7.5.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/47993
   - do:
       ml.get_data_frame_analytics_stats:
         id: "old_cluster_outlier_detection_job"
@@ -36,9 +30,6 @@
 ---
 "Start and stop old outlier_detection job":
 
-  - skip:
-      version: "7.5.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/47993
   - do:
       ml.start_data_frame_analytics:
         id: "old_cluster_outlier_detection_job"
@@ -59,9 +50,6 @@
 ---
 "Get old regression job":
 
-  - skip:
-      version: "7.5.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/47993
   - do:
       ml.get_data_frame_analytics:
         id: "old_cluster_regression_job"
@@ -70,14 +58,12 @@
   - match: { data_frame_analytics.0.source.index: ["bwc_ml_regression_job_source"] }
   - match: { data_frame_analytics.0.source.query: {"term": { "user": "Kimchy" }} }
   - match: { data_frame_analytics.0.dest.index: "old_cluster_regression_job_results" }
-  - match: { data_frame_analytics.0.analysis: {"regression":{ "dependent_variable": "foo", "training_percent": 100.0 }} }
+  - match: { data_frame_analytics.0.analysis.regression.dependent_variable: "foo" }
+  - match: { data_frame_analytics.0.analysis.regression.training_percent: 100.0 }
 
 ---
 "Get old regression job stats":
 
-  - skip:
-      version: "7.5.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/47993
   - do:
       ml.get_data_frame_analytics_stats:
         id: "old_cluster_regression_job"
@@ -88,9 +74,6 @@
 ---
 "Start and stop old regression job":
 
-  - skip:
-      version: "7.5.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/47993
   - do:
       ml.start_data_frame_analytics:
         id: "old_cluster_regression_job"
@@ -111,9 +94,6 @@
 ---
 "Put an outlier_detection job on the mixed cluster":
 
-  - skip:
-      version: "7.5.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/47993
   - do:
       ml.put_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"

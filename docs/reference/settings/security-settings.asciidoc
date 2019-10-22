@@ -906,8 +906,8 @@ URI. We recommend that you use the base URL of your Kibana instance. For example
 
 `sp.acs`::
 The URL of the Assertion Consumer Service within {kib}. Typically this is the 
-"api/security/v1/saml" endpoint of your Kibana server. For example, 
-`https://kibana.example.com/api/security/v1/saml`. 
+"api/security/saml/callback" endpoint of your Kibana server. For example,
+`https://kibana.example.com/api/security/saml/callback`.
 
 `sp.logout`::
 The URL of the Single Logout service within {kib}. Typically this is the 

@@ -133,7 +133,6 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         doAnswer(invocationOnMock -> {
             IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
                     .setId((String) invocationOnMock.getArguments()[2]);
             return builder;
         }).when(client).prepareIndex(anyString(), anyString(), anyString());

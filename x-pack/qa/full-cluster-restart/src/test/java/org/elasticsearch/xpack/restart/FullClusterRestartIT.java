@@ -12,7 +12,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestGetAction;
@@ -21,6 +25,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -435,6 +440,21 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString(
             "[testsqlfailsonindexwithtwotypes] contains more than one type [type1, type2] so it is incompatible with sql"));
+    }
+
+    public void testSlmStats() throws IOException {
+        //need to stop and start ILM to ensure that SLM metadata is written to cluster state
+        if (isRunningAgainstOldCluster()) {
+            client().performRequest(new Request("POST", "_ilm/stop"));
+            client().performRequest(new Request("POST", "_ilm/start"));
+        } else {
+            Response response = client().performRequest(new Request("GET", "_slm/stats"));
+            XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+             try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, response.getEntity().getContent())) {
+                assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));
+            }
+        }
     }
 
     private String loadWatch(String watch) throws IOException {

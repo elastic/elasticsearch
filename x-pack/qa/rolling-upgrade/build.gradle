@@ -196,10 +196,16 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         def toBlackList = []
         // Dataframe transforms were not added until 7.2.0
         if (bwcVersion.before('7.2.0')) {
-            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Get start, stop, and delete old and mixed cluster batch data frame transforms'
-            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Test GET, stop, delete, old and mixed continuous transforms'
-
+            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Get start, stop, and delete old cluster batch data frame transforms'
+            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Test GET, stop, delete, old continuous transforms'
         }
+
+        // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
+        if (bwcVersion.before('7.4.0')) {
+            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Get start, stop mixed cluster batch data frame transforms'
+            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Test GET, mixed continuous transforms'
+        }
+
         if (!toBlackList.empty) {
             systemProperty 'tests.rest.blacklist', toBlackList.join(',')
         }

@@ -47,7 +47,8 @@ public class GrokTests extends ESTestCase {
 
     public void testNoMatchingPatternInDictionary() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> new Grok(Collections.emptyMap(), "%{NOTFOUND}"));
-        assertThat(e.getMessage(), equalTo("Unable to find pattern [NOTFOUND] in Grok's pattern dictionary"));
+        assertThat(e.getMessage(), equalTo("Unable to find pattern [NOTFOUND] in Grok's pattern dictionary\n" +
+            "grokPattern=%{NOTFOUND},result=0,region=Region: \n 0: (0-11) 1: (2-10) 2: (2-10) 3: (-1--1) 4: (-1--1)"));
     }
 
     public void testSimpleSyslogLine() {

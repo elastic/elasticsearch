@@ -3,21 +3,6 @@ import org.elasticsearch.gradle.OS
 
 String buildNumber = System.getenv('BUILD_NUMBER')
 
-def isLocked(File file) {
-     // The rename will not succeed on Windows if the file is opened by another process.
-     file.withInputStream {
-         try {
-             while (it.readNBytes(1024*100).length != 0) {
-
-             }
-             return true
-         } catch (IOException e) {
-             logger.lifecycle("Skipping {}", file, e)
-             return false;
-         }
-     }
-}
-
 if (buildNumber) {
     File uploadFile = file("build/${buildNumber}.tar.bz2")
     project.gradle.buildFinished { result ->
@@ -35,39 +20,40 @@ if (buildNumber) {
             }
         }
 
-        ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
-            fileset(dir: projectDir) {
-                fileTree(projectDir)
-                        .include("**/*.hprof")
-                        .include("**/reaper.log")
-                        .include("**/journalctl.log")
-                        .include("**/build/testclusters/**")
-                        .exclude("**/build/testclusters/**/data/**")
-                        .exclude("**/build/testclusters/**/distro/**")
-                        .exclude("**/build/testclusters/**/repo/**")
-                        .exclude("**/build/testclusters/**/extract/**")
-                        .filter { Files.isRegularFile(it.toPath()) }
-                        .filter { Files.isReadable(it.toPath()) }
-                        .filter { isWindows == false || isLocked(it) == false }
-                        .filter { it != uploadFile }
-                        .each {
-                            include(name: projectDir.toPath().relativize(it.toPath()))
-                        }
-            }
+        try {
+            ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
+                fileset(dir: projectDir) {
+                    fileTree(projectDir)
+                            .include("**/*.hprof")
+                            .include("**/reaper.log")
+                            .include("**/journalctl.log")
+                            .include("**/build/testclusters/**")
+                            .exclude("**/build/testclusters/**/data/**")
+                            .exclude("**/build/testclusters/**/distro/**")
+                            .exclude("**/build/testclusters/**/repo/**")
+                            .exclude("**/build/testclusters/**/extract/**")
+                            .filter { Files.isRegularFile(it.toPath()) }
+                            .each {
+                                include(name: projectDir.toPath().relativize(it.toPath()))
+                            }
+                }
 
-            fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
-                include(name: "**/daemon-${ProcessHandle.current().pid()}*.log")
-            }
+                fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
+                    include(name: "**/daemon-${ProcessHandle.current().pid()}*.log")
+                }
 
-            if (Files.isReadable(file("/var/log/").toPath())) {
-                Files.list(file("/var/log/").toPath())
-                        .filter { it.fileName.endsWith(".log") }
-                        .filter { Files.isReadable(it) }
-                        .filter { Files.isRegularFile(it) }
-                        .forEach {
-                            fileset(file: it)
-                        }
+                if (Files.isReadable(file("/var/log/").toPath())) {
+                    Files.list(file("/var/log/").toPath())
+                            .filter { it.fileName.endsWith(".log") }
+                            .filter { Files.isReadable(it) }
+                            .filter { Files.isRegularFile(it) }
+                            .forEach {
+                                fileset(file: it)
+                            }
+                }
             }
+        } catch (IOException e) {
+            logger.lifecycle("Failed to archive additional logs", e)
         }
     }
 }

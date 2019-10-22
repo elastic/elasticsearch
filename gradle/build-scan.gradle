@@ -8,9 +8,8 @@ buildScan {
     tag OS.current().name()
 
     // Accept Gradle ToS when project property org.elasticsearch.acceptScanTOS=true or this is an Elastic CI build
-    if (jenkinsUrl?.host?.endsWith('elastic.co') || Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {
-        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
-        termsOfServiceAgree = 'yes'
+    if (jenkinsUrl?.host?.endsWith('elastic.co')) {
+        publishAlways()
     }
 
     // Jenkins-specific build scan metadata

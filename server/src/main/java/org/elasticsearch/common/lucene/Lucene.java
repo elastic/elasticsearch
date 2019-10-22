@@ -815,7 +815,8 @@ public class Lucene {
      * <b>NOTE</b>: that the returned {@link Bits} instance MUST be consumed in order.
      * @param estimatedGetCount an estimation of the number of times that {@link Bits#get} will get called
      */
-    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier, long estimatedGetCount) throws IOException {
+    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier,
+            long estimatedGetCount) throws IOException {
         if (scorerSupplier == null) {
             return new Bits.MatchNoBits(maxDoc);
         }

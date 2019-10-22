@@ -280,7 +280,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
                 final IndexId indexId = indicesMap.get(shardId.getIndexName());
                 assert indexId != null;
-                snapshot(shardId, snapshot, indexId, snapshotStatus, new ActionListener<String>() {
+                assert entry.useShardGenerations() || snapshotStatus.generation() == null :
+                    "Found non-null shard generation [" + snapshotStatus.generation() + "] for snapshot with old-format compatibility";
+                snapshot(shardId, snapshot, indexId, snapshotStatus, entry.useShardGenerations(), new ActionListener<String>() {
                     @Override
                     public void onResponse(String newGeneration) {
                         assert newGeneration != null;
@@ -296,7 +298,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
-                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.detailedMessage(e));
+                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.stackTrace(e));
                     }
                 });
             }
@@ -310,7 +312,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      * @param snapshotStatus snapshot status
      */
     private void snapshot(final ShardId shardId, final Snapshot snapshot, final IndexId indexId,
-                          final IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
+                          final IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens, ActionListener<String> listener) {
         try {
             final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
             if (indexShard.routingEntry().primary() == false) {
@@ -333,7 +335,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // we flush first to make sure we get the latest writes snapshotted
                 snapshotRef = indexShard.acquireLastIndexCommit(true);
                 repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-                    snapshotRef.getIndexCommit(), snapshotStatus, ActionListener.runBefore(listener, snapshotRef::close));
+                    snapshotRef.getIndexCommit(), snapshotStatus, writeShardGens, ActionListener.runBefore(listener, snapshotRef::close));
             } catch (Exception e) {
                 IOUtils.close(snapshotRef);
                 throw e;
@@ -390,8 +392,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         private Snapshot snapshot;
         private ShardId shardId;
         private ShardSnapshotStatus status;
-
-        public UpdateIndexShardSnapshotStatusRequest() {}
 
         public UpdateIndexShardSnapshotStatusRequest(StreamInput in) throws IOException {
             super(in);
@@ -453,7 +453,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     /** Updates the shard snapshot status by sending a {@link UpdateIndexShardSnapshotStatusRequest} to the master node */
-    void sendSnapshotShardUpdate(final Snapshot snapshot, final ShardId shardId, final ShardSnapshotStatus status) {
+    private void sendSnapshotShardUpdate(final Snapshot snapshot, final ShardId shardId, final ShardSnapshotStatus status) {
         remoteFailedRequestDeduplicator.executeOnce(
             new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
             new ActionListener<Void>() {
@@ -519,7 +519,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             });
     }
 
-    private class SnapshotStateExecutor implements ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest> {
+    private static class SnapshotStateExecutor implements ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest> {
 
         @Override
         public ClusterTasksResult<UpdateIndexShardSnapshotStatusRequest>

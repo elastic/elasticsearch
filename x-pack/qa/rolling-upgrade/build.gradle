@@ -197,7 +197,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         // Dataframe transforms were not added until 7.2.0
         if (bwcVersion.before('7.2.0')) {
             toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Get start, stop, and delete old cluster batch data frame transforms'
-            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Test GET, stop, delete, old continuous transforms'
         }
         // continuous Dataframe transforms were not added until 7.3.0
         if (bwcVersion.before('7.3.0')) {

@@ -34,7 +34,7 @@ public interface ValuesSourceType {
     /**
      * Called when an aggregation is operating over a known empty set (usually because the field isn't specified), this method allows for
      * returning a no-op implementation.  All {@link ValuesSource}s should implement this method.
-     * @return
+     * @return - Empty specialization of the base {@link ValuesSource}
      */
     ValuesSource getEmpty();
 
@@ -43,17 +43,18 @@ public interface ValuesSourceType {
      * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}.  Note that this method is called when a script is
      * operating without an underlying field.  Scripts operating over fields are handled by the script argument to getField below.
      *
-     * @param script
-     * @param scriptValueType
-     * @return
+     * @param script - The script being wrapped
+     * @param scriptValueType - The expected output type of the script
+     * @return - Script specialization of the base {@link ValuesSource}
      */
     ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType);
 
     /**
      * Return a {@link ValuesSource} wrapping a field for the given type.  All {@link ValuesSource}s must implement this method.
-     * @param fieldContext
-     * @param script
-     * @return
+     *
+     * @param fieldContext - The field being wrapped
+     * @param script - Optional script that might be applied over the field
+     * @return - Field specialization of the base {@link ValuesSource}
      */
     ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
 
@@ -61,11 +62,11 @@ public interface ValuesSourceType {
      * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw
      * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}
      *
-     * @param valuesSource
-     * @param rawMissing
-     * @param docValueFormat
-     * @param now
-     * @return
+     * @param valuesSource - The original {@link ValuesSource}
+     * @param rawMissing - The missing value we got from the parser, typically a string or number
+     * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
+     * @param now - Used in conjunction with the formatter
+     * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
      */
     ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
                                 LongSupplier now);

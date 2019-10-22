@@ -28,7 +28,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -192,32 +191,40 @@ public class SearchAfterBuilderTests extends ESTestCase {
     }
 
     public void testFromXContentIllegalType() throws Exception {
-        XContentBuilder xContent = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        xContent.startObject()
-            .startArray("search_after")
+        for (XContentType type : XContentType.values()) {
+            // BIG_INTEGER
+            XContentBuilder xContent = XContentFactory.contentBuilder(type);
+            xContent.startObject()
+                .startArray("search_after")
                 .value(new BigInteger("9223372036854776000"))
-            .endArray()
-            .endObject();
-        try (XContentParser parser = createParser(shuffleXContent(xContent))) {
-            parser.nextToken();
-            parser.nextToken();
-            parser.nextToken();
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> SearchAfterBuilder.fromXContent(parser));
-            assertThat(exc.getMessage(), containsString("BIG_INTEGER"));
-        }
+                .endArray()
+                .endObject();
+            try (XContentParser parser = createParser(xContent)) {
+                parser.nextToken();
+                parser.nextToken();
+                parser.nextToken();
+                IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> SearchAfterBuilder.fromXContent(parser));
+                assertThat(exc.getMessage(), containsString("BIG_INTEGER"));
+            }
 
-        xContent = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        xContent.startObject()
-            .startArray("search_after")
-                .value(new BigDecimal("9223372036854776000.35"))
-            .endArray()
-            .endObject();
-        try (XContentParser parser = createParser(shuffleXContent(xContent))) {
-            parser.nextToken();
-            parser.nextToken();
-            parser.nextToken();
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> SearchAfterBuilder.fromXContent(parser));
-            assertThat(exc.getMessage(), containsString("BIG_DECIMAL"));
+            // BIG_DECIMAL
+            // ignore json and yaml, they parse floating point numbers as floats/doubles
+            if (type == XContentType.JSON || type == XContentType.YAML) {
+                continue;
+            }
+            xContent = XContentFactory.contentBuilder(type);
+            xContent.startObject()
+                .startArray("search_after")
+                    .value(new BigDecimal("9223372036854776003.3"))
+                .endArray()
+                .endObject();
+            try (XContentParser parser = createParser(xContent)) {
+                parser.nextToken();
+                parser.nextToken();
+                parser.nextToken();
+                IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> SearchAfterBuilder.fromXContent(parser));
+                assertThat(exc.getMessage(), containsString("BIG_DECIMAL"));
+            }
         }
     }
 

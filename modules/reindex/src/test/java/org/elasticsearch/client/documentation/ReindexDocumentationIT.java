@@ -86,8 +86,6 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
     @SuppressWarnings("unused")
     public void testReindex() {
         Client client = client();
-        // todo: this is only necessary to ensure the seqno mapping is created.
-        client().prepareIndex(INDEX_NAME, "_doc", "1").setSource("data", "x").get();
         // tag::reindex1
         BulkByScrollResponse response =
           new ReindexRequestBuilder(client, ReindexAction.INSTANCE)
@@ -96,8 +94,6 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             .filter(QueryBuilders.matchQuery("category", "xzy")) // <1>
             .get();
         // end::reindex1
-
-        client().prepareDelete(INDEX_NAME, "_doc", "1").get();
     }
 
     @SuppressWarnings("unused")

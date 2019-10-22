@@ -11,15 +11,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.time.DayOfWeek;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.WeekFields;
-import java.util.Calendar;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.Function;
 
 public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
@@ -32,15 +28,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             return dayOfWeek == 8 ? 1 : dayOfWeek;
         }),
         WEEK_OF_YEAR(zdt -> {
-            // by ISO 8601 standard, the first week of a year is the first week with a majority (4 or more) of its days in January.
-            // Other Locales may have their own standards (see Arabic or Japanese calendars).
-            LocalDateTime ld = zdt.toLocalDateTime();
-            Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(zdt.getZone()), Locale.ROOT);
-            cal.clear();
-            cal.set(ld.get(ChronoField.YEAR), ld.get(ChronoField.MONTH_OF_YEAR) - 1, ld.get(ChronoField.DAY_OF_MONTH),
-                    ld.get(ChronoField.HOUR_OF_DAY), ld.get(ChronoField.MINUTE_OF_HOUR), ld.get(ChronoField.SECOND_OF_MINUTE));
-// for Locale.ROOT I would expect the same behavior as ISO, if there is a different locale, then it should be used WeekFields.of(Locale)
-            return zdt.get(WeekFields.of(DayOfWeek.SUNDAY,1).weekOfWeekBasedYear());//cal.get(Calendar.WEEK_OF_YEAR);
+            return zdt.get(WeekFields.of(DayOfWeek.SUNDAY, 1).weekOfWeekBasedYear());
         });
 
         private final Function<ZonedDateTime, Integer> apply;

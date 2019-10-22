@@ -52,7 +52,7 @@ if (buildNumber) {
                             }
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.lifecycle("Failed to archive additional logs", e)
         }
     }

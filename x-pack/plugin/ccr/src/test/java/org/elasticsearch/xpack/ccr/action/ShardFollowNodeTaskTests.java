@@ -1263,7 +1263,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
             String id = UUIDs.randomBase64UUID();
             byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-            ops.add(new Translog.Index("doc", id, seqNo, 0, source));
+            ops.add(new Translog.Index(id, seqNo, 0, source));
         }
         return new ShardChangesAction.Response(
             mappingVersion,

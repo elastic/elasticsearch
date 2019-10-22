@@ -31,7 +31,7 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCase {
 
     @After
-    private void cleanupPolicy() {
+    public void cleanupPolicy() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         String name = "my-policy";
 

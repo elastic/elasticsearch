@@ -71,7 +71,9 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<Double> weights = randomBoolean() ?
             null :
             Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-        OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
+        OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights),
+            new WeightedSum(weights),
+            new LogisticRegression(weights));
         List<String> categoryLabels = null;
         if (randomBoolean()) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));

@@ -10,12 +10,12 @@ roles, and manage user passwords.
 [float]
 ==== Configuring a native realm
 
-See {ref}/configuring-native-realm.html[Configuring a native realm]. 
+See <<configuring-native-realm>>. 
 
 [[native-settings]]
 ==== Native realm settings
 
-See {ref}/security-settings.html#ref-native-settings[Native realm settings]. 
+See <<ref-native-settings>>. 
 
 [[managing-native-users]]
 ==== Managing native users
@@ -25,4 +25,4 @@ The {stack} {security-features} enable you to easily manage users in {kib} on th
 
 Alternatively, you can manage users through the `user` API. For more 
 information and examples, see
-{ref}/security-api.html#security-user-apis[user management APIs].
+<<security-user-apis>>.

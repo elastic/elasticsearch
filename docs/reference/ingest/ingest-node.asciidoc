@@ -198,7 +198,6 @@ Results in nothing indexed since the conditional evaluated to `true`.
 --------------------------------------------------
 {
   "_index": "test",
-  "_type": "_doc",
   "_id": "1",
   "_version": -3,
   "result": "noop",
@@ -750,6 +749,10 @@ metadata field to provide the error message.
 --------------------------------------------------
 // NOTCONSOLE
 
+
+include::enrich.asciidoc[]
+
+
 [[ingest-processors]]
 == Processors
 
@@ -826,6 +829,7 @@ include::processors/date-index-name.asciidoc[]
 include::processors/dissect.asciidoc[]
 include::processors/dot-expand.asciidoc[]
 include::processors/drop.asciidoc[]
+include::processors/enrich.asciidoc[]
 include::processors/fail.asciidoc[]
 include::processors/foreach.asciidoc[]
 include::processors/geoip.asciidoc[]

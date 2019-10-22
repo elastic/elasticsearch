@@ -9,7 +9,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -25,14 +27,14 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResu
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import static java.util.Comparator.comparing;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -111,18 +113,19 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
                     .size(size));
         }
         if (result == null) {  // This is step 2
-            KeyedFilter[] keyedFilters =
+            KeyedFilter[] keyedFiltersActual =
+                topActualClassNames.stream()
+                    .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(actualField, className)))
+                    .toArray(KeyedFilter[]::new);
+            KeyedFilter[] keyedFiltersPredicted =
                 topActualClassNames.stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
                     .toArray(KeyedFilter[]::new);
             return List.of(
                 AggregationBuilders.cardinality(STEP_2_CARDINALITY_OF_ACTUAL_CLASS)
                     .field(actualField),
-                AggregationBuilders.terms(STEP_2_AGGREGATE_BY_ACTUAL_CLASS)
-                    .field(actualField)
-                    .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
-                    .size(size)
-                    .subAggregation(AggregationBuilders.filters(STEP_2_AGGREGATE_BY_PREDICTED_CLASS, keyedFilters)
+                AggregationBuilders.filters(STEP_2_AGGREGATE_BY_ACTUAL_CLASS, keyedFiltersActual)
+                    .subAggregation(AggregationBuilders.filters(STEP_2_AGGREGATE_BY_PREDICTED_CLASS, keyedFiltersPredicted)
                         .otherBucket(true)
                         .otherBucketKey(OTHER_BUCKET_KEY)));
         }
@@ -133,26 +136,31 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
     public void process(Aggregations aggs) {
         if (topActualClassNames == null && aggs.get(STEP_1_AGGREGATE_BY_ACTUAL_CLASS) != null) {
             Terms termsAgg = aggs.get(STEP_1_AGGREGATE_BY_ACTUAL_CLASS);
-            topActualClassNames = termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).collect(Collectors.toList());
+            topActualClassNames = termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList());
         }
         if (result == null && aggs.get(STEP_2_AGGREGATE_BY_ACTUAL_CLASS) != null) {
             Cardinality cardinalityAgg = aggs.get(STEP_2_CARDINALITY_OF_ACTUAL_CLASS);
-            Terms termsAgg = aggs.get(STEP_2_AGGREGATE_BY_ACTUAL_CLASS);
-            Map<String, Map<String, Long>> counts = new TreeMap<>();
-            for (Terms.Bucket bucket : termsAgg.getBuckets()) {
+            Filters filtersAgg = aggs.get(STEP_2_AGGREGATE_BY_ACTUAL_CLASS);
+            List<ActualClass> actualClasses = new ArrayList<>(filtersAgg.getBuckets().size());
+            for (Filters.Bucket bucket : filtersAgg.getBuckets()) {
                 String actualClass = bucket.getKeyAsString();
-                Map<String, Long> subCounts = new TreeMap<>();
-                counts.put(actualClass, subCounts);
+                long actualClassDocCount = bucket.getDocCount();
                 Filters subAgg = bucket.getAggregations().get(STEP_2_AGGREGATE_BY_PREDICTED_CLASS);
+                List<PredictedClass> predictedClasses = new ArrayList<>();
+                long otherPredictedClassDocCount = 0;
                 for (Filters.Bucket subBucket : subAgg.getBuckets()) {
                     String predictedClass = subBucket.getKeyAsString();
-                    Long docCount = subBucket.getDocCount();
-                    if ((OTHER_BUCKET_KEY.equals(predictedClass) && docCount == 0L) == false) {
-                        subCounts.put(predictedClass, docCount);
+                    long docCount = subBucket.getDocCount();
+                    if (OTHER_BUCKET_KEY.equals(predictedClass)) {
+                        otherPredictedClassDocCount = docCount;
+                    } else {
+                        predictedClasses.add(new PredictedClass(predictedClass, docCount));
                     }
                 }
+                predictedClasses.sort(comparing(PredictedClass::getPredictedClass));
+                actualClasses.add(new ActualClass(actualClass, actualClassDocCount, predictedClasses, otherPredictedClassDocCount));
             }
-            result = new Result(counts, termsAgg.getSumOfOtherDocCounts() == 0 ? 0 : cardinalityAgg.getValue() - size);
+            result = new Result(actualClasses, Math.max(cardinalityAgg.getValue() - size, 0));
         }
     }
 
@@ -190,37 +198,35 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
     public static class Result implements EvaluationMetricResult {
 
         private static final ParseField CONFUSION_MATRIX = new ParseField("confusion_matrix");
-        private static final ParseField OTHER_CLASSES_COUNT = new ParseField("_other_");
+        private static final ParseField OTHER_ACTUAL_CLASS_COUNT = new ParseField("other_actual_class_count");
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
             new ConstructingObjectParser<>(
-                "multiclass_confusion_matrix_result", true, a -> new Result((Map<String, Map<String, Long>>) a[0], (long) a[1]));
+                "multiclass_confusion_matrix_result", true, a -> new Result((List<ActualClass>) a[0], (long) a[1]));
 
         static {
-            PARSER.declareObject(
-                constructorArg(),
-                (p, c) -> p.map(TreeMap::new, p2 -> p2.map(TreeMap::new, XContentParser::longValue)),
-                CONFUSION_MATRIX);
-            PARSER.declareLong(constructorArg(), OTHER_CLASSES_COUNT);
+            PARSER.declareObjectArray(constructorArg(), ActualClass.PARSER, CONFUSION_MATRIX);
+            PARSER.declareLong(constructorArg(), OTHER_ACTUAL_CLASS_COUNT);
         }
 
         public static Result fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
-        // Immutable
-        private final Map<String, Map<String, Long>> confusionMatrix;
-        private final long otherClassesCount;
+        /** List of actual classes. */
+        private final List<ActualClass> actualClasses;
+        /** Number of actual classes that were not included in the confusion matrix because there were too many of them. */
+        private final long otherActualClassCount;
 
-        public Result(Map<String, Map<String, Long>> confusionMatrix, long otherClassesCount) {
-            this.confusionMatrix = Collections.unmodifiableMap(Objects.requireNonNull(confusionMatrix));
-            this.otherClassesCount = otherClassesCount;
+        public Result(List<ActualClass> actualClasses, long otherActualClassCount) {
+            this.actualClasses = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(actualClasses, CONFUSION_MATRIX));
+            this.otherActualClassCount = requireNonNegative(otherActualClassCount, OTHER_ACTUAL_CLASS_COUNT);
         }
 
         public Result(StreamInput in) throws IOException {
-            this.confusionMatrix = Collections.unmodifiableMap(
-                in.readMap(StreamInput::readString, in2 -> in2.readMap(StreamInput::readString, StreamInput::readLong)));
-            this.otherClassesCount = in.readLong();
+            this.actualClasses = Collections.unmodifiableList(in.readList(ActualClass::new));
+            this.otherActualClassCount = in.readVLong();
         }
 
         @Override
@@ -233,28 +239,25 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
             return NAME.getPreferredName();
         }
 
-        public Map<String, Map<String, Long>> getConfusionMatrix() {
-            return confusionMatrix;
+        public List<ActualClass> getConfusionMatrix() {
+            return actualClasses;
         }
 
-        public long getOtherClassesCount() {
-            return otherClassesCount;
+        public long getOtherActualClassCount() {
+            return otherActualClassCount;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(
-                confusionMatrix,
-                StreamOutput::writeString,
-                (out2, row) -> out2.writeMap(row, StreamOutput::writeString, StreamOutput::writeLong));
-            out.writeLong(otherClassesCount);
+            out.writeList(actualClasses);
+            out.writeVLong(otherActualClassCount);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CONFUSION_MATRIX.getPreferredName(), confusionMatrix);
-            builder.field(OTHER_CLASSES_COUNT.getPreferredName(), otherClassesCount);
+            builder.field(CONFUSION_MATRIX.getPreferredName(), actualClasses);
+            builder.field(OTHER_ACTUAL_CLASS_COUNT.getPreferredName(), otherActualClassCount);
             builder.endObject();
             return builder;
         }
@@ -264,13 +267,163 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(this.confusionMatrix, that.confusionMatrix)
-                && this.otherClassesCount == that.otherClassesCount;
+            return Objects.equals(this.actualClasses, that.actualClasses)
+                && this.otherActualClassCount == that.otherActualClassCount;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(confusionMatrix, otherClassesCount);
+            return Objects.hash(actualClasses, otherActualClassCount);
         }
+    }
+
+    public static class ActualClass implements ToXContentObject, Writeable {
+
+        private static final ParseField ACTUAL_CLASS = new ParseField("actual_class");
+        private static final ParseField ACTUAL_CLASS_DOC_COUNT = new ParseField("actual_class_doc_count");
+        private static final ParseField PREDICTED_CLASSES = new ParseField("predicted_classes");
+        private static final ParseField OTHER_PREDICTED_CLASS_DOC_COUNT = new ParseField("other_predicted_class_doc_count");
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<ActualClass, Void> PARSER =
+            new ConstructingObjectParser<>(
+                "multiclass_confusion_matrix_actual_class",
+                true,
+                a -> new ActualClass((String) a[0], (long) a[1], (List<PredictedClass>) a[2], (long) a[3]));
+
+        static {
+            PARSER.declareString(constructorArg(), ACTUAL_CLASS);
+            PARSER.declareLong(constructorArg(), ACTUAL_CLASS_DOC_COUNT);
+            PARSER.declareObjectArray(constructorArg(), PredictedClass.PARSER, PREDICTED_CLASSES);
+            PARSER.declareLong(constructorArg(), OTHER_PREDICTED_CLASS_DOC_COUNT);
+        }
+
+        /** Name of the actual class. */
+        private final String actualClass;
+        /** Number of documents (examples) belonging to the {code actualClass} class. */
+        private final long actualClassDocCount;
+        /** List of predicted classes. */
+        private final List<PredictedClass> predictedClasses;
+        /** Number of documents that were not predicted as any of the {@code predictedClasses}. */
+        private final long otherPredictedClassDocCount;
+
+        public ActualClass(
+                String actualClass, long actualClassDocCount, List<PredictedClass> predictedClasses, long otherPredictedClassDocCount) {
+            this.actualClass = ExceptionsHelper.requireNonNull(actualClass, ACTUAL_CLASS);
+            this.actualClassDocCount = requireNonNegative(actualClassDocCount, ACTUAL_CLASS_DOC_COUNT);
+            this.predictedClasses = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(predictedClasses, PREDICTED_CLASSES));
+            this.otherPredictedClassDocCount = requireNonNegative(otherPredictedClassDocCount, OTHER_PREDICTED_CLASS_DOC_COUNT);
+        }
+
+        public ActualClass(StreamInput in) throws IOException {
+            this.actualClass = in.readString();
+            this.actualClassDocCount = in.readVLong();
+            this.predictedClasses = Collections.unmodifiableList(in.readList(PredictedClass::new));
+            this.otherPredictedClassDocCount = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(actualClass);
+            out.writeVLong(actualClassDocCount);
+            out.writeList(predictedClasses);
+            out.writeVLong(otherPredictedClassDocCount);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(ACTUAL_CLASS.getPreferredName(), actualClass);
+            builder.field(ACTUAL_CLASS_DOC_COUNT.getPreferredName(), actualClassDocCount);
+            builder.field(PREDICTED_CLASSES.getPreferredName(), predictedClasses);
+            builder.field(OTHER_PREDICTED_CLASS_DOC_COUNT.getPreferredName(), otherPredictedClassDocCount);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ActualClass that = (ActualClass) o;
+            return Objects.equals(this.actualClass, that.actualClass)
+                && this.actualClassDocCount == that.actualClassDocCount
+                && Objects.equals(this.predictedClasses, that.predictedClasses)
+                && this.otherPredictedClassDocCount == that.otherPredictedClassDocCount;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(actualClass, actualClassDocCount, predictedClasses, otherPredictedClassDocCount);
+        }
+    }
+
+    public static class PredictedClass implements ToXContentObject, Writeable {
+
+        private static final ParseField PREDICTED_CLASS = new ParseField("predicted_class");
+        private static final ParseField COUNT = new ParseField("count");
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<PredictedClass, Void> PARSER =
+            new ConstructingObjectParser<>(
+                "multiclass_confusion_matrix_predicted_class", true, a -> new PredictedClass((String) a[0], (long) a[1]));
+
+        static {
+            PARSER.declareString(constructorArg(), PREDICTED_CLASS);
+            PARSER.declareLong(constructorArg(), COUNT);
+        }
+
+        private final String predictedClass;
+        private final long count;
+
+        public PredictedClass(String predictedClass, long count) {
+            this.predictedClass = ExceptionsHelper.requireNonNull(predictedClass, PREDICTED_CLASS);
+            this.count = requireNonNegative(count, COUNT);
+        }
+
+        public PredictedClass(StreamInput in) throws IOException {
+            this.predictedClass = in.readString();
+            this.count = in.readVLong();
+        }
+
+        public String getPredictedClass() {
+            return predictedClass;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(predictedClass);
+            out.writeVLong(count);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(PREDICTED_CLASS.getPreferredName(), predictedClass);
+            builder.field(COUNT.getPreferredName(), count);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PredictedClass that = (PredictedClass) o;
+            return Objects.equals(this.predictedClass, that.predictedClass)
+                && this.count == that.count;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(predictedClass, count);
+        }
+    }
+
+    private static long requireNonNegative(long value, ParseField field) {
+        if (value < 0) {
+            throw ExceptionsHelper.serverError("[" + field.getPreferredName() + "] must be >= 0, was: " + value);
+        }
+        return value;
     }
 }

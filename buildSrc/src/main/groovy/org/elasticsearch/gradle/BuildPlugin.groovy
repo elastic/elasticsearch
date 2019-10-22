@@ -607,6 +607,10 @@ class BuildPlugin implements Plugin<Project> {
              */
             (javadoc.options as CoreJavadocOptions).addBooleanOption('html5', true)
         }
+        // ensure javadoc task is run with 'check'
+        project.pluginManager.withPlugin('lifecycle-base') {
+            project.tasks.getByName(LifecycleBasePlugin.CHECK_TASK_NAME).dependsOn(project.tasks.withType(Javadoc))
+        }
         configureJavadocJar(project)
     }
 
@@ -788,6 +792,9 @@ class BuildPlugin implements Plugin<Project> {
                         'tests.security.manager': 'true',
                         'jna.nosys': 'true'
 
+                //TODO remove once jvm.options are added to test system properties
+                test.systemProperty ('java.locale.providers','SPI,COMPAT')
+
                 // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
                 if (System.getProperty('ignore.tests.seed') != null) {
                     nonInputProperties.systemProperty('tests.seed', project.property('testSeed'))
@@ -820,7 +827,6 @@ class BuildPlugin implements Plugin<Project> {
                 test.systemProperty('io.netty.noUnsafe', 'true')
                 test.systemProperty('io.netty.noKeySetOptimization', 'true')
                 test.systemProperty('io.netty.recycler.maxCapacityPerThread', '0')
-                test.systemProperty('io.netty.allocator.numDirectArenas', '0')
 
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true

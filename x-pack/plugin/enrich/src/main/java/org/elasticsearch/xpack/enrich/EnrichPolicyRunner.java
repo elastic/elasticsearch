@@ -119,16 +119,14 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = getIndexResponse.mappings();
-        ImmutableOpenMap<String, MappingMetaData> indexMapping = mappings.get(sourceIndexName);
-        if (indexMapping.keys().size() == 0) {
+        ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.mappings();
+        MappingMetaData indexMapping = mappings.get(sourceIndexName);
+        if (indexMapping == MappingMetaData.EMPTY_MAPPINGS) {
             throw new ElasticsearchException(
                 "Enrich policy execution for [{}] failed. No mapping available on source [{}] included in [{}]",
                 policyName, sourceIndexName, policy.getIndices());
         }
-        assert indexMapping.keys().size() == 1 : "Expecting only one type per index";
-        MappingMetaData typeMapping = indexMapping.iterator().next().value;
-        return typeMapping.sourceAsMap();
+        return indexMapping.sourceAsMap();
     }
 
     private void validateMappings(final GetIndexResponse getIndexResponse) {
@@ -136,27 +134,34 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Validating [{}] source mappings", policyName, sourceIndices);
         for (String sourceIndex : sourceIndices) {
             Map<String, Object> mapping = getMappings(getIndexResponse, sourceIndex);
-            // First ensure mapping is set
-            if (mapping.get("properties") == null) {
-                throw new ElasticsearchException(
-                    "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
-                    policyName, sourceIndex, policy.getIndices());
-            }
-            // Validate the key and values
-            try {
-                validateField(mapping, policy.getMatchField(), true);
-                for (String valueFieldName : policy.getEnrichFields()) {
-                    validateField(mapping, valueFieldName, false);
-                }
-            } catch (ElasticsearchException e) {
-                throw new ElasticsearchException(
-                        "Enrich policy execution for [{}] failed while validating field mappings for index [{}]",
-                        e, policyName, sourceIndex);
-            }
+            validateMappings(policyName, policy, sourceIndex, mapping);
         }
     }
 
-    private void validateField(Map<?, ?> properties, String fieldName, boolean fieldRequired) {
+    static void validateMappings(final String policyName,
+                                 final EnrichPolicy policy,
+                                 final String sourceIndex,
+                                 final Map<String, Object> mapping) {
+        // First ensure mapping is set
+        if (mapping.get("properties") == null) {
+            throw new ElasticsearchException(
+                "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
+                policyName, sourceIndex, policy.getIndices());
+        }
+        // Validate the key and values
+        try {
+            validateField(mapping, policy.getMatchField(), true);
+            for (String valueFieldName : policy.getEnrichFields()) {
+                validateField(mapping, valueFieldName, false);
+            }
+        } catch (ElasticsearchException e) {
+            throw new ElasticsearchException(
+                "Enrich policy execution for [{}] failed while validating field mappings for index [{}]",
+                e, policyName, sourceIndex);
+        }
+    }
+
+    private static void validateField(Map<?, ?> properties, String fieldName, boolean fieldRequired) {
         assert Strings.isEmpty(fieldName) == false: "Field name cannot be null or empty";
         String[] fieldParts = fieldName.split("\\.");
         StringBuilder parent = new StringBuilder();

@@ -21,7 +21,7 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
     
     public enum DateTimeExtractor {
         DAY_OF_MONTH(ChronoField.DAY_OF_MONTH),
-        ISO_DAY_OF_WEEK(ChronoField.DAY_OF_WEEK),
+        ISO_DAY_OF_WEEK(WeekFields.ISO.dayOfWeek()),//the same as ChronoField.DAY_OF_WEEK but more clear
         DAY_OF_YEAR(ChronoField.DAY_OF_YEAR),
         HOUR_OF_DAY(ChronoField.HOUR_OF_DAY),
         MINUTE_OF_DAY(ChronoField.MINUTE_OF_DAY),
@@ -30,7 +30,6 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
         SECOND_OF_MINUTE(ChronoField.SECOND_OF_MINUTE),
         ISO_WEEK_OF_YEAR(WeekFields.ISO.weekOfWeekBasedYear()),
         YEAR(ChronoField.YEAR);
-        //TODO we don't have ISO_DAY_OF_WEEK ?
 
         private final TemporalField field;
 

@@ -14,6 +14,7 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.BadJOSEException;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jose.util.IOUtils;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -80,6 +81,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -514,29 +516,28 @@ public class OpenIdConnectAuthenticator {
                 return;
             }
             final Charset encoding = encodingHeader == null ? StandardCharsets.UTF_8 : Charsets.toCharset(encodingHeader.getValue());
-            if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace("Received Token Response from OP with status [{}]",
-                    httpResponse.getStatusLine().getStatusCode());
-            }
-            final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(
-                JSONObjectUtils.parse(EntityUtils.toString(entity, encoding)));
-            if (oidcTokenResponse.indicatesSuccess() == false) {
-                TokenErrorResponse errorResponse = oidcTokenResponse.toErrorResponse();
+            final RestStatus responseStatus = RestStatus.fromCode(httpResponse.getStatusLine().getStatusCode());
+            if (RestStatus.OK != responseStatus) {
+                final String json = EntityUtils.toString(entity, encoding);
+                LOGGER.warn("Received Token Response from OP with status [{}] and content [{}]", responseStatus, json);
+                final TokenErrorResponse tokenErrorResponse = TokenErrorResponse.parse(JSONObjectUtils.parse(json));
                 tokensListener.onFailure(
                     new ElasticsearchSecurityException("Failed to exchange code for Id Token. Code=[{}], Description=[{}]",
-                        errorResponse.getErrorObject().getCode(), errorResponse.getErrorObject().getDescription()));
+                        tokenErrorResponse.getErrorObject().getCode(), tokenErrorResponse.getErrorObject().getDescription()));
             } else {
-                OIDCTokenResponse successResponse = oidcTokenResponse.toSuccessResponse();
-                final OIDCTokens oidcTokens = successResponse.getOIDCTokens();
+                final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(
+                    JSONObjectUtils.parse(EntityUtils.toString(entity, encoding)));
+                final OIDCTokens oidcTokens = oidcTokenResponse.getOIDCTokens();
                 final AccessToken accessToken = oidcTokens.getAccessToken();
                 final JWT idToken = oidcTokens.getIDToken();
                 if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Successfully exchanged code. ID Token [{}] and Access Token [{}]",
-                        (idToken == null) ? "is null" : "is not null", (accessToken == null) ? "is null" : "is not null");
+                    LOGGER.trace("Successfully exchanged code. ID Token [{}] and Access Token [{}]", truncateJWT(idToken),
+                        truncateBetweenFirstAndLast2Chars(accessToken.toString()));
                 }
                 if (idToken == null) {
-                    tokensListener.onFailure(new ElasticsearchSecurityException("Token Response did not contain an ID Token or parsing of" +
-                        " the JWT failed."));
+                    tokensListener.onFailure(
+                        new ElasticsearchSecurityException("Token Response did not contain an ID Token or parsing of" +
+                            " the JWT failed."));
                     return;
                 }
                 tokensListener.onResponse(new Tuple<>(accessToken, idToken));
@@ -546,6 +547,28 @@ public class OpenIdConnectAuthenticator {
                 new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint. " +
                     "Unable to parse Token Response", e));
         }
+    }
+
+    private static String truncateJWT(JWT jwt) {
+        if (jwt == null) {
+            return null;
+        }
+        final Base64URL[] input = jwt.getParsedParts();
+        String truncated = "";
+        for (int i = 0; i < input.length; i++) {
+            if (i > 0) {
+                truncated += ".";
+            }
+            truncated += truncateBetweenFirstAndLast2Chars(input[i].toString());
+        }
+        return truncated;
+    }
+
+    private static String truncateBetweenFirstAndLast2Chars(String input) {
+        if (Strings.hasText(input) == false || input.length() <= 4) {
+            return input;
+        }
+        return input.substring(0, 2) + "***" + input.substring(input.length() - 2);
     }
 
     /**

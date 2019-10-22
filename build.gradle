@@ -59,6 +59,27 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 }
 String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
 
+List<String> getChangedFilesByProject(Project project) {
+  // Get list of all changed files
+  ByteArrayOutputStream systemOutStream = new ByteArrayOutputStream()
+
+  String ghprbTargetBranch = System.getenv("ghprbTargetBranch")
+  String targetBranch = ghprbTargetBranch ? "origin/${ghprbTargetBranch}" : "master"
+  String projectDir = project.getRootDir().toPath().relativize(project.getProjectDir().toPath())
+  String command = "git diff --relative=" + projectDir + " --name-only --diff-filter=ACMRT " + targetBranch
+
+  command.execute().waitForProcessOutput(systemOutStream, System.err)
+  List<String> changedFiles = systemOutStream.toString().trim().split('\n')
+  systemOutStream.close()
+  List<String> changedJavaFiles = new ArrayList<>()
+  for (f in changedFiles) {
+    if (f.endsWith(".java")) {
+      changedJavaFiles.add(f)
+    }
+  }
+  return changedJavaFiles
+}
+
 subprojects {
   // Default to the apache license
   project.ext.licenseName = 'The Apache Software License, Version 2.0'
@@ -107,13 +128,24 @@ subprojects {
     // switched to an exclude list, and eventualy removed completely.
     def projectPathsToFormat = [
       // ':build-tools'
+      ':x-pack:plugin:transform'
     ]
 
     if (projectPathsToFormat.contains(project.path)) {
       project.apply plugin: "com.diffplug.gradle.spotless"
 
+      List<String> changedFiles = getChangedFilesByProject(project)
+
+      println "[" + project.path + "] Check formating of: " + changedFiles
+      if (changedFiles.isEmpty()) {
+        return
+      }
+
       spotless {
         java {
+          target project.fileTree('.') {
+            includes= changedFiles
+          }
 
           removeUnusedImports()
           eclipse().configFile rootProject.file('.eclipseformat.xml')

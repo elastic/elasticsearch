@@ -272,6 +272,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
             // this key is greater than the top value collected in the previous round, skip it
             if (isLeadingSort && size() >= maxSize) {
                 if (arrays[0].compareCurrentWithAfter() < 0) {
+                    // the leading source field value is greater than after value, early terminate collection
                     isEarlyTerminate = true;
                 }
             }
@@ -283,6 +284,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
             // the candidate key is not competitive, skip it
             if (isLeadingSort) {
                 if (arrays[0].compareCurrent(top()) > 0) {
+                    // the leading source field value is greater than top value of queue, early terminate collection
                     isEarlyTerminate = true;
                 }
             }

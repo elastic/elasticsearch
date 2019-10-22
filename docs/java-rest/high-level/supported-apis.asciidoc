@@ -635,3 +635,22 @@ include::transform/delete_transform.asciidoc[]
 include::transform/preview_transform.asciidoc[]
 include::transform/start_transform.asciidoc[]
 include::transform/stop_transform.asciidoc[]
+
+== Enrich APIs
+
+:upid: {mainid}-enrich
+:doc-tests-file: {doc-tests}/EnrichDocumentationIT.java
+
+The Java High Level REST Client supports the following Enrich APIs:
+
+* <<{upid}-enrich-put-policy>>
+* <<{upid}-enrich-delete-policy>>
+* <<{upid}-enrich-get-policy>>
+* <<{upid}-enrich-stats>>
+* <<{upid}-enrich-execute-policy>>
+
+include::enrich/put_policy.asciidoc[]
+include::enrich/delete_policy.asciidoc[]
+include::enrich/get_policy.asciidoc[]
+include::enrich/stats.asciidoc[]
+include::enrich/execute_policy.asciidoc[]

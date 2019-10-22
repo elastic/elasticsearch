@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -54,7 +55,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             .startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1),
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
-            "test", "routingValue", null, source, XContentType.JSON, null);
+            "routingValue", null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
         ESLogMessage p =  IndexingSlowLogMessage.of(index, pd, 10, true, 0);
@@ -62,7 +63,6 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertThat(p.get("message"),equalTo("[foo/123]"));
         assertThat(p.get("took"),equalTo("10nanos"));
         assertThat(p.get("took_millis"),equalTo("0"));
-        assertThat(p.get("doc_type"),equalTo("test"));
         assertThat(p.get("id"),equalTo("id"));
         assertThat(p.get("routing"),equalTo("routingValue"));
         assertThat(p.get("source"), is(emptyOrNullString()));
@@ -76,8 +76,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder()
             .startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
-                "test", null, null, source, XContentType.JSON, null);
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id", null, null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
         ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
@@ -99,19 +98,18 @@ public class IndexingSlowLogTests extends ESTestCase {
         // Throwing a error if source cannot be converted
         source = new BytesArray("invalid");
         ParsedDocument doc = new ParsedDocument(new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
-            "test", null, null, source, XContentType.JSON, null);
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id", null, null, source, XContentType.JSON, null);
 
         final UncheckedIOException e = expectThrows(UncheckedIOException.class,
             () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3));
         assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
             + " was expecting ('true', 'false' or 'null')\\n"
-            + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));
+            + " at [Source: org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper")));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(JsonParseException.class));
         assertThat(e.getCause(), hasToString(containsString("Unrecognized token 'invalid':"
                 + " was expecting ('true', 'false' or 'null')\n"
-                + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));
+                + " at [Source: org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper")));
     }
 
     public void testReformatSetting() {
@@ -200,6 +198,25 @@ public class IndexingSlowLogTests extends ESTestCase {
             assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), SlowLogLevel.DEBUG)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        IndexingSlowLog debugLog = new IndexingSlowLog(settings);
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), SlowLogLevel.INFO)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        IndexingSlowLog infoLog = new IndexingSlowLog(settings);
+
+        assertEquals(SlowLogLevel.DEBUG, debugLog.getLevel());
+        assertEquals(SlowLogLevel.INFO, infoLog.getLevel());
     }
 
     public void testSetLevels() {

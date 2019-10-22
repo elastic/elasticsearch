@@ -39,7 +39,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
     public void testPutTrainedModelConfig() throws Exception {
         String modelId = "test-put-trained-model-config";
-        TrainedModelConfig config = buildTrainedModelConfig(modelId, 0);
+        TrainedModelConfig config = buildTrainedModelConfig(modelId);
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -50,7 +50,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
     public void testPutTrainedModelConfigThatAlreadyExists() throws Exception {
         String modelId = "test-put-trained-model-config-exists";
-        TrainedModelConfig config = buildTrainedModelConfig(modelId, 0);
+        TrainedModelConfig config = buildTrainedModelConfig(modelId);
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -61,12 +61,12 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         blockingCall(listener -> trainedModelProvider.storeTrainedModel(config, listener), putConfigHolder, exceptionHolder);
         assertThat(exceptionHolder.get(), is(not(nullValue())));
         assertThat(exceptionHolder.get().getMessage(),
-            equalTo(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, modelId, 0)));
+            equalTo(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, modelId)));
     }
 
     public void testGetTrainedModelConfig() throws Exception {
         String modelId = "test-get-trained-model-config";
-        TrainedModelConfig config = buildTrainedModelConfig(modelId, 0);
+        TrainedModelConfig config = buildTrainedModelConfig(modelId);
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -75,7 +75,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, 0, listener), getConfigHolder, exceptionHolder);
+        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, listener), getConfigHolder, exceptionHolder);
         assertThat(getConfigHolder.get(), is(not(nullValue())));
         assertThat(getConfigHolder.get(), equalTo(config));
     }
@@ -84,21 +84,20 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         String modelId = "test-get-missing-trained-model-config";
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, 0, listener), getConfigHolder, exceptionHolder);
+        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, listener), getConfigHolder, exceptionHolder);
         assertThat(exceptionHolder.get(), is(not(nullValue())));
         assertThat(exceptionHolder.get().getMessage(),
-            equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId, 0)));
+            equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
     }
 
-    private static TrainedModelConfig buildTrainedModelConfig(String modelId, long modelVersion) {
+    private static TrainedModelConfig buildTrainedModelConfig(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
             .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .setDescription("trained model config for test")
             .setModelId(modelId)
-            .setModelType("binary_decision_tree")
-            .setModelVersion(modelVersion)
-            .build(Version.CURRENT);
+            .setVersion(Version.CURRENT)
+            .build();
     }
 
     @Override

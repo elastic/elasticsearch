@@ -1,0 +1,287 @@
+[role="xpack"]
+[testenv="basic"]
+[[ingest-enriching-data]]
+== Enrich your data
+
+You can use the <<enrich-processor,enrich processor>>
+to append data from existing indices
+to incoming documents during ingest.
+
+For example, you can use the enrich processor to:
+
+* Identify web services or vendors based on known IP addresses
+* Add product information to retail orders based on product IDs
+* Supplement contact information based on an email address
+* Add postal codes based on user coordinates
+
+
+[float]
+[[enrich-setup]]
+=== Set up an enrich processor
+
+To set up an enrich processor and learn how it works,
+follow these steps:
+
+. Check the <<enrich-prereqs, prerequisites>>.
+. <<create-enrich-source-index>>.
+. <<create-enrich-policy>>.
+. <<execute-enrich-policy>>.
+. <<add-enrich-processor>>.
+. <<ingest-enrich-docs>>.
+
+Once you have an enrich processor set up,
+you can <<update-enrich-data,update your enrich data>>
+and <<update-enrich-policies, update your enrich policies>>
+using the <<enrich-apis,enrich APIs>>.
+
+[IMPORTANT]
+====
+The enrich processor performs several operations
+and may impact the speed of your <<pipeline,ingest pipeline>>.
+
+We strongly recommend testing and benchmarking your enrich processors
+before deploying them in production.
+
+We do not recommend using the enrich processor to append real-time data.
+The enrich processor works best with reference data
+that doesn't change frequently.
+====
+
+[float]
+[[enrich-prereqs]]
+==== Prerequisites
+
+include::{docdir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
+
+[float]
+[[create-enrich-source-index]]
+==== Create a source index
+
+To begin,
+create one or more source indices.
+
+A _source index_ contains data you want to append to incoming documents.
+You can index and manage documents in a source index
+like a regular index.
+
+The following <<docs-index_,index API>> request creates the `users` source index
+containing user data.
+This request also indexes a new document to the `users` source index.
+
+[source,console]
+----
+PUT /users/_doc/1?refresh=wait_for
+{
+    "email": "mardy.brown@asciidocsmith.com",
+    "first_name": "Mardy",
+    "last_name": "Brown",
+    "city": "New Orleans",
+    "county": "Orleans",
+    "state": "LA",
+    "zip": 70116,
+    "web": "mardy.asciidocsmith.com"
+}
+----
+
+You also can set up {beats-ref}/getting-started.html[{beats}],
+such as a {filebeat-ref}/filebeat-getting-started.html[{filebeat}],
+to automatically send and index documents
+to your source indices.
+See {beats-ref}/getting-started.html[Getting started with {beats}].
+
+
+[float]
+[[create-enrich-policy]]
+==== Create an enrich policy
+
+Use the <<put-enrich-policy-api,put enrich policy API>>
+to create an enrich policy.
+
+include::{docdir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-def]
+
+[source,console]
+----
+PUT /_enrich/policy/users-policy
+{
+    "match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+    }
+}
+----
+// TEST[continued]
+
+
+[float]
+[[execute-enrich-policy]]
+==== Execute an enrich policy
+
+Use the <<execute-enrich-policy-api,execute enrich policy API>>
+to create an enrich index for the policy.
+
+include::apis/enrich/execute-enrich-policy.asciidoc[tag=execute-enrich-policy-def]
+
+The following request executes the `users-policy` enrich policy.
+Because this API request performs several operations,
+it may take a while to return a response.
+
+[source,console]
+----
+POST /_enrich/policy/users-policy/_execute
+----
+// TEST[continued]
+
+
+[float]
+[[add-enrich-processor]]
+==== Add the enrich processor to an ingest pipeline
+
+Use the <<put-pipeline-api,put pipeline API>>
+to create an ingest pipeline.
+Include an <<enrich-processor,enrich processor>>
+that uses your enrich policy.
+
+When defining an enrich processor,
+you must include the following:
+
+* The field used to match incoming documents
+  to documents in the enrich index.
++
+This field should be included in incoming documents.
+
+* The target field added to incoming documents.
+  This field contains all appended enrich data.
+
+The following request adds a new pipeline, `user_lookup`.
+This pipeline includes an enrich processor
+that uses the `users-policy` enrich policy.
+
+[source,console]
+----
+PUT /_ingest/pipeline/user_lookup
+{
+  "description" : "Enriching user details to messages",
+  "processors" : [
+    {
+      "enrich" : {
+        "policy_name": "users-policy",
+        "field" : "email",
+        "target_field": "user",
+        "max_matches": "1"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+Because the enrich policy type is `match`,
+the enrich processor matches incoming documents
+to documents in the enrich index
+based on match field values.
+The enrich processor then appends the enrich field data 
+from matching documents in the enrich index
+to the target field of incoming documents.
+
+Because the `max_matches` option for the enrich processor is `1`,
+the enrich processor appends the data from only the best matching document
+to each incoming document's target field as an object.
+
+If the `max_matches` option were greater than `1`,
+the processor could append data from up to the `max_matches` number of documents
+to the target field as an array.
+
+If the incoming document matches no documents in the enrich index,
+the processor appends no data.
+
+You also can add other <<ingest-processors,processors>>
+to your ingest pipeline.
+You can use these processors to change or drop incoming documents
+based on your criteria.
+See <<ingest-processors>> for a list of built-in processors.
+
+
+[float]
+[[ingest-enrich-docs]]
+==== Ingest and enrich documents
+
+Index incoming documents using your ingest pipeline.
+
+The following <<docs-index_,index API>> request uses the ingest pipeline
+to index a document
+containing the `email` field
+specified in the enrich processor.
+
+[source,console]
+----
+PUT /my_index/_doc/my_id?pipeline=user_lookup
+{
+  "email": "mardy.brown@asciidocsmith.com"
+}
+----
+// TEST[continued]
+
+To verify the enrich processor matched 
+and appended the appropriate field data,
+use the <<docs-get,get API>> to view the indexed document.
+
+[source,console]
+----
+GET /my_index/_doc/my_id
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "found": true,
+  "_index": "my_index",
+  "_id": "my_id",
+  "_version": 1,
+  "_seq_no": 55,
+  "_primary_term": 1,
+  "_source": {
+    "user": {
+      "email": "mardy.brown@asciidocsmith.com",
+      "first_name": "Mardy",
+      "last_name": "Brown",
+      "zip": 70116,
+      "city": "New Orleans",
+      "state": "LA"
+    },
+    "email": "mardy.brown@asciidocsmith.com"
+  }
+}
+----
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
+
+
+[float]
+[[update-enrich-data]]
+=== Update your enrich index
+
+include::{docdir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
+
+If wanted, you can <<docs-reindex,reindex>>
+or <<docs-update-by-query,update>> any already ingested documents
+using your ingest pipeline.
+
+
+[float]
+[[update-enrich-policies]]
+=== Update an enrich policy
+
+include::apis/enrich/put-enrich-policy.asciidoc[tag=update-enrich-policy]
+
+////
+[source,console]
+--------------------------------------------------
+DELETE /_ingest/pipeline/user_lookup
+
+DELETE /_enrich/policy/users-policy
+--------------------------------------------------
+// TEST[continued]
+////

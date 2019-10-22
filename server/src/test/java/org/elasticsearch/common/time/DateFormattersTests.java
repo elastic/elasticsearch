@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
@@ -41,6 +42,8 @@ import static org.hamcrest.Matchers.sameInstance;
 public class DateFormattersTests extends ESTestCase {
 
     public void testWeekBasedDates() {
+        assumeFalse("won't work in jdk8", JavaVersion.current().equals(JavaVersion.parse("8")));
+
         // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
         DateFormatter dateFormatter = DateFormatters.forPattern("YYYY-ww");
 

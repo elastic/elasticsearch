@@ -20,6 +20,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -51,6 +52,8 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     public void testWeekDates() {
+        assumeFalse("won't work in jdk8", JavaVersion.current().equals(JavaVersion.parse("8")));
+
         DateFormatter formatter = DateFormatter.forPattern("YYYY-ww");
         assertDateMathEquals(formatter.toDateMathParser(), "2016-01", "2016-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
 

@@ -9,10 +9,16 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.threadpool.Scheduler;
+import org.joni.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.ScheduledExecutorService;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class TimeoutCheckerTests extends FileStructureTestCase {
 
@@ -59,18 +65,24 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
         }
     }
 
-    public void testWatchdog() {
+    public void testWatchdog() throws Exception {
 
         assertFalse(Thread.interrupted());
 
-        TimeValue timeout = TimeValue.timeValueMillis(100);
+        TimeValue timeout = TimeValue.timeValueMillis(500);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler)) {
+            TimeoutChecker.TimeoutCheckerWatchdog watchdog = (TimeoutChecker.TimeoutCheckerWatchdog) TimeoutChecker.watchdog;
 
-            TimeoutChecker.watchdog.register();
+            Matcher matcher = mock(Matcher.class);
+            TimeoutChecker.watchdog.register(matcher);
+            assertThat(watchdog.registry.get(Thread.currentThread()).matchers.size(), equalTo(1));
             try {
-                expectThrows(InterruptedException.class, () -> Thread.sleep(10000));
+                assertBusy(() -> {
+                    verify(matcher).interrupt();
+                });
             } finally {
-                TimeoutChecker.watchdog.unregister();
+                TimeoutChecker.watchdog.unregister(matcher);
+                assertThat(watchdog.registry.get(Thread.currentThread()).matchers.size(), equalTo(0));
             }
         } finally {
             // ensure the interrupted flag is cleared to stop it making subsequent tests fail

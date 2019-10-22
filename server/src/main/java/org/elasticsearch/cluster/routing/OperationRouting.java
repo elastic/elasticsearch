@@ -63,7 +63,7 @@ public class OperationRouting {
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
-        final boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
+        boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
         if (ignoreAwarenessAttr == false) {
             awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
             if (awarenessAttributes.isEmpty() == false) {
@@ -88,10 +88,13 @@ public class OperationRouting {
     }
 
     private void setAwarenessAttributes(List<String> awarenessAttributes) {
-        if (this.awarenessAttributes.isEmpty() && awarenessAttributes.isEmpty() == false) {
-            deprecationLogger.deprecated(IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
+        boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
+        if (ignoreAwarenessAttr == false) {
+            if (this.awarenessAttributes.isEmpty() && awarenessAttributes.isEmpty() == false) {
+                deprecationLogger.deprecated(IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
+            }
+            this.awarenessAttributes = awarenessAttributes;
         }
-        this.awarenessAttributes = awarenessAttributes;
     }
 
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {

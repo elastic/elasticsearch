@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
 
@@ -74,17 +75,19 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env, NamedXContentRegistry namedXContentRegistry)
+        throws IOException {
         assert DiscoveryNode.isDataNode(env.settings()) == false;
 
         if (DiscoveryNode.isMasterNode(env.settings()) == false) {
-            processNoMasterNoDataNode(terminal, dataPaths);
+            processNoMasterNoDataNode(terminal, dataPaths, namedXContentRegistry);
         } else {
-            processMasterNoDataNode(terminal, dataPaths);
+            processMasterNoDataNode(terminal, dataPaths, namedXContentRegistry);
         }
     }
 
-    private void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths) throws IOException {
+    private void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths, NamedXContentRegistry namedXContentRegistry)
+        throws IOException {
         NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
@@ -100,12 +103,12 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         }
 
         Set<String> indexUUIDs = indexUUIDsFor(indexPaths);
-        outputVerboseInformation(terminal, nodePaths, indexPaths, indexUUIDs);
+        outputVerboseInformation(terminal, nodePaths, indexPaths, indexUUIDs, namedXContentRegistry);
 
         terminal.println(noMasterMessage(indexUUIDs.size(), shardDataPaths.size(), indexMetaDataPaths.size()));
         outputHowToSeeVerboseInformation(terminal);
 
-        final Manifest manifest = loadManifest(terminal, dataPaths);
+        final Manifest manifest = loadManifest(terminal, dataPaths, namedXContentRegistry);
 
         terminal.println("Node is being re-purposed as no-master and no-data. Clean-up of index data will be performed.");
         confirm(terminal, "Do you want to proceed?");
@@ -119,7 +122,8 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         terminal.println("Node successfully repurposed to no-master and no-data.");
     }
 
-    private void processMasterNoDataNode(Terminal terminal, Path[] dataPaths) throws IOException {
+    private void processMasterNoDataNode(Terminal terminal, Path[] dataPaths, NamedXContentRegistry namedXContentRegistry)
+        throws IOException {
         NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
@@ -131,7 +135,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
         Set<Path> indexPaths = uniqueParentPaths(shardDataPaths);
         Set<String> indexUUIDs = indexUUIDsFor(indexPaths);
-        outputVerboseInformation(terminal, nodePaths, shardDataPaths, indexUUIDs);
+        outputVerboseInformation(terminal, nodePaths, shardDataPaths, indexUUIDs, namedXContentRegistry);
 
         terminal.println(shardMessage(shardDataPaths.size(), indexUUIDs.size()));
         outputHowToSeeVerboseInformation(terminal);
@@ -145,12 +149,14 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     private void outputVerboseInformation(Terminal terminal, NodeEnvironment.NodePath[] nodePaths,
-                                          Collection<Path> pathsToCleanup, Set<String> indexUUIDs) {
+                                          Collection<Path> pathsToCleanup, Set<String> indexUUIDs,
+                                          NamedXContentRegistry namedXContentRegistry) {
         if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Paths to clean up:");
             pathsToCleanup.forEach(p -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + p.toString()));
             terminal.println(Terminal.Verbosity.VERBOSE, "Indices affected:");
-            indexUUIDs.forEach(uuid -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + toIndexName(nodePaths, uuid)));
+            indexUUIDs.forEach(uuid -> terminal.println(Terminal.Verbosity.VERBOSE, "  " +
+                toIndexName(nodePaths, uuid, namedXContentRegistry)));
         }
     }
 
@@ -159,7 +165,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
             terminal.println("Use -v to see list of paths and indices affected");
         }
     }
-    private String toIndexName(NodeEnvironment.NodePath[] nodePaths, String uuid) {
+    private String toIndexName(NodeEnvironment.NodePath[] nodePaths, String uuid, NamedXContentRegistry namedXContentRegistry) {
         Path[] indexPaths = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
             indexPaths[i] = nodePaths[i].resolve(uuid);
@@ -192,7 +198,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         Manifest.FORMAT.writeAndCleanup(newManifest, dataPaths);
     }
 
-    private Manifest loadManifest(Terminal terminal, Path[] dataPaths) throws IOException {
+    private Manifest loadManifest(Terminal terminal, Path[] dataPaths, NamedXContentRegistry namedXContentRegistry) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading manifest");
         final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
 

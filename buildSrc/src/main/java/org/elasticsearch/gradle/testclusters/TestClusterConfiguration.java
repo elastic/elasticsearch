@@ -92,6 +92,8 @@ public interface TestClusterConfiguration {
 
     void extraConfigFile(String destination, File from, PropertyNormalization normalization);
 
+    void runElasticsearchBinScriptWithInput(String input, String tool, String... args);
+
     void user(Map<String, String> userSpec);
 
     String getHttpSocketURI();

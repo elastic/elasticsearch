@@ -24,9 +24,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.PluginEnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
@@ -40,9 +39,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
 
-public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
+public abstract class ElasticsearchNodeCommand extends PluginEnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
-    protected final NamedXContentRegistry namedXContentRegistry;
     protected static final String DELIMITER = "------------------------------------------------------------------------\n";
 
     static final String STOP_WARNING_MSG =
@@ -61,10 +59,13 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
     public ElasticsearchNodeCommand(String description) {
         super(description);
-        namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
     }
 
-    protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException {
+    protected void processNodePaths(
+        Terminal terminal,
+        OptionSet options,
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, env, Files::exists)) {
             final Path[] dataPaths =
@@ -72,13 +73,14 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             if (dataPaths.length == 0) {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            processNodePaths(terminal, dataPaths, env);
+            processNodePaths(terminal, dataPaths, env, namedXContentRegistry);
         } catch (LockObtainFailedException e) {
             throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
     }
 
-    protected Tuple<Manifest, MetaData> loadMetaData(Terminal terminal, Path[] dataPaths) throws IOException {
+    protected Tuple<Manifest, MetaData> loadMetaData(Terminal terminal, Path[] dataPaths, NamedXContentRegistry namedXContentRegistry)
+        throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading manifest file");
         final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
 
@@ -107,10 +109,11 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected final void execute(Terminal terminal, OptionSet options, Environment env, NamedXContentRegistry namedXContentRegistry)
+        throws Exception {
         terminal.println(STOP_WARNING_MSG);
         if (validateBeforeLock(terminal, env)) {
-            processNodePaths(terminal, options, env);
+            processNodePaths(terminal, options, env, namedXContentRegistry);
         }
     }
 
@@ -130,8 +133,10 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
      * @param terminal the terminal to use for messages
      * @param dataPaths the paths of the node to process
      * @param env the env of the node to process
+     * @param namedXContentRegistry the xcontent registry
      */
-    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException;
+    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env,
+        NamedXContentRegistry namedXContentRegistry) throws IOException;
 
 
     protected void writeNewMetaData(Terminal terminal, Manifest oldManifest, long newCurrentTerm,

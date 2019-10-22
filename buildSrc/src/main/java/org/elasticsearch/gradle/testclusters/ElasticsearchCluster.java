@@ -305,11 +305,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.forEach(ElasticsearchNode::restart);
     }
 
-    public void goToNextVersion() {
+    public void goToNextVersion(Runnable onUpgraded) {
         stop(false);
         nodes.all(ElasticsearchNode::goToNextVersion);
+        onUpgraded.run();
         start();
         writeUnicastHostsFiles();
+    }
+
+    public void goToNextVersion() {
+        goToNextVersion(() -> {});
     }
 
     public void nextNodeToNextVersion() {
@@ -332,6 +337,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void extraConfigFile(String destination, File from, PropertyNormalization normalization) {
         nodes.all(node -> node.extraConfigFile(destination, from, normalization));
+    }
+
+    @Override
+    public void runElasticsearchBinScriptWithInput(String input, String tool, String... args) {
+        nodes.all(node -> node.runElasticsearchBinScriptWithInput(input, tool, args));
     }
 
     @Override

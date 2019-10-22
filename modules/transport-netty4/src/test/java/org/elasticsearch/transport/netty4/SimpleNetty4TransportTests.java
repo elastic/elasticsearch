@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty4;
 
+import io.netty.buffer.PooledByteBufAllocator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,6 +45,13 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        assertEquals(0, PooledByteBufAllocator.DEFAULT.metric().usedHeapMemory());
+        assertEquals(0, PooledByteBufAllocator.DEFAULT.metric().usedDirectMemory());
+    }
 
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
@@ -73,5 +81,4 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
     }
-
 }

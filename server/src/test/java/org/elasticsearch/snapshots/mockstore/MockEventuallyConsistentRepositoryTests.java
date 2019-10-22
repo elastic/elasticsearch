@@ -138,6 +138,8 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
+        when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
+            new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10)));
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), threadPool, blobStoreContext)) {

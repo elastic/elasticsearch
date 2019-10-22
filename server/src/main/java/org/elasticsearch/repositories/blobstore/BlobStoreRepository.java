@@ -812,9 +812,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public RepositoryData getRepositoryData() {
         try {
             return getRepositoryData(latestIndexBlobId());
-        } catch (NoSuchFileException ex) {
-            // repository doesn't have an index blob, its a new blank repo
-            return RepositoryData.EMPTY;
         } catch (IOException ioe) {
             throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
         }
@@ -835,9 +832,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
             }
             return repositoryData;
-        } catch (NoSuchFileException ex) {
-            // repository doesn't have an index blob, its a new blank repo
-            return RepositoryData.EMPTY;
         } catch (IOException ioe) {
             throw new RepositoryException(metadata.name(), "could not read repository data from index blob", ioe);
         }

@@ -383,8 +383,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 // +1 for the "first"
                 expectedGets += 1 + successful + unsuccessful;
                 expectedPuts = (successfulFirst ? 0 : 1) + unsuccessful;
-            // deleting watches
             } else {
+                // deleting watches
                 // - 1 from necessary failure after it!
                 final int successful = randomIntBetween(1, EXPECTED_WATCHES - 1);
 

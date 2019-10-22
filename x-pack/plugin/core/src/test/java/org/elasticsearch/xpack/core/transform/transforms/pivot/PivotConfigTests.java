@@ -71,12 +71,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     public void testMissingAggs() throws IOException {
-        String pivot = "{"
-                + " \"group_by\": {"
-                + "   \"id\": {"
-                + "     \"terms\": {"
-                + "       \"field\": \"id\""
-                + "} } } }";
+        String pivot = "{ \"group_by\": { \"id\": { \"terms\": { \"field\": \"id\"} } } }";
 
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
@@ -115,12 +110,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     public void testMissingGroupBy() {
-        String pivot = "{"
-                + " \"aggs\": {"
-                + "   \"avg\": {"
-                + "     \"avg\": {"
-                + "       \"field\": \"points\""
-                + "} } } }";
+        String pivot = "{ \"aggs\": { \"avg\": { \"avg\": { \"field\": \"points\"} } } }";
 
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }

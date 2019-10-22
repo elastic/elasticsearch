@@ -195,6 +195,8 @@ Please follow these formatting guidelines:
   these are intended for use in documentation, so please make it clear what
   you have done, and only do this where the benefit clearly outweighs the
   decrease in consistency.
+* Note that JavaDoc and block comments i.e. `/* ... */` are not formatted,
+  but line comments i.e `// ...` are.
 
 #### Editor / IDE Support
 

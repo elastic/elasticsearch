@@ -68,11 +68,13 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
         Boolean isWriteIndex = null;
         if (aliasPointsToThisIndex) {
-            // The writeIndex() call returns a tri-state boolean:
-            // true  -> this index is the write index for this alias
-            // false -> this index is not the write index for this alias
-            // null  -> this alias is a "classic-style" alias and does not have a write index configured, but only points to one index
-            //          and is thus the write index by default
+            /*
+             * The writeIndex() call returns a tri-state boolean:
+             * true  -> this index is the write index for this alias
+             * false -> this index is not the write index for this alias
+             * null  -> this alias is a "classic-style" alias and does not have a write index configured, but only points to one index
+             *          and is thus the write index by default
+             */
             isWriteIndex = indexMetaData.getAliases().get(rolloverAlias).writeIndex();
         }
 

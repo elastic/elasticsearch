@@ -90,7 +90,8 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             7,  // indexTotal
             8,  // searchTotal
             9,  // indexFailures
-            10); // searchFailures
+            10  // searchFailures
+        );
 
         int currentStat = 1;
         List<Aggregation> aggs = new ArrayList<>(PROVIDED_STATS.length);

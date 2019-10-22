@@ -623,19 +623,21 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSimplifyCaseConditionsFoldWhenFalse() {
-        // CASE WHEN a = 1 THEN 'foo1'
-        //      WHEN 1 = 2 THEN 'bar1'
-        //      WHEN 2 = 1 THEN 'bar2'
-        //      WHEN a > 1 THEN 'foo2'
-        // ELSE 'default'
-        // END
-        //
-        // ==>
-        //
-        // CASE WHEN a = 1 THEN 'foo1'
-        //      WHEN a > 1 THEN 'foo2'
-        // ELSE 'default'
-        // END
+        /*
+         * CASE WHEN a = 1 THEN 'foo1'
+         *      WHEN 1 = 2 THEN 'bar1'
+         *      WHEN 2 = 1 THEN 'bar2'
+         *      WHEN a > 1 THEN 'foo2'
+         * ELSE 'default'
+         * END
+         *
+         * ==>
+         *
+         * CASE WHEN a = 1 THEN 'foo1'
+         *      WHEN a > 1 THEN 'foo2'
+         * ELSE 'default'
+         * END
+         */
 
         Case c = new Case(EMPTY, Arrays.asList(
             new IfConditional(EMPTY, new Equals(EMPTY, getFieldAttribute(), ONE), Literal.of(EMPTY, "foo1")),
@@ -654,19 +656,21 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSimplifyCaseConditionsFoldWhenTrue() {
-        // CASE WHEN a = 1 THEN 'foo1'
-        //      WHEN 1 = 1 THEN 'bar1'
-        //      WHEN 2 = 1 THEN 'bar2'
-        //      WHEN a > 1 THEN 'foo2'
-        // ELSE 'default'
-        // END
-        //
-        // ==>
-        //
-        // CASE WHEN a = 1 THEN 'foo1'
-        //      WHEN 1 = 1 THEN 'bar1'
-        // ELSE 'default'
-        // END
+        /*
+         * CASE WHEN a = 1 THEN 'foo1'
+         *      WHEN 1 = 1 THEN 'bar1'
+         *      WHEN 2 = 1 THEN 'bar2'
+         *      WHEN a > 1 THEN 'foo2'
+         * ELSE 'default'
+         * END
+         *
+         * ==>
+         *
+         * CASE WHEN a = 1 THEN 'foo1'
+         *      WHEN 1 = 1 THEN 'bar1'
+         * ELSE 'default'
+         * END
+         */
 
         SimplifyCase rule = new SimplifyCase();
         Case c = new Case(EMPTY, Arrays.asList(
@@ -686,14 +690,16 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSimplifyCaseConditionsFoldCompletely() {
-        // CASE WHEN 1 = 2 THEN 'foo1'
-        //      WHEN 1 = 1 THEN 'foo2'
-        // ELSE 'default'
-        // END
-        //
-        // ==>
-        //
-        // 'foo2'
+        /*
+         * CASE WHEN 1 = 2 THEN 'foo1'
+         *      WHEN 1 = 1 THEN 'foo2'
+         * ELSE 'default'
+         * END
+         *
+         * ==>
+         *
+         * 'foo2'
+         */
 
         SimplifyCase rule = new SimplifyCase();
         Case c = new Case(EMPTY, Arrays.asList(

@@ -536,18 +536,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
-        return actual instanceof ShardNotFoundException ||
-            actual instanceof IllegalIndexShardStateException ||
-            actual instanceof NoShardAvailableActionException ||
-            actual instanceof UnavailableShardsException ||
-            actual instanceof AlreadyClosedException ||
-            actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
-            actual instanceof ClusterBlockException || // If leader index is closed or no elected master
-            actual instanceof IndexClosedException || // If follow index is closed
-            actual instanceof ConnectTransportException ||
-            actual instanceof NodeClosedException ||
-            actual instanceof NoSuchRemoteClusterException ||
-            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
+        return actual instanceof ShardNotFoundException
+            || actual instanceof IllegalIndexShardStateException
+            || actual instanceof NoShardAvailableActionException
+            || actual instanceof UnavailableShardsException
+            || actual instanceof AlreadyClosedException
+            || actual instanceof ElasticsearchSecurityException // If user does not have sufficient privileges
+            || actual instanceof ClusterBlockException // If leader index is closed or no elected master
+            || actual instanceof IndexClosedException // If follow index is closed
+            || actual instanceof ConnectTransportException
+            || actual instanceof NodeClosedException
+            || actual instanceof NoSuchRemoteClusterException
+            || (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
     }
 
     // These methods are protected for testing purposes:

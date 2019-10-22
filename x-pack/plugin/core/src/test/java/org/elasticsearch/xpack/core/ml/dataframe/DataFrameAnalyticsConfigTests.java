@@ -132,21 +132,20 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         return generator.ofCodePointsLength(random(), 10, 10);
     }
 
-    private static final String ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS = "{\n" +
-        "    \"id\": \"old-data-frame\",\n" +
-        //query:match:type stopped being supported in 6.x
-        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}},\n" +
-        "    \"dest\": {\"index\":\"dest-index\"},\n" +
-        "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n" +
-        "}";
+    // query:match:type stopped being supported in 6.x
+    private static final String ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS = "{\n"
+        + "    \"id\": \"old-data-frame\",\n"
+        + "    \"source\": {\"index\":\"my-index\", \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}},\n"
+        + "    \"dest\": {\"index\":\"dest-index\"},\n"
+        + "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n"
+        + "}";
 
-    private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = "{\n" +
-        "    \"id\": \"data-frame\",\n" +
-        // match_all if parsed, adds default values in the options
-        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match_all\" : {}}},\n" +
-        "    \"dest\": {\"index\":\"dest-index\"},\n" +
-        "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n" +
-        "}";
+    private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = "{\n"
+        + "    \"id\": \"data-frame\",\n"
+        + "    \"source\": {\"index\":\"my-index\", \"query\": {\"match_all\" : {}}},\n" // match_all if parsed, adds default values in
+        + "    \"dest\": {\"index\":\"dest-index\"},\n"                                  // the options
+        + "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n"
+        + "}";
 
     private boolean lenient;
 
@@ -324,11 +323,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
     }
 
     public void testPreventVersionInjection() throws IOException {
-        String json = "{"
-            + " \"version\" : \"7.3.0\","
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + "}";
+        String json = "{ \"version\" : \"7.3.0\", \"source\" : {\"index\":\"src\"}, \"dest\" : {\"index\": \"dest\"}}";
 
         try (XContentParser parser =
                  XContentFactory.xContent(XContentType.JSON).createParser(

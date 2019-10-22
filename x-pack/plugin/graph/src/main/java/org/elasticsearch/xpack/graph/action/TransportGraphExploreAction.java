@@ -219,10 +219,11 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
             rootBool.must(sourceTermsOrClause);
 
-
-            //Now build the agg tree that will channel the content ->
-            //   base agg is terms agg for terms from last wave (one per field),
-            //      under each is a sig_terms agg to find next candidates (again, one per field)...
+            /*
+             * Now build the agg tree that will channel the content ->
+             *    base agg is terms agg for terms from last wave (one per field),
+             *       under each is a sig_terms agg to find next candidates (again, one per field)...
+            */
             for (int fieldNum = 0; fieldNum < lastHop.getNumberVertexRequests(); fieldNum++) {
                 VertexRequest lastVr = lastHop.getVertexRequest(fieldNum);
                 Set<Vertex> lastWaveVerticesForField = lastHopFindings.get(lastVr.fieldName());

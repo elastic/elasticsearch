@@ -118,7 +118,8 @@ final class DocumentParser {
 
     private void validateType(SourceToParse source) {
         if (Objects.equals(source.type(), docMapper.type()) == false &&
-                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used by typeless APIs
+                // used by typeless APIs
+                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) {
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type ["
                 + docMapper.type() + "]");
         }

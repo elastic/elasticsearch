@@ -40,9 +40,10 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
 
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("node.data", true)
-                .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
+            .put(super.nodeSettings(nodeOrdinal))
+            .put("node.data", true)
+            // for license mode file watcher
+            .put("resource.reload.interval.high", "500ms");
     }
 
     @Override

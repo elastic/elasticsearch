@@ -79,6 +79,8 @@ public final class HyperLogLogPlusPlus implements Releasable {
         return 1L << precision;
     }
 
+    // tag::hyperloglog-data-tables
+
     // these static tables come from the appendix of the paper
     private static final double[][] RAW_ESTIMATE_DATA = {
             // precision 4
@@ -750,6 +752,8 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
     private static final long[] THRESHOLDS = new long[] { 10, 20, 40, 80, 220, 400, 900, 1800, 3100, 6500, 11500, 20000, 50000, 120000,
             350000 };
+
+    // end::hyperloglog-data-tables
 
     private final BigArrays bigArrays;
     private final OpenBitSet algorithm;

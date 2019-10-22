@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 import org.elasticsearch.gradle.tool.Boilerplate
 import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.DefaultTask
-import org.gradle.api.JavaVersion
 import org.gradle.api.Task
 import org.gradle.api.file.FileCopyDetails
 import org.gradle.api.tasks.Copy

@@ -23,7 +23,7 @@ import org.apache.lucene.util.BytesRef;
 
 import java.util.Objects;
 
-public final class BytesArray extends BytesReference {
+public final class BytesArray extends AbstractBytesReference {
 
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
     private final byte[] bytes;

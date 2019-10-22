@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -31,6 +32,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
@@ -52,7 +55,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     EnrichPolicyMaintenanceService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
                                    EnrichPolicyLocks enrichPolicyLocks) {
         this.settings = settings;
-        this.client = client;
+        this.client = new OriginSettingClient(client, ENRICH_ORIGIN);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.enrichPolicyLocks = enrichPolicyLocks;

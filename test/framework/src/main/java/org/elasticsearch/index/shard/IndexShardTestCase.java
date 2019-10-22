@@ -806,7 +806,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, recoverySource);
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
         repository.restoreShard(shard.store(),
-            snapshot.getSnapshotId(), version,
+            snapshot.getSnapshotId(),
             indexId,
             shard.shardId(),
             shard.recoveryState());

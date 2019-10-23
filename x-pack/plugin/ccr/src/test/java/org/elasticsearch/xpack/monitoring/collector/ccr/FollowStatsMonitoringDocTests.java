@@ -25,6 +25,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -148,6 +149,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             equalTo(
                 XContentHelper.reformatJson(
                     String.format(
+                        Locale.ROOT,
                         "{"
                             + "  \"cluster_uuid\": \"_cluster\","
                             + "  \"timestamp\": \"%s\","

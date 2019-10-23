@@ -567,7 +567,8 @@ final class RequestConverters {
             .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(deleteByQueryRequest.indicesOptions())
-            .withWaitForCompletion(waitForCompletion);
+            .withWaitForCompletion(waitForCompletion)
+            .withSlices(deleteByQueryRequest.getSlices());
         if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
         }
@@ -595,7 +596,8 @@ final class RequestConverters {
             .withTimeout(updateByQueryRequest.getTimeout())
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
-            .withIndicesOptions(updateByQueryRequest.indicesOptions());
+            .withIndicesOptions(updateByQueryRequest.indicesOptions())
+            .withSlices(updateByQueryRequest.getSlices());
         if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
         }

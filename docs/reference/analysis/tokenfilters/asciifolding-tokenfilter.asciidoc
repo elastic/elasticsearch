@@ -14,7 +14,7 @@ https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache
 [[analysis-asciifolding-tokenfilter-analyze-ex]]
 ==== Example
 
-The following <<indices-analyze,analyze API>> request uses the asciifolding
+The following <<indices-analyze,analyze API>> request uses the `asciifolding`
 filter to drop the diacritical marks in `açaí à la carte`:
 
 [source,console]

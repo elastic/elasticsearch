@@ -369,7 +369,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         int iterations = between(1, 3);
         for (int iter = 0; iter < iterations; iter++) {
             indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
             ensureGreen(indexName);
 
             // Closing an index should execute noop peer recovery
@@ -402,7 +402,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put("index.routing.allocation.include._name", String.join(",", dataNodes))
             .build());
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
         ensureGreen(indexName);
         if (randomBoolean()) {
             client().admin().indices().prepareFlush(indexName).get();
@@ -416,7 +416,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 Client client = client(dataNodes.get(0));
                 int moreDocs = randomIntBetween(1, 50);
                 for (int i = 0; i < moreDocs; i++) {
-                    client.prepareIndex(indexName, "_doc").setSource("num", i).get();
+                    client.prepareIndex(indexName).setSource("num", i).get();
                 }
                 assertAcked(client.admin().indices().prepareClose(indexName));
                 return super.onNodeStopped(nodeName);
@@ -446,7 +446,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put("index.routing.allocation.include._name", dataNodes.get(0))
             .build());
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
         assertAcked(client().admin().indices().prepareClose(indexName));
         // move single shard to second node
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
@@ -465,7 +465,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
             .build());
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
         ensureGreen(indexName);
         assertAcked(client().admin().indices().prepareClose(indexName));
         assertIndexIsClosed(indexName);

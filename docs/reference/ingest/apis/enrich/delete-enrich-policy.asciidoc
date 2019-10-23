@@ -12,6 +12,13 @@ Deletes an existing enrich policy and its enrich index.
 [source,console]
 ----
 PUT /users
+{
+    "mappings" : {
+        "properties" : {
+            "email" : { "type" : "keyword" }
+        }
+    }
+}
 
 PUT /_enrich/policy/my-policy
 {

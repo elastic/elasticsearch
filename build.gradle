@@ -59,8 +59,8 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 }
 String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
 
+// Get list of all changed files by project
 List<String> getChangedFilesByProject(Project project) {
-  // Get list of all changed files
   ByteArrayOutputStream systemOutStream = new ByteArrayOutputStream()
 
   String ghprbTargetBranch = System.getenv("ghprbTargetBranch")
@@ -144,7 +144,7 @@ subprojects {
       spotless {
         java {
           target project.fileTree('.') {
-            includes= changedFiles
+            includes = changedFiles
           }
 
           removeUnusedImports()

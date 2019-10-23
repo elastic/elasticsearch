@@ -664,7 +664,7 @@ public abstract class TransportReplicationAction<
                     retry(new IndexNotFoundException(concreteIndex));
                     return;
                 }
-                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                if (request.indicesOptions().forbidClosedIndices() && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                     throw new IndexClosedException(indexMetaData.getIndex());
                 }
 

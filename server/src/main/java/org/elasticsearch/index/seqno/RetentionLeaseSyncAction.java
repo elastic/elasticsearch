@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -117,6 +118,9 @@ public class RetentionLeaseSyncAction extends
     }
 
     public static final class Request extends ReplicatedWriteRequest<Request> {
+        // allow adding retention leases for peer recovery on closed indices
+        private static final IndicesOptions INDICES_OPTIONS =
+            IndicesOptions.fromOptions(false, false, false, false, false, false, true, false);
 
         private RetentionLeases retentionLeases;
 
@@ -139,6 +143,11 @@ public class RetentionLeaseSyncAction extends
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(Objects.requireNonNull(out));
             retentionLeases.writeTo(out);
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return INDICES_OPTIONS;
         }
 
         @Override

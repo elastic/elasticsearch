@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
 
@@ -431,9 +430,6 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
     }
 
     public void testGuessIsDayFirstFromLocale() {
-        //TODO REVISIT THIS!!
-        assumeFalse("won't work in jdk8", JavaVersion.current().equals(JavaVersion.parse("8")));
-
         TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
 
         // Locale fallback is the only way to decide

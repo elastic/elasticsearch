@@ -842,6 +842,12 @@ class BuildPlugin implements Plugin<Project> {
                     if ((ext.get('runtimeJavaVersion') as JavaVersion) >= JavaVersion.VERSION_1_9) {
                         test.jvmArgs '--illegal-access=warn'
                     }
+                    //TODO remove once jvm.options are added to test system properties
+                    if ((ext.get('runtimeJavaVersion') as JavaVersion) == JavaVersion.VERSION_1_8) {
+                        test.systemProperty ('java.locale.providers','SPI,JRE')
+                    } else if ((ext.get('runtimeJavaVersion') as JavaVersion) >= JavaVersion.VERSION_1_9) {
+                        test.systemProperty ('java.locale.providers','SPI,COMPAT')
+                    }
                 }
 
                 test.jvmArgumentProviders.add(nonInputProperties)
@@ -876,8 +882,6 @@ class BuildPlugin implements Plugin<Project> {
                         'tests.security.manager': 'true',
                         'jna.nosys': 'true'
 
-                //TODO remove once jvm.options are added to test system properties
-                test.systemProperty ('java.locale.providers','SPI,COMPAT')
 
                 // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
                 if (System.getProperty('ignore.tests.seed') != null) {

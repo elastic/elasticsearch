@@ -311,7 +311,7 @@ test {
      * Some tests in this module set up a lot of transport threads so we reduce the buffer size per transport thread from the 1M default
      * to keep direct memory usage under control.
      */
-    systemProperty 'es.transport.buffer.size', '64k'
+    systemProperty 'es.transport.buffer.size', '256k'
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

@@ -268,7 +268,7 @@ public class AzureStorageService {
     }
 
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, String container, String keyPath, String prefix)
-        throws URISyntaxException, StorageException {
+            throws URISyntaxException, StorageException, IOException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
         // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
@@ -296,7 +296,7 @@ public class AzureStorageService {
         return blobsBuilder.immutableMap();
     }
 
-    public Set<String> children(String account, String container, BlobPath path) throws URISyntaxException, StorageException {
+    public Set<String> children(String account, String container, BlobPath path) throws URISyntaxException, StorageException, IOException {
         final Set<String> blobsBuilder = new HashSet<>();
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -320,8 +320,9 @@ public class AzureStorageService {
     }
 
     public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,
-                          boolean failIfAlreadyExists)
-        throws URISyntaxException, StorageException, FileAlreadyExistsException {
+                          boolean failIfAlreadyExists) throws URISyntaxException, StorageException, IOException {
+        assert inputStream.markSupported()
+            : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);

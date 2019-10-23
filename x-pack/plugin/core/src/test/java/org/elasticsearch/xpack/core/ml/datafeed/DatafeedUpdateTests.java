@@ -121,6 +121,9 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         if (randomBoolean()) {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(randomLongBetween(300_001, 400_000)));
         }
+        if (randomBoolean()) {
+            builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
+        }
         return builder.build();
     }
 
@@ -283,7 +286,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
             DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap());
 
-            assertThat(datafeed, not(equalTo(updatedDatafeed)));
+            assertThat("update was " + update, datafeed, not(equalTo(updatedDatafeed)));
         }
     }
 
@@ -339,7 +342,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(0, 9)) {
+        switch (between(0, 10)) {
         case 0:
             builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
             break;
@@ -411,6 +414,13 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 builder.setChunkingConfig(newChunkingConfig);
             } else {
                 builder.setChunkingConfig(null);
+            }
+            break;
+        case 10:
+            if (instance.getMaxEmptySearches() == null) {
+                builder.setMaxEmptySearches(randomFrom(-1, 10));
+            } else {
+                builder.setMaxEmptySearches(instance.getMaxEmptySearches() + 100);
             }
             break;
         default:

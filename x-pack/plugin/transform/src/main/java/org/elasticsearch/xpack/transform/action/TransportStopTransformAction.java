@@ -46,6 +46,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_FAILED_TRANSFORM;
 
@@ -196,6 +198,13 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         );
         return ActionListener.wrap(
                 response -> {
+                    // If there were failures attempting to stop the tasks, we don't know if they will actually stop.
+                    // It is better to respond to the user now than allow for the persistent task waiting to timeout
+                    if (response.getTaskFailures().isEmpty() == false || response.getNodeFailures().isEmpty() == false) {
+                        RestStatus status = firstNotOKStatus(response.getTaskFailures(), response.getNodeFailures());
+                        listener.onFailure(buildException(response.getTaskFailures(), response.getNodeFailures(), status));
+                        return;
+                    }
                     // Wait until the persistent task is stopped
                     // Switch over to Generic threadpool so we don't block the network thread
                     threadPool.generic().execute(() ->
@@ -203,6 +212,46 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 },
                 listener::onFailure
         );
+    }
+
+    static ElasticsearchStatusException buildException(List<TaskOperationFailure> taskOperationFailures,
+                                                       List<ElasticsearchException> elasticsearchExceptions,
+                                                       RestStatus status) {
+        List<Exception> exceptions = Stream.concat(
+            taskOperationFailures.stream().map(TaskOperationFailure::getCause),
+            elasticsearchExceptions.stream()).collect(Collectors.toList());
+
+        ElasticsearchStatusException elasticsearchStatusException =
+            new ElasticsearchStatusException(exceptions.get(0).getMessage(), status);
+
+        for (int i = 1; i < exceptions.size(); i++) {
+            elasticsearchStatusException.addSuppressed(exceptions.get(i));
+        }
+        return elasticsearchStatusException;
+    }
+
+    static RestStatus firstNotOKStatus(List<TaskOperationFailure> taskOperationFailures, List<ElasticsearchException> exceptions) {
+        RestStatus status = RestStatus.OK;
+
+        for (TaskOperationFailure taskOperationFailure : taskOperationFailures) {
+            status = taskOperationFailure.getStatus();
+            if (RestStatus.OK.equals(status) == false) {
+                break;
+            }
+        }
+        if (status == RestStatus.OK) {
+            for (ElasticsearchException exception : exceptions) {
+                // As it stands right now, this will ALWAYS be INTERNAL_SERVER_ERROR.
+                // FailedNodeException does not overwrite the `status()` method and the logic in ElasticsearchException
+                // Just returns an INTERNAL_SERVER_ERROR
+                status = exception.status();
+                if (RestStatus.OK.equals(status) == false) {
+                    break;
+                }
+            }
+        }
+        // If all the previous exceptions don't have a valid status, we have an unknown error.
+        return status == RestStatus.OK ? RestStatus.INTERNAL_SERVER_ERROR : status;
     }
 
     private void waitForTransformStopped(Set<String> persistentTaskIds,

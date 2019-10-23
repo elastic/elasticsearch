@@ -56,6 +56,8 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testExtractValidHeapSizeNoOptionPresent() throws InterruptedException, IOException {
+        // Muting on Windows, awaitsfix: https://github.com/elastic/elasticsearch/issues/47384
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"));
         assertThat(
                 JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.emptyList())),
                 greaterThan(0L));
@@ -121,22 +123,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         Map<String, String> parsedSystemProperties = JvmErgonomics.extractSystemProperties(Arrays.asList("-Xms1024M", "-Xmx1024M"));
         assertTrue(parsedSystemProperties.isEmpty());
     }
-
-    public void testPooledMemoryChoiceOnSmallHeap() throws InterruptedException, IOException {
-        final String smallHeap = randomFrom(Arrays.asList("64M", "512M", "1024M", "1G"));
-        assertThat(
-                JvmErgonomics.choose(Arrays.asList("-Xms" + smallHeap, "-Xmx" + smallHeap)),
-                hasItem("-Dio.netty.allocator.type=unpooled"));
-    }
-
-    public void testPooledMemoryChoiceOnNotSmallHeap() throws InterruptedException, IOException {
-        assumeFalse(System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8);
-        final String largeHeap = randomFrom(Arrays.asList("1025M", "2048M", "2G", "8G"));
-        assertThat(
-                JvmErgonomics.choose(Arrays.asList("-Xms" + largeHeap, "-Xmx" + largeHeap)),
-                hasItem("-Dio.netty.allocator.type=pooled"));
-    }
-
+    
     public void testMaxDirectMemorySizeChoice() throws InterruptedException, IOException {
         assumeFalse(System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8);
         final Map<String, String> heapMaxDirectMemorySize = new HashMap<>();

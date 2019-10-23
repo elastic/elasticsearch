@@ -62,7 +62,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));
-        } catch (URISyntaxException | StorageException e) {
+        } catch (URISyntaxException | StorageException | IOException e) {
             logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
         }
         return false;
@@ -97,7 +97,6 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
-
         try {
             blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
         } catch (URISyntaxException|StorageException e) {

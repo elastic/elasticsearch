@@ -16,16 +16,18 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.ZoneId;
+import java.util.StringJoiner;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 
 
-public class TestUtils {
+public final class TestUtils {
 
     private TestUtils() {}
 
@@ -42,7 +44,7 @@ public class TestUtils {
      * 
      * @return {@link ZonedDateTime} instance for the current date-time with milliseconds precision in UTC
      */
-    public static final ZonedDateTime now() {
+    public static ZonedDateTime now() {
         return ZonedDateTime.now(Clock.tick(Clock.system(DateUtils.UTC), Duration.ofMillis(1)));
     }
 
@@ -74,5 +76,12 @@ public class TestUtils {
                 randomBoolean());
     }
 
+    public static String randomWhitespaces() {
+        StringJoiner sj = new StringJoiner("");
+        for (int i = 0; i < randomInt(10); i++) {
+            sj.add(randomFrom(" ", "\t", "\r", "\n"));
+        }
+        return sj.toString();
+    }
 }
 

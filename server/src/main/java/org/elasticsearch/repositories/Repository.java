@@ -19,7 +19,6 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -27,7 +26,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -216,45 +214,23 @@ public interface Repository extends LifecycleComponent {
      * Restores snapshot of the shard.
      * <p>
      * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
-     * @param shard           the shard to restore the index into
      * @param store           the store to restore the index into
      * @param snapshotId      snapshot id
-     * @param version         version of elasticsearch that created this snapshot
-     * @param indexId         id of the index in the repository from which the restore is occurring
-     * @param snapshotShardId shard id (in the snapshot)
-     * @param recoveryState   recovery state
-     * @deprecated use {@link #restoreShard(Store, SnapshotId, Version, IndexId, ShardId, RecoveryState)} instead
-     */
-    @Deprecated
-    default void restoreShard(IndexShard shard, Store store, SnapshotId snapshotId, Version version, IndexId indexId,
-                              ShardId snapshotShardId, RecoveryState recoveryState) {
-        restoreShard(store, snapshotId, version, indexId, snapshotShardId, recoveryState);
-    }
-
-    /**
-     * Restores snapshot of the shard.
-     * <p>
-     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
-     * @param store           the store to restore the index into
-     * @param snapshotId      snapshot id
-     * @param version         version of elasticsearch that created this snapshot
      * @param indexId         id of the index in the repository from which the restore is occurring
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                      RecoveryState recoveryState);
+    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
      * @param snapshotId snapshot id
-     * @param version    version of elasticsearch that created this snapshot
      * @param indexId    the snapshotted index id for the shard to get status for
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId);
+    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
 
 
 }

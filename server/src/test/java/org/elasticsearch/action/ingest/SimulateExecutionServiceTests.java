@@ -29,6 +29,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 

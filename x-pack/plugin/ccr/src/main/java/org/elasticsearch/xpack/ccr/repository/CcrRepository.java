@@ -297,6 +297,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
                              ActionListener<Void> listener) {
+        // TODO: Instead of blocking in the restore logic and synchronously completing the listener we should just make below logic async
         ActionListener.completeWith(listener, () -> {
             // TODO: Add timeouts to network calls / the restore process.
             createEmptyStore(store);

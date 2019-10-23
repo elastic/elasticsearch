@@ -296,7 +296,7 @@ public class RelocationIT extends ESIntegTestCase {
         final Semaphore postRecoveryShards = new Semaphore(0);
         final IndexEventListener listener = new IndexEventListener() {
             @Override
-            public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, 
+            public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
                     IndexShardState currentState, @Nullable String reason) {
                 if (currentState == IndexShardState.POST_RECOVERY) {
                     postRecoveryShards.release();
@@ -319,12 +319,12 @@ public class RelocationIT extends ESIntegTestCase {
 
             List<IndexRequestBuilder> builders1 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders1.add(client().prepareIndex("test", "type").setSource("{}", XContentType.JSON));
+                builders1.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
             }
 
             List<IndexRequestBuilder> builders2 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders2.add(client().prepareIndex("test", "type").setSource("{}", XContentType.JSON));
+                builders2.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
             }
 
             logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
@@ -381,7 +381,7 @@ public class RelocationIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
@@ -394,7 +394,7 @@ public class RelocationIT extends ESIntegTestCase {
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, p_node);
         for (DiscoveryNode node : clusterService.state().nodes()) {
             if (!node.equals(clusterService.localNode())) {
-                mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, node.getName()), 
+                mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, node.getName()),
                         new RecoveryCorruption(corruptionCount));
             }
         }
@@ -619,7 +619,7 @@ public class RelocationIT extends ESIntegTestCase {
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
                     logger.debug("corrupting [{}] to {}. file name: [{}]", action, connection.getNode(), chunkRequest.name());
-                    assert chunkRequest.content().toBytesRef().bytes == 
+                    assert chunkRequest.content().toBytesRef().bytes ==
                             chunkRequest.content().toBytesRef().bytes : "no internal reference!!";
                     byte[] array = chunkRequest.content().toBytesRef().bytes;
                     array[0] = (byte) ~array[0]; // flip one byte in the content

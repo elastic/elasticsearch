@@ -9,7 +9,7 @@ A {dfeed} resource has the following properties:
   (object) If set, the {dfeed} performs aggregation searches.
   Support for aggregations is limited and should only be used with
   low cardinality data. For more information, see
-  {xpack-ref}/ml-configuring-aggregation.html[Aggregating Data for Faster Performance].
+  {stack-ov}/ml-configuring-aggregation.html[Aggregating Data for Faster Performance].
 
 `chunking_config`::
   (object) Specifies how data searches are split into time chunks.
@@ -53,7 +53,7 @@ A {dfeed} resource has the following properties:
   The <<ml-detectorconfig,detector configuration objects>> in a job can contain
   functions that use these script fields.
   For more information, see
-  {xpack-ref}/ml-configuring-transform.html[Transforming Data With Script Fields].
+  {stack-ov}/ml-configuring-transform.html[Transforming Data With Script Fields].
 
 `scroll_size`::
   (unsigned integer) The `size` parameter that is used in {es} searches.
@@ -64,6 +64,15 @@ A {dfeed} resource has the following properties:
   the size of the window. For example:
   `{"enabled": true, "check_window": "1h"}` See
   <<ml-datafeed-delayed-data-check-config>>.
+
+`max_empty_searches`::
+  (integer) If a real-time {dfeed} has never seen any data (including during
+  any initial training period) then it will automatically stop itself and
+  close its associated job after this many real-time searches that return no
+  documents. In other words, it will stop after `frequency` times
+  `max_empty_searches` of real-time operation. If not set
+  then a {dfeed} with no end time that sees no data will remain started until
+  it is explicitly stopped. By default this setting is not set.
 
 [[ml-datafeed-chunking-config]]
 ==== Chunking configuration objects

@@ -59,6 +59,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
@@ -187,6 +188,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         vagrant.setBox(box);
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdk, "", ""));
         vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH"));
+        // pass these along to get correct build scans
+        if (System.getenv("JENKINS_URL") != null) {
+            Stream.of("JOB_NAME", "JENKINS_URL", "BUILD_NUMBER", "BUILD_URL").forEach(name ->
+                vagrant.vmEnv(name, System.getenv(name))
+            );
+        }
         vagrant.setIsWindowsVM(isWindows(project));
 
         return Arrays.asList(systemJdk, gradleJdk);
@@ -319,10 +326,15 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        for (Type type : Arrays.asList(Type.DEB, Type.RPM)) {
+        // Docker disabled for https://github.com/elastic/elasticsearch/issues/47639
+        for (Type type : Arrays.asList(Type.DEB, Type.RPM /*,Type.DOCKER*/)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
+                    // We should never add a Docker distro with bundledJdk == false
+                    boolean skip = type == Type.DOCKER && bundledJdk == false;
+                    if (skip == false) {
+                        addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
+                    }
                 }
             }
             // upgrade version is always bundled jdk
@@ -386,6 +398,11 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
-        return "destructiveDistroTest." + distroId(distro.getType(), distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk());
+        Type type = distro.getType();
+        return "destructiveDistroTest." + distroId(
+            type,
+            distro.getPlatform(),
+            distro.getFlavor(),
+            distro.getBundledJdk());
     }
 }

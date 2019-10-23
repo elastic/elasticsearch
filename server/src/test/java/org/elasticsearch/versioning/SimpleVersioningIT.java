@@ -467,8 +467,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                     sb.append(deleteResponse.getIndex());
                     sb.append(" id=");
                     sb.append(deleteResponse.getId());
-                    sb.append(" type=");
-                    sb.append(deleteResponse.getType());
                     sb.append(" version=");
                     sb.append(deleteResponse.getVersion());
                     sb.append(" found=");
@@ -479,8 +477,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                     sb.append(indexResponse.getIndex());
                     sb.append(" id=");
                     sb.append(indexResponse.getId());
-                    sb.append(" type=");
-                    sb.append(indexResponse.getType());
                     sb.append(" version=");
                     sb.append(indexResponse.getVersion());
                     sb.append(" created=");

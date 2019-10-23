@@ -59,7 +59,7 @@ PUT my_index
     "analysis": {
       "analyzer": {
         "my_custom_analyzer": {
-          "type":      "custom", <1>
+          "type": "custom", <1>
           "tokenizer": "standard",
           "char_filter": [
             "html_strip"
@@ -200,7 +200,7 @@ PUT my_index
 POST my_index/_analyze
 {
   "analyzer": "my_custom_analyzer",
-  "text":     "I'm a :) person, and you?"
+  "text": "I'm a :) person, and you?"
 }
 --------------------------------------------------
 

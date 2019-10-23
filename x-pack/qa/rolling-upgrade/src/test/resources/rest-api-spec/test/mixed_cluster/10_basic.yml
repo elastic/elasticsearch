@@ -15,14 +15,12 @@
   - do:
       index:
         index:  upgraded_scroll
-        type:   test
         id:     42
         body:   { foo: 1 }
 
   - do:
       index:
         index:  upgraded_scroll
-        type:   test
         id:     43
         body:   { foo: 2 }
 
@@ -47,6 +45,5 @@
   - do:
       index:
         index: scroll_index
-        type: doc
         id: 1
         body: { value: $scroll_id }

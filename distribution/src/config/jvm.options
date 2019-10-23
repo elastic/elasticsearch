@@ -80,7 +80,6 @@
 -Dio.netty.noUnsafe=true
 -Dio.netty.noKeySetOptimization=true
 -Dio.netty.recycler.maxCapacityPerThread=0
--Dio.netty.allocator.numDirectArenas=0
 
 # log4j 2
 -Dlog4j.shutdownHookEnabled=false
@@ -105,4 +104,4 @@ ${error.file}
 -Xlog:gc*,gc+age=trace,safepoint:file=${loggc}:utctime,pid,tags:filecount=32,filesize=64m
 # due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise
 # time/date parsing will break in an incompatible way for some date patterns and locals
--Djava.locale.providers=COMPAT
+-Djava.locale.providers=SPI,COMPAT

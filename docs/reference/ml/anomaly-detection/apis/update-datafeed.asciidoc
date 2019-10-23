@@ -22,7 +22,7 @@ Updates certain properties of a {dfeed}.
 
 * If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
 cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 
 [[ml-update-datafeed-desc]]
@@ -100,6 +100,15 @@ parallel and close one when you are satisfied with the results of the other job.
 `scroll_size`::
   (Optional, unsigned integer) The `size` parameter that is used in {es}
   searches. The default value is `1000`.
+
+`max_empty_searches`::
+  (Optional, integer) If a real-time {dfeed} has never seen any data (including
+  during any initial training period) then it will automatically stop itself
+  and close its associated job after this many real-time searches that return
+  no documents. In other words, it will stop after `frequency` times
+  `max_empty_searches` of real-time operation. If not set
+  then a {dfeed} with no end time that sees no data will remain started until
+  it is explicitly stopped. The special value `-1` unsets this setting.
 
 For more information about these properties, see <<ml-datafeed-resource>>.
 

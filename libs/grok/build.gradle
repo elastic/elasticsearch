@@ -18,7 +18,7 @@
  */
 
 dependencies {
-    compile 'org.jruby.joni:joni:2.1.6'
+    compile 'org.jruby.joni:joni:2.1.29'
     // joni dependencies:
     compile 'org.jruby.jcodings:jcodings:1.0.44'
 
@@ -30,10 +30,3 @@ dependencies {
 forbiddenApisMain {
     replaceSignatureFiles 'jdk-signatures'
 }
-
-thirdPartyAudit.ignoreMissingClasses (
-        // joni has AsmCompilerSupport, but that isn't being used:
-        'org.objectweb.asm.ClassWriter',
-        'org.objectweb.asm.MethodVisitor',
-        'org.objectweb.asm.Opcodes'
-)

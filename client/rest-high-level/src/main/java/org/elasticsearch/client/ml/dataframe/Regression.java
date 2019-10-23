@@ -49,16 +49,19 @@ public class Regression implements DataFrameAnalysis {
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
 
-    private static final ConstructingObjectParser<Regression, Void> PARSER = new ConstructingObjectParser<>(NAME.getPreferredName(), true,
-        a -> new Regression(
-            (String) a[0],
-            (Double) a[1],
-            (Double) a[2],
-            (Double) a[3],
-            (Integer) a[4],
-            (Double) a[5],
-            (String) a[6],
-            (Double) a[7]));
+    private static final ConstructingObjectParser<Regression, Void> PARSER =
+        new ConstructingObjectParser<>(
+            NAME.getPreferredName(),
+            true,
+            a -> new Regression(
+                (String) a[0],
+                (Double) a[1],
+                (Double) a[2],
+                (Double) a[3],
+                (Integer) a[4],
+                (Double) a[5],
+                (String) a[6],
+                (Double) a[7]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);

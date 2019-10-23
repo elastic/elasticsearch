@@ -147,7 +147,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                     runtimeJavaVersionDetails = findJavaVersionDetails(runtimeJavaHome);
                     runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(runtimeJavaHome));
 
-                    inFipsJvm = Boolean.parseBoolean(System.getProperty("fips.enabled"));
+                    inFipsJvm = Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
                 } else {
                     throw new RuntimeException("Runtime Java home path of '" + compilerJavaHome + "' does not exist");
                 }

@@ -429,11 +429,13 @@ public class Setting<T> implements ToXContentObject {
         } catch (ElasticsearchParseException ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + getKey() + "]", ex);
+            String err = "Failed to parse value" + (isFiltered() ? "" : " [" + value + "]") + " for setting [" + getKey() + "]";
+            throw new IllegalArgumentException(err, ex);
         } catch (IllegalArgumentException ex) {
             throw ex;
         } catch (Exception t) {
-            throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + getKey() + "]", t);
+            String err = "Failed to parse value" + (isFiltered() ? "" : " [" + value + "]") + " for setting [" + getKey() + "]";
+            throw new IllegalArgumentException(err, t);
         }
     }
 
@@ -932,8 +934,9 @@ public class Setting<T> implements ToXContentObject {
                     try {
                         validator.accept(currentSettings);
                     } catch (Exception | AssertionError e) {
-                        throw new IllegalArgumentException("illegal value can't update [" + key + "] from ["
-                                + previousSettings + "] to [" + currentSettings+ "]", e);
+                        String err = "illegal value can't update [" + key + "]" +
+                            (isFiltered() ? "" : " from [" + previousSettings + "] to [" + currentSettings+ "]");
+                        throw new IllegalArgumentException(err, e);
                     }
                     return currentSettings;
                 }
@@ -987,8 +990,12 @@ public class Setting<T> implements ToXContentObject {
                 accept.accept(inst);
                 return inst;
             } catch (Exception | AssertionError e) {
-                throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + newValue + "]",
-                        e);
+                if (isFiltered()) {
+                    throw new IllegalArgumentException("illegal value can't update [" + key + "]");
+                } else {
+                    throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" +
+                        newValue + "]", e);
+                }
             }
         }
 
@@ -1011,32 +1018,41 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), (s) -> {
             float value = Float.parseFloat(s);
             if (value < minValue) {
-                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+                String err = "Failed to parse value" +
+                    (isFiltered(properties) ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
+                throw new IllegalArgumentException(err);
             }
             return value;
         }, properties);
     }
 
+    private static boolean isFiltered(Property[] properties) {
+        return properties != null && Arrays.asList(properties).contains(Property.Filtered);
+    }
+
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, Property... properties) {
-        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, maxValue, key), properties);
+        return new Setting<>(key, (s) -> Integer.toString(defaultValue),
+            (s) -> parseInt(s, minValue, maxValue, key, isFiltered(properties)), properties);
     }
 
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, Property... properties) {
-        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), properties);
+        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key, isFiltered(properties)),
+            properties);
     }
 
     public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Property... properties) {
-        return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, key), properties);
+        return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, key, isFiltered(properties)), properties);
     }
 
     public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Validator<Integer> validator,
                                               Property... properties) {
-        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseInt(s, minValue, key),validator,
-            properties);
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw,
+            (s) -> parseInt(s, minValue, key, isFiltered(properties)),validator, properties);
     }
 
     public static Setting<Long> longSetting(String key, long defaultValue, long minValue, Property... properties) {
-        return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), properties);
+        return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key, isFiltered(properties)),
+            properties);
     }
 
     public static Setting<String> simpleString(String key, Property... properties) {
@@ -1072,24 +1088,39 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static int parseInt(String s, int minValue, String key) {
-        return parseInt(s, minValue, Integer.MAX_VALUE, key);
+        return parseInt(s, minValue, Integer.MAX_VALUE, key, false);
+    }
+
+    public static int parseInt(String s, int minValue, String key, boolean isFiltered) {
+        return parseInt(s, minValue, Integer.MAX_VALUE, key, isFiltered);
     }
 
     public static int parseInt(String s, int minValue, int maxValue, String key) {
+        return parseInt(s, minValue, maxValue, key, false);
+    }
+
+    static int parseInt(String s, int minValue, int maxValue, String key, boolean isFiltered) {
         int value = Integer.parseInt(s);
         if (value < minValue) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
+            throw new IllegalArgumentException(err);
         }
         if (value > maxValue) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
+            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be <= " + maxValue;
+            throw new IllegalArgumentException(err);
         }
         return value;
     }
 
     public static long parseLong(String s, long minValue, String key) {
+        return parseLong(s, minValue, key, false);
+    }
+
+    static long parseLong(String s, long minValue, String key, boolean isFiltered) {
         long value = Long.parseLong(s);
         if (value < minValue) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
+            throw new IllegalArgumentException(err);
         }
         return value;
     }
@@ -1107,15 +1138,27 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBoolean, properties);
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, Booleans::parseBoolean, properties);
+        return new Setting<>(key, fallbackSetting, b -> parseBoolean(b, key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
-        return new Setting<>(key, defaultValueFn, Booleans::parseBoolean, properties);
+        return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), properties);
+    }
+
+    static boolean parseBoolean(String b, String key, boolean isFiltered) {
+        try {
+            return Booleans.parseBoolean(b);
+        } catch (IllegalArgumentException ex) {
+            if (isFiltered) {
+                throw new IllegalArgumentException("Failed to parse value for setting [" + key + "]");
+            } else {
+                throw ex;
+            }
+        }
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {
@@ -1356,7 +1399,7 @@ public class Setting<T> implements ToXContentObject {
                 simpleKey,
                 fallbackSetting,
                 fallbackSetting::getRaw,
-                minTimeValueParser(key, minValue),
+                minTimeValueParser(key, minValue, isFiltered(properties)),
                 v -> {},
                 properties);
     }
@@ -1364,23 +1407,34 @@ public class Setting<T> implements ToXContentObject {
     public static Setting<TimeValue> timeSetting(
             final String key, Function<Settings, TimeValue> defaultValue, final TimeValue minValue, final Property... properties) {
         final SimpleKey simpleKey = new SimpleKey(key);
-        return new Setting<>(simpleKey, s -> defaultValue.apply(s).getStringRep(), minTimeValueParser(key, minValue), properties);
+        return new Setting<>(simpleKey, s -> defaultValue.apply(s).getStringRep(),
+            minTimeValueParser(key, minValue, isFiltered(properties)), properties);
     }
 
     public static Setting<TimeValue> timeSetting(
           final String key, TimeValue defaultValue, final TimeValue minValue, final TimeValue maxValue, final Property... properties) {
         final SimpleKey simpleKey = new SimpleKey(key);
-        return new Setting<>(simpleKey, s -> defaultValue.getStringRep(), minMaxTimeValueParser(key, minValue, maxValue), properties);
+        return new Setting<>(simpleKey, s -> defaultValue.getStringRep(),
+            minMaxTimeValueParser(key, minValue, maxValue, isFiltered(properties)), properties);
     }
 
-    private static Function<String, TimeValue> minTimeValueParser(final String key, final TimeValue minValue) {
+    private static Function<String, TimeValue> minTimeValueParser(final String key, final TimeValue minValue, boolean isFiltered) {
         return s -> {
-            final TimeValue value = TimeValue.parseTimeValue(s, null, key);
+            TimeValue value;
+            try {
+                value = TimeValue.parseTimeValue(s, null, key);
+            } catch (RuntimeException ex) {
+                if (isFiltered) {
+                    throw new IllegalArgumentException("failed to parse value for setting [" + key + "] as a time value");
+                } else {
+                    throw ex;
+                }
+            }
             if (value.millis() < minValue.millis()) {
                 final String message = String.format(
                         Locale.ROOT,
-                        "failed to parse value [%s] for setting [%s], must be >= [%s]",
-                        s,
+                        "failed to parse value%s for setting [%s], must be >= [%s]",
+                        isFiltered ? "" : " [" + s + "]",
                         key,
                         minValue.getStringRep());
                 throw new IllegalArgumentException(message);
@@ -1389,14 +1443,24 @@ public class Setting<T> implements ToXContentObject {
         };
     }
 
-    private static Function<String, TimeValue> minMaxTimeValueParser(final String key, final TimeValue minValue, final TimeValue maxValue) {
+    private static Function<String, TimeValue> minMaxTimeValueParser(
+            final String key, final TimeValue minValue, final TimeValue maxValue, boolean isFiltered) {
         return s -> {
-            final TimeValue value = minTimeValueParser(key, minValue).apply(s);
+            TimeValue value;
+            try {
+                value = minTimeValueParser(key, minValue, isFiltered).apply(s);
+            } catch (RuntimeException ex) {
+                if (isFiltered) {
+                    throw new IllegalArgumentException("failed to parse value for setting [" + key + "] as a time value");
+                } else {
+                    throw ex;
+                }
+            }
             if (value.millis() > maxValue.millis()) {
                 final String message = String.format(
                         Locale.ROOT,
-                        "failed to parse value [%s] for setting [%s], must be <= [%s]",
-                        s,
+                        "failed to parse value%s for setting [%s], must be <= [%s]",
+                        isFiltered ? "" : " [" + s + "]",
                         key,
                         maxValue.getStringRep());
                 throw new IllegalArgumentException(message);
@@ -1437,10 +1501,14 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, (s) -> Double.toString(defaultValue), (s) -> {
             final double d = Double.parseDouble(s);
             if (d < minValue) {
-                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+                String err = "Failed to parse value" + (isFiltered(properties) ? "" : " [" + s + "]") + " for setting [" + key +
+                    "] must be >= " + minValue;
+                throw new IllegalArgumentException(err);
             }
             if (d > maxValue) {
-                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
+                String err = "Failed to parse value" + (isFiltered(properties) ? "" : " [" + s + "]") + " for setting [" + key +
+                    "] must be <= " + maxValue;
+                throw new IllegalArgumentException(err);
             }
             return d;
         }, properties);

@@ -134,27 +134,34 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Validating [{}] source mappings", policyName, sourceIndices);
         for (String sourceIndex : sourceIndices) {
             Map<String, Object> mapping = getMappings(getIndexResponse, sourceIndex);
-            // First ensure mapping is set
-            if (mapping.get("properties") == null) {
-                throw new ElasticsearchException(
-                    "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
-                    policyName, sourceIndex, policy.getIndices());
-            }
-            // Validate the key and values
-            try {
-                validateField(mapping, policy.getMatchField(), true);
-                for (String valueFieldName : policy.getEnrichFields()) {
-                    validateField(mapping, valueFieldName, false);
-                }
-            } catch (ElasticsearchException e) {
-                throw new ElasticsearchException(
-                        "Enrich policy execution for [{}] failed while validating field mappings for index [{}]",
-                        e, policyName, sourceIndex);
-            }
+            validateMappings(policyName, policy, sourceIndex, mapping);
         }
     }
 
-    private void validateField(Map<?, ?> properties, String fieldName, boolean fieldRequired) {
+    static void validateMappings(final String policyName,
+                                 final EnrichPolicy policy,
+                                 final String sourceIndex,
+                                 final Map<String, Object> mapping) {
+        // First ensure mapping is set
+        if (mapping.get("properties") == null) {
+            throw new ElasticsearchException(
+                "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
+                policyName, sourceIndex, policy.getIndices());
+        }
+        // Validate the key and values
+        try {
+            validateField(mapping, policy.getMatchField(), true);
+            for (String valueFieldName : policy.getEnrichFields()) {
+                validateField(mapping, valueFieldName, false);
+            }
+        } catch (ElasticsearchException e) {
+            throw new ElasticsearchException(
+                "Enrich policy execution for [{}] failed while validating field mappings for index [{}]",
+                e, policyName, sourceIndex);
+        }
+    }
+
+    private static void validateField(Map<?, ?> properties, String fieldName, boolean fieldRequired) {
         assert Strings.isEmpty(fieldName) == false: "Field name cannot be null or empty";
         String[] fieldParts = fieldName.split("\\.");
         StringBuilder parent = new StringBuilder();

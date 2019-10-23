@@ -125,7 +125,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     logger.info("--> delete {} random documents from {}", deleteCount, index);
                     for (int i = 0; i < deleteCount; i++) {
                         int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(index, index, Integer.toString(doc)).get();
+                        client().prepareDelete(index, Integer.toString(doc)).get();
                     }
                     client().admin().indices().prepareRefresh(index).get();
                 }
@@ -174,7 +174,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     logger.info("--> delete {} random documents from {}", deleteCount, indexName);
                     for (int j = 0; j < deleteCount; j++) {
                         int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(indexName, indexName, Integer.toString(doc)).get();
+                        client().prepareDelete(indexName, Integer.toString(doc)).get();
                     }
                     client().admin().indices().prepareRefresh(indexName).get();
                 }

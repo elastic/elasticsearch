@@ -25,17 +25,17 @@ for SAML realms.
 [[saml-settings]]
 ==== SAML realm settings
 
-See {ref}/security-settings.html#ref-saml-settings[SAML realm settings]. 
+See <<ref-saml-settings>>. 
 
 ==== SAML realm signing settings
 
-See {ref}/security-settings.html#ref-saml-signing-settings[SAML realm signing settings]. 
+See <<ref-saml-signing-settings>>. 
 
 ==== SAML realm encryption settings
 
-See {ref}/security-settings.html#ref-saml-encryption-settings[SAML realm encryption settings]. 
+See <<ref-saml-encryption-settings>>. 
 
 ==== SAML realm SSL settings
 
-See {ref}/security-settings.html#ref-saml-ssl-settings[SAML realm SSL settings]. 
+See <<ref-saml-ssl-settings>>. 
 

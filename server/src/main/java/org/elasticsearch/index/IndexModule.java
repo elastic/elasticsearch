@@ -39,8 +39,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -399,22 +401,35 @@ public final class IndexModule {
             indexReaderWrapper.get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
-        final QueryCache queryCache;
-        if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
-            BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
-            if (queryCacheProvider == null) {
-                queryCache = new IndexQueryCache(indexSettings, indicesQueryCache);
+        QueryCache queryCache = null;
+        IndexAnalyzers indexAnalyzers = null;
+        boolean success = false;
+        try {
+            if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
+                BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
+                if (queryCacheProvider == null) {
+                    queryCache = new IndexQueryCache(indexSettings, indicesQueryCache);
+                } else {
+                    queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
+                }
             } else {
-                queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
+                queryCache = new DisabledQueryCache(indexSettings);
             }
-        } else {
-            queryCache = new DisabledQueryCache(indexSettings);
+            if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
+                indexAnalyzers = analysisRegistry.build(indexSettings);
+            }
+            final IndexService indexService = new IndexService(indexSettings, indexCreationContext, environment, xContentRegistry,
+                new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
+                engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
+                directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
+                indexOperationListeners, namedWriteableRegistry);
+            success = true;
+            return indexService;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(queryCache, indexAnalyzers);
+            }
         }
-        return new IndexService(indexSettings, indexCreationContext, environment, xContentRegistry,
-                new SimilarityService(indexSettings, scriptService, similarities),
-                shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
-                clusterService, client, queryCache, directoryFactory, eventListener, readerWrapperFactory, mapperRegistry,
-                indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
     }
 
     private static IndexStorePlugin.DirectoryFactory getDirectoryFactory(

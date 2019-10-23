@@ -13,6 +13,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -42,12 +43,15 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     private final Client client;
     private final Environment env;
     private final NativeController nativeController;
+    private final NamedXContentRegistry namedXContentRegistry;
     private volatile Duration processConnectTimeout;
 
-    public NativeAnalyticsProcessFactory(Environment env, Client client, NativeController nativeController, ClusterService clusterService) {
+    public NativeAnalyticsProcessFactory(Environment env, Client client, NativeController nativeController, ClusterService clusterService,
+                                         NamedXContentRegistry namedXContentRegistry) {
         this.env = Objects.requireNonNull(env);
         this.client = Objects.requireNonNull(client);
         this.nativeController = Objects.requireNonNull(nativeController);
+        this.namedXContentRegistry = Objects.requireNonNull(namedXContentRegistry);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -73,7 +77,8 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
         NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, nativeController, processPipes.getLogStream().get(),
                 processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(),
-                processPipes.getRestoreStream().orElse(null), numberOfFields, filesToDelete, onProcessCrash, analyticsProcessConfig);
+                processPipes.getRestoreStream().orElse(null), numberOfFields, filesToDelete, onProcessCrash, analyticsProcessConfig,
+                namedXContentRegistry);
 
         try {
             startProcess(config, executorService, processPipes, analyticsProcess);

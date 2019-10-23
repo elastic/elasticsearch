@@ -45,6 +45,8 @@ public class DiskUsage implements ToXContentFragment, Writeable {
      * will always return 100.0% free
      */
     public DiskUsage(String nodeId, String nodeName, String path, long totalBytes, long freeBytes) {
+        assert totalBytes >= 0L : "totalBytes should be non-negative, but got " + totalBytes;
+        assert freeBytes >= 0L : "freeBytes should be non-negative, but got " + freeBytes;
         this.nodeId = nodeId;
         this.nodeName = nodeName;
         this.freeBytes = freeBytes;

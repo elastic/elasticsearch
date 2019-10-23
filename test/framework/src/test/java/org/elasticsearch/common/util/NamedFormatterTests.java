@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -28,35 +29,30 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
-public class NamedFormatterTests {
+public class NamedFormatterTests extends ESTestCase {
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
-    @Test
-    public void patternAreFormatted() {
+    public void testPatternAreFormatted() {
         assertThat(NamedFormatter.format("Hello, %(name)!", Map.of("name", "world")), equalTo("Hello, world!"));
     }
 
-    @Test
-    public void duplicatePatternsAreFormatted() {
+    public void testDuplicatePatternsAreFormatted() {
         assertThat(NamedFormatter.format("Hello, %(name) and %(name)!", Map.of("name", "world")), equalTo("Hello, world and world!"));
     }
 
-    @Test
-    public void multiplePatternsAreFormatted() {
+    public void testMultiplePatternsAreFormatted() {
         assertThat(
             NamedFormatter.format("Hello, %(name) and %(second_name)!", Map.of("name", "world", "second_name", "fred")),
             equalTo("Hello, world and fred!")
         );
     }
 
-    @Test
-    public void escapedPatternsAreNotFormatted() {
+    public void testEscapedPatternsAreNotFormatted() {
         assertThat(NamedFormatter.format("Hello, \\%(name)!", Map.of("name", "world")), equalTo("Hello, %(name)!"));
     }
 
-    @Test
-    public void unknownPatternsThrowException() {
+    public void testUnknownPatternsThrowException() {
         thrown.expect(IllegalArgumentException.class);
         thrown.expectMessage("No parameter value for %(name)");
         NamedFormatter.format("Hello, %(name)!", Map.of("foo", "world"));

@@ -139,7 +139,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // subtractLeavingShards is passed as false here, because they still use disk space, and therefore should we should be extra careful
         // and take the size into account
-        DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
+        final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
         // First, check that the node currently over the low watermark
         double freeDiskPercentage = usage.getFreeDiskAsPercentage();
         // Cache the used disk percentage for displaying disk percentages consistent with documentation
@@ -500,7 +500,11 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         long getFreeBytes() {
-            return diskUsage.getFreeBytes() - relocatingShardSize;
+            try {
+                return Math.subtractExact(diskUsage.getFreeBytes(), relocatingShardSize);
+            } catch (ArithmeticException e) {
+                return Long.MAX_VALUE;
+            }
         }
 
         String getPath() {

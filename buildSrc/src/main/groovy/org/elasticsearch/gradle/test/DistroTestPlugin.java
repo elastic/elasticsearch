@@ -169,6 +169,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                     logger.info(
                         "Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list"
                     );
+                    System.err.println(
+                        "[DEBUG] Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list"
+                    );
                     continue;
                 }
 
@@ -475,7 +478,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                     try {
                         final List<String> osReleaseLines = Files.readAllLines(osRelease);
-                        logger.warn(String.join("\n", osReleaseLines));
+                        System.err.println(String.join("\n", osReleaseLines));
                         for (String line : osReleaseLines) {
                             final String trimmed = line.trim();
 
@@ -501,6 +504,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                     final boolean contains = DOCKER_LINUX_INCLUDE_LIST.contains(id);
 
                     logger.warn("Linux OS id [" + id + "] is " + (contains ? "" : "not ") + "present in the include list");
+                    System.err.println("[DEBUG] Linux OS id [" + id + "] is " + (contains ? "" : "not ") + "present in the include list");
 
                     return contains;
                 }

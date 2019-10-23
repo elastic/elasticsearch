@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -355,18 +356,24 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             logger.info("--> waiting for {} snapshot [{}] to be deleted", expectedUnsuccessfulState, failedSnapshotName.get());
             assertBusy(() -> {
                 try {
+                    try {
+                        GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                            .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
+                        assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+                    } catch (SnapshotMissingException e) {
+                        // This is what we want to happen
+                    }
+                    logger.info("--> {} snapshot [{}] has been deleted, checking successful snapshot [{}] still exists",
+                        expectedUnsuccessfulState, failedSnapshotName.get(), successfulSnapshotName.get());
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                        .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
-                    assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
-                } catch (SnapshotMissingException e) {
-                    // This is what we want to happen
+                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
+                    SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                    assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+                } catch (RepositoryException re) {
+                    // Concurrent status calls and write operations may lead to failures in determining the current repository generation
+                    // TODO: Remove this hack once tracking the current repository generation has been made consistent
+                    throw new AssertionError(re);
                 }
-                logger.info("--> {} snapshot [{}] has been deleted, checking successful snapshot [{}] still exists",
-                    expectedUnsuccessfulState, failedSnapshotName.get(), successfulSnapshotName.get());
-                GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                    .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
-                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
-                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             });
         }
     }

@@ -822,7 +822,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON).get());
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
-        leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+        leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L));
         });
@@ -838,7 +838,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         ensureFollowerGreen("index2");
 
         // Indexing succeeds now, because index2 is no longer a follow index:
-        followerClient().prepareIndex("index2", "doc").setSource("{}", XContentType.JSON)
+        followerClient().prepareIndex("index2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(2L));
@@ -902,7 +902,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
-            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            leaderClient().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
         assertBusy(() -> assertThat(followerClient().prepareSearch("follower").get()
             .getHits().getTotalHits().value, equalTo(firstBatchNumDocs)));
@@ -921,7 +921,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            leaderClient().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
         assertBusy(() -> {
             // Check that the setting has been set in follower index:
@@ -956,7 +956,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
-            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            leaderClient().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
         assertBusy(() -> assertThat(followerClient().prepareSearch("follower").get()
             .getHits().getTotalHits().value, equalTo(firstBatchNumDocs)));
@@ -975,7 +975,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            leaderClient().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
         assertBusy(() -> {
             GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
@@ -1006,7 +1006,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
-            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            leaderClient().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         assertBusy(() -> assertThat(followerClient().prepareSearch("follower").get()
@@ -1036,7 +1036,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"new_field\":\"value %d\"}", i);
-            leaderClient().prepareIndex("leader", "doc").setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex("leader").setSource(source, XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -1265,7 +1265,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i * 2);
             leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
-        leaderClient().prepareDelete("index1", "doc", "1").get();
+        leaderClient().prepareDelete("index1", "1").get();
         leaderClient().admin().indices().refresh(new RefreshRequest("index1")).actionGet();
         leaderClient().admin().indices().flush(new FlushRequest("index1").force(true)).actionGet();
         assertBusy(() -> {

@@ -114,7 +114,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 32; i++) {
             client().prepareIndex("index", "_doc", "1").setSource("{}", XContentType.JSON).get();
-            client().prepareDelete("index", "_doc", "1").get();
+            client().prepareDelete("index", "1").get();
             client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }
         client().admin().indices().refresh(new RefreshRequest("index")).actionGet();

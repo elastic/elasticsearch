@@ -1413,7 +1413,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // With field level security enabled the update is not allowed:
         try {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                    .prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
+                    .prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
                     .get();
             fail("failed, because update request shouldn't be allowed if field level security is enabled");
         } catch (ElasticsearchSecurityException e) {
@@ -1423,7 +1423,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value1"));
 
         // With no field level security enabled the update is allowed:
-        client().prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
+        client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
                 .get();
         assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value2"));
 

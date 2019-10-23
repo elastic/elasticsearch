@@ -109,7 +109,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
         doFirst {
             testClusters."${baseName}".goToNextVersion({ ->
                 // verify that on-disk metadata can be read using command-line tools
-                testClusters."${baseName}".runElasticsearchBinScriptWithInput("", "elasticsearch-node", "read-metadata");
+                testClusters."${baseName}".runElasticsearchBinScriptWithInput("y", "elasticsearch-node", "read-and-write-metadata");
             })
         }
         systemProperty 'tests.is_old_cluster', 'false'

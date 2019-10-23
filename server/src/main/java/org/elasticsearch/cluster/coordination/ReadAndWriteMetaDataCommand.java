@@ -28,10 +28,10 @@ import org.elasticsearch.env.Environment;
 import java.io.IOException;
 import java.nio.file.Path;
 
-public class ReadMetaDataCommand extends ElasticsearchNodeCommand {
+public class ReadAndWriteMetaDataCommand extends ElasticsearchNodeCommand {
 
-    public ReadMetaDataCommand() {
-        super("reads the metadata on disk");
+    public ReadAndWriteMetaDataCommand() {
+        super("reads the metadata on disk and writes it back");
     }
 
     @Override protected void processNodePaths(
@@ -40,6 +40,12 @@ public class ReadMetaDataCommand extends ElasticsearchNodeCommand {
         Environment env, NamedXContentRegistry namedXContentRegistry) throws IOException {
 
         final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths, namedXContentRegistry);
-        terminal.println("metadata successfully read for cluster state version " + manifestMetaDataTuple.v1().getClusterStateVersion());
+        final Manifest manifest = manifestMetaDataTuple.v1();
+        final MetaData metaData = manifestMetaDataTuple.v2();
+
+        confirm(terminal, "metadata successfully read for cluster state version " + manifest.getClusterStateVersion() +
+            ". Do you want to write it back out?\n");
+
+        writeNewMetaData(terminal, manifest, manifest.getCurrentTerm(), metaData, metaData, dataPaths);
     }
 }

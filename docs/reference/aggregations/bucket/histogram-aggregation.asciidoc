@@ -24,7 +24,7 @@ The `interval` must be a positive decimal, while the `offset` must be a decimal 
 
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 
-[source,console]
+[source,console,id=histogram-aggregation-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -82,7 +82,7 @@ The response above show that no documents has a price that falls within the rang
 response will fill gaps in the histogram with empty buckets. It is possible change that and request buckets with
 a higher minimum count thanks to the `min_doc_count` setting:
 
-[source,console]
+[source,console,id=histogram-aggregation-min-doc-count-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {

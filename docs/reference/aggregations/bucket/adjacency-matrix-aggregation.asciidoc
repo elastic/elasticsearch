@@ -28,7 +28,7 @@ other than the default of the ampersand.
 
 Example:
 
-[source,console]
+[source,console,id=adjacency-matrix-aggregation-example]
 --------------------------------------------------
 PUT /emails/_bulk?refresh
 { "index" : { "_id" : 1 } }

@@ -11,7 +11,7 @@ NOTE:   Global aggregators can only be placed as top level aggregators because
 
 Example:
 
-[source,console]
+[source,console,id=global-aggregation-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {

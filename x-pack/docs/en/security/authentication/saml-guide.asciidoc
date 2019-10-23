@@ -240,6 +240,7 @@ The recommended steps for configuring these SAML attributes are as follows:
   in your IdP. In the example above, we have configured the `principal` and
   `groups` attributes.
 
+[[saml-attribute-mapping-nameid]]
 ===== Special attribute names
 
 In general, {es} expects that the configured value for an attribute will be a

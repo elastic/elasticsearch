@@ -183,7 +183,9 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         QueryBuilder newQuery = this.query.rewrite(queryRewriteContext);
         if (newQuery != query) {
             ScriptScoreQueryBuilder newQueryBuilder = new ScriptScoreQueryBuilder(newQuery, script);
-            newQueryBuilder.setMinScore(minScore);
+            if (minScore != null) {
+                newQueryBuilder.setMinScore(minScore);
+            }
             return newQueryBuilder;
         }
         return this;

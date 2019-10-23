@@ -34,15 +34,13 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
-import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
-import static org.objectweb.asm.Opcodes.ACC_STATIC;
 
 /**
  * Represents a user-defined call.
@@ -144,13 +142,13 @@ public final class ECallLocal extends AExpression {
             actual = classBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("class_binding");
             scriptRoot.getClassNode().addField(new SField(location,
-                    ACC_PRIVATE, bindingName, classBinding.javaConstructor.getDeclaringClass(), null));
+                    Modifier.PRIVATE, bindingName, classBinding.javaConstructor.getDeclaringClass(), null));
         } else if (instanceBinding != null) {
             typeParameters = new ArrayList<>(instanceBinding.typeParameters);
             actual = instanceBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("instance_binding");
-            scriptRoot.getClassNode().addField(new SField(location,
-                    ACC_STATIC | ACC_PUBLIC, bindingName, instanceBinding.targetInstance.getClass(), instanceBinding.targetInstance));
+            scriptRoot.getClassNode().addField(new SField(location, Modifier.STATIC | Modifier.PUBLIC,
+                    bindingName, instanceBinding.targetInstance.getClass(), instanceBinding.targetInstance));
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }

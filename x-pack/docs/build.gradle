@@ -57,7 +57,7 @@ testClusters.integTest {
     setting 'xpack.security.authc.realms.saml.saml1.idp.entity_id', 'https://my-idp.org'
     setting 'xpack.security.authc.realms.saml.saml1.idp.metadata.path', 'idp-docs-metadata.xml'
     setting 'xpack.security.authc.realms.saml.saml1.sp.entity_id', 'https://kibana.org'
-    setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/v1/saml'
+    setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
     setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
     setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
     user username: 'test_admin'

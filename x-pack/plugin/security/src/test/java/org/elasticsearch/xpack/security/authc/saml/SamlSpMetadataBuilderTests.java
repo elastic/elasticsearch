@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;

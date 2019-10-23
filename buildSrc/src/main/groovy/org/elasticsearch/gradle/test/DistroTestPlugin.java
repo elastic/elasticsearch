@@ -474,7 +474,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                     Map<String, String> values = new HashMap<>();
 
                     try {
-                        for (String line : Files.readAllLines(osRelease)) {
+                        final List<String> osReleaseLines = Files.readAllLines(osRelease);
+                        logger.warn(String.join("\n", osReleaseLines));
+                        for (String line : osReleaseLines) {
                             final String trimmed = line.trim();
 
                             // ignore empty and comment lines
@@ -498,9 +500,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                     final boolean contains = DOCKER_LINUX_INCLUDE_LIST.contains(id);
 
-                    if (contains == false) {
-                        logger.warn("Linux OS id [" + id + "] is not present in the include list");
-                    }
+                    logger.warn("Linux OS id [" + id + "] is " + (contains ? "" : "not ") + "present in the include list");
 
                     return contains;
                 }

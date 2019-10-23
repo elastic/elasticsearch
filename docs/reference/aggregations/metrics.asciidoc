@@ -35,6 +35,8 @@ include::metrics/scripted-metric-aggregation.asciidoc[]
 
 include::metrics/stats-aggregation.asciidoc[]
 
+include::metrics/string-stats-aggregation.asciidoc[]
+
 include::metrics/sum-aggregation.asciidoc[]
 
 include::metrics/tophits-aggregation.asciidoc[]

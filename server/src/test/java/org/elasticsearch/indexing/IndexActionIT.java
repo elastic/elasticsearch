@@ -58,7 +58,7 @@ public class IndexActionIT extends ESIntegTestCase {
             logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
-                builders.add(client().prepareIndex("test", "type").setSource("field", "value_" + j));
+                builders.add(client().prepareIndex("test").setSource("field", "value_" + j));
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
@@ -114,7 +114,7 @@ public class IndexActionIT extends ESIntegTestCase {
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
 
-        client().prepareDelete("test", "type", "1").execute().actionGet();
+        client().prepareDelete("test", "1").execute().actionGet();
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
@@ -128,7 +128,7 @@ public class IndexActionIT extends ESIntegTestCase {
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        client().prepareDelete("test", "type", "1").execute().actionGet();
+        client().prepareDelete("test", "1").execute().actionGet();
 
         flush();
 
@@ -203,7 +203,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT), "mytype").setSource("foo", "bar").get();
+            client().prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT)).setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),
@@ -213,8 +213,7 @@ public class IndexActionIT extends ESIntegTestCase {
         try {
             // Catch chars that are more than a single byte
             client().prepareIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
-                            "Ϟ".toLowerCase(Locale.ROOT),
-                    "mytype").setSource("foo", "bar").get();
+                            "Ϟ".toLowerCase(Locale.ROOT)).setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),

@@ -63,7 +63,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
         final long secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < secondBatchNumDocs; i++) {
-            leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -79,7 +79,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
         final long thirdBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
-            leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {

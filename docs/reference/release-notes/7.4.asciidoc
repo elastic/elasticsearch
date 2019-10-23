@@ -97,6 +97,14 @@ Transform::
 
 Also see <<breaking-changes-7.4,Breaking changes in 7.4>>.
 
+[float]
+=== Known issues
+
+* Activating the <<search-slow-log, search slow log>> should be avoided in this version.
+Any attempt to log a slow search can throw an AIOOBE due to a bug that
+performs concurrent modifications on a shared byte array.
+(issue: {issue}/48358[#48358])
+
 [[breaking-7.4.0]]
 [float]
 === Breaking changes

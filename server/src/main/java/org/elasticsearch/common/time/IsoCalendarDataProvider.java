@@ -16,29 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common.time;
 
-package org.elasticsearch.common.bytes;
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.spi.CalendarDataProvider;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.ByteArray;
+public class IsoCalendarDataProvider extends CalendarDataProvider {
 
-/**
- * An extension to {@link PagedBytesReference} that requires releasing its content. This
- * class exists to make it explicit when a bytes reference needs to be released, and when not.
- */
-public final class ReleasablePagedBytesReference extends PagedBytesReference implements Releasable {
-
-    private final Releasable releasable;
-
-    public ReleasablePagedBytesReference(ByteArray byteArray, int length, Releasable releasable) {
-        super(byteArray, length);
-        this.releasable = releasable;
+    @Override
+    public int getFirstDayOfWeek(Locale locale) {
+        return Calendar.MONDAY;
     }
 
     @Override
-    public void close() {
-        Releasables.close(releasable);
+    public int getMinimalDaysInFirstWeek(Locale locale) {
+        return 4;
     }
 
+    @Override
+    public Locale[] getAvailableLocales() {
+        return new Locale[]{Locale.ROOT};
+    }
 }

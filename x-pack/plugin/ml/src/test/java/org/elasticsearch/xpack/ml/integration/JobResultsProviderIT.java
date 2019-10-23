@@ -120,12 +120,11 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings = response.getMappings();
+        ImmutableOpenMap<String, MappingMetaData> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
-        ImmutableOpenMap<String, MappingMetaData> typeMappings = indexMappings.get(sharedResultsIndex);
+        MappingMetaData typeMappings = indexMappings.get(sharedResultsIndex);
         assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
-        assertEquals("expected 1 type in " + typeMappings, 1, typeMappings.size());
-        Map<String, Object> mappings = typeMappings.iterator().next().value.getSourceAsMap();
+        Map<String, Object> mappings = typeMappings.getSourceAsMap();
         assertNotNull(mappings);
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");

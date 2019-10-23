@@ -206,7 +206,7 @@ POST /twitter/_search?size=0
         "message_stats" : {
             "string_stats" : {
                 "field" : "message.keyword",
-                "missing": "[empty message]"
+                "missing": "[empty message]" <1>
             }
         }
     }

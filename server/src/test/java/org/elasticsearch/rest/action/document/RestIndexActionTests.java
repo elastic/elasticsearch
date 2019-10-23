@@ -48,43 +48,13 @@ import static org.mockito.Mockito.when;
 public class RestIndexActionTests extends RestActionTestCase {
 
     private RestIndexAction action;
-    private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference();
+    private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();
 
     @Before
     public void setUpAction() {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenAnswer(invocationOnMock -> clusterStateSupplier.get());
         action = new RestIndexAction(controller(), clusterService);
-    }
-
-    public void testTypeInPath() {
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
-            .withPath("/some_index/some_type/some_id")
-            .build();
-        dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
-
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
-            .withPath("/some_index/_doc/some_id")
-            .build();
-        dispatchRequest(validRequest);
-    }
-
-    public void testCreateWithTypeInPath() {
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
-            .withPath("/some_index/some_type/some_id/_create")
-            .build();
-        dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
-
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
-            .withPath("/some_index/_create/some_id")
-            .build();
-        dispatchRequest(validRequest);
     }
 
     public void testCreateOpTypeValidation() {

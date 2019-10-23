@@ -27,6 +27,7 @@ import org.gradle.api.internal.ConventionTask
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 
@@ -53,8 +54,9 @@ class DependenciesInfoTask extends ConventionTask {
     Configuration compileOnlyConfiguration
 
     /** Directory to read license files */
+    @Optional
     @InputDirectory
-    File licensesDir = new File(project.projectDir, 'licenses')
+    File licensesDir = new File(project.projectDir, 'licenses').exists() ? new File(project.projectDir, 'licenses') : null
 
     @OutputFile
     File outputFile = new File(project.buildDir, "reports/dependencies/dependencies.csv")
@@ -134,7 +136,7 @@ class DependenciesInfoTask extends ConventionTask {
     protected String getLicenseType(final String group, final String name) {
         File license
 
-        if (licensesDir.exists()) {
+        if (licensesDir != null) {
             licensesDir.eachFileMatch({ it ==~ /.*-LICENSE.*/ }) { File file ->
                 String prefix = file.name.split('-LICENSE.*')[0]
                 if (group.contains(prefix) || name.contains(prefix)) {

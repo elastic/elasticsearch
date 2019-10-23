@@ -59,7 +59,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -93,11 +92,14 @@ final class StoreRecovery {
             assert recoveryType == RecoverySource.Type.EMPTY_STORE || recoveryType == RecoverySource.Type.EXISTING_STORE :
                 "expected store recovery type but was: " + recoveryType;
             final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-            executeRecovery(indexShard, l -> {
+            final ActionListener<Boolean> recoveryListener = recoveryListener(indexShard, future);
+            try {
                 logger.debug("starting recovery from store ...");
                 internalRecoverFromStore(indexShard);
-                l.onResponse(true);
-            }, future);
+                recoveryListener.onResponse(true);
+            } catch (Exception e) {
+                recoveryListener.onFailure(e);
+            }
             return future.actionGet();
         }
         return false;
@@ -125,14 +127,14 @@ final class StoreRecovery {
             final boolean hasNested = indexShard.mapperService().hasNested();
             final boolean isSplit = sourceMetaData.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
             final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-            executeRecovery(indexShard, l -> {
+            ActionListener.completeWith(recoveryListener(indexShard, future), () -> {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
                     final Directory[] sources = shards.stream().map(LocalShardSnapshot::getSnapshotDirectory).toArray(Directory[]::new);
                     final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
                     final long maxUnsafeAutoIdTimestamp =
-                            shards.stream().mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp).max().getAsLong();
+                        shards.stream().mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp).max().getAsLong();
                     addIndices(indexShard.recoveryState().getIndex(), directory, indexSort, sources, maxSeqNo, maxUnsafeAutoIdTimestamp,
                         indexShard.indexSettings().getIndexMetaData(), indexShard.shardId().id(), isSplit, hasNested);
                     internalRecoverFromStore(indexShard);
@@ -140,11 +142,11 @@ final class StoreRecovery {
                     // copied segments - we will also see them in stats etc.
                     indexShard.getEngine().forceMerge(false, -1, false,
                         false, false);
-                    l.onResponse(true);
+                    return true;
                 } catch (IOException ex) {
                     throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
                 }
-            }, future);
+            });
             return future.actionGet();
         }
         return false;
@@ -280,7 +282,7 @@ final class StoreRecovery {
                 RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
                 assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
-                executeRecovery(indexShard, l -> restore(indexShard, repository, recoverySource, l), listener);
+                restore(indexShard, repository, recoverySource, recoveryListener(indexShard, listener));
             } else {
                 listener.onResponse(false);
             }
@@ -300,12 +302,8 @@ final class StoreRecovery {
         return true;
     }
 
-    /**
-     * Recovers the state of the shard from the store.
-     */
-    private void executeRecovery(IndexShard indexShard, Consumer<ActionListener<Boolean>> recoveryRunnable,
-                                 ActionListener<Boolean> listener) throws IndexShardRecoveryException {
-        ActionListener<Boolean> finalListener = ActionListener.wrap(res -> {
+    private ActionListener<Boolean> recoveryListener(IndexShard indexShard, ActionListener<Boolean> listener) {
+        return ActionListener.wrap(res -> {
             if (res) {
                 // Check that the gateway didn't leave the shard in init or recovering stage. it is up to the gateway
                 // to call post recovery.
@@ -337,37 +335,29 @@ final class StoreRecovery {
             }
             listener.onResponse(res);
         }, ex -> {
-            try {
-                throw ex;
-            } catch (IndexShardRecoveryException e) {
+            if (ex instanceof IndexShardRecoveryException) {
                 if (indexShard.state() == IndexShardState.CLOSED) {
                     // got closed on us, just ignore this recovery
                     listener.onResponse(false);
                     return;
                 }
-                if ((e.getCause() instanceof IndexShardClosedException) || (e.getCause() instanceof IndexShardNotStartedException)) {
+                if ((ex.getCause() instanceof IndexShardClosedException) || (ex.getCause() instanceof IndexShardNotStartedException)) {
                     // got closed on us, just ignore this recovery
                     listener.onResponse(false);
                     return;
                 }
-                throw e;
-            } catch (IndexShardClosedException | IndexShardNotStartedException e) {
-            } catch (Exception e) {
+                listener.onFailure(ex);
+            } else if (ex instanceof IndexShardClosedException || ex instanceof IndexShardNotStartedException) {
+                listener.onResponse(false);
+            } else {
                 if (indexShard.state() == IndexShardState.CLOSED) {
                     // got closed on us, just ignore this recovery
                     listener.onResponse(false);
                 } else {
-                    listener.onFailure(new IndexShardRecoveryException(shardId, "failed recovery", e));
+                    listener.onFailure(new IndexShardRecoveryException(shardId, "failed recovery", ex));
                 }
-                return;
             }
-            listener.onResponse(false);
         });
-        try {
-            recoveryRunnable.accept(finalListener);
-        } catch (Exception e) {
-            finalListener.onFailure(e);
-        }
     }
 
     /**

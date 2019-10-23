@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.yml.YmlCompileTask
+
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
@@ -20,6 +22,16 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
  */
 
 apply plugin: 'elasticsearch.docs-test'
+
+task ymlCompile(type: YmlCompileTask) {
+  dependsOn buildRestTests
+  sourceDir new File(buildDir, 'rest/rest-api-spec/test')
+  superClass 'org/elasticsearch/smoketest/BaseDocsClientYamlTestSuiteCase'
+}
+
+integTestRunner {
+  dependsOn ymlCompile
+}
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
@@ -85,6 +97,7 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
+  exclude 'build-idea'
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests
@@ -962,7 +975,7 @@ buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_j
           "job_id":"farequote",
           "indexes":"farequote"
           }
-'''          
+'''
 buildRestTests.setups['server_metrics_index'] = '''
   - do:
         indices.create:

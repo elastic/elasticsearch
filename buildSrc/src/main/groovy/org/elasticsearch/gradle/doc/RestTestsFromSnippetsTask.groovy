@@ -57,7 +57,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
      * we generate them in a testRoot() which is contained in this directory.
      */
     @OutputDirectory
-    File testRoot = project.file('build/rest')
+    File testRoot = project.buildDir.toPath().resolve("rest").toFile()
 
     @Internal
     Set<String> names = new HashSet<>()

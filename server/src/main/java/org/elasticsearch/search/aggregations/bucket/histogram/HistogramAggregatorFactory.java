@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -49,6 +51,43 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final boolean keyed;
     private final long minDocCount;
     private final double minBound, maxBound;
+
+    // TODO: Registration should happen on the actual aggregator classes, but I don't want to set up the whole dynamic loading thing yet
+    static {
+        ValuesSourceRegistry.INSTANCE.register(HistogramAggregationBuilder.NAME, ValuesSourceType.RANGE,
+            new HistogramAggregatorSupplier() {
+                @Override
+                public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
+                                        BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
+                                        ValuesSource valuesSource, DocValueFormat formatter, SearchContext context,
+                                        Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
+                    ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
+                    if (rangeValueSource.rangeType().isNumeric() == false) {
+                        throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
+                            + rangeValueSource.rangeType().name + "]");
+                    }
+                    return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
+                        maxBound, rangeValueSource, formatter, context, parent, pipelineAggregators, metaData);
+                }
+            }
+        );
+
+        ValuesSourceRegistry.INSTANCE.register(HistogramAggregationBuilder.NAME, ValuesSourceType.NUMERIC,
+            new HistogramAggregatorSupplier() {
+                @Override
+                public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
+                                        BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
+                                        ValuesSource valuesSource, DocValueFormat formatter, SearchContext context,
+                                        Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
+                    return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
+                        maxBound, (ValuesSource.Numeric) valuesSource, formatter, context, parent, pipelineAggregators, metaData);
+                }
+            }
+        );
+    }
+
 
     @Override
     protected ValuesSource resolveMissingAny(Object missing) {
@@ -97,7 +136,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 
-        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.INSTANCE.getAggregator(valuesSource, HistogramAggregationBuilder.NAME);
+        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.INSTANCE.getAggregator(config.valueSourceType(),
+            HistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof HistogramAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");

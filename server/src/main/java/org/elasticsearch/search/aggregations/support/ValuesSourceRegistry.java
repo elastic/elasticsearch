@@ -18,19 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.NumericHistogramAggregator;
-import org.elasticsearch.search.aggregations.bucket.histogram.RangeHistogramAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.internal.SearchContext;
 
-import java.io.IOException;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 /*
@@ -39,45 +29,35 @@ for aggregations using the registry to resolve aggregators.
  */
 public enum ValuesSourceRegistry {
     INSTANCE {
+        Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry = new HashMap<>();
+
         @Override
-        public AggregatorSupplier getAggregator(ValuesSource valuesSource, String aggregationName) {
-            if (aggregationName.equals(HistogramAggregationBuilder.NAME)) {
-                if (valuesSource instanceof ValuesSource.Numeric) {
-                    return new HistogramAggregatorSupplier() {
-                        @Override
-                        public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
-                                                BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                                                ValuesSource valuesSource, DocValueFormat formatter, SearchContext context,
-                                                Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                                Map<String, Object> metaData) throws IOException {
-                            return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
-                                maxBound, (ValuesSource.Numeric) valuesSource, formatter, context, parent, pipelineAggregators, metaData);
-                        }
-                    };
-                } else if (valuesSource instanceof ValuesSource.Range) {
-                    return new HistogramAggregatorSupplier() {
-                        @Override
-                        public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
-                                                BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                                                ValuesSource valuesSource, DocValueFormat formatter, SearchContext context,
-                                                Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                                Map<String, Object> metaData) throws IOException {
-                            ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
-                            if (rangeValueSource.rangeType().isNumeric() == false) {
-                                throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
-                                    + rangeValueSource.rangeType().name + "]");
-                            }
-                            return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
-                                maxBound, rangeValueSource, formatter, context, parent, pipelineAggregators, metaData);
-                        }
-                    };
+        public void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier) {
+            if (aggregatorRegistry.containsKey(aggregationName) == false) {
+                aggregatorRegistry.put(aggregationName, new HashMap<>());
+            }
+            Map<ValuesSourceType, AggregatorSupplier> innerMap = aggregatorRegistry.get(aggregationName);
+            if (innerMap.containsKey(valuesSourceType)) {
+                throw new IllegalStateException("Attempted to register already registered pair [" + aggregationName + ", "
+                    + valuesSourceType.toString() + "]");
+            }
+            innerMap.put(valuesSourceType, aggregatorSupplier);
+        }
+
+        @Override
+        public AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName) {
+            if (aggregatorRegistry.containsKey(aggregationName)) {
+                Map<ValuesSourceType, AggregatorSupplier> innerMap = aggregatorRegistry.get(aggregationName);
+                if (innerMap.containsKey(valuesSourceType)) {
+                    return innerMap.get(valuesSourceType);
                 }
             }
             // TODO: Error message should list valid ValuesSource types
-            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + " is not supported for aggregation" +
+            throw new AggregationExecutionException("ValuesSource type " + valuesSourceType.toString() + " is not supported for aggregation" +
                 aggregationName);
         }
     };
 
-    public abstract AggregatorSupplier getAggregator(ValuesSource valuesSource, String aggregationName);
+    public abstract void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier);
+    public abstract AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName);
 }

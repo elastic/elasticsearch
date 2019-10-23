@@ -42,7 +42,9 @@ import static org.hamcrest.Matchers.sameInstance;
 public class DateFormattersTests extends ESTestCase {
 
     public void testWeekBasedDates() {
-        assumeFalse("won't work in jdk8", JavaVersion.current().equals(JavaVersion.parse("8")));
+        assumeFalse("won't work in jdk8 " +
+                "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            JavaVersion.current().equals(JavaVersion.parse("8")));
 
         // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
         DateFormatter dateFormatter = DateFormatters.forPattern("YYYY-ww");

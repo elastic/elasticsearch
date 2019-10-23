@@ -52,7 +52,9 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     public void testWeekDates() {
-        assumeFalse("won't work in jdk8", JavaVersion.current().equals(JavaVersion.parse("8")));
+        assumeFalse("won't work in jdk8 " +
+                "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            JavaVersion.current().equals(JavaVersion.parse("8")));
 
         DateFormatter formatter = DateFormatter.forPattern("YYYY-ww");
         assertDateMathEquals(formatter.toDateMathParser(), "2016-01", "2016-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);

@@ -294,8 +294,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         threadPool.absoluteTimeInMillis(),
                         repositoryData.getGenId(),
                         null,
-                        request.userMetadata(),
-                        clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION));
+                        request.userMetadata()
+                    );
                     initializingSnapshots.add(newSnapshot.snapshot());
                     snapshots = new SnapshotsInProgress(newSnapshot);
                 } else {
@@ -566,7 +566,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             snapshot.includeGlobalState(),
                             metaDataForSnapshot(snapshot, clusterService.state().metaData()),
                             snapshot.userMetadata(),
-                            snapshot.useShardGenerations(),
                             ActionListener.runAfter(ActionListener.wrap(ignored -> {
                             }, inner -> {
                                 inner.addSuppressed(exception);
@@ -771,8 +770,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
             assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
             SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
-            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.getRepositoryStateId(),
-                state.nodes().getMinNodeVersion());
+            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.getRepositoryStateId());
         }
     }
 
@@ -1030,7 +1028,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.includeGlobalState(),
                     metaDataForSnapshot(entry, metaData),
                     entry.userMetadata(),
-                    entry.useShardGenerations(),
                     ActionListener.wrap(snapshotInfo -> {
                         removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
@@ -1313,7 +1310,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     ));
                 } else {
                     logger.debug("deleted snapshot is not running - deleting files");
-                    deleteSnapshotFromRepository(snapshot, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
+                    deleteSnapshotFromRepository(snapshot, listener, repositoryStateId);
                 }
             }
         });
@@ -1352,18 +1349,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshot   snapshot
      * @param listener   listener
      * @param repositoryStateId the unique id representing the state of the repository at the time the deletion began
-     * @param version minimum ES version the repository should be readable by
      */
-    private void deleteSnapshotFromRepository(Snapshot snapshot, @Nullable ActionListener<Void> listener, long repositoryStateId,
-                                              Version version) {
+    private void deleteSnapshotFromRepository(Snapshot snapshot, @Nullable ActionListener<Void> listener, long repositoryStateId) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(snapshot.getRepository());
-            repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
-                ActionListener.wrap(v -> {
-                        logger.info("snapshot [{}] deleted", snapshot);
-                        removeSnapshotDeletionFromClusterState(snapshot, null, l);
-                    }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
-                ));
+            repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, ActionListener.wrap(v -> {
+                    logger.info("snapshot [{}] deleted", snapshot);
+                    removeSnapshotDeletionFromClusterState(snapshot, null, l);
+                }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
+            ));
         }));
     }
 
@@ -1438,16 +1432,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
                     ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                     final String shardRepoGeneration;
-                    if (snapshot.useShardGenerations()) {
-                        if (isNewIndex) {
-                            assert shardGenerations.getShardGen(index, shardId.getId()) == null
-                                : "Found shard generation for new index [" + index + "]";
-                            shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
-                        } else {
-                            shardRepoGeneration = shardGenerations.getShardGen(index, shardId.getId());
-                        }
+                    if (isNewIndex) {
+                        assert shardGenerations.getShardGen(index, shardId.getId()) == null
+                            : "Found shard generation for new index [" + index + "]";
+                        shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
                     } else {
-                        shardRepoGeneration = null;
+                        shardRepoGeneration = shardGenerations.getShardGen(index, shardId.getId());
                     }
                     if (indexRoutingTable != null) {
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();

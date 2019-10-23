@@ -94,13 +94,13 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                 boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata, boolean writeShardGens,
+                                 boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
                                  ActionListener<SnapshotInfo> listener) {
         listener.onResponse(null);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
@@ -130,8 +130,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
-                              ActionListener<String> listener) {
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
     }
 
     @Override

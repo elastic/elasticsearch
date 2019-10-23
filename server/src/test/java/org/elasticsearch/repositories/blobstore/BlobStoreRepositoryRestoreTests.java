@@ -172,7 +172,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             repository.finalizeSnapshot(snapshot.getSnapshotId(),
                 ShardGenerations.builder().put(indexId, 0, shardGen).build(),
                 0L, null, 1, Collections.emptyList(), -1L, false,
-                MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(), true,
+                MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(),
                 future);
             future.actionGet();
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,

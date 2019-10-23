@@ -314,10 +314,7 @@ public final class RepositoryData {
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final boolean shouldWriteShardGens) throws IOException {
-        assert shouldWriteShardGens || shardGenerations.indices().isEmpty() :
-            "Should not build shard generations in BwC mode but saw generations [" + shardGenerations + "]";
-
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder) throws IOException {
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
@@ -343,13 +340,11 @@ public final class RepositoryData {
                 builder.value(snapshotId.getUUID());
             }
             builder.endArray();
-            if (shouldWriteShardGens) {
-                builder.startArray(SHARD_GENERATIONS);
-                for (String gen : shardGenerations.getGens(indexId)) {
-                    builder.value(gen);
-                }
-                builder.endArray();
+            builder.startArray(SHARD_GENERATIONS);
+            for (String gen : shardGenerations.getGens(indexId)) {
+                builder.value(gen);
             }
+            builder.endArray();
             builder.endObject();
         }
         builder.endObject();

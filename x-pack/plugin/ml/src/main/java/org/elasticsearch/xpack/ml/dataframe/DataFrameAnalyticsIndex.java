@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -183,13 +184,10 @@ public final class DataFrameAnalyticsIndex {
         // We have validated the destination index should match a single index
         assert getIndexResponse.indices().length == 1;
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.getMappings().get(getIndexResponse.indices()[0]);
-        String type = mappings.keysIt().next();
-
         Map<String, Object> addedMappings = Map.of(PROPERTIES, Map.of(ID_COPY, Map.of("type", "keyword")));
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(getIndexResponse.indices());
-        putMappingRequest.type(type);
+        putMappingRequest.type(MapperService.SINGLE_MAPPING_NAME);
         putMappingRequest.source(addedMappings);
         ClientHelper.executeWithHeadersAsync(analyticsConfig.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE,
             putMappingRequest, listener);

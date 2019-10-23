@@ -110,13 +110,13 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()).get();
 
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties")))
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties")))
             .get("integer_field"));
 
         // make sure it was also written on red node although index is closed
         ImmutableOpenMap<String, IndexMetaData> indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties")))
+        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).mapping().getSourceAsMap().get("properties")))
             .get("integer_field"));
         assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 
@@ -137,13 +137,13 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()).get();
 
-        getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties")))
+        getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties")))
             .get("float_field"));
 
         // make sure it was also written on red node although index is closed
         indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties")))
+        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).mapping().getSourceAsMap().get("properties")))
             .get("float_field"));
         assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 

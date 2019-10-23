@@ -107,8 +107,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setType("_doc").setId("1").setSource("field1", "value1"))
-            .add(client().prepareUpdate().setIndex("test").setType("_doc").setId("1").setDoc("field2", "value2"))
+            .add(client().prepareIndex().setIndex("test").setId("1").setSource("field1", "value1"))
+            .add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2"))
             .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(false));

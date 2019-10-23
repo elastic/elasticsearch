@@ -89,7 +89,7 @@ public class MaxBucketIT extends ESIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
-            builders.add(client().prepareIndex("idx", "type").setSource(
+            builders.add(client().prepareIndex("idx").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, fieldValue).field("tag", "tag" + (i % interval))
                             .endObject()));
             final int bucket = (fieldValue / interval); // + (fieldValue < 0 ? -1 : 0) - (minRandomValue / interval - 1);
@@ -518,7 +518,7 @@ public class MaxBucketIT extends ESIntegTestCase {
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
             .endObject();
 
-        client().prepareIndex("foo_2", "doc").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         client().admin().indices().prepareRefresh();
 

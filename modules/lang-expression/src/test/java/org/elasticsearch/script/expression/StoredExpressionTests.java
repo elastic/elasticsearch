@@ -56,7 +56,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
-            client().prepareUpdate("test", "scriptTest", "1")
+            client().prepareUpdate("test", "1")
                     .setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();
             fail("update script should have been rejected");
         } catch(Exception e) {

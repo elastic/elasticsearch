@@ -371,7 +371,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get()
             .getHits().getTotalHits().value, equalTo(firstBatchNumDocs)));
         MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
-            .get("index2").get("doc");
+            .get("index2");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
 
@@ -384,7 +384,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
             equalTo(firstBatchNumDocs + secondBatchNumDocs)));
         mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
-            .get("index2").get("doc");
+            .get("index2");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         pauseFollow("index2");
@@ -408,7 +408,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         pauseFollow("index2");
 
         MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
-            .get("index2").get("_doc");
+            .get("index2");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
     }
@@ -1052,7 +1052,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
             getMappingsRequest.indices("follower");
             GetMappingsResponse getMappingsResponse = followerClient().admin().indices().getMappings(getMappingsRequest).actionGet();
-            MappingMetaData mappingMetaData = getMappingsResponse.getMappings().get("follower").get("doc");
+            MappingMetaData mappingMetaData = getMappingsResponse.getMappings().get("follower");
             assertThat(XContentMapValues.extractValue("properties.new_field.type", mappingMetaData.sourceAsMap()), equalTo("text"));
             assertThat(XContentMapValues.extractValue("properties.new_field.analyzer", mappingMetaData.sourceAsMap()),
                 equalTo("my_analyzer"));

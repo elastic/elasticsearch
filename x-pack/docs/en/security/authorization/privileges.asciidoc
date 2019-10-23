@@ -24,9 +24,9 @@ ability to manage security.
 
 `manage_api_key`::
 All security-related operations on {es} API keys including 
-{ref}/security-api-create-api-key.html[creating new API keys],
-{ref}/security-api-get-api-key.html[retrieving information about API keys], and
-{ref}/security-api-invalidate-api-key.html[invalidating API keys].
+<<security-api-create-api-key,creating new API keys>>,
+<<security-api-get-api-key,retrieving information about API keys>>, and
+<<security-api-invalidate-api-key,invalidating API keys>>.
 +
 --
 [NOTE]
@@ -73,17 +73,17 @@ roles of the user who created or updated them.
 
 `manage_oidc`::
 Enables the use of {es} APIs
-({ref}/security-api-oidc-prepare-authentication.html[OpenID Connect Prepare Authentication],
-{ref}/security-api-oidc-authenticate.html[OpenID Connect Authenticate], and
-{ref}/security-api-oidc-logout.html[OpenID Connect Logout])
+(<<security-api-oidc-prepare-authentication,OpenID connect prepare authentication>>,
+<<security-api-oidc-authenticate,OpenID connect authenticate>>, and
+<<security-api-oidc-logout,OpenID connect logout>>)
 to initiate and manage OpenID Connect authentication on behalf of other users.
 
 `manage_own_api_key`::
 All security-related operations on {es} API keys that are owned by the current
 authenticated user. The operations include 
-{ref}/security-api-create-api-key.html[creating new API keys],
-{ref}/security-api-get-api-key.html[retrieving information about API keys], and
-{ref}/security-api-invalidate-api-key.html[invalidating API keys].
+<<security-api-create-api-key,creating new API keys>>,
+<<security-api-get-api-key,retrieving information about API keys>>, and
+<<security-api-invalidate-api-key,invalidating API keys>>.
 
 `manage_pipeline`::
 All operations on ingest pipelines.
@@ -145,7 +145,7 @@ status of {Ilm}
 
 `transport_client`::
 All privileges necessary for a transport client to connect.  Required by the remote
-cluster to enable <<cross-cluster-configuring,Cross Cluster Search>>.
+cluster to enable <<cross-cluster-configuring,{ccs}>>.
 
 [[privileges-list-indices]]
 ==== Indices privileges
@@ -210,7 +210,7 @@ from an index.
 
 `manage_leader_index`::
 All actions that are required to manage the lifecycle of a leader index, which
-includes {ref}/ccr-post-forget-follower.html[forgetting a follower]. This
+includes <<ccr-post-forget-follower,forgetting a follower>>. This
 privilege is necessary only on clusters that contain leader indices.
 
 `monitor`::
@@ -242,19 +242,19 @@ The `run_as` permission enables an authenticated user to submit requests on
 behalf of another user. The value can be a user name or a comma-separated list
 of user names. (You can also specify users as an array of strings or a YAML
 sequence.) For more information, see
-<<run-as-privilege, Submitting Requests on Behalf of Other Users>>.
+<<run-as-privilege>>.
 
 [[application-privileges]]
 ==== Application privileges
 
 Application privileges are managed within {es} and can be retrieved with the 
-{ref}/security-api-has-privileges.html[has privileges API] and the 
-{ref}/security-api-get-privileges.html[get application privileges API]. They do 
+<<security-api-has-privileges,has privileges API>> and the 
+<<security-api-get-privileges,get application privileges API>>. They do 
 not, however, grant access to any actions or resources within {es}. Their 
 purpose is to enable applications to represent and store their own privilege 
 models within {es} roles. 
 
 To create application privileges, use the 
-{ref}/security-api-put-privileges.html[add application privileges API]. You can 
+<<security-api-put-privileges,add application privileges API>>. You can 
 then associate these application privileges with roles, as described in 
 <<defining-roles>>. 

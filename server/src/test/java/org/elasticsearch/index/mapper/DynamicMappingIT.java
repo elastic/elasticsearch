@@ -22,7 +22,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -73,11 +72,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String field) throws IOException {
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.getMappings().get("index");
+        MappingMetaData indexMappings = mappings.getMappings().get("index");
         assertNotNull(indexMappings);
-        MappingMetaData typeMappings = indexMappings.get("_doc");
-        assertNotNull(typeMappings);
-        Map<String, Object> typeMappingsMap = typeMappings.getSourceAsMap();
+        Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
     }

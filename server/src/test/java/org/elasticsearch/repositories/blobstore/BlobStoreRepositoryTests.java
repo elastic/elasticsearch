@@ -34,6 +34,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -43,7 +44,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -141,7 +141,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write to and read from a index file with no entries
         assertThat(repository.getRepositoryData().getSnapshotIds().size(), equalTo(0));
         final RepositoryData emptyData = RepositoryData.EMPTY;
-        repository.writeIndexGen(emptyData, emptyData.getGenId());
+        repository.writeIndexGen(emptyData, emptyData.getGenId(), true);
         RepositoryData repoData = repository.getRepositoryData();
         assertEquals(repoData, emptyData);
         assertEquals(repoData.getIndices().size(), 0);
@@ -150,12 +150,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         // write to and read from an index file with snapshots but no indices
         repoData = addRandomSnapshotsToRepoData(repoData, false);
-        repository.writeIndexGen(repoData, repoData.getGenId());
+        repository.writeIndexGen(repoData, repoData.getGenId(), true);
         assertEquals(repoData, repository.getRepositoryData());
 
         // write to and read from a index file with random repository data
         repoData = addRandomSnapshotsToRepoData(repository.getRepositoryData(), true);
-        repository.writeIndexGen(repoData, repoData.getGenId());
+        repository.writeIndexGen(repoData, repoData.getGenId(), true);
         assertEquals(repoData, repository.getRepositoryData());
     }
 
@@ -164,21 +164,22 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
-        repository.writeIndexGen(repositoryData, repositoryData.getGenId());
+        repository.writeIndexGen(repositoryData, repositoryData.getGenId(), true);
         assertThat(repository.getRepositoryData(), equalTo(repositoryData));
         assertThat(repository.latestIndexBlobId(), equalTo(0L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(0L));
 
         // adding more and writing to a new index generational file
         repositoryData = addRandomSnapshotsToRepoData(repository.getRepositoryData(), true);
-        repository.writeIndexGen(repositoryData, repositoryData.getGenId());
+        repository.writeIndexGen(repositoryData, repositoryData.getGenId(), true);
         assertEquals(repository.getRepositoryData(), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(1L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(1L));
 
         // removing a snapshot and writing to a new index generational file
-        repositoryData = repository.getRepositoryData().removeSnapshot(repositoryData.getSnapshotIds().iterator().next());
-        repository.writeIndexGen(repositoryData, repositoryData.getGenId());
+        repositoryData = repository.getRepositoryData().removeSnapshot(
+            repositoryData.getSnapshotIds().iterator().next(), ShardGenerations.EMPTY);
+        repository.writeIndexGen(repositoryData, repositoryData.getGenId(), true);
         assertEquals(repository.getRepositoryData(), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(2L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(2L));
@@ -190,12 +191,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
-        repository.writeIndexGen(repositoryData, startingGeneration);
+        repository.writeIndexGen(repositoryData, startingGeneration, true);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
         expectThrows(RepositoryException.class, () -> repository.writeIndexGen(
-            repositoryData.withGenId(startingGeneration + 1), repositoryData.getGenId()));
+            repositoryData.withGenId(startingGeneration + 1), repositoryData.getGenId(), true));
     }
 
     public void testBadChunksize() throws Exception {
@@ -242,12 +243,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numSnapshots; i++) {
             SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             int numIndices = inclIndices ? randomIntBetween(0, 20) : 0;
-            List<IndexId> indexIds = new ArrayList<>(numIndices);
+            final ShardGenerations.Builder builder = ShardGenerations.builder();
             for (int j = 0; j < numIndices; j++) {
-                indexIds.add(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
+                builder.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), 0, "1");
             }
             repoData = repoData.addSnapshot(snapshotId,
-                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), indexIds);
+                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), builder.build());
         }
         return repoData;
     }

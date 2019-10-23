@@ -6,9 +6,9 @@ buildScan {
     String jobName =  System.getenv('JOB_NAME')
 
     // Accept Gradle ToS when project property org.elasticsearch.acceptScanTOS=true or this is an Elastic CI build
-    if (jenkinsUrl?.host?.endsWith('elastic.co') || Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {
-        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
-        termsOfServiceAgree = 'yes'
+    if (jenkinsUrl?.host?.endsWith('elastic.co')) {
+        publishAlways()
+        buildScan.server = 'https://gradle-enterprise.elastic.co'
     }
 
     // Jenkins-specific build scan metadata

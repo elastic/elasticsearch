@@ -104,7 +104,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 + "\"mode\":\"" + mode + "\", "
             + "\"fetch_size\":2" + columnarParameter(columnar) + "}";
 
-        Number value = xContentDependentFloatingNumberValue(mode, 1);
+        Number value = xContentDependentFloatingNumberValue(mode, 1f);
         String cursor = null;
         for (int i = 0; i < 20; i += 2) {
             Map<String, Object> response;
@@ -188,7 +188,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             columnInfo(mode, "name", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
             columnInfo(mode, "score", "long", JDBCType.BIGINT, 20),
             columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
-        Number value = xContentDependentFloatingNumberValue(mode, 1.0);
+        Number value = xContentDependentFloatingNumberValue(mode, 1f);
         if (columnar) {
             expected.put("values", Arrays.asList(singletonList("test"), singletonList(10), singletonList(value)));
         } else {

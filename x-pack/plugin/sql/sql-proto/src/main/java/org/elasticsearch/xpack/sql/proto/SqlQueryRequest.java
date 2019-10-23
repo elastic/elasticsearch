@@ -34,12 +34,12 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final List<SqlTypedParamValue> params;
     private final boolean fieldMultiValueLeniency;
     private final boolean indexIncludeFrozen;
-    private final Boolean binaryResponse;
+    private final Boolean binaryCommunication;
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
                            TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
                            String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
-                           Boolean binaryResponse) {
+                           Boolean binaryCommunication) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -52,7 +52,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.cursor = cursor;
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
         this.indexIncludeFrozen = indexIncludeFrozen;
-        this.binaryResponse = binaryResponse;
+        this.binaryCommunication = binaryCommunication;
     }
 
     public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
@@ -134,8 +134,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         return indexIncludeFrozen;
     }
     
-    public Boolean binaryResponse() {
-        return binaryResponse;
+    public Boolean binaryCommunication() {
+        return binaryCommunication;
     }
     
     @Override
@@ -161,13 +161,13 @@ public class SqlQueryRequest extends AbstractSqlRequest {
                 && Objects.equals(cursor, that.cursor)
                 && fieldMultiValueLeniency == that.fieldMultiValueLeniency
                 && indexIncludeFrozen == that.indexIncludeFrozen
-                && Objects.equals(binaryResponse,  that.binaryResponse);
+                && Objects.equals(binaryCommunication,  that.binaryCommunication);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout,
-                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryResponse);
+                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication);
     }
 
     @Override
@@ -179,7 +179,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (clientId() != null) {
             builder.field("client_id", clientId());
         }
-        if (this.params.isEmpty() == false) {
+        if (this.params != null && this.params.isEmpty() == false) {
             builder.startArray("params");
             for (SqlTypedParamValue val : this.params) {
                 val.toXContent(builder, params);
@@ -211,8 +211,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (indexIncludeFrozen) {
             builder.field("index_include_frozen", indexIncludeFrozen);
         }
-        if (binaryResponse != null) {
-            builder.field("binary_response", binaryResponse);
+        if (binaryCommunication != null) {
+            builder.field("binary", binaryCommunication);
         }
         if (cursor != null) {
             builder.field("cursor", cursor);

@@ -43,21 +43,24 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
     }
 
     /**
-     * CBOR XContent parser returns floating point numbers as Floats, while JSON parser as Doubles.
+     * JSON parser returns floating point numbers as Doubles, while CBOR as their actual type.
      * To have the tests compare the correct data type, the floating point numbers types should be passed accordingly, to the comparators.
      */
     public static Number xContentDependentFloatingNumberValue(String mode, Number value) {
         Mode m = Mode.fromString(mode);
+        // for drivers and the CLI return the number as is, while for REST cast it implicitly to Double (the JSON standard).
         if (Mode.isDriver(m) || m == Mode.CLI) {
-            return value.floatValue();
+            return value;
         } else {
             return value.doubleValue();
         }
     }
     
     public static Map<String, Object> toMap(Response response, String mode) throws IOException {
+        Mode m = Mode.fromString(mode);
         try (InputStream content = response.getEntity().getContent()) {
-            if (Mode.fromString(mode) == Mode.JDBC) {
+            // by default, drivers and the CLI respond in binary format
+            if (Mode.isDriver(m) || m == Mode.CLI) {
                 return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);
             } else {
                 return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);

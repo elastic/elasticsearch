@@ -34,24 +34,24 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     static final ParseField COLUMNAR = new ParseField("columnar");
     static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField("field_multi_value_leniency");
     static final ParseField INDEX_INCLUDE_FROZEN = new ParseField("index_include_frozen");
-    static final ParseField BINARY_RESPONSE = new ParseField("binary_response");
+    static final ParseField BINARY_COMMUNICATION = new ParseField("binary");
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
         PARSER.declareBoolean(SqlQueryRequest::columnar, COLUMNAR);
         PARSER.declareBoolean(SqlQueryRequest::fieldMultiValueLeniency, FIELD_MULTI_VALUE_LENIENCY);
         PARSER.declareBoolean(SqlQueryRequest::indexIncludeFrozen, INDEX_INCLUDE_FROZEN);
-        PARSER.declareBoolean(SqlQueryRequest::binaryResponse, BINARY_RESPONSE);
+        PARSER.declareBoolean(SqlQueryRequest::binaryCommunication, BINARY_COMMUNICATION);
     }
 
     private String cursor = "";
     /*
      * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or 
-     * binary_response parameter).
+     * binary parameter).
      * See {@code SqlTranslateRequest.toXContent}
      */
     private Boolean columnar = Boolean.FALSE;
-    private Boolean binaryResponse = null;
+    private Boolean binaryCommunication = null;
 
     private boolean fieldMultiValueLeniency = Protocol.FIELD_MULTI_VALUE_LENIENCY;
     private boolean indexIncludeFrozen = Protocol.INDEX_INCLUDE_FROZEN;
@@ -131,13 +131,13 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return indexIncludeFrozen;
     }
 
-    public SqlQueryRequest binaryResponse(boolean binaryResponse) {
-        this.binaryResponse = binaryResponse;
+    public SqlQueryRequest binaryCommunication(boolean binaryCommunication) {
+        this.binaryCommunication = binaryCommunication;
         return this;
     }
 
-    public Boolean binaryResponse() {
-        return binaryResponse;
+    public Boolean binaryCommunication() {
+        return binaryCommunication;
     }
 
     public SqlQueryRequest(StreamInput in) throws IOException {
@@ -146,7 +146,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         columnar = in.readOptionalBoolean();
         fieldMultiValueLeniency = in.readBoolean();
         indexIncludeFrozen = in.readBoolean();
-        binaryResponse = in.readOptionalBoolean();
+        binaryCommunication = in.readOptionalBoolean();
     }
 
     @Override
@@ -156,12 +156,12 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeOptionalBoolean(columnar);
         out.writeBoolean(fieldMultiValueLeniency);
         out.writeBoolean(indexIncludeFrozen);
-        out.writeOptionalBoolean(binaryResponse);
+        out.writeOptionalBoolean(binaryCommunication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), cursor, columnar, fieldMultiValueLeniency, indexIncludeFrozen, binaryResponse);
+        return Objects.hash(super.hashCode(), cursor, columnar, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication);
     }
 
     @Override
@@ -171,7 +171,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
                 && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
                 && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency
                 && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen
-                && binaryResponse == ((SqlQueryRequest) obj).binaryResponse;
+                && binaryCommunication == ((SqlQueryRequest) obj).binaryCommunication;
     }
 
     @Override
@@ -184,7 +184,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
         return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(),
                 pageTimeout(), filter(), columnar(), cursor(), requestInfo(), fieldMultiValueLeniency(), indexIncludeFrozen(),
-                binaryResponse()).toXContent(builder, params);
+                binaryCommunication()).toXContent(builder, params);
     }
 
     public static SqlQueryRequest fromXContent(XContentParser parser) {

@@ -154,7 +154,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                 logger.info("Reindex task failed", e);
                 updateClusterStateToFailed(reindexJob.shouldStoreResult(), ReindexJobState.Status.DONE, e);
             }
-        }, this::handleAssignmentConflict);
+        }, this::handleCheckpointAssignmentConflict);
 
         taskUpdater.assign(new ActionListener<>() {
             @Override
@@ -183,8 +183,15 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void handleAssignmentConflict() {
+    private void handleCheckpointAssignmentConflict() {
+        assert childTask.isWorker() : "checkpoints disabled when slicing";
         assignmentConflictDetected = true;
+        onCancelled();
+    }
+
+    @Override
+    protected void onCancelled() {
+        childTask.onCancelled();
     }
 
     private void reindexDone(ReindexTaskStateDoc stateDoc, boolean shouldStoreResult) {

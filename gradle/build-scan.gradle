@@ -7,6 +7,12 @@ buildScan {
     String jobName =  System.getenv('JOB_NAME')
 
     tag OS.current().name()
+    if (jobName) {
+        value 'Job name', jobName
+    }
+    if(buildNumber) {
+        value 'Job number', buildNumber
+    }
 
     if (jenkinsUrl?.host?.endsWith('elastic.co')) {
         publishAlways()

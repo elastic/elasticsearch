@@ -47,6 +47,6 @@ public class GetScriptContextResponseTests extends AbstractSerializingTestCase<G
 
     @Override
     protected GetScriptContextResponse mutateInstance(GetScriptContextResponse instance) throws IOException {
-        return new GetScriptContextResponse(ScriptContextInfoSerializingTests.mutateOne(instance.contexts));
+        return new GetScriptContextResponse(ScriptContextInfoSerializingTests.mutateOne(instance.contexts.values()));
     }
 }

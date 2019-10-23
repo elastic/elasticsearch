@@ -26,14 +26,15 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCase<ScriptContextInfo> {
-    private static int minLength = 1;
-    private static int maxLength = 16;
+    private static final int MIN_LENGTH = 1;
+    private static final int MAX_LENGTH = 16;
 
     @Override
     protected ScriptContextInfo doParseInstance(XContentParser parser) throws IOException {
@@ -59,7 +60,7 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
         switch (randomIntBetween(0, 2)) {
             case 0:
                 return new ScriptContextInfo(
-                    randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(minLength, maxLength)),
+                    randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)),
                     instance.execute,
                     instance.getters
                 );
@@ -78,7 +79,7 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
         }
     }
 
-    static Set<ScriptContextInfo> mutateOne(Set<ScriptContextInfo> instances) {
+    static Set<ScriptContextInfo> mutateOne(Collection<ScriptContextInfo> instances) {
         if (instances.size() == 0) {
             return Collections.unmodifiableSet(Set.of(randomInstance()));
         }
@@ -90,7 +91,7 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
 
     static ScriptContextInfo randomInstance() {
         return new ScriptContextInfo(
-            randomAlphaOfLengthBetween(minLength, maxLength),
+            randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
             ScriptMethodInfoSerializingTests.randomInstance(ScriptMethodInfoSerializingTests.NameType.EXECUTE),
             ScriptMethodInfoSerializingTests.randomGetterInstances()
         );
@@ -98,10 +99,10 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
 
     static Set<ScriptContextInfo> randomInstances() {
         Set<String> names = new HashSet<>();
-        int size = randomIntBetween(0, maxLength);
+        int size = randomIntBetween(0, MAX_LENGTH);
         HashSet<ScriptContextInfo> instances = new HashSet<>(size);
         for (int i = 0; i < size; i++) {
-            String name = randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(minLength, maxLength));
+            String name = randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
             names.add(name);
             instances.add(new ScriptContextInfo(
                 name,

@@ -49,8 +49,8 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
     public final ScriptMethodInfo execute;
     public final Set<ScriptMethodInfo> getters;
 
-    private static String NAME_FIELD = "name";
-    private static String METHODS_FIELD = "methods";
+    private static final String NAME_FIELD = "name";
+    private static final String METHODS_FIELD = "methods";
 
     // ScriptService constructor
     ScriptContextInfo(String name, Class<?> clazz) {
@@ -79,10 +79,10 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             }
         ));
 
-        if (!methodTypes.containsKey(executeName)) {
+        if (methodTypes.containsKey(executeName) == false) {
             throw new IllegalArgumentException("Could not find required method [" + executeName + "] in [" + name + "], found " +
                 methods.stream().map(m -> m.name).sorted().collect(Collectors.joining(", ", "[", "]")));
-        } else if (!(methodTypes.get(executeName).size() == 1)) {
+        } else if ((methodTypes.get(executeName).size() != 1)) {
             throw new IllegalArgumentException("Cannot have multiple [execute] methods in [" + name + "], found [" +
                 methodTypes.get(executeName).size() + "]"
             );
@@ -121,6 +121,10 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         for (ScriptMethodInfo getter: getters) {
             getter.writeTo(out);
         }
+    }
+
+    public String getName() {
+        return this.name;
     }
 
     public List<ScriptMethodInfo> methods() {
@@ -176,8 +180,8 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         public final String name, returnType;
         public final List<ParameterInfo> parameters;
 
-        static String RETURN_TYPE_FIELD = "return_type";
-        static String PARAMETERS_FIELD = "params";
+        static final String RETURN_TYPE_FIELD = "return_type";
+        static final String PARAMETERS_FIELD = "params";
 
         public ScriptMethodInfo(String name, String returnType, List<ParameterInfo> parameters) {
             this.name = Objects.requireNonNull(name);
@@ -250,7 +254,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         public static class ParameterInfo implements ToXContentObject, Writeable {
             public final String type, name;
 
-            public static String TYPE_FIELD = "type";
+            public static final String TYPE_FIELD = "type";
 
             public ParameterInfo(String type, String name) {
                 this.type = Objects.requireNonNull(type);

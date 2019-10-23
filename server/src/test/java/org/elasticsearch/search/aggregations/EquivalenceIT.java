@@ -140,7 +140,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(docs[i][j]);
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx", "type").setSource(source).get();
+            client().prepareIndex("idx").setSource(source).get();
         }
         assertNoFailures(client().admin().indices().prepareRefresh("idx").
                 setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -275,7 +275,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(Integer.toString(values[j]));
             }
             source = source.endArray().endObject();
-            indexingRequests.add(client().prepareIndex("idx", "type").setSource(source));
+            indexingRequests.add(client().prepareIndex("idx").setSource(source));
         }
         indexRandom(true, indexingRequests);
 
@@ -382,7 +382,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(randomFrom(values));
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx", "type").setSource(source).get();
+            client().prepareIndex("idx").setSource(source).get();
         }
         assertNoFailures(client().admin().indices().prepareRefresh("idx")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -456,7 +456,7 @@ public class EquivalenceIT extends ESIntegTestCase {
     public void testReduce() throws Exception {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);
-        indexRandom(true, client().prepareIndex("idx", "type").setSource("f", value));
+        indexRandom(true, client().prepareIndex("idx").setSource("f", value));
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filter("filter", QueryBuilders.matchAllQuery())
                 .subAggregation(range("range")
@@ -517,7 +517,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             final int v1 = randomInt(1 << randomInt(7));
             final int v2 = randomInt(1 << randomInt(7));
             final int v3 = randomInt(1 << randomInt(7));
-            reqs.add(client().prepareIndex("idx", "type").setSource("f1", v1, "f2", v2, "f3", v3));
+            reqs.add(client().prepareIndex("idx").setSource("f1", v1, "f2", v2, "f3", v3));
         }
         indexRandom(true, reqs);
 

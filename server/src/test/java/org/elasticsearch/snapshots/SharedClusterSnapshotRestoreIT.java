@@ -249,13 +249,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> delete some data");
         for (int i = 0; i < 50; i++) {
-            client.prepareDelete("test-idx-1", "_doc", Integer.toString(i)).get();
+            client.prepareDelete("test-idx-1", Integer.toString(i)).get();
         }
         for (int i = 50; i < 100; i++) {
-            client.prepareDelete("test-idx-2", "_doc", Integer.toString(i)).get();
+            client.prepareDelete("test-idx-2", Integer.toString(i)).get();
         }
         for (int i = 0; i < 100; i += 2) {
-            client.prepareDelete("test-idx-3", "_doc", Integer.toString(i)).get();
+            client.prepareDelete("test-idx-3", Integer.toString(i)).get();
         }
         assertAllSuccessful(refresh());
         assertHitCount(client.prepareSearch("test-idx-1").setSize(0).get(), 50L);
@@ -1440,8 +1440,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createIndex(indices);
         logger.info("--> indexing some data");
         indexRandom(true,
-                client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
-                client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
+                client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
@@ -1493,8 +1493,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
         indexRandom(true,
-                client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
-                client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
+                client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
@@ -1529,8 +1529,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
         indexRandom(true,
-                client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
-                client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
+                client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
@@ -1572,9 +1572,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         indexRandom(true,
-            client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
+            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2").setSource("foo", "bar"));
         flushAndRefresh("test-idx-1", "test-idx-2");
 
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -1632,8 +1632,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
         indexRandom(true,
-            client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
+            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
@@ -2313,7 +2313,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        client().prepareDelete("test", "_doc", "1").get();
+        client().prepareDelete("test", "1").get();
         CreateSnapshotResponse createSnapshotResponseThird = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-2")
             .setWaitForCompletion(true).setIndices("test").get();
         assertThat(createSnapshotResponseThird.getSnapshotInfo().successfulShards(), greaterThan(0));
@@ -2781,9 +2781,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         logger.info("--> indexing some data");
         indexRandom(true,
-                client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
-                client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"),
-                client().prepareIndex("test-idx-3", "_doc").setSource("foo", "bar"));
+                client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-2").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-3").setSource("foo", "bar"));
 
         logger.info("--> creating 2 snapshots");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
@@ -2831,9 +2831,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         indexRandom(true,
-                client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
-                client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"),
-                client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
+                client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-2").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-2").setSource("foo", "bar"));
         flushAndRefresh("test-idx-1", "test-idx-2");
 
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -2901,7 +2901,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
             IndexRequestBuilder[] documents = new IndexRequestBuilder[nbDocs];
             for (int j = 0; j < nbDocs; j++) {
-                documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo", "bar");
+                documents[j] = client.prepareIndex(indexName).setSource("foo", "bar");
             }
             indexRandom(true, documents);
         }
@@ -2979,7 +2979,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         final IndexRequestBuilder[] documents = new IndexRequestBuilder[nDocs];
         for (int j = 0; j < nDocs; j++) {
-            documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo", "bar");
+            documents[j] = client.prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(true, documents);
         flushAndRefresh();
@@ -3037,7 +3037,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  indexing [{}] more documents into [{}]", nDocs, indexName);
         for (int j = 0; j < nDocs; j++) {
-            documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo2", "bar2");
+            documents[j] = client.prepareIndex(indexName).setSource("foo2", "bar2");
         }
         indexRandom(true, documents);
 

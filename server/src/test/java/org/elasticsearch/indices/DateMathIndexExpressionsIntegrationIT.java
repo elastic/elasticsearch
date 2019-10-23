@@ -130,15 +130,15 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
 
-        DeleteResponse deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp1, "type", "1"));
+        DeleteResponse deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp1, "1"));
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("1"));
 
-        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp2, "type", "2"));
+        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp2, "2"));
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("2"));
 
-        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp3, "type", "3"));
+        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp3, "3"));
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("3"));
     }

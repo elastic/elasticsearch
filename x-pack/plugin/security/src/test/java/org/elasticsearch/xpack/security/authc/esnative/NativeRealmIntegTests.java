@@ -573,7 +573,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testUsersAndRolesDoNotInterfereWithIndicesStats() throws Exception {
-        client().prepareIndex("foo", "bar").setSource("ignore", "me").get();
+        client().prepareIndex("foo").setSource("ignore", "me").get();
 
         if (randomBoolean()) {
             preparePutUser("joe", "s3krit", hasher,

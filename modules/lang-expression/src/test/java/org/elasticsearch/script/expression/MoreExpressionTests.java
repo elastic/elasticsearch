@@ -521,7 +521,6 @@ public class MoreExpressionTests extends ESIntegTestCase {
             ensureGreen("test_index");
             indexRandom(true, client().prepareIndex("test_index", "doc", "1").setSource("text_field", "text"));
             UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
-            urb.setType("doc");
             urb.setId("1");
             urb.setScript(new Script(ScriptType.INLINE, ExpressionScriptEngine.NAME, "0", Collections.emptyMap()));
             urb.get();

@@ -141,7 +141,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;

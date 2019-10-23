@@ -914,14 +914,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try {
             final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
 
-            RepositoryData repositoryData;
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName);
                  XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, blob)) {
-                repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
+                return RepositoryData.snapshotsFromXContent(parser, indexGen);
             }
-            return repositoryData;
         } catch (IOException ioe) {
             throw new RepositoryException(metadata.name(), "could not read repository data from index blob", ioe);
         }

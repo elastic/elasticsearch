@@ -181,21 +181,13 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    SortedDocsProducer createSortedDocsProducerOrNull(Query query) {
-        if (fieldType == null) {
+    SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
+                fieldType instanceof StringFieldType == false ||
+                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());
-    }
-
-    @Override
-    boolean canBeOptimizedBySortedDocs(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-            fieldType instanceof StringFieldType == false ||
-            (query != null && query.getClass() != MatchAllDocsQuery.class)) {
-            return false;
-        }
-        return true;
     }
 
     @Override

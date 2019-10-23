@@ -187,18 +187,10 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    boolean canBeOptimizedBySortedDocs(IndexReader reader, Query query) {
+    SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-            fieldType instanceof StringFieldType == false ||
-            (query != null && query.getClass() != MatchAllDocsQuery.class)) {
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    SortedDocsProducer createSortedDocsProducerOrNull(Query query) {
-        if (fieldType == null) {
+                fieldType instanceof StringFieldType == false ||
+                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

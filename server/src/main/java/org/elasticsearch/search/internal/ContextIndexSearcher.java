@@ -79,6 +79,17 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     public void setProfiler(QueryProfiler profiler) {
+        if (profiler != null) {
+            setQueryCachingPolicy(new QueryCachingPolicy() {
+                @Override
+                public void onUse(Query query) {}
+
+                @Override
+                public boolean shouldCache(Query query) throws IOException {
+                    return false;
+                }
+            });
+        }
         this.profiler = profiler;
     }
 

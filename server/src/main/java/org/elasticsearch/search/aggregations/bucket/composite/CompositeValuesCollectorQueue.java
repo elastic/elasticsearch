@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -63,10 +64,9 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     private final int maxSize;
     private final Map<Slot, Integer> map;
     private final SingleDimensionValuesSource<?>[] arrays;
+
     private IntArray docCounts;
     private boolean afterKeyIsSet = false;
-    private boolean isLeadingSort = false;
-    private boolean isEarlyTerminate = false;
 
     /**
      * Constructs a composite queue with the specified size and sources.
@@ -155,7 +155,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
                 cmp = arrays[i].compare(slot1, slot2);
             }
             if (cmp != 0) {
-                return cmp;
+                return cmp > 0 ? i+1 : -(i+1);
             }
         }
         return 0;
@@ -244,53 +244,59 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         return collector;
     }
 
-    public void setLeadingSort(boolean isLeadingSort) {
-        this.isLeadingSort = isLeadingSort;
-    }
-
-    public boolean isEarlyTerminate() {
-        return isEarlyTerminate;
-    }
-
-    public void setEarlyTerminate(boolean earlyTerminate) {
-        this.isEarlyTerminate = earlyTerminate;
-    }
-
     /**
      * Check if the current candidate should be added in the queue.
-     * @return The target slot of the candidate or -1 is the candidate is not competitive.
+     * @return <code>true</code> if the candidate is competitive (added or already in the queue).
      */
-    int addIfCompetitive() {
+    boolean addIfCompetitive() {
+        return addIfCompetitive(0);
+    }
+
+
+    /**
+     * Add or update the current composite key in the queue if the values are competitive.
+     *
+     * @param indexSortSourcePrefix 0 if the index sort is null or doesn't match any of the sources field,
+     *                              a value greater than 0 indicates the prefix len of the sources that match the index sort
+     *                              and a negative value indicates that the index sort match the source field but the order is reversed.
+     * @return <code>true</code> if the candidate is competitive (added or already in the queue).
+     *
+     * @throws CollectionTerminatedException if the current collection can be terminated early due to index sorting
+     */
+    boolean addIfCompetitive(int indexSortSourcePrefix) {
         // checks if the candidate key is competitive
         Integer topSlot = compareCurrent();
         if (topSlot != null) {
             // this key is already in the top N, skip it
             docCounts.increment(topSlot, 1);
-            return topSlot;
+            return true;
         }
-        if (afterKeyIsSet && compareCurrentWithAfter() <= 0) {
-            // this key is greater than the top value collected in the previous round, skip it
-            if (isLeadingSort && size() >= maxSize) {
-                if (arrays[0].compareCurrentWithAfter() < 0) {
-                    // the leading source field value is greater than after value, early terminate collection
-                    isEarlyTerminate = true;
+        if (afterKeyIsSet) {
+            int cmp = compareCurrentWithAfter();
+            if (cmp <= 0) {
+                if (indexSortSourcePrefix < 0 && -cmp == indexSortSourcePrefix) {
+                    // the leading index sort is in the reverse order of the leading source
+                    // so we can early terminate when we reach a document that is smaller
+                    // than the after key (collected on a previous page).
+                    throw new CollectionTerminatedException();
                 }
+                // key was collected on a previous page, skip it (>= afterKey).
+                return false;
             }
-            return -1;
         }
-        if (size() >= maxSize
+        if (size() >= maxSize) {
             // the tree map is full, check if the candidate key should be kept
-            && compare(CANDIDATE_SLOT, top()) > 0) {
-            // the candidate key is not competitive, skip it
-            if (isLeadingSort) {
-                if (arrays[0].compareCurrent(top()) > 0) {
-                    // the leading source field value is greater than top value of queue, early terminate collection
-                    isEarlyTerminate = true;
+            int cmp = compare(CANDIDATE_SLOT, top());
+            if (cmp > 0) {
+                if (cmp <= indexSortSourcePrefix) {
+                    // index sort guarantees that there is no key greater or equal than the
+                    // current one in the subsequent documents so we can early terminate.
+                    throw new CollectionTerminatedException();
                 }
+                // the candidate key is not competitive, skip it.
+                return false;
             }
-            return -1;
         }
-
         // the candidate key is competitive
         final int newSlot;
         if (size() >= maxSize) {
@@ -306,7 +312,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         copyCurrent(newSlot);
         map.put(new Slot(newSlot), newSlot);
         add(newSlot);
-        return newSlot;
+        return true;
     }
 
     @Override

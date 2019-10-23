@@ -53,12 +53,12 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             1,
             1
         );
-        assertFalse(source.canBeOptimizedBySortedDocs(mockIndexReader(100, 49), null));
+        assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
         IndexReader reader = mockIndexReader(1, 1);
-        assertTrue(source.canBeOptimizedBySortedDocs(reader, new MatchAllDocsQuery()));
-        assertTrue(source.canBeOptimizedBySortedDocs(reader, null));
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, new TermQuery(new Term("foo", "bar"))));
-        assertFalse(source.canBeOptimizedBySortedDocs(reader,
+        assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+        assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
+        assertNull(source.createSortedDocsProducerOrNull(reader,
             new TermQuery(new Term("keyword", "toto)"))));
 
         source = new BinaryValuesSource(
@@ -71,8 +71,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             1,
             1
         );
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, new MatchAllDocsQuery()));
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
 
         source = new BinaryValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
@@ -84,7 +84,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             0,
             -1
         );
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
 
         MappedFieldType ip = new IpFieldMapper.IpFieldType();
         ip.setName("ip");
@@ -97,7 +97,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             false,
             1,
             1);
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
     public void testGlobalOrdinalsSorted() {
@@ -111,12 +111,12 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             1,
             1
         );
-        assertFalse(source.canBeOptimizedBySortedDocs(mockIndexReader(100, 49), null));
+        assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
         IndexReader reader = mockIndexReader(1, 1);
-        assertTrue(source.canBeOptimizedBySortedDocs(reader, new MatchAllDocsQuery()));
-        assertTrue(source.canBeOptimizedBySortedDocs(reader, null));
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, new TermQuery(new Term("foo", "bar"))));
-        assertFalse(source.canBeOptimizedBySortedDocs(reader,
+        assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+        assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
+        assertNull(source.createSortedDocsProducerOrNull(reader,
             new TermQuery(new Term("keyword", "toto)"))));
 
         source = new GlobalOrdinalValuesSource(
@@ -128,9 +128,9 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             1,
             1
         );
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, new MatchAllDocsQuery()));
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, null));
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, new TermQuery(new Term("foo", "bar"))));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
         source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
@@ -141,8 +141,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             1,
             -1
         );
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, null));
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, new TermQuery(new Term("foo", "bar"))));
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
         final MappedFieldType ip = new IpFieldMapper.IpFieldType();
         ip.setName("ip");
@@ -155,8 +155,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             1,
             1
         );
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, null));
-        assertFalse(source.canBeOptimizedBySortedDocs(reader, new TermQuery(new Term("foo", "bar"))));
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
     }
 
     public void testNumericSorted() {
@@ -179,19 +179,19 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     1,
                     1
                 );
-                assertFalse(source.canBeOptimizedBySortedDocs(mockIndexReader(100, 49), null));
+                assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
                 IndexReader reader = mockIndexReader(1, 1);
-                assertTrue(source.canBeOptimizedBySortedDocs(reader, new MatchAllDocsQuery()));
-                assertTrue(source.canBeOptimizedBySortedDocs(reader, null));
-                assertTrue(source.canBeOptimizedBySortedDocs(reader, LongPoint.newRangeQuery("number", 0, 1)));
-                assertTrue(source.canBeOptimizedBySortedDocs(reader, new IndexOrDocValuesQuery(
+                assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+                assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
+                assertNotNull(source.createSortedDocsProducerOrNull(reader, LongPoint.newRangeQuery("number", 0, 1)));
+                assertNotNull(source.createSortedDocsProducerOrNull(reader, new IndexOrDocValuesQuery(
                     LongPoint.newRangeQuery("number", 0, 1), new MatchAllDocsQuery())));
-                assertTrue(source.canBeOptimizedBySortedDocs(reader, new DocValuesFieldExistsQuery("number")));
-                assertTrue(source.canBeOptimizedBySortedDocs(reader,
+                assertNotNull(source.createSortedDocsProducerOrNull(reader, new DocValuesFieldExistsQuery("number")));
+                assertNotNull(source.createSortedDocsProducerOrNull(reader,
                     new ConstantScoreQuery(new DocValuesFieldExistsQuery("number"))));
-                assertTrue(source.canBeOptimizedBySortedDocs(reader, new BoostQuery(new IndexOrDocValuesQuery(
+                assertNotNull(source.createSortedDocsProducerOrNull(reader, new BoostQuery(new IndexOrDocValuesQuery(
                     LongPoint.newRangeQuery("number", 0, 1), new MatchAllDocsQuery()), 2.0f)));
-                assertFalse(source.canBeOptimizedBySortedDocs(reader, new TermQuery(new Term("keyword", "toto)"))));
+                assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
 
                 LongValuesSource sourceWithMissing = new LongValuesSource(
                     BigArrays.NON_RECYCLING_INSTANCE,
@@ -202,11 +202,11 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     true,
                     1,
                     1);
-                assertFalse(sourceWithMissing.canBeOptimizedBySortedDocs(reader, new MatchAllDocsQuery()));
-                assertFalse(sourceWithMissing.canBeOptimizedBySortedDocs(reader, null));
-                assertFalse(sourceWithMissing.canBeOptimizedBySortedDocs(reader, new TermQuery(new Term("keyword", "toto)"))));
-                assertFalse(sourceWithMissing.canBeOptimizedBySortedDocs(reader, new DocValuesFieldExistsQuery("number")));
-                assertFalse(sourceWithMissing.canBeOptimizedBySortedDocs(reader,
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, null));
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new DocValuesFieldExistsQuery("number")));
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader,
                     new ConstantScoreQuery(new DocValuesFieldExistsQuery("number"))));
 
                 LongValuesSource sourceRev = new LongValuesSource(
@@ -219,11 +219,11 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     1,
                     -1
                 );
-                assertFalse(sourceRev.canBeOptimizedBySortedDocs(reader, null));
-                assertFalse(sourceRev.canBeOptimizedBySortedDocs(reader, new DocValuesFieldExistsQuery("number")));
-                assertFalse(sourceRev.canBeOptimizedBySortedDocs(reader,
+                assertNull(sourceRev.createSortedDocsProducerOrNull(reader, null));
+                assertNull(sourceRev.createSortedDocsProducerOrNull(reader, new DocValuesFieldExistsQuery("number")));
+                assertNull(sourceRev.createSortedDocsProducerOrNull(reader,
                     new ConstantScoreQuery(new DocValuesFieldExistsQuery("number"))));
-                assertFalse(sourceWithMissing.canBeOptimizedBySortedDocs(reader, new TermQuery(new Term("keyword", "toto)"))));
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
             } else if (numberType == NumberFieldMapper.NumberType.HALF_FLOAT ||
                             numberType == NumberFieldMapper.NumberType.FLOAT ||
                             numberType == NumberFieldMapper.NumberType.DOUBLE) {
@@ -237,15 +237,15 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     1
                 );
                 IndexReader reader = mockIndexReader(1, 1);
-                assertFalse(source.canBeOptimizedBySortedDocs(reader, null));
-                assertFalse(source.canBeOptimizedBySortedDocs(reader, new DocValuesFieldExistsQuery("number")));
-                assertFalse(source.canBeOptimizedBySortedDocs(reader, new TermQuery(new Term("keyword", "toto)"))));
-                assertFalse(source.canBeOptimizedBySortedDocs(reader,
+                assertNull(source.createSortedDocsProducerOrNull(reader, null));
+                assertNull(source.createSortedDocsProducerOrNull(reader, new DocValuesFieldExistsQuery("number")));
+                assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
+                assertNull(source.createSortedDocsProducerOrNull(reader,
                     new ConstantScoreQuery(new DocValuesFieldExistsQuery("number"))));
             } else{
                 throw new AssertionError ("missing type:" + numberType.typeName());
             }
-            assertFalse(source.canBeOptimizedBySortedDocs(mockIndexReader(100, 49), null));
+            assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
         }
     }
 

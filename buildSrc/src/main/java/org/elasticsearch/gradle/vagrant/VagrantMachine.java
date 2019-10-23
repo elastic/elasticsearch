@@ -19,8 +19,6 @@
 
 package org.elasticsearch.gradle.vagrant;
 
-import org.apache.commons.io.output.TeeOutputStream;
-import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.LoggingOutputStream;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Util;
@@ -31,11 +29,17 @@ import org.gradle.internal.logging.progress.ProgressLoggerFactory;
 
 import javax.inject.Inject;
 import java.io.File;
-import java.io.OutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
+
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 
 /**
  * An helper to manage a vagrant box.
@@ -69,7 +73,7 @@ public class VagrantMachine {
 
         Objects.requireNonNull(vagrantSpec.command);
 
-        LoggedExec.exec(project, execSpec -> {
+        project.exec(execSpec -> {
             execSpec.setExecutable("vagrant");
             File vagrantfile = extension.getVagrantfile();
             execSpec.setEnvironment(System.getenv()); // pass through env
@@ -87,14 +91,20 @@ public class VagrantMachine {
                 execSpec.args(Arrays.asList(vagrantSpec.args));
             }
 
+            // output from vagrant needs to be manually curated because --machine-readable isn't actually "readable"
             UnaryOperator<String> progressHandler = vagrantSpec.progressHandler;
             if (progressHandler == null) {
                 progressHandler = new VagrantProgressLogger("==> " + extension.getBox() + ": ");
             }
-            OutputStream output = execSpec.getStandardOutput();
-            // output from vagrant needs to be manually curated because --machine-readable isn't actually "readable"
-            OutputStream progressStream = new ProgressOutputStream(vagrantSpec.command, progressHandler);
-            execSpec.setStandardOutput(new TeeOutputStream(output, progressStream));
+
+            execSpec.setStandardOutput(new ProgressOutputStream(vagrantSpec.command, progressHandler, System.out));
+            try {
+                execSpec.setErrorOutput(
+                    Files.newOutputStream(project.getBuildDir().toPath().resolve("vagrant.log"), CREATE, APPEND)
+                );
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         });
     }
 
@@ -183,13 +193,15 @@ public class VagrantMachine {
 
     private class ProgressOutputStream extends LoggingOutputStream {
 
+        private final PrintStream forward;
         private ProgressLogger progressLogger;
         private UnaryOperator<String> progressHandler;
 
-        ProgressOutputStream(String command, UnaryOperator<String> progressHandler) {
+        ProgressOutputStream(String command, UnaryOperator<String> progressHandler, PrintStream forward) {
             this.progressHandler = progressHandler;
             this.progressLogger = getProgressLoggerFactory().newOperation("vagrant");
             progressLogger.start(extension.getBox() + "> " + command, "hello");
+            this.forward = forward;
         }
 
         @Override
@@ -198,7 +210,7 @@ public class VagrantMachine {
             if (progress != null) {
                 progressLogger.progress(progress);
             }
-            System.out.println(line);
+            forward.println(" [" + extension.getBox() +"] " + line);
         }
 
         @Override

@@ -70,6 +70,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -550,9 +551,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void configureNodeForFips() {
         boolean inFipsJvm = Boolean.parseBoolean(System.getProperty("tests.fips.enabled", "false"));
         if (inFipsJvm) {
-            systemProperties.put("java.security.properties", "=" + getConfigDir().toString() + "/fips_java.security");
-            systemProperties.put("java.security.policy", "=" + getConfigDir().toString() + "/fips_java.policy");
-            systemProperties.put("javax.net.ssl.trustStore", getConfigDir().toString() + "/cacerts.bcfks");
+            systemProperties.put("java.security.properties",
+                String.format(Locale.ROOT, "=%s/fips_java.security", getConfigDir().toString()));
+            systemProperties.put("java.security.policy",
+                String.format(Locale.ROOT, "=%s/fips_java.policy", getConfigDir().toString()));
+            systemProperties.put("javax.net.ssl.trustStore",
+                String.format(Locale.ROOT, "%s/cacerts.bcfks", getConfigDir().toString()));
             systemProperties.put("javax.net.ssl.trustStorePassword", "password");
             systemProperties.put("javax.net.ssl.keyStorePassword", "password");
             systemProperties.put("javax.net.ssl.trustStoreType","BCFKS");

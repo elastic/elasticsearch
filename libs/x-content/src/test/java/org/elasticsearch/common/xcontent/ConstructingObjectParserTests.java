@@ -142,7 +142,9 @@ public class ConstructingObjectParserTests extends ESTestCase {
     public void testBadParam() throws IOException {
         XContentParser parser = createParser(
             JsonXContent.jsonXContent,
-            "{ \"animal\": \"cat\", \"vegetable\": 2, \"a\": \"supercalifragilisticexpialidocious\" }"
+            // The following JSON needs to include newlines, in order to affect the line numbers
+            // included in the exception
+            "{\n" + "  \"animal\": \"cat\",\n" + "  \"vegetable\": 2,\n" + "  \"a\": \"supercalifragilisticexpialidocious\"\n" + "}"
         );
         XContentParseException e = expectThrows(XContentParseException.class,
                 () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
@@ -155,7 +157,9 @@ public class ConstructingObjectParserTests extends ESTestCase {
     public void testBadParamBeforeObjectBuilt() throws IOException {
         XContentParser parser = createParser(
             JsonXContent.jsonXContent,
-            "{ \"a\": \"supercalifragilisticexpialidocious\", \"animal\": \"cat\",  \"vegetable\": 2 }"
+            // The following JSON needs to include newlines, in order to affect the line numbers
+            // included in the exception
+            "{\n" + "  \"a\": \"supercalifragilisticexpialidocious\",\n" + "  \"animal\": \"cat\"\n," + "  \"vegetable\": 2\n" + "}"
         );
         XContentParseException e = expectThrows(XContentParseException.class,
                 () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));

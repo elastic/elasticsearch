@@ -166,7 +166,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                 String destructiveTaskName = destructiveDistroTestTaskName(distribution);
 
                 if (distribution.getType() == Type.DOCKER && DOCKER_VM_EXCLUDE_LIST.contains(vmProject.getName())) {
-                    logger.info("Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list");
+                    logger.info(
+                        "Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list"
+                    );
                     continue;
                 }
 

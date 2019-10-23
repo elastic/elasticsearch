@@ -613,7 +613,14 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportRequestOptions options,
                                                                final TransportResponseHandler<T> handler) {
-        request.setParentTask(localNode.getId(), parentTask.getId());
+        if (parentTask.getParentTaskId() != null && parentTask.getParentTaskId().isSet()) {
+            // the parent task is already a child of another task so we associate the child request with the
+            // grand-parent in order to be able to cancel the root task efficiently (e.g. cancelling _msearch
+            // request should cancel all sub-tasks).
+            request.setParentTask(parentTask.getParentTaskId());
+        } else {
+            request.setParentTask(localNode.getId(), parentTask.getId());
+        }
         try {
             sendRequest(connection, action, request, options, handler);
         } catch (TaskCancelledException ex) {

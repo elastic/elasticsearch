@@ -77,8 +77,10 @@ public final class HttpChannelTaskHandler {
                     }
                 }
             });
-        closeListener.registerTask(taskHolder, new TaskId(client.getLocalNodeId(), task.getId()));
-        closeListener.maybeRegisterChannel(httpChannel);
+        if (task != null) {
+            closeListener.registerTask(taskHolder, new TaskId(client.getLocalNodeId(), task.getId()));
+            closeListener.maybeRegisterChannel(httpChannel);
+        }
     }
 
     public int getNumChannels() {

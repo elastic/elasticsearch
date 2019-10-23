@@ -133,7 +133,13 @@ public class TaskManager implements ClusterStateApplier {
     public <Request extends ActionRequest, Response extends ActionResponse>
     Task registerAndExecute(String type, TransportAction<Request, Response> action, Request request,
                             BiConsumer<Task, Response> onResponse, BiConsumer<Task, Exception> onFailure) {
-        Task task = register(type, action.actionName, request);
+        final Task task;
+        try {
+            task = register(type, action.actionName, request);
+        } catch (Exception e) {
+            onFailure.accept(null, e);
+            return null;
+        }
         // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
         action.execute(task, request, new ActionListener<Response>() {
             @Override

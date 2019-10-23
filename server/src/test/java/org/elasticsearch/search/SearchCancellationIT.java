@@ -24,8 +24,12 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -37,6 +41,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.LeafFieldsLookup;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -52,10 +57,13 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchCancellationIT extends ESIntegTestCase {
@@ -76,6 +84,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
     }
 
     private void indexTestData() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 10)))
+            .get());
         for (int i = 0; i < 5; i++) {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -245,6 +256,72 @@ public class SearchCancellationIT extends ESIntegTestCase {
         client().prepareClearScroll().addScrollId(scrollId).get();
     }
 
+    public void testMultiSearchQueryPhaseCancellation() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+
+        logger.info("Executing msearch");
+        MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
+        int numSearches = randomIntBetween(1, 5);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(scriptQuery(new Script(
+            ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())));
+        for (int i = 0; i < numSearches; i++) {
+            multiSearchRequestBuilder.add(new SearchRequest("test").source(sourceBuilder));
+        }
+
+        ActionFuture<MultiSearchResponse> multiSearchResponseFuture = multiSearchRequestBuilder.execute();
+
+        awaitForBlock(plugins);
+        cancelSearch(MultiSearchAction.NAME);
+        disableBlocks(plugins);
+        logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
+
+        MultiSearchResponse multiSearchResponse = multiSearchResponseFuture.actionGet();
+        for (MultiSearchResponse.Item item : multiSearchResponse) {
+            if (item.isFailure()) {
+                logger.info("All shards failed with", item.getFailure());
+                assertThat(item.getFailure(), instanceOf(SearchPhaseExecutionException.class));
+            } else {
+                SearchResponse response = item.getResponse();
+                logger.info("Search response {}", response);
+                assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
+            }
+        }
+    }
+
+    public void testMultiSearchFetchPhaseCancellation() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+
+        logger.info("Executing msearch");
+        MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
+        int numSearches = 100;//randomIntBetween(1, 5);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+            .scriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap()));
+        for (int i = 0; i < numSearches; i++) {
+            multiSearchRequestBuilder.add(new SearchRequest("test").source(sourceBuilder));
+        }
+
+        ActionFuture<MultiSearchResponse> multiSearchResponseFuture = multiSearchRequestBuilder.execute();
+
+        awaitForBlock(plugins);
+        cancelSearch(MultiSearchAction.NAME);
+        disableBlocks(plugins);
+        logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
+
+        MultiSearchResponse multiSearchResponse = multiSearchResponseFuture.actionGet();
+        for (MultiSearchResponse.Item item : multiSearchResponse) {
+            if (item.isFailure()) {
+                logger.info("All shards failed with", item.getFailure());
+                assertThat(item.getFailure(), either(instanceOf(SearchPhaseExecutionException.class))
+                    .or(instanceOf(IllegalStateException.class)));
+            } else {
+                SearchResponse response = item.getResponse();
+                logger.info("Search response {}", response);
+                assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
+            }
+        }
+    }
 
     public static class ScriptedBlockPlugin extends MockScriptPlugin {
         static final String SCRIPT_NAME = "search_block";

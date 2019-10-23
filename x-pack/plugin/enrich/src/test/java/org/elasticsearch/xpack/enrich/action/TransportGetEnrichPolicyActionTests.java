@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase {
 
     @After
-    private void cleanupPolicies() throws InterruptedException {
+    public void cleanupPolicies() throws InterruptedException {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -35,7 +35,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
             new GetEnrichPolicyAction.Request(),
-            new ActionListener<GetEnrichPolicyAction.Response>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
                     reference.set(response);
@@ -108,7 +108,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
             new GetEnrichPolicyAction.Request(),
-            new ActionListener<GetEnrichPolicyAction.Response>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
                     reference.set(response);
@@ -144,7 +144,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
             new GetEnrichPolicyAction.Request(new String[]{name}),
-            new ActionListener<GetEnrichPolicyAction.Response>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
                     reference.set(response);
@@ -187,7 +187,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
             new GetEnrichPolicyAction.Request(new String[]{name, anotherName}),
-            new ActionListener<GetEnrichPolicyAction.Response>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
                     reference.set(response);
@@ -218,7 +218,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
             new GetEnrichPolicyAction.Request(new String[]{"non-exists"}),
-            new ActionListener<GetEnrichPolicyAction.Response>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
                     reference.set(response);

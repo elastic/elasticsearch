@@ -152,7 +152,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         // check delete, so all is gone...
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "2").get();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "2").get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
         refresh();

@@ -57,6 +57,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -345,6 +346,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
         final String expected = XContentHelper.reformatJson(
             String.format(
+                Locale.ROOT,
                 "{"
                     + "  \"cluster_uuid\": \"_cluster\","
                     + "  \"timestamp\": \"2017-08-07T12:03:22.133Z\","

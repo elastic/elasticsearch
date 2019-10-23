@@ -21,13 +21,11 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 
 public class NamedFormatterTests extends ESTestCase {
     @Rule

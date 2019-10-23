@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singleton;
@@ -117,6 +118,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         final String expected = XContentHelper.reformatJson(
             String.format(
+                Locale.ROOT,
                 "{"
                     + "  \"cluster_uuid\": \"_cluster\","
                     + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","

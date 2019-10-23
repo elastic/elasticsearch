@@ -42,7 +42,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
             for (int t = 0; t < threads.length; t++) {
-                builders.add(client().prepareIndex("test", "doc").setSource("field", t));
+                builders.add(client().prepareIndex("test").setSource("field", t));
             }
         }
         indexRandom(true, true, true, builders);

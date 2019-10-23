@@ -249,7 +249,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         }
 
         for (int i = 0; i < 10; i++) {
-            bulkRequest.add(client().prepareIndex("test", "_doc")
+            bulkRequest.add(client().prepareIndex("test")
                 .setSource("other_field", "1"));
         }
 

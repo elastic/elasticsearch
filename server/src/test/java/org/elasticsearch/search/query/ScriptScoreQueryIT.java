@@ -117,7 +117,9 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         refresh();
 
         RangeQueryBuilder rangeQB = new RangeQueryBuilder("field1").from("2019-01-01"); // the query should be rewritten to from:null
-        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", Map.of("param1", 0.1));
+        Map<String, Object> params = new HashMap<>();
+        params.put("param1", 0.1);
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
         SearchResponse resp = client()
             .prepareSearch("test-index2")
             .setQuery(scriptScoreQuery(rangeQB, script))

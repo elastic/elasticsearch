@@ -1,10 +1,12 @@
 setup:
   - skip:
-      features: headers
+      features: [headers, warnings]
       version: " - 7.2.99"
       reason: "sparse_vector functions were introduced in 7.3.0"
 
   - do:
+      warnings:
+        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       indices.create:
         include_type_name: false
         index: test-index
@@ -44,6 +46,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:
@@ -74,6 +78,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:

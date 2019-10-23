@@ -78,17 +78,14 @@ signing requests (CSR) for the nodes in your cluster. For more information, see
 . Copy the node certificate to the appropriate locations.
 +
 --
-Copy the applicable `.p12` file into a directory within the {es} configuration
-directory on each node. For example, `/home/es/config/certs`. There is no need
+Copy the applicable `.p12` file into a directory within the {ref}/settings.html#config-files-location[{es} configuration
+directory] on each node, otherwise permissions checks will fail at
+the start up. For example, `/home/es/config/certs`. There is no need
 to copy the CA file to this directory.
 
 For each additional Elastic product that you want to configure, copy the
 certificates to the relevant configuration directory. 
 --
-
-WARNING: The `.p12` certificate has to be placed at least under the `config`
-directory of your {es} installation, otherwise permissions checks will fail at
-the node start up.
 
 NOTE: If you choose not to use `elasticsearch-certutil`, the certificates that
 you obtain must allow for both `clientAuth` and `serverAuth` if the extended key

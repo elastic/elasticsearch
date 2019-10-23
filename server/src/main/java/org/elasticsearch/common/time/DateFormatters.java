@@ -37,7 +37,6 @@ import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
 import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.time.temporal.TemporalQuery;
 import java.time.temporal.WeekFields;
@@ -53,6 +52,7 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
+    public static final WeekFields WEEK_FIELDS = WeekFields.of(DayOfWeek.MONDAY,4);
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder()
         .appendOffset("+HHmm", "Z")
@@ -946,14 +946,14 @@ public class DateFormatters {
      * Returns a formatter for a four digit weekyear
      */
     private static final DateFormatter STRICT_WEEKYEAR = new JavaDateFormatter("strict_weekyear", new DateTimeFormatterBuilder()
-        .appendValue(WeekFields.ISO.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(WEEK_FIELDS.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT));
 
     private static final DateTimeFormatter STRICT_WEEKYEAR_WEEK_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(WeekFields.ISO.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(WEEK_FIELDS.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
         .appendLiteral("-W")
-        .appendValue(WeekFields.ISO.weekOfWeekBasedYear(), 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendValue(WEEK_FIELDS.weekOfWeekBasedYear(), 2, 2, SignStyle.NOT_NEGATIVE)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
 
@@ -972,7 +972,7 @@ public class DateFormatters {
         new DateTimeFormatterBuilder()
             .append(STRICT_WEEKYEAR_WEEK_FORMATTER)
             .appendLiteral("-")
-            .appendValue(WeekFields.ISO.dayOfWeek())
+            .appendValue(WEEK_FIELDS.dayOfWeek())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT));
 
@@ -1162,7 +1162,7 @@ public class DateFormatters {
      * Returns a formatter for a four digit weekyear. (YYYY)
      */
     private static final DateFormatter WEEK_YEAR = new JavaDateFormatter("week_year",
-        new DateTimeFormatterBuilder().appendValue(WeekFields.ISO.weekBasedYear()).toFormatter(Locale.ROOT)
+        new DateTimeFormatterBuilder().appendValue(WEEK_FIELDS.weekBasedYear()).toFormatter(Locale.ROOT)
                                       .withResolverStyle(ResolverStyle.STRICT));
 
     /*
@@ -1591,9 +1591,9 @@ public class DateFormatters {
      */
     private static final DateFormatter WEEKYEAR_WEEK = new JavaDateFormatter("weekyear_week", STRICT_WEEKYEAR_WEEK_FORMATTER,
         new DateTimeFormatterBuilder()
-            .appendValue(WeekFields.ISO.weekBasedYear())
+            .appendValue(WEEK_FIELDS.weekBasedYear())
             .appendLiteral("-W")
-            .appendValue(WeekFields.ISO.weekOfWeekBasedYear())
+            .appendValue(WEEK_FIELDS.weekOfWeekBasedYear())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT)
     );
@@ -1606,15 +1606,15 @@ public class DateFormatters {
         new DateTimeFormatterBuilder()
             .append(STRICT_WEEKYEAR_WEEK_FORMATTER)
             .appendLiteral("-")
-            .appendValue(WeekFields.ISO.dayOfWeek())
+            .appendValue(WEEK_FIELDS.dayOfWeek())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT),
         new DateTimeFormatterBuilder()
-            .appendValue(WeekFields.ISO.weekBasedYear())
+            .appendValue(WEEK_FIELDS.weekBasedYear())
             .appendLiteral("-W")
-            .appendValue(WeekFields.ISO.weekOfWeekBasedYear())
+            .appendValue(WEEK_FIELDS.weekOfWeekBasedYear())
             .appendLiteral("-")
-            .appendValue(WeekFields.ISO.dayOfWeek())
+            .appendValue(WEEK_FIELDS.dayOfWeek())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT)
     );
@@ -1858,7 +1858,7 @@ public class DateFormatters {
         } else if (isLocalDateSet) {
             return localDate.atStartOfDay(zoneId);
         } else if (isLocalTimeSet) {
-            return of(getLocaldate(accessor), localTime, zoneId);
+            return of(getLocalDate(accessor), localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR) || accessor.isSupported(ChronoField.YEAR_OF_ERA) ) {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
@@ -1868,24 +1868,27 @@ public class DateFormatters {
             }
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling
-            return getLocaldate(accessor).atStartOfDay(zoneId);
-        } else if (accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
-            if (accessor.isSupported(WeekFields.ISO.weekOfWeekBasedYear())) {
-                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
-                    .atDay(1)
-                    .with(WeekFields.ISO.weekOfWeekBasedYear(), accessor.getLong(WeekFields.ISO.weekOfWeekBasedYear()))
-                    .atStartOfDay(zoneId);
-            } else {
-                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
-                    .atDay(1)
-                    .with(TemporalAdjusters.firstInMonth(DayOfWeek.MONDAY))
-                    .atStartOfDay(zoneId);
-            }
+            return getLocalDate(accessor).atStartOfDay(zoneId);
+        } else if (accessor.isSupported(WEEK_FIELDS.weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor).atStartOfDay(zoneId);
         }
 
         // we should not reach this piece of code, everything being parsed we should be able to
         // convert to a zoned date time! If not, we have to extend the above methods
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
+    }
+
+    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor) {
+        if (accessor.isSupported(WEEK_FIELDS.weekOfWeekBasedYear())) {
+            return LocalDate.ofEpochDay(0)
+                            .with(WEEK_FIELDS.weekBasedYear(), accessor.get(WEEK_FIELDS.weekBasedYear()))
+                            .with(WEEK_FIELDS.weekOfWeekBasedYear(), accessor.get(WEEK_FIELDS.weekOfWeekBasedYear()))
+                            .with(ChronoField.DAY_OF_WEEK, WEEK_FIELDS.getFirstDayOfWeek().getValue());
+        } else {
+            return LocalDate.ofEpochDay(0)
+                            .with(WEEK_FIELDS.weekBasedYear(), accessor.get(WEEK_FIELDS.weekBasedYear()))
+                            .with(ChronoField.DAY_OF_WEEK, WEEK_FIELDS.getFirstDayOfWeek().getValue());
+        }
     }
 
     /**
@@ -1915,9 +1918,11 @@ public class DateFormatters {
         }
     };
 
-    private static LocalDate getLocaldate(TemporalAccessor accessor) {
-        int year = getYear(accessor);
-        if (accessor.isSupported(MONTH_OF_YEAR)) {
+    private static LocalDate getLocalDate(TemporalAccessor accessor) {
+        if (accessor.isSupported(WEEK_FIELDS.weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor);
+        } else if (accessor.isSupported(MONTH_OF_YEAR)) {
+            int year = getYear(accessor);
             if (accessor.isSupported(DAY_OF_MONTH)) {
                 return LocalDate.of(year, accessor.get(MONTH_OF_YEAR), accessor.get(DAY_OF_MONTH));
             } else {

@@ -85,6 +85,13 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
         super(fieldName, shape);
     }
 
+    /**
+     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * field name and will use the Shape found with the given shape id and supplier
+     * @param fieldName         Name of the field that will be queried
+     * @param shapeSupplier     A shape supplier
+     * @param indexedShapeId    The indexed id of a shape
+     */
     public GeoShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId) {
         super(fieldName, shapeSupplier, indexedShapeId);
     }

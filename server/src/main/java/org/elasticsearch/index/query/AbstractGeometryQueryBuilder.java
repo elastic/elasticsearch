@@ -346,7 +346,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;
     /** creates a new ShapeQueryBuilder from the provided field name and shape builder */
     protected abstract AbstractGeometryQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Geometry shape);
-    /** creates a new ShapeQueryBuilder from the provided field name, supplier, indexed shape id, and indexed shape type */
+    /** creates a new ShapeQueryBuilder from the provided field name, supplier and indexed shape id*/
     protected abstract AbstractGeometryQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier,
                                                                              String indexedShapeId);
 

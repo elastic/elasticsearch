@@ -249,7 +249,7 @@ However, a problem arises if your named entity happens to be a single term and l
 company `elastic`. In this case, a search on the annotated text field for the token `elastic`
 may match a text document such as this:
 
-    he fired an elastic band
+    they fired an elastic band
 
 To avoid such false matches users should consider prefixing annotation values to ensure 
 they don't name clash with text tokens e.g.

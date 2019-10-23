@@ -114,7 +114,7 @@ For instance the following response:
 \... indicates that the number of hits returned in the `total`
 is accurate.
 
-If the total number of his that match the query is greater than the
+If the total number of hits that match the query is greater than the
 value set in `track_total_hits`, the total hits in the response
 will indicate that the returned value is a lower bound:
 

@@ -305,10 +305,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.forEach(ElasticsearchNode::restart);
     }
 
-    public void goToNextVersion(Runnable onUpgraded) {
+    public void goToNextVersion(Runnable onStopped) {
         stop(false);
+        onStopped.run();
         nodes.all(ElasticsearchNode::goToNextVersion);
-        onUpgraded.run();
         start();
         writeUnicastHostsFiles();
     }

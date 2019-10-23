@@ -62,6 +62,7 @@ final class JvmErgonomics {
         if (maxDirectMemorySize == 0) {
             if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
                 Launchers.errPrintln("Warning: with JDK 8 on Windows, Elasticsearch may miscalculate MaxDirectMemorySize");
+                Launchers.errPrintln("  due to a JDK issue. See https://bugs.java.com/bugdatabase/view_bug.do?bug_id=8074459");
                 Launchers.errPrintln("  Please use a newer version of Java or set MaxDirectMemorySize explicitly");
             }
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);

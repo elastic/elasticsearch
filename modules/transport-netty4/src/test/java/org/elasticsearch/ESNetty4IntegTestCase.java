@@ -18,7 +18,6 @@
  */
 package org.elasticsearch;
 
-import io.netty.buffer.PooledByteBufAllocator;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -66,15 +65,7 @@ public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        assertEquals(0, PooledByteBufAllocator.DEFAULT.metric().usedHeapMemory());
-        assertEquals(0, PooledByteBufAllocator.DEFAULT.metric().usedDirectMemory());
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Collections.singletonList(Netty4Plugin.class);
     }
-
 }

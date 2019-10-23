@@ -151,6 +151,15 @@ public class DockerUtils {
             throwDockerRequiredException(message);
         }
 
+        if (availability.version == null) {
+            final String message = String.format(
+                Locale.ROOT,
+                "Docker is required to run the following task%s, but it doesn't appear to be running: \n%s",
+                tasks.size() > 1 ? "s" : "",
+                String.join("\n", tasks));
+            throwDockerRequiredException(message);
+        }
+
         if (availability.isVersionHighEnough == false) {
             final String message = String.format(
                 Locale.ROOT,

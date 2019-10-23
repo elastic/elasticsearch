@@ -163,11 +163,13 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
             for (ElasticsearchDistribution distribution : distributions) {
+                String destructiveTaskName = destructiveDistroTestTaskName(distribution);
+
                 if (distribution.getType() == Type.DOCKER && DOCKER_VM_EXCLUDE_LIST.contains(vmProject.getName())) {
+                    logger.info("Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list");
                     continue;
                 }
 
-                String destructiveTaskName = destructiveDistroTestTaskName(distribution);
                 Platform platform = distribution.getPlatform();
                 // this condition ensures windows boxes get windows distributions, and linux boxes get linux distributions
                 if (isWindows(vmProject) == (platform == Platform.WINDOWS)) {
@@ -490,11 +492,15 @@ public class DistroTestPlugin implements Plugin<Project> {
                         throw new GradleException("Failed to read /etc/os-release", e);
                     }
 
-                    final String id = values.get("ID") + "-" + values.get("VERSION");
+                    final String id = values.get("ID") + "-" + values.get("VERSION_ID");
 
-                    logger.info("Linux OS id is [" + id + "], is it in the list? -> " + DOCKER_LINUX_INCLUDE_LIST.contains(id));
+                    final boolean contains = DOCKER_LINUX_INCLUDE_LIST.contains(id);
 
-                    return DOCKER_LINUX_INCLUDE_LIST.contains(id);
+                    if (contains == false) {
+                        logger.warn("Linux OS id [" + id + "] is not present in the include list");
+                    }
+
+                    return contains;
                 }
 
                 return false;

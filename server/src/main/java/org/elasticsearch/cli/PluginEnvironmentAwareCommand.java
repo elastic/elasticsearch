@@ -56,11 +56,8 @@ public abstract class PluginEnvironmentAwareCommand extends EnvironmentAwareComm
             final KeyStoreWrapper keystore = KeyStoreWrapper.load(initialEnv.configFile());
             if (keystore != null) {
                 keystore.decrypt(new char[0] /* TODO: read password from stdin */);
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), new char[0]);
-                secureSettings = keystore;
-            } else {
-                secureSettings = null;
             }
+            secureSettings = keystore;
         } catch (Exception e) {
             throw new UserException(ExitCodes.CONFIG, "can't load keystore", e);
         }

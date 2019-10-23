@@ -6,12 +6,14 @@ control flow statements] except the `switch` statement.
 
 ==== Conditional statements
 
-===== If / Else
+===== If / Else if / Else
 
 [source,painless]
 ---------------------------------------------------------
 if (doc[item].size() == 0) {
   // do something if "item" is missing
+} else if (doc[item].value == 'something') {
+  // do something if "item" value is: something
 } else {
   // do something else
 }
@@ -26,6 +28,23 @@ Painless also supports the `for in` syntax from Groovy:
 [source,painless]
 ---------------------------------------------------------
 for (item : list) {
-  ...
+  // do something
 }
+---------------------------------------------------------
+
+===== While
+[source,painless]
+---------------------------------------------------------
+while (ctx._source.item < condition) {
+  // do something
+}
+---------------------------------------------------------
+
+===== Do...While
+[source,painless]
+---------------------------------------------------------
+do {
+  // something
+}
+while (ctx._source.item < condition)
 ---------------------------------------------------------

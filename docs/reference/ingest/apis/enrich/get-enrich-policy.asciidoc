@@ -12,6 +12,13 @@ Returns information about an enrich policy.
 [source,console]
 ----
 PUT /users
+{
+    "mappings" : {
+        "properties" : {
+            "email" : { "type" : "keyword" }
+        }
+    }
+}
 
 PUT /_enrich/policy/my-policy
 {

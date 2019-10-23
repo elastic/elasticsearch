@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -147,9 +146,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
-        ImmutableOpenMap<String, MappingMetaData> mapping = getMappingsResponse
-            .getMappings().get(sourceIdx);
-        assertTrue(mapping.containsKey("_doc"));
+        MappingMetaData mapping = getMappingsResponse.getMappings().get(sourceIdx);
         String nested = useNested ?
             ",\"incorrect\":{\"type\":\"object\"},\"nested\":{\"type\":\"nested\",\"properties\":{\"value\":{\"type\":\"long\"}}}" : "";
         if (requireRouting) {
@@ -157,12 +154,12 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
                 "\"_meta\":{\"_doc\":{\"_routing\":{\"required\":true}," +
                 "\"properties\":{\"field1\":{\"type\":\"text\"," +
                 "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested +
-                "}}}}}", mapping.get("_doc").source().string());
+                "}}}}}", mapping.source().string());
         } else {
             assertEquals("{\"_doc\":{\"enabled\":false," +
                 "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
                 "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}}}",
-                mapping.get("_doc").source().string());
+                mapping.source().string());
         }
     }
 

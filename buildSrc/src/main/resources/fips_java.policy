@@ -1,8 +1,6 @@
 grant {
      permission java.security.SecurityPermission "putProviderProperty.BCFIPS";
      permission java.security.SecurityPermission "putProviderProperty.BCJSSE";
-     permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
-     permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
      permission java.lang.RuntimePermission "getProtectionDomain";
      permission java.util.PropertyPermission "java.runtime.name", "read";
      permission org.bouncycastle.crypto.CryptoServicesPermission "tlsAlgorithmsEnabled";
@@ -12,5 +10,7 @@ grant {
      permission java.lang.RuntimePermission "accessDeclaredMembers";
      permission java.util.PropertyPermission "intellij.debug.agent", "read";
      permission java.util.PropertyPermission "intellij.debug.agent", "write";
-     permission java.io.FilePermission "/usr/lib/jvm/jdk-11-fips/lib/security/cacerts", "read";
+     permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
+     permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
+     permission java.io.FilePermission "${javax.net.ssl.trustStore}", "read";
 };

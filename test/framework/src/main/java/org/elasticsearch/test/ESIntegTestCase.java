@@ -241,8 +241,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public static final String SYSPROP_THIRDPARTY = "tests.thirdparty";
 
-    public static final String SYSPROP_FIPS = "fips.enabled";
-
     /**
      * Annotation for third-party integration tests.
      * <p>
@@ -2096,6 +2094,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(SYSPROP_FIPS));
+        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 }

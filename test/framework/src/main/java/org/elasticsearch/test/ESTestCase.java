@@ -190,7 +190,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
-    public static final String FIPS_ENABLED = "fips.enabled";
+    public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -1335,7 +1335,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_ENABLED));
+        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 
     /**

@@ -34,6 +34,7 @@ import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Classpath;
@@ -447,6 +448,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         copyExtraConfigFiles();
 
+        copyExtraJars();
+
+        configureNodeForFips();
+
         if (isSettingTrue("xpack.security.enabled")) {
             if (credentials.isEmpty()) {
                 user(Collections.emptyMap());
@@ -521,6 +526,37 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 throw new UncheckedIOException("Can't create extra config file for", e);
             }
         });
+    }
+
+    /**
+     * Copies extra jars to the `/lib` directory.
+     * //TODO: Remove this when system modules are available
+     */
+    private void copyExtraJars() {
+        Configuration extraJarsConfig = project.getConfigurations().findByName("extraJars");
+        if ( extraJarsConfig != null ) {
+            Set<File> extraJars = project.getConfigurations().getByName("extraJars").getFiles();
+            for (File jar : extraJars) {
+                Path destination = getDistroDir().resolve("lib");
+                LOGGER.info("Adding extra jar {} to {}", jar.getName(), destination);
+                project.copy(spec -> {
+                    spec.from(jar);
+                    spec.into(destination);
+                });
+            }
+        }
+    }
+
+    private void configureNodeForFips() {
+        boolean inFipsJvm = Boolean.parseBoolean(System.getProperty("tests.fips.enabled", "false"));
+        if (inFipsJvm) {
+            systemProperties.put("java.security.properties", "=" + getConfigDir().toString() + "/fips_java.security");
+            systemProperties.put("java.security.policy", "=" + getConfigDir().toString() + "/fips_java.policy");
+            systemProperties.put("javax.net.ssl.trustStore", getConfigDir().toString() + "/cacerts.bcfks");
+            systemProperties.put("javax.net.ssl.trustStorePassword", "password");
+            systemProperties.put("javax.net.ssl.keyStorePassword", "password");
+            systemProperties.put("javax.net.ssl.trustStoreType","BCFKS");
+        }
     }
 
     private void installModules() {

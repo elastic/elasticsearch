@@ -31,6 +31,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -142,36 +143,43 @@ class BuildPlugin implements Plugin<Project> {
         configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
-
         configureFips140(project)
     }
 
     static void configureFips140(Project project) {
         // Common config when running with a FIPS-140 runtime JVM
         if (inFipsJvm()) {
-            String securityPropertiesPath = "" + BuildPlugin.getResource("/fips_java.security").getPath();
-            String securityPolicyPath = "" + BuildPlugin.getResource("/fips_java.policy").getPath();
-            project.tasks.withType(Test).configureEach { Test task ->
-                task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                task.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
-                task.systemProperty('java.security.properties',
-                        '=/home/ioannis/code/devel/elasticsearch/buildSrc/src/main/resources/fips_java.security')
-                task.systemProperty('java.security.policy',
-                        '=/home/ioannis/code/devel/elasticsearch/buildSrc/src/main/resources/fips_java' +
-                        '.policy')
-                task.systemProperty('javax.net.ssl.trustStore', '/usr/lib/jvm/jdk-11-fips/lib/security/jssecacerts')
+            ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources') as ExportElasticsearchBuildResourcesTask
+            File securityProperties = buildResources.copy("fips_java.security")
+            File securityPolicy = buildResources.copy("fips_java.policy")
+            File bcfksKeystore = buildResources.copy("cacerts.bcfks")
+            // This configuration can be removed once system modules are available
+            Boilerplate.maybeCreate(project.configurations, 'extraJars') {
+                project.dependencies.add('extraJars', "org.bouncycastle:bc-fips:1.0.1")
+                project.dependencies.add('extraJars', "org.bouncycastle:bctls-fips:1.0.9")
             }
             project.pluginManager.withPlugin("elasticsearch.testclusters") {
                 NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
                 if (testClusters != null) {
                     testClusters.all { ElasticsearchCluster cluster ->
-                        cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                        cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                        cluster.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
+                        cluster.extraConfigFile("fips_java.security", securityProperties);
+                        cluster.extraConfigFile("fips_java.policy", securityPolicy);
+                        cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore);
                     }
                 }
             }
+            project.tasks.withType(Test).configureEach { Test task ->
+                task.dependsOn(buildResources)
+                task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')
+                // Using the key==value format to override default JVM security settings and policy
+                // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
+                task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", securityProperties.toString()))
+                task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", securityPolicy.toString()))
+                task.systemProperty('javax.net.ssl.trustStore', bcfksKeystore.toString())
+            }
+
         }
     }
 
@@ -1005,6 +1013,6 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static inFipsJvm(){
-        return Boolean.parseBoolean(System.getProperty("fips.enabled"));
+        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 }

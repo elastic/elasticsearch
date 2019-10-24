@@ -34,15 +34,12 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
     }
 
     public void testCheckNoTimeout() {
-
         NOOP_TIMEOUT_CHECKER.check("should never happen");
     }
 
     public void testCheckTimeoutNotExceeded() throws InterruptedException {
-
         TimeValue timeout = TimeValue.timeValueSeconds(10);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("timeout not exceeded test", timeout, scheduler)) {
-
             for (int count = 0; count < 10; ++count) {
                 timeoutChecker.check("should not timeout");
                 Thread.sleep(randomIntBetween(1, 10));
@@ -51,10 +48,8 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
     }
 
     public void testCheckTimeoutExceeded() throws Exception {
-
         TimeValue timeout = TimeValue.timeValueMillis(10);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("timeout exceeded test", timeout, scheduler)) {
-
             assertBusy(() -> {
                 ElasticsearchTimeoutException e = expectThrows(ElasticsearchTimeoutException.class,
                     () -> timeoutChecker.check("should timeout"));
@@ -65,9 +60,6 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
     }
 
     public void testWatchdog() throws Exception {
-
-        assertFalse(Thread.interrupted());
-
         TimeValue timeout = TimeValue.timeValueMillis(500);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler)) {
             TimeoutChecker.TimeoutCheckerWatchdog watchdog = (TimeoutChecker.TimeoutCheckerWatchdog) TimeoutChecker.watchdog;
@@ -83,17 +75,11 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
                 TimeoutChecker.watchdog.unregister(matcher);
                 assertThat(watchdog.registry.get(Thread.currentThread()).matchers.size(), equalTo(0));
             }
-        } finally {
-            // ensure the interrupted flag is cleared to stop it making subsequent tests fail
-            Thread.interrupted();
         }
     }
 
     public void testGrokCaptures() throws Exception {
-
-        assertFalse(Thread.interrupted());
         Grok grok = new Grok(Grok.getBuiltinPatterns(), "{%DATA:data}{%GREEDYDATA:greedydata}", TimeoutChecker.watchdog);
-
         TimeValue timeout = TimeValue.timeValueMillis(1);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("grok captures test", timeout, scheduler)) {
 
@@ -103,9 +89,6 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
                 assertEquals("Aborting grok captures test during [should timeout] as it has taken longer than the timeout of [" +
                     timeout + "]", e.getMessage());
             });
-        } finally {
-            // ensure the interrupted flag is cleared to stop it making subsequent tests fail
-            Thread.interrupted();
         }
     }
 }

@@ -24,10 +24,9 @@ privilege.
 [[security-api-put-role-desc]]
 ==== {api-description-title}
 
-The role API is generally the preferred way to manage roles, rather than using
-file-based role management. For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
-
+The role management APIs are generally the preferred way to manage roles, rather than using
+<<roles-management-file,file-based role management>>. The create
+or update roles API cannot update roles that are defined in roles files.
 
 [[security-api-put-role-path-params]]
 ==== {api-path-parms-title}
@@ -59,7 +58,7 @@ This field is optional.
 `indices`:: (list) A list of indices permissions entries.
 `field_security`::: (list) The document fields that the owners of the role have
 read access to. For more information, see
-{stack-ov}/field-and-document-access-control.html[Setting up field and document level security].
+<<field-and-document-access-control>>.
 `names` (required)::: (list) A list of indices (or index name patterns) to which the
 permissions in this entry apply.
 `privileges`(required)::: (list) The index level privileges that the owners of the role
@@ -73,9 +72,9 @@ that begin with `_` are reserved for system usage.
 
 `run_as`:: (list) A list of users that the owners of this role can impersonate.
 For more information, see
-{stack-ov}/run-as-privilege.html[Submitting requests on behalf of other users].
+<<run-as-privilege>>.
 
-For more information, see {stack-ov}/defining-roles.html[Defining roles].
+For more information, see <<defining-roles>>.
 
 [[security-api-put-role-example]]
 ==== {api-examples-title}

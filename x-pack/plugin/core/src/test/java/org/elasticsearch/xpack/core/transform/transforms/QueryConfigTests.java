@@ -25,7 +25,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 
-public class QueryConfigTests extends AbstractSerializingDataFrameTestCase<QueryConfig> {
+public class QueryConfigTests extends AbstractSerializingTransformTestCase<QueryConfig> {
 
     private boolean lenient;
 

@@ -40,8 +40,6 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
 public class RestGraphAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGraphAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-            " Specifying types in graph requests is deprecated.";
 
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
@@ -65,20 +63,12 @@ public class RestGraphAction extends BaseRestHandler {
     public RestGraphAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
-                GET, "/{index}/_graph/explore", this,
-                GET, "/{index}/_xpack/graph/_explore", deprecationLogger);
+            GET, "/{index}/_graph/explore", this,
+            GET, "/{index}/_xpack/graph/_explore", deprecationLogger);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
-                POST, "/{index}/_graph/explore", this,
-                POST, "/{index}/_xpack/graph/_explore", deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, "/{index}/{type}/_graph/explore", this,
-                GET, "/{index}/{type}/_xpack/graph/_explore", deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/{index}/{type}/_graph/explore", this,
-                POST, "/{index}/{type}/_xpack/graph/_explore", deprecationLogger);
+            POST, "/{index}/_graph/explore", this,
+            POST, "/{index}/_xpack/graph/_explore", deprecationLogger);
     }
 
     @Override
@@ -111,10 +101,6 @@ public class RestGraphAction extends BaseRestHandler {
             parseHop(parser, currentHop, graphRequest);
         }
 
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("graph_with_types", TYPES_DEPRECATION_MESSAGE);
-            graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        }
         return channel -> client.execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 

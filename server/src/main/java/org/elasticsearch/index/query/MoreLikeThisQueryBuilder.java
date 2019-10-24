@@ -443,7 +443,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 toXContent(builder, EMPTY_PARAMS);
                 return Strings.toString(builder);
             } catch (Exception e) {
-                return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+                throw new RuntimeException(e);
             }
         }
 

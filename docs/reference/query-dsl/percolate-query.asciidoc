@@ -95,7 +95,6 @@ The above request will yield the following response:
     "hits": [
       { <1>
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.26152915,
         "_source": {
@@ -244,7 +243,6 @@ GET /my-index/_search
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.7093853,
         "_source": {
@@ -295,7 +293,6 @@ Index response:
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_shards": {
@@ -420,7 +417,6 @@ This will yield the following response.
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "3",
         "_score": 0.26152915,
         "_source": {
@@ -441,7 +437,6 @@ This will yield the following response.
       },
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "4",
         "_score": 0.26152915,
         "_source": {
@@ -527,7 +522,6 @@ The slightly different response:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.7093853,
         "_source": {
@@ -625,7 +619,6 @@ The above search request returns a response similar to this:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.26152915,
         "_source": {

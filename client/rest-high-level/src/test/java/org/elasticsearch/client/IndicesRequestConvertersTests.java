@@ -288,50 +288,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
     }
 
-    public void testGetMappingWithTypes() {
-        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingRequest =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest();
-
-        String[] indices = Strings.EMPTY_ARRAY;
-        if (randomBoolean()) {
-            indices = RequestConvertersTests.randomIndicesNames(0, 5);
-            getMappingRequest.indices(indices);
-        } else if (randomBoolean()) {
-            getMappingRequest.indices((String[]) null);
-        }
-
-        String type = null;
-        if (randomBoolean()) {
-            type = randomAlphaOfLengthBetween(3, 10);
-            getMappingRequest.types(type);
-        } else if (randomBoolean()) {
-            getMappingRequest.types((String[]) null);
-        }
-
-        Map<String, String> expectedParams = new HashMap<>();
-
-        RequestConvertersTests.setRandomIndicesOptions(getMappingRequest::indicesOptions,
-            getMappingRequest::indicesOptions, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(getMappingRequest, expectedParams);
-        RequestConvertersTests.setRandomLocal(getMappingRequest::local, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-
-        Request request = IndicesRequestConverters.getMappings(getMappingRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        String index = String.join(",", indices);
-        if (Strings.hasLength(index)) {
-            endpoint.add(index);
-        }
-        endpoint.add("_mapping");
-        if (type != null) {
-            endpoint.add(type);
-        }
-        Assert.assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
-
-        Assert.assertThat(expectedParams, equalTo(request.getParameters()));
-        Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
-    }
-
     public void testGetFieldMapping() {
         GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest();
 
@@ -1088,8 +1044,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         names.put("foo^bar", "foo%5Ebar");
 
         PutIndexTemplateRequest putTemplateRequest =
-                new PutIndexTemplateRequest(ESTestCase.randomFrom(names.keySet()))
-                .patterns(Arrays.asList(ESTestCase.generateRandomStringArray(20, 100, false, false)));
+                new PutIndexTemplateRequest(ESTestCase.randomFrom(names.keySet()),
+                    List.of(ESTestCase.generateRandomStringArray(20, 100, false, false)));
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.order(ESTestCase.randomInt());
         }
@@ -1116,7 +1072,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             putTemplateRequest.cause(cause);
             expectedParams.put("cause", cause);
         }
-        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest::masterNodeTimeout, expectedParams);
 
         Request request = IndicesRequestConverters.putTemplate(putTemplateRequest);
         Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
@@ -1125,7 +1081,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
     public void testValidateQuery() throws Exception {
         String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
-        String[] types = ESTestCase.randomBoolean() ? ESTestCase.generateRandomStringArray(5, 5, false, false) : null;
         ValidateQueryRequest validateQueryRequest;
         if (ESTestCase.randomBoolean()) {
             validateQueryRequest = new ValidateQueryRequest(indices);
@@ -1133,7 +1088,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             validateQueryRequest = new ValidateQueryRequest();
             validateQueryRequest.indices(indices);
         }
-        validateQueryRequest.types(types);
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(validateQueryRequest::indicesOptions, validateQueryRequest::indicesOptions,
             expectedParams);
@@ -1147,9 +1101,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
-            if (types != null && types.length > 0) {
-                endpoint.add(String.join(",", types));
-            }
         }
         endpoint.add("_validate/query");
         Assert.assertThat(request.getEndpoint(), equalTo(endpoint.toString()));

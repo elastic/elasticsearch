@@ -19,7 +19,7 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
@@ -75,8 +75,8 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
                 .startObject().field(FIELD), null).endObject();
 
             try {
-                client().prepareIndex(INDEX, FIELD_TYPE).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
-                client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
+                client().prepareIndex(INDEX).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
+                client().prepareIndex(IGNORE_MALFORMED_INDEX).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
             } catch (Exception e) {
                 // sometimes GeoTestUtil will create invalid geometry; catch and continue:
                 if (queryGeometry == geometry) {
@@ -184,7 +184,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(SpatialPlugin.class, XPackPlugin.class);
+        return pluginList(SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     /**
@@ -222,7 +222,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE, "aNullshape").setSource("{\"" + FIELD + "\": null}",
             XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        GetResponse result = client().prepareGet(INDEX, FIELD_TYPE, "aNullshape").get();
+        GetResponse result = client().prepareGet(INDEX, "aNullshape").get();
         assertThat(result.getField(FIELD), nullValue());
     }
 

@@ -61,9 +61,9 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     public void testFieldMappings() throws Exception {
         final String index = "logstash-20-12-2015";
-        final String type = "event";
+        final String type = "_doc";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
+        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().addIndices("logstash-*").setFields("*")
                 .includeDefaults(true).get();
@@ -86,7 +86,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "event";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
+        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
         ValidateQueryResponse response = client().admin().indices()
                 .prepareValidateQuery(index).setQuery(QueryBuilders.termQuery(field, "bar")).get();
@@ -104,7 +104,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "event";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
+        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
         SearchResponse response = client().prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).get();
         final long hits = response.getHits().getTotalHits().value;
@@ -131,7 +131,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "event";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
+        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
         GetIndexResponse response = client().admin().indices().prepareGetIndex().setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
@@ -145,9 +145,9 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     public void testGetMappings() throws Exception {
         final String index = "logstash-20-12-2015";
-        final String type = "event";
+        final String type = "_doc";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
+        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
         GetMappingsResponse response = client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
@@ -155,11 +155,10 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
                 .indices()
                 .prepareGetMappings("logstash-*")
                 .get();
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsMap = response.getMappings();
+        ImmutableOpenMap<String, MappingMetaData> mappingsMap = response.getMappings();
         assertNotNull(mappingsMap);
         assertNotNull(mappingsMap.get(index));
-        assertNotNull(mappingsMap.get(index).get(type));
-        MappingMetaData mappingMetaData = mappingsMap.get(index).get(type);
+        MappingMetaData mappingMetaData = mappingsMap.get(index);
         assertThat(mappingMetaData.getSourceAsMap(), hasKey("properties"));
         assertThat(mappingMetaData.getSourceAsMap().get("properties"), instanceOf(Map.class));
         Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetaData.getSourceAsMap().get("properties");

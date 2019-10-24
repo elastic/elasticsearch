@@ -20,14 +20,14 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,60 +44,60 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
     /**
      * Builder for collecting checkpointing information for the purpose of _stats
      */
-    private static class DataFrameTransformCheckpointingInfoBuilder {
-        private DataFrameIndexerPosition nextCheckpointPosition;
-        private DataFrameTransformProgress nextCheckpointProgress;
-        private DataFrameTransformCheckpoint lastCheckpoint;
-        private DataFrameTransformCheckpoint nextCheckpoint;
-        private DataFrameTransformCheckpoint sourceCheckpoint;
+    private static class TransformCheckpointingInfoBuilder {
+        private TransformIndexerPosition nextCheckpointPosition;
+        private TransformProgress nextCheckpointProgress;
+        private TransformCheckpoint lastCheckpoint;
+        private TransformCheckpoint nextCheckpoint;
+        private TransformCheckpoint sourceCheckpoint;
 
-        DataFrameTransformCheckpointingInfoBuilder() {
+        TransformCheckpointingInfoBuilder() {
         }
 
-        DataFrameTransformCheckpointingInfo build() {
+        TransformCheckpointingInfo build() {
             if (lastCheckpoint == null) {
-                lastCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+                lastCheckpoint = TransformCheckpoint.EMPTY;
             }
             if (nextCheckpoint == null) {
-                nextCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+                nextCheckpoint = TransformCheckpoint.EMPTY;
             }
             if (sourceCheckpoint == null) {
-                sourceCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+                sourceCheckpoint = TransformCheckpoint.EMPTY;
             }
 
             // checkpointstats requires a non-negative checkpoint number
             long lastCheckpointNumber = lastCheckpoint.getCheckpoint() > 0 ? lastCheckpoint.getCheckpoint() : 0;
             long nextCheckpointNumber = nextCheckpoint.getCheckpoint() > 0 ? nextCheckpoint.getCheckpoint() : 0;
 
-            return new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(lastCheckpointNumber, null, null,
+            return new TransformCheckpointingInfo(
+                new TransformCheckpointStats(lastCheckpointNumber, null, null,
                     lastCheckpoint.getTimestamp(), lastCheckpoint.getTimeUpperBound()),
-                new DataFrameTransformCheckpointStats(nextCheckpointNumber, nextCheckpointPosition,
+                new TransformCheckpointStats(nextCheckpointNumber, nextCheckpointPosition,
                     nextCheckpointProgress, nextCheckpoint.getTimestamp(), nextCheckpoint.getTimeUpperBound()),
-                DataFrameTransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint));
+                TransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint));
         }
 
-        public DataFrameTransformCheckpointingInfoBuilder setLastCheckpoint(DataFrameTransformCheckpoint lastCheckpoint) {
+        public TransformCheckpointingInfoBuilder setLastCheckpoint(TransformCheckpoint lastCheckpoint) {
             this.lastCheckpoint = lastCheckpoint;
             return this;
         }
 
-        public DataFrameTransformCheckpointingInfoBuilder setNextCheckpoint(DataFrameTransformCheckpoint nextCheckpoint) {
+        public TransformCheckpointingInfoBuilder setNextCheckpoint(TransformCheckpoint nextCheckpoint) {
             this.nextCheckpoint = nextCheckpoint;
             return this;
         }
 
-        public DataFrameTransformCheckpointingInfoBuilder setSourceCheckpoint(DataFrameTransformCheckpoint sourceCheckpoint) {
+        public TransformCheckpointingInfoBuilder setSourceCheckpoint(TransformCheckpoint sourceCheckpoint) {
             this.sourceCheckpoint = sourceCheckpoint;
             return this;
         }
 
-        public DataFrameTransformCheckpointingInfoBuilder setNextCheckpointProgress(DataFrameTransformProgress nextCheckpointProgress) {
+        public TransformCheckpointingInfoBuilder setNextCheckpointProgress(TransformProgress nextCheckpointProgress) {
             this.nextCheckpointProgress = nextCheckpointProgress;
             return this;
         }
 
-        public DataFrameTransformCheckpointingInfoBuilder setNextCheckpointPosition(DataFrameIndexerPosition nextCheckpointPosition) {
+        public TransformCheckpointingInfoBuilder setNextCheckpointPosition(TransformIndexerPosition nextCheckpointPosition) {
             this.nextCheckpointPosition = nextCheckpointPosition;
             return this;
         }
@@ -106,28 +106,28 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
     private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
     protected final Client client;
-    protected final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
-    protected final DataFrameAuditor dataFrameAuditor;
-    protected final DataFrameTransformConfig transformConfig;
+    protected final TransformConfigManager transformConfigManager;
+    protected final TransformAuditor transformAuditor;
+    protected final TransformConfig transformConfig;
 
     public DefaultCheckpointProvider(final Client client,
-                                     final DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
-                                     final DataFrameAuditor dataFrameAuditor,
-                                     final DataFrameTransformConfig transformConfig) {
+                                     final TransformConfigManager transformConfigManager,
+                                     final TransformAuditor transformAuditor,
+                                     final TransformConfig transformConfig) {
         this.client = client;
-        this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
-        this.dataFrameAuditor = dataFrameAuditor;
+        this.transformConfigManager = transformConfigManager;
+        this.transformAuditor = transformAuditor;
         this.transformConfig = transformConfig;
     }
 
     @Override
-    public void sourceHasChanged(final DataFrameTransformCheckpoint lastCheckpoint, final ActionListener<Boolean> listener) {
+    public void sourceHasChanged(final TransformCheckpoint lastCheckpoint, final ActionListener<Boolean> listener) {
         listener.onResponse(false);
     }
 
     @Override
-    public void createNextCheckpoint(final DataFrameTransformCheckpoint lastCheckpoint,
-                              final ActionListener<DataFrameTransformCheckpoint> listener) {
+    public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint,
+                              final ActionListener<TransformCheckpoint> listener) {
         final long timestamp = System.currentTimeMillis();
         final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
 
@@ -135,7 +135,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             reportSourceIndexChanges(lastCheckpoint != null ? lastCheckpoint.getIndicesCheckpoints().keySet() : Collections.emptySet(),
                                      checkpointsByIndex.keySet());
 
-            listener.onResponse(new DataFrameTransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
+            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
         }, listener::onFailure));
     }
 
@@ -146,14 +146,14 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             .features(new GetIndexRequest.Feature[0])
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
-        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, GetIndexAction.INSTANCE,
+        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.TRANSFORM_ORIGIN, client, GetIndexAction.INSTANCE,
                 getIndexRequest, ActionListener.wrap(getIndexResponse -> {
                     Set<String> userIndices = getIndexResponse.getIndices() != null
                             ? new HashSet<>(Arrays.asList(getIndexResponse.getIndices()))
                             : Collections.emptySet();
                     // 2nd get stats request
                     ClientHelper.executeAsyncWithOrigin(client,
-                        ClientHelper.DATA_FRAME_ORIGIN,
+                        ClientHelper.TRANSFORM_ORIGIN,
                         IndicesStatsAction.INSTANCE,
                         new IndicesStatsRequest()
                             .indices(transformConfig.getSource().getIndex())
@@ -188,14 +188,12 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                 if (checkpointsByIndex.containsKey(indexName)) {
                     // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(indexName);
-                    if (checkpoints.containsKey(shard.getShardRouting().getId())) {
-                        // there is already a checkpoint entry for this index/shard combination, check if they match
-                        if (checkpoints.get(shard.getShardRouting().getId()) != globalCheckpoint) {
-                            throw new CheckpointException("Global checkpoints mismatch for index [" + indexName + "] between shards of id ["
-                                    + shard.getShardRouting().getId() + "]");
-                        }
-                    } else {
-                        // 1st time we see this shard for this index, add the entry for the shard
+                    // 1st time we see this shard for this index, add the entry for the shard
+                    // or there is already a checkpoint entry for this index/shard combination
+                    // but with a higher global checkpoint. This is by design(not a problem) and
+                    // we take the higher value
+                    if (checkpoints.containsKey(shard.getShardRouting().getId()) == false
+                        || checkpoints.get(shard.getShardRouting().getId()) < globalCheckpoint) {
                         checkpoints.put(shard.getShardRouting().getId(), globalCheckpoint);
                     }
                 } else {
@@ -230,13 +228,13 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     @Override
-    public void getCheckpointingInfo(DataFrameTransformCheckpoint lastCheckpoint,
-                                     DataFrameTransformCheckpoint nextCheckpoint,
-                                     DataFrameIndexerPosition nextCheckpointPosition,
-                                     DataFrameTransformProgress nextCheckpointProgress,
-                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+    public void getCheckpointingInfo(TransformCheckpoint lastCheckpoint,
+                                     TransformCheckpoint nextCheckpoint,
+                                     TransformIndexerPosition nextCheckpointPosition,
+                                     TransformProgress nextCheckpointProgress,
+                                     ActionListener<TransformCheckpointingInfo> listener) {
 
-        DataFrameTransformCheckpointingInfoBuilder checkpointingInfoBuilder = new DataFrameTransformCheckpointingInfoBuilder();
+        TransformCheckpointingInfoBuilder checkpointingInfoBuilder = new TransformCheckpointingInfoBuilder();
 
         checkpointingInfoBuilder.setLastCheckpoint(lastCheckpoint)
             .setNextCheckpoint(nextCheckpoint)
@@ -247,17 +245,17 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
         getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
             checkpointingInfoBuilder.setSourceCheckpoint(
-                    new DataFrameTransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L));
+                    new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L));
             listener.onResponse(checkpointingInfoBuilder.build());
         }, listener::onFailure));
     }
 
     @Override
-    public void getCheckpointingInfo(long lastCheckpointNumber, DataFrameIndexerPosition nextCheckpointPosition,
-                                     DataFrameTransformProgress nextCheckpointProgress,
-                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+    public void getCheckpointingInfo(long lastCheckpointNumber, TransformIndexerPosition nextCheckpointPosition,
+                                     TransformProgress nextCheckpointProgress,
+                                     ActionListener<TransformCheckpointingInfo> listener) {
 
-        DataFrameTransformCheckpointingInfoBuilder checkpointingInfoBuilder = new DataFrameTransformCheckpointingInfoBuilder();
+        TransformCheckpointingInfoBuilder checkpointingInfoBuilder = new TransformCheckpointingInfoBuilder();
 
         checkpointingInfoBuilder.setNextCheckpointPosition(nextCheckpointPosition).setNextCheckpointProgress(nextCheckpointProgress);
 
@@ -267,47 +265,47 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         ActionListener<Map<String, long[]>> checkpointsByIndexListener = ActionListener.wrap(
                 checkpointsByIndex -> {
                     checkpointingInfoBuilder.setSourceCheckpoint(
-                        new DataFrameTransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L));
+                        new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L));
                     listener.onResponse(checkpointingInfoBuilder.build());
                 },
                 e -> {
                     logger.debug((Supplier<?>) () -> new ParameterizedMessage(
-                            "Failed to retrieve source checkpoint for data frame [{}]", transformConfig.getId()), e);
+                            "Failed to retrieve source checkpoint for transform [{}]", transformConfig.getId()), e);
                     listener.onFailure(new CheckpointException("Failure during source checkpoint info retrieval", e));
                 }
             );
 
         // <2> got the next checkpoint, get the source checkpoint
-        ActionListener<DataFrameTransformCheckpoint> nextCheckpointListener = ActionListener.wrap(
+        ActionListener<TransformCheckpoint> nextCheckpointListener = ActionListener.wrap(
                 nextCheckpointObj -> {
                     checkpointingInfoBuilder.setNextCheckpoint(nextCheckpointObj);
                     getIndexCheckpoints(checkpointsByIndexListener);
                 },
                 e -> {
                     logger.debug((Supplier<?>) () -> new ParameterizedMessage(
-                            "Failed to retrieve next checkpoint [{}] for data frame [{}]", lastCheckpointNumber + 1,
+                            "Failed to retrieve next checkpoint [{}] for transform [{}]", lastCheckpointNumber + 1,
                             transformConfig.getId()), e);
                     listener.onFailure(new CheckpointException("Failure during next checkpoint info retrieval", e));
                 }
             );
 
         // <1> got last checkpoint, get the next checkpoint
-        ActionListener<DataFrameTransformCheckpoint> lastCheckpointListener = ActionListener.wrap(
+        ActionListener<TransformCheckpoint> lastCheckpointListener = ActionListener.wrap(
             lastCheckpointObj -> {
                 checkpointingInfoBuilder.lastCheckpoint = lastCheckpointObj;
-                dataFrameTransformsConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1,
+                transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1,
                         nextCheckpointListener);
             },
             e -> {
                 logger.debug((Supplier<?>) () -> new ParameterizedMessage(
-                        "Failed to retrieve last checkpoint [{}] for data frame [{}]", lastCheckpointNumber,
+                        "Failed to retrieve last checkpoint [{}] for transform [{}]", lastCheckpointNumber,
                         transformConfig.getId()), e);
                 listener.onFailure(new CheckpointException("Failure during last checkpoint info retrieval", e));
             }
         );
 
         if (lastCheckpointNumber != 0) {
-            dataFrameTransformsConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber, lastCheckpointListener);
+            transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber, lastCheckpointListener);
         } else {
             getIndexCheckpoints(checkpointsByIndexListener);
         }
@@ -324,7 +322,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         if (newSourceIndexes.isEmpty() && lastSourceIndexes.isEmpty() == false) {
             String message = "Source did not resolve to any open indexes";
             logger.warn("{} for transform [{}]", message, transformConfig.getId());
-            dataFrameAuditor.warning(transformConfig.getId(), message);
+            transformAuditor.warning(transformConfig.getId(), message);
         } else {
             Set<String> removedIndexes = Sets.difference(lastSourceIndexes, newSourceIndexes);
             Set<String> addedIndexes = Sets.difference(newSourceIndexes, lastSourceIndexes);
@@ -333,11 +331,11 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                 String message = "Source index resolve found more than " + AUDIT_CONCRETED_SOURCE_INDEX_CHANGES + " changes, ["
                         + removedIndexes.size() + "] removed indexes, [" + addedIndexes.size() + "] new indexes";
                 logger.debug("{} for transform [{}]", message, transformConfig.getId());
-                dataFrameAuditor.info(transformConfig.getId(), message);
+                transformAuditor.info(transformConfig.getId(), message);
             } else if (removedIndexes.size() + addedIndexes.size() > 0) {
                 String message = "Source index resolve found changes, removedIndexes: " + removedIndexes + ", new indexes: " + addedIndexes;
                 logger.debug("{} for transform [{}]", message, transformConfig.getId());
-                dataFrameAuditor.info(transformConfig.getId(), message);
+                transformAuditor.info(transformConfig.getId(), message);
             }
         }
     }

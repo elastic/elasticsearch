@@ -177,12 +177,13 @@ public class NativePrivilegeStore {
         }
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
         if (termsQuery != null) {
-            boolQuery.filter(termsQuery);
+            boolQuery.should(termsQuery);
         }
         for (String wildcard : wildcardNames) {
             final String prefix = wildcard.substring(0, wildcard.length() - 1);
-            boolQuery.filter(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
+            boolQuery.should(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
         }
+        boolQuery.minimumShouldMatch(1);
         return boolQuery;
     }
 
@@ -199,7 +200,7 @@ public class NativePrivilegeStore {
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, toDocId(application, name))
+                    client.prepareGet(SECURITY_MAIN_ALIAS, toDocId(application, name))
                             .request(),
                     new ActionListener<GetResponse>() {
                         @Override
@@ -282,7 +283,7 @@ public class NativePrivilegeStore {
                     }, listener::onFailure), names.size());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, toDocId(application, name))
+                        client.prepareDelete(SECURITY_MAIN_ALIAS, toDocId(application, name))
                             .setRefreshPolicy(refreshPolicy)
                             .request(), groupListener, client::delete);
                 }

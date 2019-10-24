@@ -101,22 +101,22 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3);
         assertSearchHits(searchResponse, "1", "2", "3");
 
-        GetResponse getResponse = dateSensitiveGet(client().prepareGet(dateMathExp1, "type", "1"));
+        GetResponse getResponse = dateSensitiveGet(client().prepareGet(dateMathExp1, "1"));
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("1"));
 
-        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp2, "type", "2"));
+        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp2, "2"));
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("2"));
 
-        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp3, "type", "3"));
+        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp3, "3"));
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("3"));
 
         MultiGetResponse mgetResponse = dateSensitiveGet(client().prepareMultiGet()
-            .add(dateMathExp1, "type", "1")
-            .add(dateMathExp2, "type", "2")
-            .add(dateMathExp3, "type", "3"));
+            .add(dateMathExp1, "1")
+            .add(dateMathExp2, "2")
+            .add(dateMathExp3, "3"));
         assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(mgetResponse.getResponses()[0].getResponse().getId(), equalTo("1"));
         assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(true));
@@ -130,15 +130,15 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
 
-        DeleteResponse deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp1, "type", "1"));
+        DeleteResponse deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp1, "1"));
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("1"));
 
-        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp2, "type", "2"));
+        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp2, "2"));
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("2"));
 
-        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp3, "type", "3"));
+        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp3, "3"));
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("3"));
     }

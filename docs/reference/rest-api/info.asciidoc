@@ -67,11 +67,11 @@ Example response:
         "available" : true,
         "enabled" : true
       },
-      "data_frame" : {
+      "analytics" : {
           "available" : true,
           "enabled" : true
       },
-      "analytics" : {
+      "enrich" : {
           "available" : true,
           "enabled" : true
       },
@@ -111,11 +111,19 @@ Example response:
          "available" : true,
          "enabled" : false
       },
+      "slm" : {
+         "available" : true,
+         "enabled" : true
+      },
       "spatial" : {
          "available" : true,
          "enabled" : true
       },
       "sql" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "transform" : {
          "available" : true,
          "enabled" : true
       },

@@ -167,7 +167,8 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().admin().indices().prepareRefresh("*").get();
 
         // We need to wait a second to ensure the second time around model snapshots will have a different ID (it depends on epoch seconds)
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        // FIXME it would be better to wait for something concrete instead of wait for time to elapse
+        assertBusy(() -> {}, 1, TimeUnit.SECONDS);
 
         for (Job.Builder job : getJobs()) {
             // Run up to now

@@ -406,7 +406,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startArray("input").value("sth").endArray()
                 .field("weight", 2.5)
                 .endObject().endObject()).get());
-        assertThat(e.toString(), containsString("2.5"));
+        assertThat(e.getCause().getMessage(), equalTo("weight must be an integer, but was [2.5]"));
     }
 
     public void testThatWeightCanBeAString() throws Exception {
@@ -446,7 +446,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .field("weight", "thisIsNotValid")
                 .endObject().endObject()
             ).get());
-        assertThat(e.toString(), containsString("thisIsNotValid"));
+        assertThat(e.getCause().toString(), containsString("thisIsNotValid"));
     }
 
     public void testThatWeightAsStringMustBeInt() throws Exception {
@@ -460,7 +460,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startArray("input").value("testing").endArray()
                 .field("weight", weight)
                 .endObject().endObject()).get());
-        assertThat(e.toString(), containsString(weight));
+        assertThat(e.getCause().toString(), containsString(weight));
     }
 
     public void testThatInputCanBeAStringInsteadOfAnArray() throws Exception {
@@ -908,7 +908,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             int weight = randomIntBetween(0, 100);
             weights[id] = Math.max(weight, weights[id]);
             String suggestion = "suggestion-" + String.format(Locale.ENGLISH, "%03d" , id);
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE)
+            indexRequestBuilders.add(client().prepareIndex(INDEX)
                 .setSource(jsonBuilder()
                     .startObject()
                         .startObject(FIELD)
@@ -1196,9 +1196,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "apple"));
-        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "mango"));
-        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "papaya"));
+        builders.add(client().prepareIndex(INDEX).setSource(FIELD, "apple"));
+        builders.add(client().prepareIndex(INDEX).setSource(FIELD, "mango"));
+        builders.add(client().prepareIndex(INDEX).setSource(FIELD, "papaya"));
         indexRandom(true, false, builders);
 
         CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("alias").text("app");

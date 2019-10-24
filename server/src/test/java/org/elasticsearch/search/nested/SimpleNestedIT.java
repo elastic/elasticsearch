@@ -84,7 +84,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()).get();
 
         waitForRelocation(ClusterHealthStatus.GREEN);
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
+        GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
         refresh();
@@ -152,7 +152,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         // check delete, so all is gone...
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "2").get();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "2").get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
         refresh();
@@ -185,7 +185,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endArray()
                 .endObject()).get();
 
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
+        GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         waitForRelocation(ClusterHealthStatus.GREEN);
         refresh();

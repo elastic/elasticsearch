@@ -103,9 +103,9 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         //      validation in the settings??? - ugly and conceptually wrong)
 
         // choosing arbitrary top level actions to test
-        client.prepareGet("idx", "type", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
+        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
-        client.prepareDelete("idx", "type", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
+        client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
         client.admin().cluster().prepareDeleteStoredScript("id")
             .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
         client.prepareIndex("idx", "type", "id").setSource("source", XContentType.JSON)
@@ -131,7 +131,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         expected.put("key1", key1Val);
         expected.put("key2", "val 2");
         client.threadPool().getThreadContext().putHeader("key1", key1Val);
-        client.prepareGet("idx", "type", "id")
+        client.prepareGet("idx", "id")
                 .execute(new AssertingActionListener<>(GetAction.NAME, expected, client.threadPool()));
 
         client.admin().cluster().prepareClusterStats()

@@ -93,6 +93,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
@@ -127,6 +128,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
@@ -167,7 +169,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
-        client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
@@ -207,22 +209,22 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex("test", "bar", "2").setSource("{}", XContentType.JSON).get();
         assertTrue(needsSync.test(translog));
         setDurability(shard, Translog.Durability.REQUEST);
-        client().prepareDelete("test", "bar", "1").get();
+        client().prepareDelete("test", "1").get();
         assertFalse(needsSync.test(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
-        client().prepareDelete("test", "bar", "2").get();
+        client().prepareDelete("test", "2").get();
         assertTrue(translog.syncNeeded());
         setDurability(shard, Translog.Durability.REQUEST);
         assertNoFailures(client().prepareBulk()
             .add(client().prepareIndex("test", "bar", "3").setSource("{}", XContentType.JSON))
-            .add(client().prepareDelete("test", "bar", "1")).get());
+            .add(client().prepareDelete("test", "1")).get());
         assertFalse(needsSync.test(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
         assertNoFailures(client().prepareBulk()
             .add(client().prepareIndex("test", "bar", "4").setSource("{}", XContentType.JSON))
-            .add(client().prepareDelete("test", "bar", "3")).get());
+            .add(client().prepareDelete("test", "3")).get());
         setDurability(shard, Translog.Durability.REQUEST);
         assertTrue(needsSync.test(translog));
     }
@@ -268,7 +270,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         for (int i = 0; i < 50; i++) {
-            client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
         ensureGreen("test");
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
@@ -351,11 +353,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
                 new ByteSizeValue(190 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
-        client().prepareIndex("test", "test", "0")
+        client().prepareIndex("test", "_doc", "0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            new SourceToParse("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
+            new SourceToParse("test", "1", new BytesArray("{}"), XContentType.JSON),
             SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = getTranslog(shard);
@@ -374,7 +376,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
             .build()).get();
-        client().prepareDelete("test", "test", "2").get();
+        client().prepareDelete("test", "2").get();
         logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
         assertBusy(() -> { // this is async
@@ -409,7 +411,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (int i = 0; i < numberOfDocuments; i++) {
             assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
             final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                new SourceToParse("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse("test", "1", new BytesArray("{}"), XContentType.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
@@ -523,7 +525,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
         client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
-        client().prepareDelete("test", "test", "0").get();
+        client().prepareDelete("test", "0").get();
         client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
 
@@ -818,7 +820,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 client().prepareIndex("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2"))
                     .setSource("{}", XContentType.JSON).get();
             } else {
-                client().prepareDelete("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2")).get();
+                client().prepareDelete("index", randomFrom("1", "2")).get();
             }
         }
         IndexShard shard = indexService.getShard(0);
@@ -851,6 +853,43 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (IndexShard indexShard : indexService) {
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
         }
+    }
+
+    public void testLimitNumberOfRetainedTranslogFiles() throws Exception {
+        String indexName = "test";
+        int translogRetentionTotalFiles = randomIntBetween(0, 50);
+        Settings.Builder settings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.getKey(), translogRetentionTotalFiles);
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1024 * 1024)));
+        }
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 10_000)));
+        }
+        IndexService indexService = createIndex(indexName, settings.build());
+        IndexShard shard = indexService.getShard(0);
+        shard.rollTranslogGeneration();
+        CheckedRunnable<IOException> checkTranslog = () -> {
+            try (Stream<Path> files = Files.list(getTranslog(shard).location()).sorted(Comparator.reverseOrder())) {
+                long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+                assertThat(totalFiles, either(lessThanOrEqualTo((long) translogRetentionTotalFiles)).or(equalTo(1L)));
+            }
+        };
+        for (int i = 0; i < 100; i++) {
+            client().prepareIndex(indexName, "_doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            if (randomInt(100) < 10) {
+                client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).get();
+                checkTranslog.run();
+            }
+            if (randomInt(100) < 10) {
+                shard.rollTranslogGeneration();
+            }
+        }
+        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        checkTranslog.run();
     }
 
     /**

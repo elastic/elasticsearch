@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -238,10 +237,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
-            ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices()
+            MappingMetaData typeMappings = client().admin().indices()
                 .prepareGetMappings("index").get().getMappings().get("index");
-            assertNotNull(indexMappings);
-            MappingMetaData typeMappings = indexMappings.get("type");
             assertNotNull(typeMappings);
             Object properties;
             try {
@@ -341,7 +338,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index", "type", "1").setSource("field", 42).execute();
 
-        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "1").get().isExists()));
+        assertBusy(() -> assertTrue(client().prepareGet("index", "1").get().isExists()));
 
         // index another document, this time using dynamic mappings.
         // The ack timeout of 0 on dynamic mapping updates makes it possible for the document to be indexed on the primary, even
@@ -362,7 +359,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             assertNotNull(mapper.mappers().getMapper("field2"));
         });
 
-        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "2").get().isExists()));
+        assertBusy(() -> assertTrue(client().prepareGet("index", "2").get().isExists()));
 
         // The mappings have not been propagated to the replica yet as a consequence the document count not be indexed
         // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled

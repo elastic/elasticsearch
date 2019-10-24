@@ -18,7 +18,7 @@ Forces the execution of a stored watch.
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 [[watcher-api-execute-watch-desc]]
 ==== {api-description-title}
@@ -65,14 +65,14 @@ This API supports the following fields:
                                               that will be used during the watch execution
 
 | `ignore_condition`  | no       | false    | When set to `true`, the watch execution uses the
-                                              {stack-ov}/condition-always.html[Always condition].
+                                              <<condition-always,always condition>>.
                                               This can also be specified as an HTTP parameter.
 
 | `alternative_input` | no       | null     | When present, the watch uses this object as a payload
                                               instead of executing its own input.
 
 | `action_modes`      | no       | null     | Determines how to handle the watch actions as part of the
-                                              watch execution. See <<watcher-api-execute-watch-action-mode, Action Execution Modes>>
+                                              watch execution. See <<watcher-api-execute-watch-action-mode>>
                                               for more information.
 
 | `record_execution`  | no       | false    | When set to `true`, the watch record representing the watch
@@ -81,8 +81,7 @@ This API supports the following fields:
                                               watch is updated, possibly throttling subsequent executions.
                                               This can also be specified as an HTTP parameter.
 
-| `watch`             | no       | null     | When present, this
-                                              {stack-ov}/how-watcher-works.html#watch-definition[watch] is used
+| `watch`             | no       | null     | When present, this <<watch-definition,watch>> is used
                                               instead of the one specified in the request. This watch is
                                               not persisted to the index and record_execution cannot be set.
 |======
@@ -99,7 +98,7 @@ are five possible modes an action can be associated with:
 
 | `simulate`        | The action execution is simulated. Each action type
                       define its own simulation operation mode. For example, the
-                      {stack-ov}/actions-email.html[email] action creates
+                      <<actions-email,`email` action>> creates
                       the email that would have been sent but does not actually
                       send it. In this mode, the action might be throttled if the
                       current state of the watch indicates it should be.
@@ -260,7 +259,6 @@ This is an example of the output:
           "index": {
             "response": {
               "index": "test",
-              "type": "_doc",
               "version": 1,
               "created": true,
               "result": "created",

@@ -52,8 +52,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -83,7 +83,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     @After
-    public void wipeSecurityIndex() throws InterruptedException {
+    public void wipeSecurityIndex() throws Exception {
         // get the api key service and wait until api key expiration is not in progress!
         awaitApiKeysRemoverCompletion();
         deleteSecurityIndex();
@@ -92,6 +92,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     @Override
     public String configRoles() {
         return super.configRoles() + "\n" +
+            "no_api_key_role:\n" +
+            "  cluster: [\"manage_token\"]\n" +
             "manage_api_key_role:\n" +
             "  cluster: [\"manage_api_key\"]\n" +
             "manage_own_api_key_role:\n" +
@@ -103,6 +105,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final String usersPasswdHashed = new String(
             getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         return super.configUsers() +
+            "user_with_no_api_key_role:" + usersPasswdHashed + "\n" +
             "user_with_manage_api_key_role:" + usersPasswdHashed + "\n" +
             "user_with_manage_own_api_key_role:" + usersPasswdHashed + "\n";
     }
@@ -110,17 +113,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     @Override
     public String configUsersRoles() {
         return super.configUsersRoles() +
+            "no_api_key_role:user_with_no_api_key_role\n" +
             "manage_api_key_role:user_with_manage_api_key_role\n" +
             "manage_own_api_key_role:user_with_manage_own_api_key_role\n";
     }
 
-    private void awaitApiKeysRemoverCompletion() throws InterruptedException {
+    private void awaitApiKeysRemoverCompletion() throws Exception {
         for (ApiKeyService apiKeyService : internalCluster().getInstances(ApiKeyService.class)) {
-            final boolean done = awaitBusy(() -> apiKeyService.isExpirationInProgress() == false);
-            assertTrue(done);
+            assertBusy(() -> assertFalse(apiKeyService.isExpirationInProgress()));
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47958")
     public void testCreateApiKey() {
         final Instant start = Instant.now();
         final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
@@ -170,43 +174,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
     }
 
-    public void testCreateApiKeyFailsWhenApiKeyWithSameNameAlreadyExists() throws InterruptedException, ExecutionException {
+    public void testMultipleApiKeysCanHaveSameName() {
         String keyName = randomAlphaOfLength(5);
+        int noOfApiKeys = randomIntBetween(2, 5);
         List<CreateApiKeyResponse> responses = new ArrayList<>();
-        {
-            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        for (int i = 0; i < noOfApiKeys; i++) {
+            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[]{"monitor"}, null, null);
             Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
-                    .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
             final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(keyName).setExpiration(null)
-                    .setRoleDescriptors(Collections.singletonList(descriptor)).get();
+                .setRoleDescriptors(Collections.singletonList(descriptor)).get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
             responses.add(response);
         }
-
-        final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
-                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> new CreateApiKeyRequestBuilder(client)
-            .setName(keyName)
-            .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-            .setRoleDescriptors(Collections.singletonList(descriptor))
-            .get());
-        assertThat(e.getMessage(), equalTo("Error creating api key as api key with name ["+keyName+"] already exists"));
-
-        // Now invalidate the API key
-        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyName(keyName, false), listener);
-        InvalidateApiKeyResponse invalidateResponse = listener.get();
-        verifyInvalidateResponse(1, responses, invalidateResponse);
-
-        // try to create API key with same name, should succeed now
-        CreateApiKeyResponse createResponse = new CreateApiKeyRequestBuilder(client).setName(keyName)
-                .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-                .setRoleDescriptors(Collections.singletonList(descriptor)).get();
-        assertNotNull(createResponse.getId());
-        assertNotNull(createResponse.getKey());
+        assertThat(responses.size(), is(noOfApiKeys));
+        for (int i = 0; i < noOfApiKeys; i++) {
+            assertThat(responses.get(i).getName(), is(keyName));
+        }
     }
 
     public void testInvalidateApiKeysForRealm() throws InterruptedException, ExecutionException {
@@ -288,9 +273,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
 
+        awaitApiKeysRemoverCompletion();
+        refreshSecurityIndex();
+
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(2));
+        Set<String> expectedKeyIds = Sets.newHashSet(createdApiKeys.get(0).getId(), createdApiKeys.get(1).getId());
+        boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
+        for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
+            assertThat(apiKey.getId(), isIn(expectedKeyIds));
+            if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
+                // has been invalidated but not yet deleted by ExpiredApiKeysRemover
+                assertThat(apiKey.isInvalidated(), is(true));
+                apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
+            } else if (apiKey.getId().equals(createdApiKeys.get(1).getId())) {
+                // active api key
+                assertThat(apiKey.isInvalidated(), is(false));
+            }
+        }
+        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length,
+                is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 2 : 1));
 
         client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
                 Collections.singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
@@ -303,16 +305,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(listener.get().getInvalidatedApiKeys().size(), is(1));
 
         awaitApiKeysRemoverCompletion();
-
         refreshSecurityIndex();
 
-        // Verify that 1st invalidated API key is deleted whereas the next one is not
+        // Verify that 1st invalidated API key is deleted whereas the next one may be or may not be as it depends on whether update was
+        // indexed before ExpiredApiKeysRemover ran
         getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(1));
-        ApiKey apiKey = getApiKeyResponseListener.get().getApiKeyInfos()[0];
-        assertThat(apiKey.getId(), is(createdApiKeys.get(1).getId()));
-        assertThat(apiKey.isInvalidated(), is(true));
+        expectedKeyIds = Sets.newHashSet(createdApiKeys.get(1).getId());
+        apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
+        for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
+            assertThat(apiKey.getId(), isIn(expectedKeyIds));
+            if (apiKey.getId().equals(createdApiKeys.get(1).getId())) {
+                // has been invalidated but not yet deleted by ExpiredApiKeysRemover
+                assertThat(apiKey.isInvalidated(), is(true));
+                apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
+            }
+        }
+        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length,
+                is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 1 : 0));
     }
 
     private Client waitForExpiredApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
@@ -335,7 +345,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return internalCluster().client(nodeWithMostRecentRun);
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/41747")
     public void testExpiredApiKeysBehaviorWhenKeysExpired1WeekBeforeAnd1DayBefore() throws Exception {
         Client client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
                 Collections.singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
@@ -354,17 +363,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
         UpdateResponse expirationDateUpdatedResponse = client
-                .prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(0).getId())
+                .prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(0).getId())
                 .setDoc("expiration_time", dayBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
-        // Expire the 2nd key such that it cannot be deleted by the remover
+        // Expire the 2nd key such that it can be deleted by the remover
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(weekBefore));
-        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(1).getId())
+        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(1).getId())
                 .setDoc("expiration_time", weekBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -380,13 +389,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         refreshSecurityIndex();
 
-        // Verify get API keys does not return expired and deleted key
+        // Verify get API keys does not return api keys deleted by ExpiredApiKeysRemover
         getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(3));
 
         Set<String> expectedKeyIds = Sets.newHashSet(createdApiKeys.get(0).getId(), createdApiKeys.get(2).getId(),
                 createdApiKeys.get(3).getId());
+        boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
             assertThat(apiKey.getId(), isIn(expectedKeyIds));
             if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
@@ -394,9 +403,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 assertTrue(apiKey.getExpiration().isBefore(Instant.now()));
                 assertThat(apiKey.isInvalidated(), is(false));
             } else if (apiKey.getId().equals(createdApiKeys.get(2).getId())) {
-                // has not been expired as no expiration, but invalidated
+                // has not been expired as no expiration, is invalidated but not yet deleted by ExpiredApiKeysRemover
                 assertThat(apiKey.getExpiration(), is(nullValue()));
                 assertThat(apiKey.isInvalidated(), is(true));
+                apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
             } else if (apiKey.getId().equals(createdApiKeys.get(3).getId())) {
                 // has not been expired as no expiration, not invalidated
                 assertThat(apiKey.getExpiration(), is(nullValue()));
@@ -405,6 +415,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 fail("unexpected API key " + apiKey);
             }
         }
+        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length,
+                is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 3 : 2));
     }
 
     private void refreshSecurityIndex() throws Exception {
@@ -522,6 +534,49 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             response, userWithManageApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
     }
 
+    public void testGetAllApiKeys() throws InterruptedException, ExecutionException {
+        int noOfSuperuserApiKeys = randomIntBetween(3, 5);
+        int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
+        int noOfApiKeysForUserWithManageOwnApiKeyRole = randomIntBetween(3,7);
+        List<CreateApiKeyResponse> defaultUserCreatedKeys = createApiKeys(noOfSuperuserApiKeys, null);
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_api_key_role",
+            noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
+        List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
+            noOfApiKeysForUserWithManageOwnApiKeyRole, null, "monitor");
+
+        final Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+            .basicAuthHeaderValue("user_with_manage_api_key_role", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        client.execute(GetApiKeyAction.INSTANCE, new GetApiKeyRequest(), listener);
+        GetApiKeyResponse response = listener.get();
+        int totalApiKeys = noOfSuperuserApiKeys + noOfApiKeysForUserWithManageApiKeyRole + noOfApiKeysForUserWithManageOwnApiKeyRole;
+        List<CreateApiKeyResponse> allApiKeys = new ArrayList<>();
+        Stream.of(defaultUserCreatedKeys, userWithManageApiKeyRoleApiKeys, userWithManageOwnApiKeyRoleApiKeys).forEach(
+            allApiKeys::addAll);
+        verifyGetResponse(new String[]{SecuritySettingsSource.TEST_SUPERUSER, "user_with_manage_api_key_role",
+                "user_with_manage_own_api_key_role"}, totalApiKeys, allApiKeys, response,
+            allApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
+    }
+
+    public void testGetAllApiKeysFailsForUserWithNoRoleOrRetrieveOwnApiKeyRole() throws InterruptedException, ExecutionException {
+        int noOfSuperuserApiKeys = randomIntBetween(3, 5);
+        int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
+        int noOfApiKeysForUserWithManageOwnApiKeyRole = randomIntBetween(3,7);
+        List<CreateApiKeyResponse> defaultUserCreatedKeys = createApiKeys(noOfSuperuserApiKeys, null);
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_api_key_role",
+            noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
+        List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
+            noOfApiKeysForUserWithManageOwnApiKeyRole, null, "monitor");
+
+        final String withUser = randomFrom("user_with_manage_own_api_key_role", "user_with_no_api_key_role");
+        final Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+            .basicAuthHeaderValue(withUser, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        client.execute(GetApiKeyAction.INSTANCE, new GetApiKeyRequest(), listener);
+        ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> listener.actionGet());
+        assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/get", withUser);
+    }
+
     public void testInvalidateApiKeysOwnedByCurrentAuthenticatedUser() throws InterruptedException, ExecutionException {
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
@@ -605,6 +660,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private void verifyGetResponse(String user, int expectedNumberOfApiKeys, List<CreateApiKeyResponse> responses,
                                    GetApiKeyResponse response, Set<String> validApiKeyIds, List<String> invalidatedApiKeyIds) {
+        verifyGetResponse(new String[]{user}, expectedNumberOfApiKeys, responses, response, validApiKeyIds, invalidatedApiKeyIds);
+    }
+
+    private void verifyGetResponse(String[] user, int expectedNumberOfApiKeys, List<CreateApiKeyResponse> responses,
+                                   GetApiKeyResponse response, Set<String> validApiKeyIds, List<String> invalidatedApiKeyIds) {
         assertThat(response.getApiKeyInfos().length, equalTo(expectedNumberOfApiKeys));
         List<String> expectedIds = responses.stream().filter(o -> validApiKeyIds.contains(o.getId())).map(o -> o.getId())
                 .collect(Collectors.toList());
@@ -652,5 +712,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName, String apiKeyId) {
         assertThat(ese.getMessage(),
             is("action [" + action + "] is unauthorized for API key id [" + apiKeyId + "] of user [" + userName + "]"));
+    }
+
+    private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName) {
+        assertThat(ese.getMessage(),
+            is("action [" + action + "] is unauthorized for user [" + userName + "]"));
     }
 }

@@ -435,7 +435,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             clusterStateRequest.metaData(true);
             clusterStateRequest.indices(followerIndex);
             MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
-                .get("index2").get("doc");
+                .get("index2");
             assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         } finally {
             for (MockTransportService transportService : transportServices) {
@@ -445,7 +445,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
     }
 
     private void assertExpectedDocument(String followerIndex, final int value) {
-        final GetResponse getResponse = followerClient().prepareGet(followerIndex, "doc", Integer.toString(value)).get();
+        final GetResponse getResponse = followerClient().prepareGet(followerIndex, Integer.toString(value)).get();
         assertTrue("Doc with id [" + value + "] is missing", getResponse.isExists());
         assertTrue((getResponse.getSource().containsKey("f")));
         assertThat(getResponse.getSource().get("f"), equalTo(value));

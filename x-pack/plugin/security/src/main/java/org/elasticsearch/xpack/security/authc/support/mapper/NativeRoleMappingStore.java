@@ -232,7 +232,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForName(request.getName()))
+                        client.prepareDelete(SECURITY_MAIN_ALIAS, getIdForName(request.getName()))
                         .setRefreshPolicy(request.getRefreshPolicy())
                         .request(),
                     new ActionListener<DeleteResponse>() {

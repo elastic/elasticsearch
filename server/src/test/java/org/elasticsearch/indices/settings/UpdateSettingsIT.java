@@ -450,14 +450,14 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public void testEngineGCDeletesSetting() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "type", "1").setSource("f", 1).get();
-        DeleteResponse response = client().prepareDelete("test", "type", "1").get();
+        DeleteResponse response = client().prepareDelete("test", "1").get();
         long seqNo = response.getSeqNo();
         long primaryTerm = response.getPrimaryTerm();
         // delete is still in cache this should work
         client().prepareIndex("test", "type", "1").setSource("f", 2).setIfSeqNo(seqNo).setIfPrimaryTerm(primaryTerm).get();
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)));
 
-        response = client().prepareDelete("test", "type", "1").get();
+        response = client().prepareDelete("test", "1").get();
         seqNo = response.getSeqNo();
 
         // Make sure the time has advanced for InternalEngine#resolveDocVersion()

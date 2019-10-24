@@ -129,13 +129,13 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         );
 
         checkUpdateAction(false, timeout,
-            clientToMasterlessNode.prepareUpdate("test", "type1", "1")
+            clientToMasterlessNode.prepareUpdate("test", "1")
                 .setScript(new Script(
                     ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script",
                     Collections.emptyMap())).setTimeout(timeout));
 
         checkUpdateAction(true, timeout,
-            clientToMasterlessNode.prepareUpdate("no_index", "type1", "1")
+            clientToMasterlessNode.prepareUpdate("no_index", "1")
                 .setScript(new Script(
                     ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script",
                     Collections.emptyMap())).setTimeout(timeout));
@@ -241,7 +241,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         TimeValue timeout = TimeValue.timeValueMillis(200);
         long now = System.currentTimeMillis();
         try {
-            clientToMasterlessNode.prepareUpdate("test1", "type1", "1")
+            clientToMasterlessNode.prepareUpdate("test1", "1")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout).get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {

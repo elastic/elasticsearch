@@ -439,7 +439,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> indexing docs");
         int numDocs = randomIntBetween(1, 1024);
         for (int i = 0; i < numDocs; i++) {
-            client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
+            client(primaryNode).prepareIndex("test").setSource("field", "value").execute().actionGet();
         }
 
         client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
@@ -469,7 +469,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // index some more documents; we expect to reuse the files that already exist on the replica
                 for (int i = 0; i < moreDocs; i++) {
-                    client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
+                    client(primaryNode).prepareIndex("test").setSource("field", "value").execute().actionGet();
                 }
 
                 // prevent a sequence-number-based recovery from being possible

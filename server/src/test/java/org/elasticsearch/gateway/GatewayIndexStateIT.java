@@ -248,7 +248,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test").setSource("field1", "value1").execute().actionGet();
     }
 
     public void testTwoNodesSingleDoc() throws Exception {

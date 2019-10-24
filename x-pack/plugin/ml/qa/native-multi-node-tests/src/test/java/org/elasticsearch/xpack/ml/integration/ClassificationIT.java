@@ -96,8 +96,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
@@ -136,8 +135,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public <T> void testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
@@ -195,8 +193,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword() throws Exception {
@@ -264,8 +261,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testDependentVariableCardinalityTooHighError() {

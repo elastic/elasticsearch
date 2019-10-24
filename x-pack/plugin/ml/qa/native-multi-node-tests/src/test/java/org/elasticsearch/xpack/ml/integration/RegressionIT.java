@@ -115,8 +115,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
@@ -169,8 +168,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty() throws Exception {
@@ -238,8 +236,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis",
-            "Stored trained model with id");
+            "Finished analysis");
     }
 
     public void testStopAndRestart() throws Exception {

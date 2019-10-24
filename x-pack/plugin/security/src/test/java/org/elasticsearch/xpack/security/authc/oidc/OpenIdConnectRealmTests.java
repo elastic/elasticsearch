@@ -86,11 +86,11 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
         assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
         assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
-        if (notPopulateMetadata == false) {
+        if (notPopulateMetadata) {
+            assertThat(result.getUser().metadata().size(), equalTo(0));
+        } else {
             assertThat(result.getUser().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
             assertThat(result.getUser().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
-        } else {
-            assertThat(result.getUser().metadata().size(), equalTo(0));
         }
     }
 

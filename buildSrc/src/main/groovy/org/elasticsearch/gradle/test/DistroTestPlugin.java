@@ -139,6 +139,8 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         final boolean dockerTestEnabled = shouldRunDockerTests();
 
+        logger.error("[DEBUG] dockerTestEnabled = " + dockerTestEnabled);
+
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
             if (distribution.getType() != Type.DOCKER || dockerTestEnabled == true) {
@@ -458,6 +460,8 @@ public class DistroTestPlugin implements Plugin<Project> {
      * OS.
      */
     private static boolean shouldRunDockerTests() {
+        logger.error("[DEBUG] shouldRunDockerTests - OS.current() == " + OS.current());
+
         switch (OS.current()) {
             case WINDOWS:
                 // Not currently supported.
@@ -503,6 +507,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                     logger.error("Linux OS id [" + id + "] is " + (contains ? "" : "not ") + "present in the include list");
 
                     return contains;
+                } else {
+                    logger.error("[DEBUG] /etc/os-release does not exist!");
                 }
 
                 return false;

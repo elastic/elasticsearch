@@ -20,7 +20,9 @@
 package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -100,5 +102,27 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
             .get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "10", "8", "6");
+    }
+
+    // test that when the internal query is rewritten script_score works well
+    public void testRewrittenQuery() {
+        assertAcked(
+            prepareCreate("test-index2")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            .addMapping("_doc", "field1", "type=date", "field2", "type=double")
+        );
+        client().prepareIndex("test-index2", "_doc", "1").setSource("field1", "2019-09-01", "field2", 1).get();
+        client().prepareIndex("test-index2", "_doc", "2").setSource("field1", "2019-10-01", "field2", 2).get();
+        client().prepareIndex("test-index2", "_doc", "3").setSource("field1", "2019-11-01", "field2", 3).get();
+        refresh();
+
+        RangeQueryBuilder rangeQB = new RangeQueryBuilder("field1").from("2019-01-01"); // the query should be rewritten to from:null
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", Map.of("param1", 0.1));
+        SearchResponse resp = client()
+            .prepareSearch("test-index2")
+            .setQuery(scriptScoreQuery(rangeQB, script))
+            .get();
+        assertNoFailures(resp);
+        assertOrderedSearchHits(resp, "3", "2", "1");
     }
 }

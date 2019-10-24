@@ -80,7 +80,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                         logger.info("--> index {} id={} seq_no={}", leaderIndex, indexResponse.getId(), indexResponse.getSeqNo());
                     } else {
                         String id = Integer.toString(between(0, docID.get()));
-                        DeleteResponse deleteResponse = leaderClient().prepareDelete(leaderIndex, "doc", id).get();
+                        DeleteResponse deleteResponse = leaderClient().prepareDelete(leaderIndex, id).get();
                         logger.info("--> delete {} id={} seq_no={}", leaderIndex, deleteResponse.getId(), deleteResponse.getSeqNo());
                     }
                 }
@@ -139,7 +139,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                     throw new AssertionError(e);
                 }
                 final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
-                IndexResponse indexResp = leaderClient().prepareIndex("index1", "doc")
+                IndexResponse indexResp = leaderClient().prepareIndex("index1")
                     .setSource(source, XContentType.JSON)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .get();
@@ -197,7 +197,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                         leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
                     } else {
                         String id = Integer.toString(between(0, docID.get()));
-                        leaderClient().prepareDelete("leader-index", "doc", id).get();
+                        leaderClient().prepareDelete("leader-index", id).get();
                     }
                 } catch (Exception ex) {
                     throw new AssertionError(ex);

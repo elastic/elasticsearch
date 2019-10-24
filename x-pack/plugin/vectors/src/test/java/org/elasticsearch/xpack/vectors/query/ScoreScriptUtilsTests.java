@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.vectors.mapper.SparseVectorFieldMapper;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilarity;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilaritySparse;
@@ -132,6 +133,8 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector);
         double result4 = l2Norm.l2normSparse(dvs);
         assertEquals("l2normSparse result is not equal to the expected value!", 301.361, result4, 0.001);
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testSparseVectorMissingDimensions1() {
@@ -172,6 +175,8 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector);
         double result4 = l2Norm.l2normSparse(dvs);
         assertEquals("l2normSparse result is not equal to the expected value!", 302.277, result4, 0.001);
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testSparseVectorMissingDimensions2() {
@@ -212,5 +217,7 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector);
         double result4 = l2Norm.l2normSparse(dvs);
         assertEquals("l2normSparse result is not equal to the expected value!", 302.277, result4, 0.001);
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 }

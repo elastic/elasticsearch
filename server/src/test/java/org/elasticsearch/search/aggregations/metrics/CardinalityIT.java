@@ -132,7 +132,7 @@ public class CardinalityIT extends ESIntegTestCase {
         precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
         IndexRequestBuilder[] builders = new IndexRequestBuilder[(int) numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                     .startObject()
                         .field("str_value", "s" + i)
                         .array("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
@@ -147,7 +147,7 @@ public class CardinalityIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] dummyDocsBuilder = new IndexRequestBuilder[10];
         for (int i = 0; i < dummyDocsBuilder.length; i++) {
-            dummyDocsBuilder[i] = client().prepareIndex("idx", "type").setSource("a_field", "1");
+            dummyDocsBuilder[i] = client().prepareIndex("idx").setSource("a_field", "1");
         }
         indexRandom(true, dummyDocsBuilder);
 

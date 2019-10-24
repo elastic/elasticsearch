@@ -29,11 +29,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -70,24 +70,27 @@ public class ClusterStatsNodesTests extends ESTestCase {
     public void testIngestStats() throws Exception {
         NodeStats nodeStats = createNodeStats();
 
-        SortedSet<String> processorTypes = new TreeSet<>();
-        nodeStats.getIngestStats().getProcessorStats().values().forEach(l -> l.forEach(s -> processorTypes.add(s.getType())));
+        SortedMap<String, long[]> processorStats = new TreeMap<>();
+        nodeStats.getIngestStats().getProcessorStats().values().forEach(l -> l.forEach(s -> processorStats.put(s.getType(),
+            new long[] { s.getStats().getIngestCount(), s.getStats().getIngestFailedCount() })));
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(Collections.singletonList(nodeStats));
         assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
-        assertThat(stats.processorTypes, equalTo(processorTypes));
-        Object[] processorTypesArray = processorTypes.toArray();
-        String processorTypesString = "[";
-        for (int i = 0; i < processorTypesArray.length; i++) {
-            processorTypesString += "\"" + processorTypesArray[i] + "\"";
-            if (i < processorTypesArray.length - 1) {
-                processorTypesString += ",";
+        String processorStatsString = "{";
+        Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
+        while (iter.hasNext()) {
+            Map.Entry<String, long[]> entry = iter.next();
+            long count = entry.getValue()[0];
+            long failedCount = entry.getValue()[1];
+            processorStatsString += "\"" + entry.getKey() + "\":{\"count\":" + count + ",\"fail_count\":" + failedCount + "}";
+            if (iter.hasNext()) {
+                processorStatsString += ",";
             }
         }
-        processorTypesString += "]";
+        processorStatsString += "}";
         assertThat(toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString(), equalTo(
             "{\"ingest\":{"
                 + "\"number_of_pipelines\":" + stats.pipelineCount + ","
-                + "\"processor_types\":" + processorTypesString
+                + "\"processor_stats\":" + processorStatsString
                 + "}}"));
     }
 

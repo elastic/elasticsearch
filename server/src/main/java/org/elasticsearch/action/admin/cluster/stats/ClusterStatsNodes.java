@@ -51,6 +51,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -701,12 +702,12 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     static class IngestStats implements ToXContentFragment {
 
-        int pipelineCount;
-        Map<String, long[]> stats = new HashMap<>();
+        final int pipelineCount;
+        final Map<String, long[]> stats;
 
         IngestStats(final List<NodeStats> nodeStats) {
             Set<String> pipelineIds = new HashSet<>();
-            Map<String, long[]> stats = new HashMap<>();
+            SortedMap<String, long[]> stats = new TreeMap<>();
             for (NodeStats nodeStat : nodeStats) {
                 if (nodeStat.getIngestStats() != null) {
                     for (Map.Entry<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat.getIngestStats()

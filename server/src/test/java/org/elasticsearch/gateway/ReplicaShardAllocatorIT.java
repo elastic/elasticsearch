@@ -87,11 +87,11 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         Settings nodeWithReplicaSettings = internalCluster().dataPathSettings(nodeWithReplica);
         ensureGreen(indexName);
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(100, 500))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
         client().admin().indices().prepareFlush(indexName).get();
         if (randomBoolean()) {
             indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(0, 80))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
         }
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
@@ -147,7 +147,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         ensureGreen(indexName);
 
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(10, 100))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
         assertBusy(() -> {
             SyncedFlushResponse syncedFlushResponse = client().admin().indices().prepareSyncedFlush(indexName).get();
             assertThat(syncedFlushResponse.successfulShards(), equalTo(2));
@@ -155,7 +155,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
         if (randomBoolean()) {
             indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(10, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
         }
         CountDownLatch blockRecovery = new CountDownLatch(1);
         CountDownLatch recoveryStarted = new CountDownLatch(1);
@@ -176,7 +176,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         recoveryStarted.await();
         // Index more documents and flush to destroy sync_id and remove the retention lease (as file_based_recovery_threshold reached).
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(50, 200))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
         client().admin().indices().prepareFlush(indexName).get();
         assertBusy(() -> {
             for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {
@@ -218,10 +218,10 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")));
         ensureGreen(indexName);
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(200, 500))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
         client().admin().indices().prepareFlush(indexName).get();
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(0, 80))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
         if (randomBoolean()) {
             client().admin().indices().prepareForceMerge(indexName).get();
         }
@@ -256,7 +256,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")));
         ensureGreen(indexName);
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(200, 500))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
         client().admin().indices().prepareFlush(indexName).get();
         String nodeWithLowerMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithLowerMatchingSettings = internalCluster().dataPathSettings(nodeWithLowerMatching);
@@ -264,13 +264,13 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         ensureGreen(indexName);
 
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(1, 100))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithHigherMatching));
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(0, 100))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build()));

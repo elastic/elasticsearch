@@ -288,7 +288,7 @@ public class IngestClientIT extends ESIntegTestCase {
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         BulkItemResponse item = client(masterOnlyNode).prepareBulk().add(
-            client().prepareIndex("test", "type").setSource("field", "value2", "drop", true).setPipeline("_id")).get()
+            client().prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id")).get()
             .getItems()[0];
         assertFalse(item.isFailed());
         assertEquals("auto-generated", item.getResponse().getId());

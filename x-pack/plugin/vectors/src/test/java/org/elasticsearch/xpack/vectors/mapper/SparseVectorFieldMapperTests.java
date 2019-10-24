@@ -115,6 +115,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         );
         float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
@@ -168,6 +170,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
             decodedValues,
             0.001f
         );
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testDimensionNumberValidation() {
@@ -230,6 +234,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), containsString(
             "takes an object that maps a dimension number to a float, but got unexpected token [START_ARRAY]"));
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
       public void testDimensionLimit() throws IOException {
@@ -254,6 +260,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(
             new SourceToParse("test-index", "1", invalidDoc, XContentType.JSON)));
         assertThat(e.getDetailedMessage(), containsString("has exceeded the maximum allowed number of dimensions"));
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
 }

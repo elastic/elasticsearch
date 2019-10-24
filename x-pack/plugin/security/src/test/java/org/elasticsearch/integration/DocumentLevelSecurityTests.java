@@ -808,7 +808,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // With document level security enabled the update is not allowed:
         try {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                    .prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2")
+                    .prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2")
                     .get();
             fail("failed, because update request shouldn't be allowed if document level security is enabled");
         } catch (ElasticsearchSecurityException e) {
@@ -818,7 +818,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value1"));
 
         // With no document level security enabled the update is allowed:
-        client().prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2")
+        client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2")
                 .get();
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 

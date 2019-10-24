@@ -721,7 +721,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 Math.abs(randomLong()),
                                 (long) randomIntBetween(0, 1000),
                                 ImmutableOpenMap.of(),
-                                SnapshotInfoTests.randomUserMetadata()));
+                                SnapshotInfoTests.randomUserMetadata(),
+                                randomBoolean()));
                     case 1:
                         return new RestoreInProgress.Builder().add(
                             new RestoreInProgress.Entry(

@@ -83,8 +83,13 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     @Override
-    protected boolean strategyMustImplMustBeRebuilt(Settings newSettings) {
+    protected boolean strategyMustBeRebuilt(Settings newSettings) {
         return false;
+    }
+
+    @Override
+    protected ConnectionStrategy strategyType() {
+        return ConnectionStrategy.SIMPLE;
     }
 
     @Override

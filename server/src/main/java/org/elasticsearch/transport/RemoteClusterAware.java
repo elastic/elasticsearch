@@ -188,8 +188,9 @@ public abstract class RemoteClusterAware {
     }
 
     void validateAndUpdateRemoteCluster(String clusterAlias, Settings settings) {
-        // TODO: Test
-        RemoteConnectionStrategy.validateSettings(clusterAlias, settings);
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
         updateRemoteCluster(clusterAlias, settings);
     }
 

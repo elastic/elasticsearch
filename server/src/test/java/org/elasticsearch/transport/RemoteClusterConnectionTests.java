@@ -595,8 +595,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    // TODO: Replace the resolving test
-
     private static Settings buildSniffSettings(String clusterAlias, List<String> seedNodes) {
         Settings.Builder builder = Settings.builder();
         builder.put(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),

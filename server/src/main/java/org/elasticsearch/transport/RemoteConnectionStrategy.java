@@ -46,7 +46,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     enum ConnectionStrategy {
         SNIFF,
-        SIMPLE;
+        SIMPLE
     }
 
     public static final Setting.AffixSetting<ConnectionStrategy> REMOTE_CONNECTION_MODE = Setting.affixKeySetting(
@@ -60,7 +60,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
 
     private static final int MAX_LISTENERS = 100;
-    private final ConnectionStrategy connectionMode;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
@@ -69,17 +68,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected final RemoteConnectionManager connectionManager;
     protected final String clusterAlias;
 
-    RemoteConnectionStrategy(String clusterAlias, Settings settings, TransportService transportService,
-                             RemoteConnectionManager connectionManager) {
-        this.connectionMode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager) {
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
         this.connectionManager = connectionManager;
         connectionManager.getConnectionManager().addListener(this);
-    }
-
-    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager) {
-        this(clusterAlias, Settings.EMPTY, transportService, connectionManager);
     }
 
     /**
@@ -136,17 +129,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
-    public static void validateSettings(String clusterAlias, Settings settings) {
-        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
-            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
-        }
-
-        ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        if (mode.equals(ConnectionStrategy.SNIFF)) {
-        } else {
-        }
-    }
-
     public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         if (mode.equals(ConnectionStrategy.SNIFF)) {
@@ -157,9 +139,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
-    public boolean shouldRebuildConnection(Settings newSettings) {
+    boolean shouldRebuildConnection(Settings newSettings) {
         ConnectionStrategy newMode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        if (newMode.equals(connectionMode) == false) {
+        if (newMode.equals(strategyType()) == false) {
             return true;
         } else {
             Boolean compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS
@@ -174,11 +156,13 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             builder.setCompressionEnabled(compressionEnabled);
             builder.setPingInterval(pingSchedule);
             ConnectionProfile newProfile = builder.build();
-            return connectionProfileChanged(oldProfile, newProfile) || strategyMustImplMustBeRebuilt(newSettings);
+            return connectionProfileChanged(oldProfile, newProfile) || strategyMustBeRebuilt(newSettings);
         }
     }
 
-    protected abstract boolean strategyMustImplMustBeRebuilt(Settings newSettings);
+    protected abstract boolean strategyMustBeRebuilt(Settings newSettings);
+
+    protected abstract ConnectionStrategy strategyType();
 
     @Override
     public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {

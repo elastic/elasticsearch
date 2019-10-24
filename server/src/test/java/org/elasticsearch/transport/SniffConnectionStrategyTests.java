@@ -27,11 +27,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -40,14 +41,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SniffConnectionStrategyTests extends ESTestCase {
 
@@ -124,6 +129,44 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     assertTrue(strategy.assertNoRunningConnections());
                 }
 
+            }
+        }
+    }
+
+    public void testSniffStrategyWillResolveDiscoveryNodesEachConnect() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode);
+            Collections.shuffle(knownNodes, random());
+
+            CountDownLatch multipleResolveLatch = new CountDownLatch(2);
+            Supplier<DiscoveryNode> seedNodeSupplier = () -> {
+                multipleResolveLatch.countDown();
+                return seedNode;
+            };
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         null, 3, n -> true, seedNodes(seedNode), Collections.singletonList(seedNodeSupplier))) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    // Closing connections leads to RemoteClusterConnection.ConnectHandler.collectRemoteNodes
+                    connectionManager.getConnection(seedNode).close();
+
+                    assertTrue(multipleResolveLatch.await(30L, TimeUnit.SECONDS));
+                    assertTrue(connectionManager.nodeConnected(discoverableNode));
+                }
             }
         }
     }
@@ -413,7 +456,6 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     }
                 });
 
-                Tuple<String, Supplier<DiscoveryNode>> tuple = Tuple.tuple(accessibleNode.toString(), () -> unaddressableSeedNode);
                 List<String> seedNodes = Collections.singletonList(accessibleNode.toString());
                 TransportAddress proxyAddress = accessibleNode.getAddress();
                 ConnectionManager connectionManager = new ConnectionManager(profile, transport);
@@ -435,6 +477,112 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     assertTrue(strategy.assertNoRunningConnections());
                 }
             }
+        }
+    }
+
+    public void testGetNodePredicateNodeRoles() {
+        TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
+        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
+        {
+            DiscoveryNode all = new DiscoveryNode("id", address, Collections.emptyMap(),
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            assertTrue(nodePredicate.test(all));
+        }
+        {
+            DiscoveryNode dataMaster = new DiscoveryNode("id", address, Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+            assertTrue(nodePredicate.test(dataMaster));
+        }
+        {
+            DiscoveryNode dedicatedMaster = new DiscoveryNode("id", address, Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+            assertFalse(nodePredicate.test(dedicatedMaster));
+        }
+        {
+            DiscoveryNode dedicatedIngest = new DiscoveryNode("id", address, Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.INGEST_ROLE), Version.CURRENT);
+            assertTrue(nodePredicate.test(dedicatedIngest));
+        }
+        {
+            DiscoveryNode masterIngest = new DiscoveryNode("id", address, Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+            assertTrue(nodePredicate.test(masterIngest));
+        }
+        {
+            DiscoveryNode dedicatedData = new DiscoveryNode("id", address, Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
+            assertTrue(nodePredicate.test(dedicatedData));
+        }
+        {
+            DiscoveryNode ingestData = new DiscoveryNode("id", address, Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE), Version.CURRENT);
+            assertTrue(nodePredicate.test(ingestData));
+        }
+        {
+            DiscoveryNode coordOnly = new DiscoveryNode("id", address, Collections.emptyMap(),
+                Set.of(), Version.CURRENT);
+            assertTrue(nodePredicate.test(coordOnly));
+        }
+    }
+
+    public void testGetNodePredicateNodeVersion() {
+        TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
+        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.BUILT_IN_ROLES;
+        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
+        Version version = VersionUtils.randomVersion(random());
+        DiscoveryNode node = new DiscoveryNode("id", address, Collections.emptyMap(), roles, version);
+        assertThat(nodePredicate.test(node), equalTo(Version.CURRENT.isCompatible(version)));
+    }
+
+    public void testGetNodePredicateNodeAttrs() {
+        TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
+        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.BUILT_IN_ROLES;
+        Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
+        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(settings);
+        {
+            DiscoveryNode nonGatewayNode = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "false"),
+                roles, Version.CURRENT);
+            assertFalse(nodePredicate.test(nonGatewayNode));
+            assertTrue(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY).test(nonGatewayNode));
+        }
+        {
+            DiscoveryNode gatewayNode = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
+                roles, Version.CURRENT);
+            assertTrue(nodePredicate.test(gatewayNode));
+            assertTrue(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY).test(gatewayNode));
+        }
+        {
+            DiscoveryNode noAttrNode = new DiscoveryNode("id", address, Collections.emptyMap(), roles, Version.CURRENT);
+            assertFalse(nodePredicate.test(noAttrNode));
+            assertTrue(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY).test(noAttrNode));
+        }
+    }
+
+    public void testGetNodePredicatesCombination() {
+        TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
+        Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
+        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(settings);
+        Set<DiscoveryNodeRole> allRoles = DiscoveryNodeRole.BUILT_IN_ROLES;
+        Set<DiscoveryNodeRole> dedicatedMasterRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE);
+        {
+            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
+                dedicatedMasterRoles, Version.CURRENT);
+            assertFalse(nodePredicate.test(node));
+        }
+        {
+            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "false"),
+                dedicatedMasterRoles, Version.CURRENT);
+            assertFalse(nodePredicate.test(node));
+        }
+        {
+            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "false"),
+                dedicatedMasterRoles, Version.CURRENT);
+            assertFalse(nodePredicate.test(node));
+        }
+        {
+            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
+                allRoles, Version.CURRENT);
+            assertTrue(nodePredicate.test(node));
         }
     }
 

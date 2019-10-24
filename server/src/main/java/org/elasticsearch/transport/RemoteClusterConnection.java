@@ -208,7 +208,6 @@ final class RemoteClusterConnection implements Closeable {
     public RemoteConnectionInfo getConnectionInfo() {
         if (connectionStrategy instanceof SniffConnectionStrategy) {
             SniffConnectionStrategy sniffStrategy = (SniffConnectionStrategy) this.connectionStrategy;
-            // TODO: Fix max connections
             return new RemoteConnectionInfo(
                 clusterAlias,
                 sniffStrategy.getSeedNodes(),

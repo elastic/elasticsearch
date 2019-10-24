@@ -21,14 +21,13 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -50,7 +49,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
@@ -128,24 +126,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),
         REMOTE_CLUSTERS_SEEDS);
 
-    private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-        && (node.isMasterNode() == false || node.isDataNode() || node.isIngestNode());
-
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
-    }
-
-    static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
-        if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {
-            // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
-            String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
-            return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
-        }
-        return DEFAULT_NODE_PREDICATE;
     }
 
     /**
@@ -304,30 +290,16 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        final PlainActionFuture<Collection<Void>> future = new PlainActionFuture<>();
         Set<String> enabledClusters = RemoteClusterAware.getEnabledRemoteClusters(settings);
 
-        ActionListener<Void> countedListener = new ActionListener<>() {
+        if (enabledClusters.isEmpty()) {
+            return;
+        }
 
-            CountDown countDown = new CountDown(enabledClusters.size());
-
-            @Override
-            public void onResponse(Void v) {
-                if (countDown.countDown()) {
-                    future.onResponse(v);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (countDown.fastForward()) {
-                    future.onFailure(e);
-                }
-            }
-        };
-
+        GroupedActionListener<Void> listener = new GroupedActionListener<>(future, enabledClusters.size());
         for (String clusterAlias : enabledClusters) {
-            updateRemoteCluster(clusterAlias, settings, countedListener);
+            updateRemoteCluster(clusterAlias, settings, listener);
         }
 
         if (enabledClusters.isEmpty()) {

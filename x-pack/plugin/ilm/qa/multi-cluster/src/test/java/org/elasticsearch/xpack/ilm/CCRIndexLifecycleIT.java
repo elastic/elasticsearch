@@ -756,7 +756,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 fail("HTTP response code expected to be [200] but was [" + response.getStatusLine().getStatusCode() + "]");
             }
         } catch (ResponseException ex) {
-            logger.error(EntityUtils.toString(ex.getResponse().getEntity()));
+            logger.error(EntityUtils.toString(ex.getResponse().getEntity()), ex);
             fail("HTTP response code expected to be [200] but was [" + ex.getResponse().getStatusLine().getStatusCode() + "]");
         }
     }

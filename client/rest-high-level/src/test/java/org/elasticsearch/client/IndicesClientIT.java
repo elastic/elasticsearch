@@ -1426,10 +1426,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .order(10)
             .create(randomBoolean())
             .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
-            .mapping("{ \"properties\":{"
-                    + "\"host_name\": {\"type\":\"keyword\"}"
-                    + "}"
-                    + "}", XContentType.JSON)
+            .mapping("{ \"properties\": { \"host_name\": { \"type\": \"keyword\" } } }", XContentType.JSON)
+            .alias(new Alias("alias-1").indexRouting("abc"))
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
         AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
@@ -1452,13 +1450,18 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .order(10)
             .create(randomBoolean())
             .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
-            .mapping("{ "
-                    + "\"my_doc_type\":{"
-                    + "\"properties\":{"
-                    + "\"host_name\": {\"type\":\"keyword\"}"
-                    + "}"
-                    + "}"
-                    + "}", XContentType.JSON)
+            .mapping(
+                "{"
+                    + "  \"my_doc_type\": {"
+                    + "    \"properties\": {"
+                    + "      \"host_name\": {"
+                    + "        \"type\": \"keyword\""
+                    + "      }"
+                    + "    }"
+                    + "  }"
+                    + "}",
+                XContentType.JSON
+            )
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
 
@@ -1553,8 +1556,16 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(index, Settings.EMPTY);
         Request postDoc = new Request(HttpPost.METHOD_NAME, "/" + index + "/_doc");
         postDoc.setJsonEntity(
-            "{\"type\":\"act\",\"line_id\":1,\"play_name\":\"Henry IV\", \"speech_number\":\"\"," +
-                "\"line_number\":\"\",\"speaker\":\"\",\"text_entry\":\"ACT I\"}");
+            "{"
+                + "  \"type\": \"act\","
+                + "  \"line_id\": 1,"
+                + "  \"play_name\": \"Henry IV\","
+                + "  \"speech_number\": \"\","
+                + "  \"line_number\": \"\","
+                + "  \"speaker\": \"\","
+                + "  \"text_entry\": \"ACT I\""
+                + "}"
+        );
         assertOK(client().performRequest(postDoc));
 
         QueryBuilder builder = QueryBuilders

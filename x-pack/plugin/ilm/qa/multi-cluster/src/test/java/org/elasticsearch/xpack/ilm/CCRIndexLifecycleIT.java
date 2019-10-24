@@ -747,16 +747,24 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     }
 
     private void assertDocumentExists(RestClient client, String index, String id) throws IOException {
-        Request request = new Request("HEAD", "/" + index + "/_doc/" + id);
+        Request request = new Request("GET", "/" + index + "/_doc/" + id);
         Response response;
         try {
             response = client.performRequest(request);
             if (response.getStatusLine().getStatusCode() != 200) {
-                logger.error(EntityUtils.toString(response.getEntity()));
+                if (response.getEntity() != null) {
+                    logger.error(EntityUtils.toString(response.getEntity()));
+                } else {
+                    logger.error("response body was null");
+                }
                 fail("HTTP response code expected to be [200] but was [" + response.getStatusLine().getStatusCode() + "]");
             }
         } catch (ResponseException ex) {
-            logger.error(EntityUtils.toString(ex.getResponse().getEntity()), ex);
+            if (ex.getResponse().getEntity() != null) {
+                logger.error(EntityUtils.toString(ex.getResponse().getEntity()), ex);
+            } else {
+                logger.error("response body was null");
+            }
             fail("HTTP response code expected to be [200] but was [" + ex.getResponse().getStatusLine().getStatusCode() + "]");
         }
     }

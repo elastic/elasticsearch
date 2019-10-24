@@ -1568,7 +1568,7 @@ public class InternalEngine extends Engine {
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed;
         try {
-            // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in the meantime.
+            // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
             if (store.tryIncRef()) {
                 // increment the ref just to ensure nobody closes the store during a refresh
                 try {

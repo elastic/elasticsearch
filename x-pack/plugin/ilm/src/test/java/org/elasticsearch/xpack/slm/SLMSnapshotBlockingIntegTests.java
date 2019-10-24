@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.slm;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -125,7 +124,6 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48441")
     public void testRetentionWhileSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyId = "slm-policy";

@@ -153,7 +153,7 @@ public class IndexActionIT extends ESIntegTestCase {
                 @Override
                 public Void call() throws Exception {
                     int docId = random.nextInt(docCount);
-                    IndexResponse indexResponse = index("test", "type", Integer.toString(docId), "field1", "value");
+                    IndexResponse indexResponse = indexDoc("test", Integer.toString(docId), "field1", "value");
                     if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                         createdCounts.incrementAndGet(docId);
                     }

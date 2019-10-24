@@ -1725,7 +1725,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             .endObject()
         .endObject();
 
-        index("index", "_doc", "1", source);
+        index("index", "1", source);
         refresh();
 
         QueryBuilder nestedQuery = QueryBuilders.nestedQuery("section",

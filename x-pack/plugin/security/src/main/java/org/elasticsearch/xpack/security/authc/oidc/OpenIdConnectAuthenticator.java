@@ -531,7 +531,7 @@ public class OpenIdConnectAuthenticator {
                 final AccessToken accessToken = oidcTokens.getAccessToken();
                 final JWT idToken = oidcTokens.getIDToken();
                 if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Successfully exchanged code. ID Token [{}] and Access Token [{}]", truncateJWT(idToken),
+                    LOGGER.trace("Successfully exchanged code for ID Token [{}] and Access Token [{}]", truncateJWT(idToken),
                         truncateBetweenFirstAndLast2Chars(accessToken.toString()));
                 }
                 if (idToken == null) {

@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -281,7 +282,18 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     Settings cluster1Settings = createSettings("cluster_1",
                         Collections.singletonList(cluster1Seed.getAddress().toString()));
-                    service.validateAndUpdateRemoteCluster("cluster_1", cluster1Settings);
+                    PlainActionFuture<Void> clusterAdded = PlainActionFuture.newFuture();
+                    // Add the cluster on a different thread to test that we wait for a new cluster to
+                    // connect before returning.
+                    new Thread(() -> {
+                        try {
+                            service.validateAndUpdateRemoteCluster("cluster_1", cluster1Settings);
+                            clusterAdded.onResponse(null);
+                        } catch (Exception e) {
+                            clusterAdded.onFailure(e);
+                        }
+                    }).start();
+                    clusterAdded.actionGet();
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     Settings cluster2Settings = createSettings("cluster_2",

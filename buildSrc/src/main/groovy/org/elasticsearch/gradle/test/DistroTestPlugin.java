@@ -139,7 +139,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         final boolean dockerTestEnabled = shouldRunDockerTests();
 
-        logger.error("[DEBUG] dockerTestEnabled = " + dockerTestEnabled);
+        logger.error("[BADGER] dockerTestEnabled = " + dockerTestEnabled);
 
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
@@ -169,7 +169,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                 if (distribution.getType() == Type.DOCKER && DOCKER_VM_EXCLUDE_LIST.contains(vmProject.getName())) {
                     logger.error(
-                        "Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list"
+                        "[BADGER] Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list"
                     );
                     continue;
                 }
@@ -452,6 +452,31 @@ public class DistroTestPlugin implements Plugin<Project> {
             distro.getBundledJdk());
     }
 
+    static Map<String, String> parseOsRelease(final List<String> osReleaseLines) {
+        final Map<String, String> values = new HashMap<>();
+
+        for (String line : osReleaseLines) {
+            final String trimmed = line.trim();
+
+            // ignore empty and comment lines
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                continue;
+            }
+
+            final String[] parts = line.split("=", 2);
+            final String key = parts[0];
+            // remove optional leading and trailing quotes and whitespace
+            final String value = parts[1].replaceAll("^['\"]?\\s*", "").replaceAll("\\s*['\"]?$", "");
+            values.put(key, value);
+        }
+
+        return values;
+    }
+
+    static String deriveId(final Map<String, String> osRelease) {
+        return osRelease.get("ID") + "-" + osRelease.get("VERSION_ID");
+    }
+
     /**
      * The {@link DistroTestPlugin} generates a number of test tasks, some
      * of which are Docker packaging tests. When running on the host OS
@@ -460,60 +485,47 @@ public class DistroTestPlugin implements Plugin<Project> {
      * OS.
      */
     private static boolean shouldRunDockerTests() {
-        logger.error("[DEBUG] shouldRunDockerTests - OS.current() == " + OS.current());
+        logger.error("[BADGER] shouldRunDockerTests - OS.current() == " + OS.current());
 
         switch (OS.current()) {
             case WINDOWS:
                 // Not currently supported.
+                logger.error("[BADGER] shouldRunDockerTests = false on " + OS.WINDOWS);
                 return false;
 
             case MAC:
                 // Assume that Docker for Mac is installed
+                logger.error("[BADGER] shouldRunDockerTests = true on " + OS.MAC);
                 return true;
 
             case LINUX:
                 final Path osRelease = Paths.get("/etc/os-release");
 
                 if (Files.exists(osRelease)) {
-                    Map<String, String> values = new HashMap<>();
+                    Map<String, String> values;
 
                     try {
                         final List<String> osReleaseLines = Files.readAllLines(osRelease);
-                        logger.error(String.join("\n", osReleaseLines));
-                        for (String line : osReleaseLines) {
-                            final String trimmed = line.trim();
-
-                            // ignore empty and comment lines
-                            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
-                                continue;
-                            }
-
-                            final String[] parts = line.split("=", 2);
-                            final String key = parts[0];
-                            // remove optional leading and trailing quotes and whitespace
-                            final String value = parts[1]
-                                .replaceAll("^['\"]\\s*", "")
-                                .replaceAll("\\s*['\"]$", "");
-                            values.put(key, value);
-                        }
+                        values = parseOsRelease(osReleaseLines);
                     } catch (IOException e) {
                         throw new GradleException("Failed to read /etc/os-release", e);
                     }
 
-                    final String id = values.get("ID") + "-" + values.get("VERSION_ID");
+                    final String id = deriveId(values);
 
                     final boolean contains = DOCKER_LINUX_INCLUDE_LIST.contains(id);
 
-                    logger.error("Linux OS id [" + id + "] is " + (contains ? "" : "not ") + "present in the include list");
+                    logger.error("[BADGER] Linux OS id [" + id + "] is " + (contains ? "" : "not ") + "present in the include list");
 
                     return contains;
                 } else {
-                    logger.error("[DEBUG] /etc/os-release does not exist!");
+                    logger.error("[BADGER] /etc/os-release does not exist!");
                 }
 
                 return false;
 
             default:
+                logger.error("[BADGER] shouldRunDockerTests = false on " + OS.current());
                 return false;
         }
     }

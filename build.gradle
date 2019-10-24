@@ -84,7 +84,7 @@ subprojects {
 
             Node developer = node.appendNode('developers').appendNode('developer')
             developer.appendNode('name', 'Elastic')
-            developer.appendNode('url', 'http://www.elastic.co')
+            developer.appendNode('url', 'https://www.elastic.co')
           }
         }
       }
@@ -179,8 +179,8 @@ task verifyVersions {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
     }
-    // Read the list from maven central. 
-    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here 
+    // Read the list from maven central.
+    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
       bwcVersions.compareToAuthoritative(

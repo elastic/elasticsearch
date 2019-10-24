@@ -376,7 +376,7 @@ The `if` condition can be more then a simple equality check.
 The full power of the <<modules-scripting-painless, Painless Scripting Language>> is available and
 running in the {painless}/painless-ingest-processor-context.html[ingest processor context].
 
-IMPORTANT: The value of ctx is read-only in `if` conditions. 
+IMPORTANT: The value of ctx is read-only in `if` conditions.
 
 A more complex `if` condition that drops the document (i.e. not index it)
 unless it has a multi-valued tag field with at least one value that contains the characters
@@ -562,7 +562,7 @@ PUT _ingest/pipeline/check_url
 POST test/_doc/1?pipeline=check_url
 {
   "href": {
-    "url": "http://www.elastic.co/"
+    "url": "https://www.elastic.co/"
   }
 }
 --------------------------------------------------
@@ -591,7 +591,7 @@ GET test/_doc/1
   "_source": {
     "href": {
       "insecure": true,
-      "url": "http://www.elastic.co/"
+      "url": "https://www.elastic.co/"
     }
   }
 }

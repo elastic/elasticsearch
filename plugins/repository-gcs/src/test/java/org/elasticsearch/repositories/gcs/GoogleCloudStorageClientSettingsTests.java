@@ -141,7 +141,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
 
         String endpoint;
         if (randomBoolean()) {
-            endpoint = randomFrom("http://www.elastic.co", "http://metadata.google.com:88/oauth", "https://www.googleapis.com",
+            endpoint = randomFrom("https://www.elastic.co", "http://metadata.google.com:88/oauth", "https://www.googleapis.com",
                     "https://www.elastic.co:443", "http://localhost:8443", "https://www.googleapis.com/oauth/token");
             settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         } else {

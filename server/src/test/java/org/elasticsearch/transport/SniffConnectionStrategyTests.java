@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -50,6 +52,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -358,9 +361,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     strategy.connect(newConnect);
                     IllegalStateException ise = expectThrows(IllegalStateException.class, newConnect::actionGet);
                     assertThat(ise.getMessage(), allOf(
-                        // TODO: Fix
-//                        startsWith("handshake with [{other_seed}"),
-//                        containsString(otherSeedNode.toString()),
+                        startsWith("handshake with [{cluster-alias#"),
                         endsWith(" failed: remote cluster name [otherCluster] " +
                             "does not match expected remote cluster name [" + clusterAlias + "]")));
 
@@ -475,6 +476,54 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     assertFalse(connectionManager.nodeConnected(discoverableNode));
                     assertEquals(proxyAddress, discoverableNodeAddress.get());
                     assertTrue(strategy.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testSniffStrategyWillNeedToBeRebuiltIfSeedsOrProxyChange() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode);
+            Collections.shuffle(knownNodes, random());
+
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         null, 3, n -> true, seedNodes(seedNode))) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+                    assertTrue(connectionManager.nodeConnected(discoverableNode));
+                    assertTrue(strategy.assertNoRunningConnections());
+
+                    Setting<?> seedSetting = RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> proxySetting = RemoteClusterService.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("cluster-alias");
+
+                    Settings noChange = Settings.builder()
+                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .build();
+                    assertFalse(strategy.shouldRebuildConnection(noChange));
+                    Settings seedsChanged = Settings.builder()
+                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(discoverableNode).toArray()))
+                        .build();
+                    assertTrue(strategy.shouldRebuildConnection(seedsChanged));
+                    Settings proxyChanged = Settings.builder()
+                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .put(proxySetting.getKey(), "proxy_address:9300")
+                        .build();
+                    assertTrue(strategy.shouldRebuildConnection(proxyChanged));
                 }
             }
         }

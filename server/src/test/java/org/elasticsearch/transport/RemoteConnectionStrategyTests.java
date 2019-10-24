@@ -65,7 +65,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "simple");
         if (randomBoolean()) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
-                profile.getPingInterval());
+                TimeValue.timeValueSeconds(5));
         } else {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), true);
         }

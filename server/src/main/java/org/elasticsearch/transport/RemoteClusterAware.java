@@ -312,10 +312,9 @@ public abstract class RemoteClusterAware {
     public void listenForUpdates(ClusterSettings clusterSettings) {
         List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
             RemoteClusterAware.REMOTE_CLUSTERS_SEEDS, RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE);
+            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE, RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
+            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS);
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
-        clusterSettings.addAffixGroupUpdateConsumer(Arrays.asList(RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS), this::validateAndUpdateRemoteCluster);
     }
 
     static InetSocketAddress parseSeedAddress(String remoteHost) {

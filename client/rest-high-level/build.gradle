@@ -56,11 +56,6 @@ dependencies {
   compile project(':modules:lang-mustache')
   shadow project(':server')
   shadow project(':client:rest')
-  bundle project(':modules:mapper-extras')
-  bundle project(':modules:parent-join')
-  bundle project(':modules:aggs-matrix-stats')
-  bundle project(':modules:rank-eval')
-  bundle project(':modules:lang-mustache')
 
   testCompile project(':client:test')
   testCompile project(':test:framework')
@@ -79,7 +74,7 @@ dependencies {
 
 //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
 processTestResources {
-  dependsOn jar // so that configurations resolve
+  dependsOn configurations.restSpec // so that configurations resolve
   from({ zipTree(configurations.restSpec.singleFile) }) {
     include 'rest-api-spec/api/**'
   }

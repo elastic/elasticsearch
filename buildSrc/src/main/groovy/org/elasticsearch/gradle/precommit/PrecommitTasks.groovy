@@ -123,11 +123,8 @@ class PrecommitTasks {
 
     private static TaskProvider configureJarHell(Project project, Configuration jarHelConfig) {
         return project.tasks.register('jarHell', JarHellTask) { task ->
-            task.classpath = project.sourceSets.test.runtimeClasspath + jarHelConfig;
-            if (project.plugins.hasPlugin(ShadowPlugin)) {
-                task.classpath += project.configurations.bundle
-            }
-            task.dependsOn(jarHelConfig);
+            task.classpath = project.sourceSets.test.runtimeClasspath + jarHelConfig
+            task.dependsOn(jarHelConfig)
         }
     }
 

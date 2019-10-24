@@ -532,12 +532,11 @@ public class OpenIdConnectAuthenticator {
                 final JWT idToken = oidcTokens.getIDToken();
                 if (LOGGER.isTraceEnabled()) {
                     LOGGER.trace("Successfully exchanged code for ID Token [{}] and Access Token [{}]", truncateJWT(idToken),
-                        truncateBetweenFirstAndLast2Chars(accessToken.toString()));
+                        truncateToken(accessToken.toString()));
                 }
                 if (idToken == null) {
                     tokensListener.onFailure(
-                        new ElasticsearchSecurityException("Token Response did not contain an ID Token or parsing of" +
-                            " the JWT failed."));
+                        new ElasticsearchSecurityException("Token Response did not contain an ID Token or parsing of the JWT failed."));
                     return;
                 }
                 tokensListener.onResponse(new Tuple<>(accessToken, idToken));
@@ -559,12 +558,12 @@ public class OpenIdConnectAuthenticator {
             if (i > 0) {
                 truncated += ".";
             }
-            truncated += truncateBetweenFirstAndLast2Chars(input[i].toString());
+            truncated += truncateToken(input[i].toString());
         }
         return truncated;
     }
 
-    private static String truncateBetweenFirstAndLast2Chars(String input) {
+    private static String truncateToken(String input) {
         if (Strings.hasText(input) == false || input.length() <= 4) {
             return input;
         }

@@ -242,11 +242,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             updateRemoteCluster(clusterAlias, settings, ActionListener.wrap(latch::countDown));
 
             try {
-                // Wait 10 seconds for a new connection. We must use a latch instead of a future because we
+                // Wait 10 seconds for a new cluster. We must use a latch instead of a future because we
                 // are on the cluster state thread and our custom future implementation will throw an
                 // assertion.
                 if (latch.await(10, TimeUnit.SECONDS) == false) {
-                    logger.warn("failed to connect to updated remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(3));
+                    logger.warn("failed to connect to new remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(10));
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

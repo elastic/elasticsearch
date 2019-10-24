@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -51,6 +52,13 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());
 
+        // disable HTTP certificate verification
+        settings = Settings.builder().put(settings)
+                .put("xpack.security.http.ssl.verification_mode", "none")
+                .build();
+        env = TestEnvironment.newEnvironment(settings);
+        assertTrue(runCheck(settings, env).isFailure());
+
         // disable http ssl
         settings = Settings.builder().put(settings)
                 .put("xpack.security.http.ssl.enabled", false)
@@ -58,7 +66,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         env = TestEnvironment.newEnvironment(settings);
         assertTrue(runCheck(settings, env).isFailure());
 
-        // set transport auth
+        // set transport auth, but transport is still disabled
         settings = Settings.builder().put(settings)
                 .put("xpack.security.transport.client_authentication", randomFrom("required", "optional"))
                 .build();
@@ -73,6 +81,13 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .build();
         env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());
+
+        // disable verification mode for transport profile
+        settings = Settings.builder().put(settings)
+                .put("transport.profiles.foo.xpack.security.ssl.verification_mode", "none")
+                .build();
+        env = TestEnvironment.newEnvironment(settings);
+        assertTrue(runCheck(settings, env).isFailure());
     }
 
     private BootstrapCheck.BootstrapCheckResult runCheck(Settings settings, Environment env) throws Exception {
@@ -87,6 +102,12 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());
+        settings = Settings.builder().put(settings)
+                .put("xpack.security.transport.ssl.client_authentication", randomFrom("required", "optional"))
+                .put("xpack.security.transport.ssl.verification_mode", "none")
+                .build();
+        env = TestEnvironment.newEnvironment(settings);
+        assertFalse(runCheck(settings, env).isFailure());
     }
 
     public void testBootstrapCheckWithDelegationEnabled() throws Exception {
@@ -97,6 +118,12 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .put("path.home", createTempDir())
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
+        assertFalse(runCheck(settings, env).isFailure());
+        settings = Settings.builder().put(settings)
+                .put("xpack.security.transport.ssl.client_authentication", randomFrom("required", "optional"))
+                .put("xpack.security.transport.ssl.verification_mode", "none")
+                .build();
+        env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());
     }
 
@@ -120,5 +147,42 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         final PkiRealmBootstrapCheck check = new PkiRealmBootstrapCheck(new SSLService(settings, env));
         secureSettings.close();
         assertThat(check.check(createTestContext(settings, null)).isFailure(), Matchers.equalTo(expectFail));
+    }
+
+    public void testBootstrapCheckVerificationMode() throws Exception {
+        // client auth without verification mode
+        Settings settings = Settings.builder()
+                .put("xpack.security.authc.realms.pki.test_pki.enabled", true)
+                .put("xpack.security.authc.realms.pki.test_pki.delegation.enabled", false)
+                .put("xpack.security.transport.ssl.enabled", "true")
+                .put("xpack.security.transport.ssl.client_authentication", randomFrom("required", "optional"))
+                .put("xpack.security.transport.ssl.verification_mode", "none")
+                .put("path.home", createTempDir())
+                .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        assertTrue(runCheck(settings, env).isFailure());
+        assertThat(runCheck(settings, env).getMessage(), Matchers.is("a PKI realm without trust configuration is enabled but it is not " +
+                "secure to use it when certificate verification is disabled for HTTP or Transport"));
+        // turn on verification mode
+        settings = Settings.builder().put(settings)
+                .put("xpack.security.transport.ssl.verification_mode", randomFrom("certificate", "full"))
+                .build();
+        env = TestEnvironment.newEnvironment(settings);
+        assertFalse(runCheck(settings, env).isFailure());
+        // set trust config
+        String caCertPath = PathUtils.get(PkiRealmBootstrapCheckTests.class.getResource("/org/elasticsearch/xpack/security/transport/ssl" +
+                "/certs/simple/nodes/ca.crt").toURI()).toString();
+        settings = Settings.builder().put(settings)
+                .put("xpack.security.transport.ssl.verification_mode", "none")
+                .put("xpack.security.authc.realms.pki.test_pki.ssl.certificate_authorities", caCertPath)
+                .build();
+        env = TestEnvironment.newEnvironment(settings);
+        assertFalse(runCheck(settings, env).isFailure());
+        // set delegation
+        settings = Settings.builder().put(settings)
+                .put("xpack.security.authc.realms.pki.test_pki.delegation.enabled", true)
+                .build();
+        env = TestEnvironment.newEnvironment(settings);
+        assertFalse(runCheck(settings, env).isFailure());
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -50,14 +52,23 @@ public class OperationRouting {
             Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(OperationRouting.class));
+    private static final String IGNORE_AWARENESS_ATTRIBUTES_PROPERTY = "es.search.ignore_awareness_attributes";
+    static final String IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE =
+        "searches will not be routed based on awareness attributes starting in version 8.0.0; " +
+            "to opt into this behaviour now please set the system property [" + IGNORE_AWARENESS_ATTRIBUTES_PROPERTY + "] to [true]";
+
     private List<String> awarenessAttributes;
     private boolean useAdaptiveReplicaSelection;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
-        boolean ignoreAwarenessAttr = parseBoolean(System.getProperty("es.search.ignore_awareness_attributes"), false);
+        boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
         if (ignoreAwarenessAttr == false) {
             awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
+            if (awarenessAttributes.isEmpty() == false) {
+                deprecationLogger.deprecated(IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
+            }
             clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
                 this::setAwarenessAttributes);
         } else {
@@ -77,7 +88,13 @@ public class OperationRouting {
     }
 
     private void setAwarenessAttributes(List<String> awarenessAttributes) {
-        this.awarenessAttributes = awarenessAttributes;
+        boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
+        if (ignoreAwarenessAttr == false) {
+            if (this.awarenessAttributes.isEmpty() && awarenessAttributes.isEmpty() == false) {
+                deprecationLogger.deprecated(IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
+            }
+            this.awarenessAttributes = awarenessAttributes;
+        }
     }
 
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {

@@ -81,7 +81,6 @@ public abstract class ScrollableHitSource {
         this.fail = fail;
         this.resilient = resilient;
         if (resilient) {
-            // todo: remove this funtion.
             if (checkpoint != null) {
                 restartFromValue = checkpoint.restartFromValue;
             }
@@ -567,7 +566,6 @@ public abstract class ScrollableHitSource {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(RESTART_FROM_VALUE));
         }
 
-        // todo: slice handling could complicate this
         // package-private for testing.
         final long restartFromValue;
 

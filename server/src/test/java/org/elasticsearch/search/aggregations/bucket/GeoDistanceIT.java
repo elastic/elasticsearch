@@ -74,7 +74,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
         source.endArray();
         source = source.endObject();
-        return client().prepareIndex(idx, "type").setSource(source);
+        return client().prepareIndex(idx).setSource(source);
     }
 
     @Override

@@ -128,7 +128,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
     // returns data paths settings of in-sync shard copy
     private Settings createStaleReplicaScenario(String master) throws Exception {
-        client().prepareIndex("test", "type1").setSource(jsonBuilder()
+        client().prepareIndex("test").setSource(jsonBuilder()
             .startObject().field("field", "value1").endObject()).get();
         refresh();
         ClusterState state = client().admin().cluster().prepareState().all().get().getState();
@@ -155,7 +155,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureStableCluster(2, master);
 
         logger.info("--> index a document into previous replica shard (that is now primary)");
-        client(replicaNode).prepareIndex("test", "type1").setSource(jsonBuilder()
+        client(replicaNode).prepareIndex("test").setSource(jsonBuilder()
             .startObject().field("field", "value1").endObject()).get();
 
         logger.info("--> shut down node that has new acknowledged document");
@@ -425,7 +425,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertEquals(2, client().admin().cluster().prepareState().get().getState()
             .metaData().index("test").inSyncAllocationIds(0).size());
         logger.info("--> indexing...");
-        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setSource(jsonBuilder().startObject()
             .field("field", "value1").endObject()).get();
         assertEquals(1, client().admin().cluster().prepareState().get().getState()
             .metaData().index("test").inSyncAllocationIds(0).size());
@@ -454,7 +454,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put("index.number_of_shards", randomIntBetween(1, 3)).put("index.number_of_replicas", 2)).get());
         ensureGreen("test");
-        client().prepareIndex("test", "type1").setSource(jsonBuilder()
+        client().prepareIndex("test").setSource(jsonBuilder()
             .startObject().field("field", "value1").endObject()).get();
         logger.info("--> removing 2 nodes from cluster");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1), nodes.get(2)));

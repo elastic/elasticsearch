@@ -707,7 +707,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(0L));
 
-        client().prepareIndex("test", "doc").setSource(jsonBuilder().startObject().field("text", "value").endObject())
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("text", "value").endObject())
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         response = client().prepareSearch("test")

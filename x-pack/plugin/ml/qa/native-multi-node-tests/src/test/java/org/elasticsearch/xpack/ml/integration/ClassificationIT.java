@@ -86,7 +86,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -124,7 +123,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -181,7 +179,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -248,7 +245,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",

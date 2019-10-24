@@ -107,7 +107,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
-        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -160,7 +159,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
-        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -228,7 +226,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
-        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -300,7 +297,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
-        assertInferenceModelPersisted(jobId);
     }
 
     private void initialize(String jobId) {

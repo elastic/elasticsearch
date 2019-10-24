@@ -322,7 +322,9 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setLeftChild(3)
                 .setRightChild(4))
             .addNode(TreeNode.builder(3).setLeafValue(0.0))
-            .addNode(TreeNode.builder(4).setLeafValue(1.0)).build();
+            .addNode(TreeNode.builder(4).setLeafValue(1.0))
+            .setTargetType(randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION))
+            .build();
         Tree tree2 = Tree.builder()
             .setFeatureNames(featureNames)
             .setRoot(TreeNode.builder(0)
@@ -332,6 +334,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setThreshold(0.5))
             .addNode(TreeNode.builder(1).setLeafValue(0.0))
             .addNode(TreeNode.builder(2).setLeafValue(1.0))
+            .setTargetType(randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION))
             .build();
         Tree tree3 = Tree.builder()
             .setFeatureNames(featureNames)
@@ -342,6 +345,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setThreshold(1.0))
             .addNode(TreeNode.builder(1).setLeafValue(1.0))
             .addNode(TreeNode.builder(2).setLeafValue(0.0))
+            .setTargetType(randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION))
             .build();
         Ensemble ensemble = Ensemble.builder()
             .setTargetType(TargetType.CLASSIFICATION)

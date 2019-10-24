@@ -188,15 +188,12 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                 if (checkpointsByIndex.containsKey(indexName)) {
                     // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(indexName);
-                    if (checkpoints.containsKey(shard.getShardRouting().getId())) {
-                        // there is already a checkpoint entry for this index/shard combination
-                        // it's possible that replica shards report a different/higher global checkpoints
-                        // This is by design and not a problem, take the max() for this case
-                        if (checkpoints.get(shard.getShardRouting().getId()) < globalCheckpoint) {
-                            checkpoints.put(shard.getShardRouting().getId(), globalCheckpoint);
-                        }
-                    } else {
-                        // 1st time we see this shard for this index, add the entry for the shard
+                    // 1st time we see this shard for this index, add the entry for the shard
+                    // or there is already a checkpoint entry for this index/shard combination
+                    // but with a higher global checkpoint. This is by design(not a problem) and
+                    // we take the higher value
+                    if (checkpoints.containsKey(shard.getShardRouting().getId()) == false
+                        || checkpoints.get(shard.getShardRouting().getId()) < globalCheckpoint) {
                         checkpoints.put(shard.getShardRouting().getId(), globalCheckpoint);
                     }
                 } else {

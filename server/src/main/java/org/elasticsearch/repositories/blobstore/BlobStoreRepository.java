@@ -1263,10 +1263,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
 
-                /**
-                 * Restores a file
-                 * @param fileInfo file to be restored
-                 */
                 private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
                     boolean success = false;
 

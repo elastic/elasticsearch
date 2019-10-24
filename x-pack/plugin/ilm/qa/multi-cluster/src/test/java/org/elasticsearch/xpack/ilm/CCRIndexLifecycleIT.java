@@ -7,11 +7,12 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -108,7 +109,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48461")
     public void testCCRUnfollowDuringSnapshot() throws Exception {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {
@@ -746,10 +746,19 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         return settings.get(setting);
     }
 
-    private static void assertDocumentExists(RestClient client, String index, String id) throws IOException {
+    private void assertDocumentExists(RestClient client, String index, String id) throws IOException {
         Request request = new Request("HEAD", "/" + index + "/_doc/" + id);
-        Response response = client.performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        Response response;
+        try {
+            response = client.performRequest(request);
+            if (response.getStatusLine().getStatusCode() != 200) {
+                logger.error(EntityUtils.toString(response.getEntity()));
+                fail("HTTP response code expected to be [200] but was [" + response.getStatusLine().getStatusCode() + "]");
+            }
+        } catch (ResponseException ex) {
+            logger.error(EntityUtils.toString(ex.getResponse().getEntity()));
+            fail("HTTP response code expected to be [200] but was [" + ex.getResponse().getStatusLine().getStatusCode() + "]");
+        }
     }
 
     private void createNewSingletonPolicy(String policyName, String phaseName, LifecycleAction action, TimeValue after) throws IOException {

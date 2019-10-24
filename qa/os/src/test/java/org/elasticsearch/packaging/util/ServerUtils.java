@@ -54,7 +54,7 @@ public class ServerUtils {
         long lastRequest = 0;
         long timeElapsed = 0;
         boolean started = false;
-        Throwable lastException = null;
+        Throwable thrownException = null;
         while (started == false && timeElapsed < waitTime) {
             if (System.currentTimeMillis() - lastRequest > requestInterval) {
                 try {
@@ -74,7 +74,11 @@ public class ServerUtils {
                     started = true;
 
                 } catch (IOException e) {
-                    lastException = e;
+                    if (thrownException == null) {
+                        thrownException = e;
+                    } else {
+                        thrownException.addSuppressed(e);
+                    }
                 }
 
                 lastRequest = System.currentTimeMillis();
@@ -88,7 +92,7 @@ public class ServerUtils {
                 FileUtils.logAllLogs(installation.logs, logger);
             }
 
-            throw new RuntimeException("Elasticsearch did not start", lastException);
+            throw new RuntimeException("Elasticsearch did not start", thrownException);
         }
 
         final String url;

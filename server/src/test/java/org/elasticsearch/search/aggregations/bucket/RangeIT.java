@@ -100,7 +100,7 @@ public class RangeIT extends ESIntegTestCase {
         numDocs = randomIntBetween(10, 20);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, i+1)
                     .startArray(MULTI_VALUED_FIELD_NAME).value(i+1).value(i+2).endArray()
@@ -125,10 +125,10 @@ public class RangeIT extends ESIntegTestCase {
             .addMapping("_doc", "route_length_miles", "type=double")
             .get();
 
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 42.0));
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 50.5));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource("route_length_miles", 100.2));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource(Collections.emptyMap()));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 42.0));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 50.5));
+        builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
+        builders.add(client().prepareIndex("new_index").setSource(Collections.emptyMap()));
 
         indexRandom(true, builders);
         ensureSearchable();

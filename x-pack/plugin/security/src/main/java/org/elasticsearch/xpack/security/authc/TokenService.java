@@ -706,7 +706,7 @@ public final class TokenService {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {
                 UpdateRequest request = client
-                        .prepareUpdate(tokensIndexManager.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(tokenId))
+                        .prepareUpdate(tokensIndexManager.aliasName(), getTokenDocumentId(tokenId))
                         .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
                         .setFetchSource(srcPrefix, null)
                         .request();
@@ -963,7 +963,7 @@ public final class TokenService {
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
             final SecurityIndexManager refreshedTokenIndex = getTokensIndexForVersion(refreshTokenStatus.getVersion());
             final UpdateRequestBuilder updateRequest = client
-                    .prepareUpdate(refreshedTokenIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
+                    .prepareUpdate(refreshedTokenIndex.aliasName(), tokenDocId)
                     .setDoc("refresh_token", updateMap)
                     .setFetchSource(true)
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)

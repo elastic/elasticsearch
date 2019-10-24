@@ -62,27 +62,27 @@ public class WriteActionsTests extends SecurityIntegTestCase {
     public void testDelete() {
         createIndex("test1", "index1");
         client().prepareIndex("test1", "type", "id").setSource("field", "value").get();
-        assertEquals(RestStatus.OK, client().prepareDelete("test1", "type", "id").get().status());
+        assertEquals(RestStatus.OK, client().prepareDelete("test1", "id").get().status());
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "type", "id")::get, BulkAction.NAME + "[s]");
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "id")::get, BulkAction.NAME + "[s]");
 
-        expectThrows(IndexNotFoundException.class, () -> client().prepareDelete("test4", "type", "id").get());
+        expectThrows(IndexNotFoundException.class, () -> client().prepareDelete("test4", "id").get());
         ensureGreen();
     }
 
     public void testUpdate() {
         createIndex("test1", "index1");
         client().prepareIndex("test1", "type", "id").setSource("field", "value").get();
-        assertEquals(RestStatus.OK, client().prepareUpdate("test1", "type", "id")
+        assertEquals(RestStatus.OK, client().prepareUpdate("test1", "id")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get().status());
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareUpdate("index1", "type", "id")
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareUpdate("index1", "id")
                         .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get, UpdateAction.NAME);
 
-        expectThrows(DocumentMissingException.class, () -> client().prepareUpdate("test4", "type", "id")
+        expectThrows(DocumentMissingException.class, () -> client().prepareUpdate("test4", "id")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get());
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareUpdate("missing", "type", "id")
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareUpdate("missing", "id")
                         .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get, UpdateAction.NAME);
         ensureGreen();
     }

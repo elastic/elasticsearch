@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
@@ -87,7 +86,9 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
         assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
         assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
-        if (notPopulateMetadata == false) {
+        if (notPopulateMetadata) {
+            assertThat(result.getUser().metadata().size(), equalTo(0));
+        } else {
             assertThat(result.getUser().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
             assertThat(result.getUser().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
         }
@@ -308,7 +309,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
         final Settings.Builder builder = getBasicRealmSettings();
         if (notPopulateMetadata) {
-            builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.POPULATE_USER_METADATA),
+            builder.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.POPULATE_USER_METADATA),
                 false);
         }
         if (useAuthorizingRealm) {

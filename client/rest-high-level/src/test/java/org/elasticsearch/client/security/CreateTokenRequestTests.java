@@ -36,7 +36,7 @@ public class CreateTokenRequestTests extends ESTestCase {
         assertThat(request.getRefreshToken(), nullValue());
         assertThat(
             Strings.toString(request),
-            equalTo("{\"grant_type\": \"password\", \"username\": \"jsmith\", \"password\": \"top secret password\"}")
+            equalTo("{\"grant_type\":\"password\",\"username\":\"jsmith\",\"password\":\"top secret password\"}")
         );
     }
 
@@ -49,7 +49,7 @@ public class CreateTokenRequestTests extends ESTestCase {
         assertThat(request.getPassword(), nullValue());
         assertThat(
             Strings.toString(request),
-            equalTo("{\"grant_type\": \"refresh_token\", \"refresh_token\": \"9a7f41cf-9918-4d1f-bfaa-ad3f8f9f02b9\"}")
+            equalTo("{\"grant_type\":\"refresh_token\",\"refresh_token\":\"9a7f41cf-9918-4d1f-bfaa-ad3f8f9f02b9\"}")
         );
     }
 
@@ -73,7 +73,7 @@ public class CreateTokenRequestTests extends ESTestCase {
         assertThat(new String(request.getKerberosTicket()), equalTo("top secret kerberos ticket"));
         assertThat(
             Strings.toString(request),
-            equalTo("{\"grant_type\": \"_kerberos\", \"kerberos_ticket\": \"top secret kerberos ticket\"}")
+            equalTo("{\"grant_type\":\"_kerberos\",\"kerberos_ticket\":\"top secret kerberos ticket\"}")
         );
     }
 

@@ -667,7 +667,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             } else {
                 text[0] = gb[randNum];
             }
-            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE)
+            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME)
                     .setSource(TEXT_FIELD, text, CLASS_FIELD, randomBoolean() ? "one" : "zero"));
         }
         indexRandom(true, indexRequestBuilderList);

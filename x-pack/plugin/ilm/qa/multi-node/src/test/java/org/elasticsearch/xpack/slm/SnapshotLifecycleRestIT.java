@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -337,6 +338,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48017")
     public void testBasicTimeBasedRetenion() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";

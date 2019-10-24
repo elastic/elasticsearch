@@ -333,7 +333,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testFreezeIndexIncreasesIndexSettingsVersion() {
         final String index = "test";
         createIndex(index, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
-        client().prepareIndex(index, "_doc").setSource("field", "value").execute().actionGet();
+        client().prepareIndex(index).setSource("field", "value").execute().actionGet();
 
         final long settingsVersion = client().admin().cluster().prepareState().get()
             .getState().metaData().index(index).getSettingsVersion();
@@ -354,7 +354,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final long nbNoOps = randomIntBetween(1, 10);
         for (long i = 0; i < nbNoOps; i++) {
-            final DeleteResponse deleteResponse = client().prepareDelete(indexName, "_doc", Long.toString(i)).get();
+            final DeleteResponse deleteResponse = client().prepareDelete(indexName, Long.toString(i)).get();
             assertThat(deleteResponse.status(), is(RestStatus.NOT_FOUND));
         }
 

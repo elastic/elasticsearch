@@ -117,7 +117,7 @@ public class TokenServiceTests extends ESTestCase {
         }).when(client).prepareGet(anyString(), anyString());
         when(client.prepareIndex(any(String.class), any(String.class), any(String.class)))
                 .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareUpdate(any(String.class), any(String.class), any(String.class)))
+        when(client.prepareUpdate(any(String.class), any(String.class)))
                 .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];

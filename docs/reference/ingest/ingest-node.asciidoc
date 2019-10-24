@@ -562,7 +562,7 @@ PUT _ingest/pipeline/check_url
 POST test/_doc/1?pipeline=check_url
 {
   "href": {
-    "url": "https://www.elastic.co/"
+    "url": "http://www.elastic.co/"
   }
 }
 --------------------------------------------------

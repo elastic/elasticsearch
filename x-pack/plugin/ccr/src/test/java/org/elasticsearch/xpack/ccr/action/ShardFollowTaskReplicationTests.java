@@ -457,24 +457,24 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
                                              RecoveryState recoveryState, ActionListener<Void> listener) {
                         ActionListener.completeWith(listener, () -> {
-                            try {
-                                IndexShard leader = leaderGroup.getPrimary();
-                                Lucene.cleanLuceneIndex(primary.store().directory());
-                                try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
-                                    Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
-                                    for (StoreFileMetaData md : sourceSnapshot) {
-                                        primary.store().directory().copyFrom(
-                                            leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
-                                    }
+                            IndexShard leader = leaderGroup.getPrimary();
+                            Lucene.cleanLuceneIndex(primary.store().directory());
+                            try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
+                                Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
+                                for (StoreFileMetaData md : sourceSnapshot) {
+                                    primary.store().directory().copyFrom(
+                                        leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }
-                                return null;
-                            } catch (Exception ex) {
-                                throw new AssertionError(ex);
                             }
+                            return null;
                         });
                     }
                 }, future);
-                future.actionGet();
+                try {
+                    future.actionGet();
+                } catch (Exception ex) {
+                    throw new AssertionError(ex);
+                }
             }
         };
     }

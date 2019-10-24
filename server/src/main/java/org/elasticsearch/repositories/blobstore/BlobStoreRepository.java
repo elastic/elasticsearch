@@ -1249,9 +1249,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         // restore the files from the snapshot to the Lucene store
                         for (int i = 0; i < workers; ++i) {
                             executor.execute(ActionRunnable.run(allFilesListener, () -> {
-                                BlobStoreIndexShardSnapshot.FileInfo fileToRecover;
-                                while ((fileToRecover = files.poll(0L, TimeUnit.MILLISECONDS)) != null) {
-                                    restoreFile(fileToRecover, store);
+                                store.incRef();
+                                try {
+                                    BlobStoreIndexShardSnapshot.FileInfo fileToRecover;
+                                    while ((fileToRecover = files.poll(0L, TimeUnit.MILLISECONDS)) != null) {
+                                        restoreFile(fileToRecover, store);
+                                    }
+                                } finally {
+                                    store.decRef();
                                 }
                             }));
                         }

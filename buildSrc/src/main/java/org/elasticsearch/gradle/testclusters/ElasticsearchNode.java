@@ -130,6 +130,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
+    private final LazyPropertyList<File> extraJarFiles = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
@@ -541,18 +542,18 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * //TODO: Remove this when system modules are available
      */
     private void copyExtraJars() {
-        Configuration extraJarsConfig = project.getConfigurations().findByName("extraJars");
-        if ( extraJarsConfig != null ) {
-            Set<File> extraJars = project.getConfigurations().getByName("extraJars").getFiles();
-            for (File jar : extraJars) {
-                Path destination = getDistroDir().resolve("lib");
-                LOGGER.info("Adding extra jar {} to {}", jar.getName(), destination);
-                project.copy(spec -> {
-                    spec.from(jar);
-                    spec.into(destination);
-                });
-            }
+        if (extraJarFiles.isEmpty() == false){
+            logToProcessStdout("Setting up " + extraJarFiles.size() + " additional jar dependencies");
         }
+        extraJarFiles.forEach(from -> {
+            Path destination = getDistroDir().resolve("lib").resolve(from.getName());
+            try {
+                Files.copy(from.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.info("Added extra jar {} to {}", from.getName(), destination);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't copy extra jar dependency " + from.getName() + " to " + destination.toString(), e);
+            }
+        });
     }
 
     private void configureNodeForFips() {
@@ -614,6 +615,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 " for " + this);
         }
         extraConfigFiles.put(destination, from, normalization);
+    }
+
+    @Override
+    public void extraJarFile(File from) {
+        if (from.toString().endsWith(".jar") == false) {
+            throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
+        }
+        extraJarFiles.add(from);
     }
 
     @Override

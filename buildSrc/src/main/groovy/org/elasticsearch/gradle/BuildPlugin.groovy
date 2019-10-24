@@ -159,11 +159,12 @@ class BuildPlugin implements Plugin<Project> {
             }
             project.pluginManager.withPlugin("elasticsearch.testclusters") {
                 NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
-                if (testClusters != null) {
-                    testClusters.all { ElasticsearchCluster cluster ->
-                        cluster.extraConfigFile("fips_java.security", securityProperties);
-                        cluster.extraConfigFile("fips_java.policy", securityPolicy);
-                        cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore);
+                testClusters.all { ElasticsearchCluster cluster ->
+                    cluster.extraConfigFile("fips_java.security", securityProperties)
+                    cluster.extraConfigFile("fips_java.policy", securityPolicy)
+                    cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
+                    for (File dep : project.getConfigurations().getByName("extraJars").getFiles()){
+                        cluster.extraJarFile(dep)
                     }
                 }
             }

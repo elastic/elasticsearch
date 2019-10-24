@@ -33,18 +33,18 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
-import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
@@ -84,9 +84,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         this.auditor = auditor;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.numFailureRetries = DataFrame.NUM_FAILURE_RETRIES_SETTING.get(settings);
+        this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DataFrame.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
+            .addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
     }
 
     @Override
@@ -307,7 +307,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private void markAsFailed(TransformTask task, String reason) {
         CountDownLatch latch = new CountDownLatch(1);
 
-        task.markAsFailed(reason, new LatchedActionListener<>(ActionListener.wrap(
+        task.fail(reason, new LatchedActionListener<>(ActionListener.wrap(
             nil -> {},
             failure -> logger.error("Failed to set task [" + task.getTransformId() +"] to failed", failure)
         ), latch));

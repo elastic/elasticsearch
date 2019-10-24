@@ -26,10 +26,10 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
@@ -37,8 +37,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 
 import java.time.Instant;
@@ -69,8 +69,8 @@ class ClientTransformIndexer extends TransformIndexer {
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
 
-    ClientDataFrameIndexer(Executor executor,
-                           DataFrameTransformsConfigManager transformsConfigManager,
+    ClientTransformIndexer(Executor executor,
+                           TransformConfigManager transformsConfigManager,
                            CheckpointProvider checkpointProvider,
                            AtomicReference<IndexerState> initialState,
                            TransformIndexerPosition initialPosition,
@@ -105,7 +105,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void onStart(long now, ActionListener<Boolean> listener) {
-        if (context.getTaskState() == DataFrameTransformTaskState.FAILED) {
+        if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to start while failed.", getJobId());
             listener.onFailure(new ElasticsearchException("Attempted to start a failed transform [{}].", getJobId()));
             return;
@@ -218,7 +218,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     public synchronized boolean maybeTriggerAsyncJob(long now) {
-        if (context.getTaskState() == DataFrameTransformTaskState.FAILED) {
+        if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] schedule was triggered for transform but task is failed. Ignoring trigger.", getJobId());
             return false;
         }
@@ -235,7 +235,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
-        if (context.getTaskState() == DataFrameTransformTaskState.FAILED) {
+        if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to search while failed.", getJobId());
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a search request for failed transform [{}].",
                 getJobId()));
@@ -247,7 +247,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
-        if (context.getTaskState() == DataFrameTransformTaskState.FAILED) {
+        if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to bulk index while failed.", getJobId());
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a bulk index request for failed transform [{}].",
                 getJobId()));
@@ -289,7 +289,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void doSaveState(IndexerState indexerState, TransformIndexerPosition position, Runnable next) {
-        if (context.getTaskState() == DataFrameTransformTaskState.FAILED) {
+        if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to save state and stats while failed.", getJobId());
             // If we are failed, we should call next to allow failure handling to occur if necessary.
             next.run();
@@ -309,7 +309,7 @@ class ClientTransformIndexer extends TransformIndexer {
             return;
         }
 
-        DataFrameTransformTaskState taskState = context.getTaskState();
+        TransformTaskState taskState = context.getTaskState();
 
         if (indexerState.equals(IndexerState.STARTED)
             && getLastCheckpoint().getCheckpoint() == 1

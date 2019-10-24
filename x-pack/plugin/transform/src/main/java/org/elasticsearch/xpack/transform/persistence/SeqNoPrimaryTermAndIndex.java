@@ -27,7 +27,7 @@ public class SeqNoPrimaryTermAndIndex {
         return new SeqNoPrimaryTermAndIndex(response.getSeqNo(), response.getPrimaryTerm(), response.getIndex());
     }
 
-    SeqNoPrimaryTermAndIndex(long seqNo, long primaryTerm, String index) {
+    public SeqNoPrimaryTermAndIndex(long seqNo, long primaryTerm, String index) {
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
         this.index = index;

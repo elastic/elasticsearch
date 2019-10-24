@@ -25,14 +25,14 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
-import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
-import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
-import org.elasticsearch.xpack.transform.DataFrame;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -41,12 +41,11 @@ import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_ST
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_FAILED_TRANSFORM;
 
 
-public class TransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
+public class TransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener, TransformContext.Listener {
 
     // Default interval the scheduler sends an event if the config does not specify a frequency
     private static final long SCHEDULER_NEXT_MILLISECONDS = 60000;
     private static final Logger logger = LogManager.getLogger(TransformTask.class);
-    private volatile int numFailureRetries = DataFrame.DEFAULT_FAILURE_RETRIES;
     private static final IndexerState[] RUNNING_STATES = new IndexerState[]{IndexerState.STARTED, IndexerState.INDEXING};
     public static final String SCHEDULE_NAME = TransformField.TASK_NAME + "/schedule";
 
@@ -93,7 +92,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         this.initialIndexerState = initialState;
         this.initialPosition = initialPosition;
 
-        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint);
+        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, this);
     }
 
     public String getTransformId() {
@@ -172,14 +171,13 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     /**
      * Starts the transform and schedules it to be triggered in the future.
      *
-        if (context.getTaskState() == DataFrameTransformTaskState.FAILED && force == false) {
      *
      * @param startingCheckpoint The starting checkpoint, could null. Null indicates that there is no starting checkpoint
      * @param listener The listener to alert once started
      */
     synchronized void start(Long startingCheckpoint, ActionListener<StartTransformAction.Response> listener) {
         logger.debug("[{}] start called with state [{}].", getTransformId(), getState());
-        if (taskState.get() == TransformTaskState.FAILED) {
+        if (context.getTaskState() == TransformTaskState.FAILED) {
             listener.onFailure(new ElasticsearchStatusException(
                 TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM,
                     getTransformId(),
@@ -191,7 +189,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             // If our state is failed AND the indexer is null, the user needs to _stop?force=true so that the indexer gets
             // fully initialized.
             // If we are NOT failed, then we can assume that `start` was just called early in the process.
-            String msg = context.getTaskState() == DataFrameTransformTaskState.FAILED ?
+            String msg = context.getTaskState() == TransformTaskState.FAILED ?
                 "It failed during the initialization process; force stop to allow reinitialization." :
                 "Try again later.";
             listener.onFailure(new ElasticsearchStatusException("Task for transform [{}] not fully initialized. {}",
@@ -200,7 +198,6 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 msg));
             return;
         }
-        if (context.getTaskState() == DataFrameTransformTaskState.STARTED && failOnConflict) {
         final IndexerState newState = getIndexer().start();
         if (Arrays.stream(RUNNING_STATES).noneMatch(newState::equals)) {
             listener.onFailure(new ElasticsearchException("Cannot start task for transform [{}], because state was [{}]",
@@ -260,7 +257,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             return;
         }
 
-        if (context.getTaskState() == DataFrameTransformTaskState.FAILED && force == false) {
+        if (context.getTaskState() == TransformTaskState.FAILED && force == false) {
             throw new ElasticsearchStatusException(
                 TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM,
                     getTransformId(),
@@ -275,7 +272,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // Since we have called `stop` against the indexer, we have no more fear of triggering again.
         // But, since `doSaveState` is asynchronous, it is best to set the state as STARTED so that another `start` call cannot be
         // executed while we are wrapping up.
-        context.setTaskState(DataFrameTransformTaskState.FAILED, DataFrameTransformTaskState.STARTED);
+        context.setTaskState(TransformTaskState.FAILED, TransformTaskState.STARTED);
         if (state == IndexerState.STOPPED) {
             getIndexer().onStop();
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
@@ -294,7 +291,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             return;
         }
 
-        if (context.getTaskState() == DataFrameTransformTaskState.FAILED || context.getTaskState() == DataFrameTransformTaskState.STOPPED) {
+        if (context.getTaskState() == TransformTaskState.FAILED || context.getTaskState() == TransformTaskState.STOPPED) {
             logger.debug("[{}] schedule was triggered for transform but task is [{}]. Ignoring trigger.",
                 getTransformId(),
                 context.getTaskState());
@@ -325,7 +322,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      * Attempt to gracefully cleanup the transform so it can be terminated.
      * This tries to remove the job from the scheduler and completes the persistent task
      */
-    synchronized void shutdown() {
+    @Override
+    public synchronized void shutdown() {
         deregisterSchedulerJob();
         markAsCompleted();
     }
@@ -346,10 +344,11 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         ));
     }
 
-    synchronized void markAsFailed(String reason, ActionListener<Void> listener) {
+    @Override
+    public synchronized void fail(String reason, ActionListener<Void> listener) {
         // If we are already flagged as failed, this probably means that a second trigger started firing while we were attempting to
         // flag the previously triggered indexer as failed. Exit early as we are already flagged as failed.
-        if (context.getTaskState() == DataFrameTransformTaskState.FAILED) {
+        if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.warn("[{}] is already failed but encountered new failure; reason [{}].", getTransformId(), reason);
             listener.onResponse(null);
             return;
@@ -410,12 +409,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     TransformTask setNumFailureRetries(int numFailureRetries) {
-        this.numFailureRetries = numFailureRetries;
+        context.setNumFailureRetries(numFailureRetries);
         return this;
-    }
-
-    int getNumFailureRetries() {
-        return numFailureRetries;
     }
 
     private void registerWithSchedulerJob() {

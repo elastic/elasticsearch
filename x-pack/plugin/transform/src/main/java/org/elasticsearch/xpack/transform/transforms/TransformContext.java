@@ -7,51 +7,55 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.Transform;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 class TransformContext {
 
-    private interface TaskCallbacks {
+    public interface Listener {
         void shutdown();
 
         void fail(String failureMessage, ActionListener<Void> listener);
     }
 
-    private final AtomicReference<DataFrameTransformTaskState> taskState;
+    private final AtomicReference<TransformTaskState> taskState;
     private final AtomicReference<String> stateReason;
+    private final Listener taskListener;
+    private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
 
-    TransformContext (final DataFrameTransformTaskState taskState, String stateReason, long currentCheckpoint) {
+    TransformContext (final TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
+        this.taskListener = taskListener;
     }
 
-    DataFrameTransformTaskState getTaskState() {
+    TransformTaskState getTaskState() {
         return taskState.get();
     }
 
-    void setTaskState(DataFrameTransformTaskState newState) {
+    void setTaskState(TransformTaskState newState) {
         taskState.set(newState);
     }
 
-    void setTaskState(DataFrameTransformTaskState oldState, DataFrameTransformTaskState newState) {
+    void setTaskState(TransformTaskState oldState, TransformTaskState newState) {
         taskState.compareAndSet(oldState, newState);
     }
 
     void resetTaskState() {
-        taskState.set(DataFrameTransformTaskState.STARTED);
+        taskState.set(TransformTaskState.STARTED);
         stateReason.set(null);
     }
 
     void setTaskStateToFailed(String reason) {
-        taskState.set(DataFrameTransformTaskState.FAILED);
+        taskState.set(TransformTaskState.FAILED);
         stateReason.set(reason);
     }
 
@@ -73,6 +77,22 @@ class TransformContext {
 
     long incrementCheckpoint() {
         return currentCheckpoint.getAndIncrement();
+    }
+
+    void setNumFailureRetries(int numFailureRetries) {
+        this.numFailureRetries = numFailureRetries;
+    }
+
+    int getNumFailureRetries() {
+        return numFailureRetries;
+    }
+
+    void shutdown() {
+        taskListener.shutdown();
+    }
+
+    void markAsFailed(String failureMessage, ActionListener<Void> listener) {
+        taskListener.fail(failureMessage, listener);
     }
 
 }

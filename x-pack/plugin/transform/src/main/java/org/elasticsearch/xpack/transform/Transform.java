@@ -99,7 +99,6 @@ import org.elasticsearch.xpack.transform.rest.action.compat.RestStartTransformAc
 import org.elasticsearch.xpack.transform.rest.action.compat.RestStopTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.rest.action.compat.RestUpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
-import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -126,6 +125,17 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final SetOnce<TransformAuditor> transformAuditor = new SetOnce<>();
     private final SetOnce<TransformCheckpointService> transformCheckpointService = new SetOnce<>();
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
+
+    public static final int DEFAULT_FAILURE_RETRIES = 10;
+
+    // How many times the transform task can retry on an non-critical failure
+    public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
+        "xpack.transform.num_transform_failure_retries",
+        DEFAULT_FAILURE_RETRIES,
+        0,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic);
 
     public Transform(Settings settings) {
         this.settings = settings;
@@ -272,7 +282,7 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(TransformTask.NUM_FAILURE_RETRIES_SETTING);
+        return Collections.singletonList(NUM_FAILURE_RETRIES_SETTING);
     }
 
     @Override

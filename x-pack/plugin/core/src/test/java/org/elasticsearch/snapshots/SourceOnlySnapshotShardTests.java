@@ -60,6 +60,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
@@ -96,10 +97,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing();
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing("-1");
+            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
-                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, future));
+                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, true, future));
             IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, future::actionGet);
             assertEquals(
                 "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source",
@@ -118,14 +119,15 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
         SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
         repository.start();
-        int totalFileCount = -1;
+        int totalFileCount;
+        String shardGeneration;
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
             SnapshotId snapshotId = new SnapshotId("test", "test");
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
-                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, future));
-            future.actionGet();
+                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, true, future));
+            shardGeneration = future.actionGet();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
             totalFileCount = copy.getTotalFileCount();
@@ -137,11 +139,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             SnapshotId snapshotId = new SnapshotId("test_1", "test_1");
 
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing();
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
+            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
-                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, future));
-            future.actionGet();
+                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, true, future));
+            shardGeneration = future.actionGet();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1.si, _1.fdx, _1.fnm, _1.fdt
             assertEquals(5, copy.getIncrementalFileCount());
@@ -153,10 +155,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             SnapshotId snapshotId = new SnapshotId("test_2", "test_2");
 
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing();
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
+            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
-                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, future));
+                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, true, future));
             future.actionGet();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1_1.liv
@@ -200,17 +202,19 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing();
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
+            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> {
                 repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId, snapshotRef.getIndexCommit(),
-                    indexShardSnapshotStatus, future);
+                    indexShardSnapshotStatus, true, future);
                 future.actionGet();
                 final PlainActionFuture<SnapshotInfo> finFuture = PlainActionFuture.newFuture();
-                repository.finalizeSnapshot(snapshotId, Collections.singletonList(indexId),
+                repository.finalizeSnapshot(snapshotId,
+                    ShardGenerations.builder().put(indexId, 0, indexShardSnapshotStatus.generation()).build(),
                     indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
                     repository.getRepositoryData().getGenId(), true,
                     MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(),
+                    true,
                     finFuture);
                 finFuture.actionGet();
             });

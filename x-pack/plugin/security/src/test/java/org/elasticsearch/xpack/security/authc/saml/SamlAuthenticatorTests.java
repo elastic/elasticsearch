@@ -854,7 +854,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "</proto:Response>";
         SamlToken token = token(signDoc(xml));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
-        assertThat(exception.getMessage(), containsString("SAML Assertion subject contains 0 bearer SubjectConfirmation"));
+        assertThat(exception.getMessage(), containsString("SAML Assertion subject contains [0] bearer SubjectConfirmation"));
         assertThat(exception.getCause(), nullValue());
         assertThat(SamlUtils.isSamlException(exception), is(true));
     }

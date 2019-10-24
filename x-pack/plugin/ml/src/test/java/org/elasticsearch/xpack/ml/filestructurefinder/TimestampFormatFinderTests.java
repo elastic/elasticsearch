@@ -430,7 +430,6 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
     }
 
     public void testGuessIsDayFirstFromLocale() {
-
         TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
 
         // Locale fallback is the only way to decide

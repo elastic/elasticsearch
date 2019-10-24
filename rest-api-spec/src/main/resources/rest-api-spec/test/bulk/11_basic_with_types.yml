@@ -86,6 +86,7 @@
           - f: 4
           - index:
               _index: test
+              _type: type
               op_type: create
           - f: 5
   - match: { errors: true }

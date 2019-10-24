@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
@@ -39,6 +40,35 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class DateFormattersTests extends ESTestCase {
+
+    public void testWeekBasedDates() {
+        assumeFalse("won't work in jdk8 " +
+                "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            JavaVersion.current().equals(JavaVersion.parse("8")));
+
+        // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
+        DateFormatter dateFormatter = DateFormatters.forPattern("YYYY-ww");
+
+        // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
+        assertThat(DateFormatters.from(dateFormatter.parse("2016-01")) ,
+            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+
+        // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
+        assertThat(DateFormatters.from(dateFormatter.parse("2015-01")) ,
+            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
+
+
+        // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
+         dateFormatter = DateFormatters.forPattern("YYYY");
+
+        // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
+        assertThat(DateFormatters.from(dateFormatter.parse("2016")) ,
+            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+
+        // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
+        assertThat(DateFormatters.from(dateFormatter.parse("2015")) ,
+            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
+    }
 
     // this is not in the duelling tests, because the epoch millis parser in joda time drops the milliseconds after the comma
     // but is able to parse the rest

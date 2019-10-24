@@ -119,6 +119,8 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String IN_VM_SYSPROP = "tests.inVM";
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
 
+    private static final boolean dockerTestEnabled = shouldRunDockerTests();
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
@@ -136,10 +138,6 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Copy> copyDistributionsTask = configureCopyDistributionsTask(project, distributionsDir);
         TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
         TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
-
-        final boolean dockerTestEnabled = shouldRunDockerTests();
-
-        logger.error("[BADGER] dockerTestEnabled = " + dockerTestEnabled);
 
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
@@ -168,8 +166,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                 String destructiveTaskName = destructiveDistroTestTaskName(distribution);
 
                 if (distribution.getType() == Type.DOCKER && DOCKER_VM_EXCLUDE_LIST.contains(vmProject.getName())) {
-                    logger.error(
-                        "[BADGER] Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list"
+                    logger.debug(
+                        "Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list"
                     );
                     continue;
                 }
@@ -375,8 +373,17 @@ public class DistroTestPlugin implements Plugin<Project> {
         for (Type type : List.of(Type.DEB, Type.RPM, Type.DOCKER)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    // We should never add a Docker distro with bundledJdk == false
-                    boolean skip = type == Type.DOCKER && bundledJdk == false;
+                    boolean skip = false;
+
+                    if (type == Type.DOCKER) {
+                        if (dockerTestEnabled == false) {
+                            skip = true;
+                        } else if (bundledJdk == false) {
+                            // We should never add a Docker distro with bundledJdk == false
+                            skip = true;
+                        }
+                    }
+
                     if (skip == false) {
                         addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
                     }
@@ -485,17 +492,15 @@ public class DistroTestPlugin implements Plugin<Project> {
      * OS.
      */
     private static boolean shouldRunDockerTests() {
-        logger.error("[BADGER] shouldRunDockerTests - OS.current() == " + OS.current());
-
         switch (OS.current()) {
             case WINDOWS:
                 // Not currently supported.
-                logger.error("[BADGER] shouldRunDockerTests = false on " + OS.WINDOWS);
+                logger.debug("shouldRunDockerTests = false on " + OS.WINDOWS);
                 return false;
 
             case MAC:
                 // Assume that Docker for Mac is installed
-                logger.error("[BADGER] shouldRunDockerTests = true on " + OS.MAC);
+                logger.debug("shouldRunDockerTests = true on " + OS.MAC);
                 return true;
 
             case LINUX:
@@ -515,17 +520,17 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                     final boolean contains = DOCKER_LINUX_INCLUDE_LIST.contains(id);
 
-                    logger.error("[BADGER] Linux OS id [" + id + "] is " + (contains ? "" : "not ") + "present in the include list");
+                    logger.debug("Linux OS id [" + id + "] is " + (contains ? "" : "not ") + "present in the include list");
 
                     return contains;
                 } else {
-                    logger.error("[BADGER] /etc/os-release does not exist!");
+                    logger.debug("/etc/os-release does not exist!");
                 }
 
                 return false;
 
             default:
-                logger.error("[BADGER] shouldRunDockerTests = false on " + OS.current());
+                logger.debug("shouldRunDockerTests = false on " + OS.current());
                 return false;
         }
     }

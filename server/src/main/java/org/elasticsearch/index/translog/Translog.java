@@ -1691,16 +1691,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     break;
                 }
                 iterator.remove();
-                IOUtils.closeWhileHandlingException(reader);
-                final Path translogPath = reader.path();
-                logger.trace("delete translog file [{}], not referenced and not current anymore", translogPath);
-                // The checkpoint is used when opening the translog to know which files should be recovered from.
-                // We now update the checkpoint to ignore the file we are going to remove.
-                // Note that there is a provision in recoverFromFiles to allow for the case where we synced the checkpoint
-                // but crashed before we could delete the file.
-                // sync at once to make sure that there's at most one unreferenced generation.
-                current.sync();
-                deleteReaderFiles(reader);
+                try {
+                    reader.close();
+                    logger.trace("delete translog file [{}], not referenced and not current anymore", reader.path);
+                } finally {
+                    // The checkpoint is used when opening the translog to know which files should be recovered from.
+                    // We now update the checkpoint to ignore the file we are going to remove.
+                    // Note that there is a provision in recoverFromFiles to allow for the case where we synced the checkpoint
+                    // but crashed before we could delete the file.
+                    // sync at once to make sure that there's at most one unreferenced generation.
+                    current.sync();
+                    deleteReaderFiles(reader);
+                }
             }
             assert readers.isEmpty() == false || current.generation == minReferencedGen :
                 "all readers were cleaned but the minReferenceGen [" + minReferencedGen + "] is not the current writer's gen [" +

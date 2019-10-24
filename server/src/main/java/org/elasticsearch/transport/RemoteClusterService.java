@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
@@ -236,7 +237,23 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-        updateRemoteCluster(clusterAlias, settings, noopListener);
+        if (remoteClusters.containsKey(clusterAlias) == false) {
+            CountDownLatch latch = new CountDownLatch(1);
+            updateRemoteCluster(clusterAlias, settings, ActionListener.wrap(latch::countDown));
+
+            try {
+                // Wait 10 seconds for a new connection. We must use a latch instead of a future because we
+                // are on the cluster state thread and our custom future implementation will throw an
+                // assertion.
+                if (latch.await(10, TimeUnit.SECONDS) == false) {
+                    logger.warn("failed to connect to updated remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(3));
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        } else {
+            updateRemoteCluster(clusterAlias, settings, noopListener);
+        }
     }
 
     /**

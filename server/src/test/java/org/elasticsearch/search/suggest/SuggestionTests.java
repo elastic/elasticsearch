@@ -164,7 +164,7 @@ public class SuggestionTests extends ESTestCase {
 
     public void testUnknownSuggestionTypeThrows() throws IOException {
         XContent xContent = JsonXContent.jsonXContent;
-        String suggestionString = "{"
+        String suggestionString = ("{"
             + "  \"unknownType#suggestionName\": ["
             + "    {"
             + "      \"text\": \"entryText\","
@@ -180,7 +180,7 @@ public class SuggestionTests extends ESTestCase {
             + "      ]"
             + "    }"
             + "  ]"
-            + "}";
+            + "}").replaceAll("\\s+", "");
         try (XContentParser parser = xContent.createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, suggestionString)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
@@ -201,24 +201,23 @@ public class SuggestionTests extends ESTestCase {
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
-            assertEquals(
-                "{"
-                    + "  \"phrase#suggestionName\": ["
-                    + "    {"
-                    + "      \"text\": \"entryText\","
-                    + "      \"offset\": 42,"
-                    + "      \"length\": 313,"
-                    + "      \"options\": ["
-                    + "        {"
-                    + "          \"text\": \"someText\","
-                    + "          \"highlighted\": \"somethingHighlighted\","
-                    + "          \"score\": 1.3,"
-                    + "          \"collate_match\": true"
-                    + "        }"
-                    + "      ]"
-                    + "    }"
-                    + "  ]"
-                    + "}",
+            assertEquals(("{"
+                + "  \"phrase#suggestionName\": ["
+                + "    {"
+                + "      \"text\": \"entryText\","
+                + "      \"offset\": 42,"
+                + "      \"length\": 313,"
+                + "      \"options\": ["
+                + "        {"
+                + "          \"text\": \"someText\","
+                + "          \"highlighted\": \"somethingHighlighted\","
+                + "          \"score\": 1.3,"
+                + "          \"collate_match\": true"
+                + "        }"
+                + "      ]"
+                + "    }"
+                + "  ]"
+                + "}").replaceAll("\\s+", ""),
                 xContent.utf8ToString()
             );
         }
@@ -230,24 +229,23 @@ public class SuggestionTests extends ESTestCase {
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
-            assertEquals(
-                "{"
-                    + "  \"phrase#suggestionName\": ["
-                    + "    {"
-                    + "      \"text\": \"entryText\","
-                    + "      \"offset\": 42,"
-                    + "      \"length\": 313,"
-                    + "      \"options\": ["
-                    + "        {"
-                    + "          \"text\": \"someText\","
-                    + "          \"highlighted\": \"somethingHighlighted\","
-                    + "          \"score\": 1.3,"
-                    + "          \"collate_match\": true"
-                    + "        }"
-                    + "      ]"
-                    + "    }"
-                    + "  ]"
-                    + "}",
+            assertEquals(("{"
+                + "  \"phrase#suggestionName\": ["
+                + "    {"
+                + "      \"text\": \"entryText\","
+                + "      \"offset\": 42,"
+                + "      \"length\": 313,"
+                + "      \"options\": ["
+                + "        {"
+                + "          \"text\": \"someText\","
+                + "          \"highlighted\": \"somethingHighlighted\","
+                + "          \"score\": 1.3,"
+                + "          \"collate_match\": true"
+                + "        }"
+                + "      ]"
+                + "    }"
+                + "  ]"
+                + "}").replaceAll("\\s+", ""),
                 xContent.utf8ToString()
             );
         }
@@ -259,7 +257,7 @@ public class SuggestionTests extends ESTestCase {
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
             assertEquals(
-                "{"
+                ("{"
                     + "  \"term#suggestionName\": ["
                     + "    {"
                     + "      \"text\": \"entryText\","
@@ -274,7 +272,7 @@ public class SuggestionTests extends ESTestCase {
                     + "      ]"
                     + "    }"
                     + "  ]"
-                    + "}",
+                    + "}").replaceAll("\\s+", ""),
                 xContent.utf8ToString()
             );
         }
@@ -287,7 +285,7 @@ public class SuggestionTests extends ESTestCase {
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
             assertEquals(
-                "{"
+                ("{"
                     + "  \"completion#suggestionName\": ["
                     + "    {"
                     + "      \"text\": \"entryText\","
@@ -306,7 +304,7 @@ public class SuggestionTests extends ESTestCase {
                     + "      ]"
                     + "    }"
                     + "  ]"
-                    + "}",
+                    + "}").replaceAll("\\s+", ""),
                 xContent.utf8ToString()
             );
         }

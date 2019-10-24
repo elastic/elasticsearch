@@ -104,6 +104,10 @@ The following parameters are supported:
     which defines a weight and allows you to rank your suggestions.
     This field is optional.
 
+NOTE: The `input` value must not contain any of the three reserved UTF-16
+control characters `Null (\u0000)`, `Information Separator Two (\u001e)` or
+`Information Separator One (\u001f)`
+
 You can index multiple suggestions for a document as follows:
 
 [source,console]

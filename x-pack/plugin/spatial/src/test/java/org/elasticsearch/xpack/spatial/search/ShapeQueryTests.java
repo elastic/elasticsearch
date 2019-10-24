@@ -75,8 +75,8 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
                 .startObject().field(FIELD), null).endObject();
 
             try {
-                client().prepareIndex(INDEX, FIELD_TYPE).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
-                client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
+                client().prepareIndex(INDEX).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
+                client().prepareIndex(IGNORE_MALFORMED_INDEX).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
             } catch (Exception e) {
                 // sometimes GeoTestUtil will create invalid geometry; catch and continue:
                 if (queryGeometry == geometry) {

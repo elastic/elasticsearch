@@ -127,7 +127,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             String dateTerm = DateFormatter.forPattern("yyyy-MM-dd").format(time);
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
-                indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                indexRequests.add(client().prepareIndex("idx").setSource(jsonBuilder()
                         .startObject()
                         .field("s", stringTerm)
                         .field("l", longTerm)

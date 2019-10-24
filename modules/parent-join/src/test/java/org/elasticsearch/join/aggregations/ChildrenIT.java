@@ -192,7 +192,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
              * the updates cause that.
              */
             UpdateResponse updateResponse;
-            updateResponse = client().prepareUpdate(indexName, "doc", idToUpdate)
+            updateResponse = client().prepareUpdate(indexName, idToUpdate)
                     .setRouting("1")
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
                     .setDetectNoop(false)

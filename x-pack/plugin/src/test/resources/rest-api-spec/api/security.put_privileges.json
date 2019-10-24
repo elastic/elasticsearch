@@ -1,7 +1,7 @@
 {
   "security.put_privileges":{
     "documentation":{
-      "url":"TODO"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-privileges.html"
     },
     "stability":"stable",
     "url":{

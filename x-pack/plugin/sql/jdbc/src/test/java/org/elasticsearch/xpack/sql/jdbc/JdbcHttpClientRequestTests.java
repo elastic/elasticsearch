@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.sql.client;
+package org.elasticsearch.xpack.sql.jdbc;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
@@ -18,15 +18,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.RequestInfo;
-import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -35,11 +32,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -47,10 +41,10 @@ import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 
-public class HttpClientRequestTests extends ESTestCase {
+public class JdbcHttpClientRequestTests extends ESTestCase {
     
     private static RawRequestMockWebServer webServer = new RawRequestMockWebServer();
-    private static final Logger logger = LogManager.getLogger(HttpClientRequestTests.class);
+    private static final Logger logger = LogManager.getLogger(JdbcHttpClientRequestTests.class);
     
     @BeforeClass
     public static void init() throws Exception {
@@ -61,40 +55,41 @@ public class HttpClientRequestTests extends ESTestCase {
     public static void cleanup() {
         webServer.close();
     }
-    
-    public void testBinaryRequestForCLIEnabled() throws URISyntaxException {
-        assertBinaryRequestForCLI(true, XContentType.CBOR);
+
+    public void testBinaryRequestEnabled() throws Exception {
+        assertBinaryRequest(true, XContentType.CBOR);
     }
     
-    public void testBinaryRequestForCLIDisabled() throws URISyntaxException {
-        assertBinaryRequestForCLI(false, XContentType.JSON);
+    public void testBinaryRequestDisabled() throws Exception {
+        assertBinaryRequest(false, XContentType.JSON);
     }
-    
-    public void testBinaryRequestForDriversEnabled() throws URISyntaxException {
-        assertBinaryRequestForDrivers(true, XContentType.CBOR);
-    }
-    
-    public void testBinaryRequestForDriversDisabled() throws URISyntaxException {
-        assertBinaryRequestForDrivers(false, XContentType.JSON);
-    }
-    
-    private void assertBinaryRequestForCLI(boolean isBinary, XContentType xContentType) throws URISyntaxException {
-        String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
-        String query = randomAlphaOfLength(256);
-        int fetchSize = randomIntBetween(1, 100);
+
+    private void assertBinaryRequest(boolean isBinary, XContentType xContentType) throws Exception {
+        String url = JdbcConfiguration.URL_PREFIX + webServer.getHostName() + ":" + webServer.getPort();
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
         
-        URI uri = new URI(url);
-        ConnectionConfiguration conCfg = new ConnectionConfiguration(uri, url, props);
-        HttpClient httpClient = new HttpClient(conCfg);
+        JdbcHttpClient httpClient = new JdbcHttpClient(JdbcConfiguration.create(url, props, 0), false);
         
         prepareMockResponse();
         try {
-            httpClient.basicQuery(query, fetchSize);
+            httpClient.query(randomAlphaOfLength(256), null,
+                             new RequestMeta(randomIntBetween(1, 100), randomNonNegativeLong(), randomNonNegativeLong()));
         } catch (SQLException e) {
             logger.info("Ignored SQLException", e);
         }
+        assertValues(isBinary, xContentType);
+        
+        prepareMockResponse();
+        try {
+            httpClient.nextPage("", new RequestMeta(randomIntBetween(1, 100), randomNonNegativeLong(), randomNonNegativeLong()));
+        } catch (SQLException e) {
+            logger.info("Ignored SQLException", e);
+        }
+        assertValues(isBinary, xContentType);
+    }
+
+    private void assertValues(boolean isBinary, XContentType xContentType) {
         assertEquals(1, webServer.requests().size());
         RawRequest recordedRequest = webServer.takeRequest();
         assertEquals(xContentType.mediaTypeWithoutParameters(), recordedRequest.getHeader("Content-Type"));
@@ -103,84 +98,15 @@ public class HttpClientRequestTests extends ESTestCase {
         BytesReference bytesRef = recordedRequest.getBodyAsBytes();
         Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
         
-        assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase(Mode.CLI.toString()));
+        assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase("jdbc"));
         assertEquals(isBinary, reqContent.get("binary"));
-        assertEquals(Boolean.FALSE, reqContent.get("columnar"));
-        assertEquals(fetchSize, reqContent.get("fetch_size"));
-        assertEquals(query, reqContent.get("query"));
-        assertEquals("90000ms", reqContent.get("request_timeout"));
-        assertEquals("45000ms", reqContent.get("page_timeout"));
-        assertEquals("Z", reqContent.get("time_zone"));
-        
-        prepareMockResponse();
-        try {
-            // we don't care what the cursor is, because the ES node that will actually handle the request (as in running an ES search)
-            // will not see/have access to the "binary" response, which is the concern of the first node getting the request
-            httpClient.nextPage("");
-        } catch (SQLException e) {
-            logger.info("Ignored SQLException", e);
-        }
-        assertEquals(1, webServer.requests().size());
-        recordedRequest = webServer.takeRequest();
-        assertEquals(xContentType.mediaTypeWithoutParameters(), recordedRequest.getHeader("Content-Type"));
-        assertEquals("POST", recordedRequest.getMethod());
-        
-        bytesRef = recordedRequest.getBodyAsBytes();
-        reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
-        
-        assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase(Mode.CLI.toString()));
-        assertEquals(isBinary, reqContent.get("binary"));
-        assertEquals("90000ms", reqContent.get("request_timeout"));
-        assertEquals("45000ms", reqContent.get("page_timeout"));
-    }
-    
-    private void assertBinaryRequestForDrivers(boolean isBinary, XContentType xContentType) throws URISyntaxException {
-        String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
-        String query = randomAlphaOfLength(256);
-        Properties props = new Properties();
-        props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
-        
-        URI uri = new URI(url);
-        ConnectionConfiguration conCfg = new ConnectionConfiguration(uri, url, props);
-        HttpClient httpClient = new HttpClient(conCfg);
-        
-        Mode mode = randomFrom(Mode.JDBC, Mode.ODBC);
-        SqlQueryRequest request = new SqlQueryRequest(query, 
-                null,
-                ZoneId.of("Z"),
-                randomIntBetween(1, 100),
-                TimeValue.timeValueMillis(randomNonNegativeLong()),
-                TimeValue.timeValueMillis(randomNonNegativeLong()),
-                null,
-                randomBoolean(),
-                randomAlphaOfLength(128),
-                new RequestInfo(mode),
-                randomBoolean(),
-                randomBoolean(),
-                isBinary);
-        
-        prepareMockResponse();
-        try {
-            httpClient.query(request);
-        } catch (SQLException e) {
-            logger.info("Ignored SQLException", e);
-        }
-        assertEquals(1, webServer.requests().size());
-        RawRequest recordedRequest = webServer.takeRequest();
-        assertEquals(xContentType.mediaTypeWithoutParameters(), recordedRequest.getHeader("Content-Type"));
-        assertEquals("POST", recordedRequest.getMethod());
-        
-        BytesReference bytesRef = recordedRequest.getBodyAsBytes();
-        Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
-        
-        assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase(mode.toString()));
-        assertEquals(isBinary, reqContent.get("binary"));
-        assertEquals(query, reqContent.get("query"));
-        assertEquals("Z", reqContent.get("time_zone"));
     }
     
     private void prepareMockResponse() {
-        webServer.enqueue(new Response().setResponseCode(200).addHeader("Content-Type", "application/json").setBody("{\"rows\":[]}"));
+        webServer.enqueue(new Response()
+                          .setResponseCode(200)
+                          .addHeader("Content-Type", "application/json")
+                          .setBody("{\"rows\":[],\"columns\":[]}"));
     }
     
     @SuppressForbidden(reason = "use http server")
@@ -268,7 +194,7 @@ public class HttpClientRequestTests extends ESTestCase {
         }
     }
 
-    
+    @SuppressForbidden(reason = "use http server header class")
     private static class RawRequest {
         
         private final String method;
@@ -297,6 +223,7 @@ public class HttpClientRequestTests extends ESTestCase {
         }
     }
     
+    @SuppressForbidden(reason = "use http server header class")
     private class Response {
 
         private String body = null;

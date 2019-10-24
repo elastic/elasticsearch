@@ -134,7 +134,7 @@ public class ConnectionBuilderTests extends ESTestCase {
     }
     
     private ConnectionConfiguration buildConnection(ConnectionBuilder builder, String connectionStringArg,
-            String keystoreLocation) throws UserException {
+                                                    String keystoreLocation) throws UserException {
         return builder.buildConnection(connectionStringArg, keystoreLocation, randomBoolean());
     }
 }

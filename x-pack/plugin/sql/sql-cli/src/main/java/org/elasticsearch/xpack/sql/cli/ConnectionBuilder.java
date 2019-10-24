@@ -41,7 +41,7 @@ public class ConnectionBuilder {
      * @throws UserException if there is a problem with the information provided by the user
      */
     public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation,
-            boolean binaryCommunication) throws UserException {
+                                                   boolean binaryCommunication) throws UserException {
         final URI uri;
         final String connectionString;
         Properties properties = new Properties();

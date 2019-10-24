@@ -82,19 +82,19 @@ public class Cli extends LoggingAwareCommand {
         this.cliTerminal = cliTerminal;
         parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");
         this.binaryCommunication = parser.acceptsAll(Arrays.asList("b", "binary"), "Disable binary communication. "
-                    + "Enabled by default. Accepts 'true' or 'false' values.")
-                    .withRequiredArg().ofType(Boolean.class)
-                    .defaultsTo(Boolean.parseBoolean(System.getProperty("binary", "true")));
+                + "Enabled by default. Accepts 'true' or 'false' values.")
+                .withRequiredArg().ofType(Boolean.class)
+                .defaultsTo(Boolean.parseBoolean(System.getProperty("binary", "true")));
         this.keystoreLocation = parser.acceptsAll(
-                    Arrays.asList("k", "keystore_location"),
-                    "Location of a keystore to use when setting up SSL. "
-                    + "If specified then the CLI will prompt for a keystore password. "
-                    + "If specified when the uri isn't https then an error is thrown.")
-                    .withRequiredArg().ofType(String.class);
+                Arrays.asList("k", "keystore_location"),
+                "Location of a keystore to use when setting up SSL. "
+                + "If specified then the CLI will prompt for a keystore password. "
+                + "If specified when the uri isn't https then an error is thrown.")
+                .withRequiredArg().ofType(String.class);
         this.checkOption = parser.acceptsAll(Arrays.asList("c", "check"),
-                    "Enable initial connection check on startup")
-                    .withRequiredArg().ofType(Boolean.class)
-                    .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.check", "true")));
+                "Enable initial connection check on startup")
+                .withRequiredArg().ofType(Boolean.class)
+                .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.check", "true")));
         this.connectionString = parser.nonOptions("uri");
     }
 

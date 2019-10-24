@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import com.google.common.collect.Ordering;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -39,7 +38,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48337")
 public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String BOOLEAN_FIELD = "boolean-field";
@@ -88,6 +86,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -125,6 +124,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -178,8 +178,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
         assertThat(trainingRowsCount, greaterThan(0));
         assertThat(nonTrainingRowsCount, greaterThan(0));
+
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -246,6 +248,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -360,7 +363,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             classNames.add((String) topClass.get("class_name"));
             classProbabilities.add((Double) topClass.get("class_probability"));
         }
-        // Assert that all the predicted class names come from the set of keyword field values.
+        // Assert that all the predicted class names come from the set of dependent variable values.
         classNames.forEach(className -> assertThat(parser.apply(className), is(in(dependentVariableValues))));
         // Assert that the first class listed in top classes is the same as the predicted class.
         assertThat(classNames.get(0), equalTo(resultsObject.get(dependentVariable + "_prediction")));

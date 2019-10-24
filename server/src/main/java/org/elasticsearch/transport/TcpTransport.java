@@ -782,15 +782,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     private static boolean appearsToBeHTTPRequest(BytesReference headerBuffer) {
-        return bufferStartsWith(headerBuffer, "GET") ||
-            bufferStartsWith(headerBuffer, "POST") ||
-            bufferStartsWith(headerBuffer, "PUT") ||
-            bufferStartsWith(headerBuffer, "HEAD") ||
-            bufferStartsWith(headerBuffer, "DELETE") ||
+        return bufferStartsWith(headerBuffer, "GET")
+            || bufferStartsWith(headerBuffer, "POST")
+            || bufferStartsWith(headerBuffer, "PUT")
+            || bufferStartsWith(headerBuffer, "HEAD")
+            || bufferStartsWith(headerBuffer, "DELETE")
             // Actually 'OPTIONS'. But we are only guaranteed to have read six bytes at this point.
-            bufferStartsWith(headerBuffer, "OPTION") ||
-            bufferStartsWith(headerBuffer, "PATCH") ||
-            bufferStartsWith(headerBuffer, "TRACE");
+            || bufferStartsWith(headerBuffer, "OPTION")
+            || bufferStartsWith(headerBuffer, "PATCH")
+            || bufferStartsWith(headerBuffer, "TRACE");
     }
 
     private static boolean appearsToBeHTTPResponse(BytesReference headerBuffer) {

@@ -46,6 +46,10 @@
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]WatcherDocumentationIT.java" id="SnippetLength" />
   <suppress files="modules[/\\]reindex[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]ReindexDocumentationIT.java" id="SnippetLength" />
 
+  <!-- These use `// tag::` and `// end::` just to turn off auto-formatting, but
+       as they have long lines the trigger the SnippetLength check -->
+  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]aggregations[/\\]metrics[/\\]HyperLogLogPlusPlus.java" id="SnippetLength" />
+
   <!-- Gradle requires inputs to be seriablizable -->
   <suppress files="buildSrc[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]precommit[/\\]TestingConventionRule.java" checks="RegexpSinglelineJava" />
 </suppressions>

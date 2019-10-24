@@ -28,7 +28,6 @@ if (buildNumber) {
                             .include("**/reaper.log")
                             .include("**/journalctl.log")
                             .include("**/build/testclusters/**")
-                            .include("**/build/vagrant.log")
                             .exclude("**/build/testclusters/**/data/**")
                             .exclude("**/build/testclusters/**/distro/**")
                             .exclude("**/build/testclusters/**/repo/**")

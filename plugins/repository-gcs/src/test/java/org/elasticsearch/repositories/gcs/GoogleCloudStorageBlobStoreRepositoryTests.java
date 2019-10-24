@@ -77,8 +77,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
-    private static byte[] serviceAccount;
-
     @Override
     protected String repositoryType() {
         return GoogleCloudStorageRepository.TYPE;
@@ -113,16 +111,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if (serviceAccount == null) {
-            serviceAccount = TestUtils.createServiceAccount(random());
-        }
-
         final Settings.Builder settings = Settings.builder();
         settings.put(super.nodeSettings(nodeOrdinal));
         settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl());
         settings.put(TOKEN_URI_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl() + "/token");
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
+        final byte[] serviceAccount = TestUtils.createServiceAccount(random());
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace("test").getKey(), serviceAccount);
         settings.setSecureSettings(secureSettings);
         return settings.build();
@@ -403,6 +398,15 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         @Override
         protected String requestUniqueId(HttpExchange exchange) {
+            if ("/token".equals(exchange.getRequestURI().getPath())) {
+                try {
+                    // token content is unique per node (not per request)
+                    return Streams.readFully(exchange.getRequestBody()).utf8ToString();
+                } catch (IOException e) {
+                    throw new AssertionError("Unable to read token request body", e);
+                }
+            }
+
             final String range = exchange.getRequestHeaders().getFirst("Content-Range");
             return exchange.getRemoteAddress().toString()
                 + " " + exchange.getRequestMethod()

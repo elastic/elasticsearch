@@ -235,7 +235,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
-                        .field("field", "Mi., 06 Dez. 2000 02:55:00 -0800")
+                        .field("field", "Mi, 06 Dez 2000 02:55:00 -0800")
                         .endObject()),
                 XContentType.JSON));
     }

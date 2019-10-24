@@ -77,7 +77,7 @@ public class FlushIT extends ESIntegTestCase {
         final int numIters = scaledRandomIntBetween(10, 30);
         for (int i = 0; i < numIters; i++) {
             for (int j = 0; j < 10; j++) {
-                client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
+                client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
             }
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
@@ -112,7 +112,7 @@ public class FlushIT extends ESIntegTestCase {
         createIndex("test");
         int numDocs = randomIntBetween(0, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "_doc").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
         assertThat(expectThrows(ValidationException.class,
             () -> client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()).getMessage(),
@@ -206,7 +206,7 @@ public class FlushIT extends ESIntegTestCase {
             @Override
             public void run() {
                 while (stop.get() == false) {
-                    client().prepareIndex().setIndex("test").setType("_doc").setSource("{}", XContentType.JSON).get();
+                    client().prepareIndex().setIndex("test").setSource("{}", XContentType.JSON).get();
                     numDocs.incrementAndGet();
                 }
             }

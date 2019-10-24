@@ -400,7 +400,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 100; i++) {
             String id = Integer.toString(i);
-            client().prepareDelete("index", "type", id).get();
+            client().prepareDelete("index", id).get();
         }
 
         final long indexingBufferBytes1 = shard.getIndexBufferRAMBytesUsed();

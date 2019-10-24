@@ -102,7 +102,7 @@ public class ExistsIT extends ESIntegTestCase {
         };
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (Map<String, Object> source : sources) {
-            reqs.add(client().prepareIndex("idx", "type").setSource(source));
+            reqs.add(client().prepareIndex("idx").setSource(source));
         }
         // We do NOT index dummy documents, otherwise the type for these dummy documents
         // would have _field_names indexed while the current type might not which might
@@ -173,11 +173,11 @@ public class ExistsIT extends ESIntegTestCase {
         ensureGreen("idx");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("bar", 3));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", singletonMap("bar", 2.718)));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", singletonMap("bar", 6.283)));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource("bar", 3));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", singletonMap("bar", 2.718)));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", singletonMap("bar", 6.283)));
         indexRandom(true, false, indexRequests);
 
         Map<String, Integer> expected = new LinkedHashMap<>();
@@ -218,10 +218,10 @@ public class ExistsIT extends ESIntegTestCase {
         ensureGreen("idx");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", 3));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", 43));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", 3));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", 43));
         indexRandom(true, false, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx")

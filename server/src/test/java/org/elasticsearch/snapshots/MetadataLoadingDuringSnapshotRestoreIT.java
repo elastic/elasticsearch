@@ -68,8 +68,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             client().prepareIndex("docs", "doc", "1").setSource("rank", 1),
             client().prepareIndex("docs", "doc", "2").setSource("rank", 2),
             client().prepareIndex("docs", "doc", "3").setSource("rank", 3),
-            client().prepareIndex("others", "other").setSource("rank", 4),
-            client().prepareIndex("others", "other").setSource("rank", 5));
+            client().prepareIndex("others").setSource("rank", 4),
+            client().prepareIndex("others").setSource("rank", 5));
 
         assertAcked(client().admin().cluster().preparePutRepository("repository")
                                               .setType("coutingmock")

@@ -167,7 +167,7 @@ public class FieldSortIT extends ESIntegTestCase {
           final int numDocs = randomIntBetween(1, 23);  // hour of the day
           for (int j = 0; j < numDocs; j++) {
             builders.add(
-                    client().prepareIndex(indexId, "type").setSource(
+                    client().prepareIndex(indexId).setSource(
                             "foo", "bar", "timeUpdated", "2014/07/" +
                                     String.format(Locale.ROOT, "%02d", i+1)+
                                     " " +
@@ -1600,7 +1600,7 @@ public class FieldSortIT extends ESIntegTestCase {
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
         List<String> keywords = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
-            indexReqs[i] = client().prepareIndex("test", "t")
+            indexReqs[i] = client().prepareIndex("test")
                 .setSource("number", i, "keyword", Integer.toString(i));
             keywords.add(Integer.toString(i));
         }
@@ -1652,9 +1652,9 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen("old_index", "new_index");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 42.0));
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 50.5));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource("route_length_miles", 100.2));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 42.0));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 50.5));
+        builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
         indexRandom(true, true, builders);
 
         SearchResponse response = client().prepareSearch()
@@ -1680,9 +1680,9 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen("old_index", "new_index");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 42.0));
-        builders.add(client().prepareIndex("old_index", "_doc").setSource(Collections.emptyMap()));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource("route_length_miles", 100.2));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 42.0));
+        builders.add(client().prepareIndex("old_index").setSource(Collections.emptyMap()));
+        builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
         indexRandom(true, true, builders);
 
         SearchResponse response = client().prepareSearch()
@@ -1708,9 +1708,9 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen("index_double", "index_long", "index_float");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("index_double", "_doc").setSource("field", 12.6));
-        builders.add(client().prepareIndex("index_long", "_doc").setSource("field", 12));
-        builders.add(client().prepareIndex("index_float", "_doc").setSource("field", 12.1));
+        builders.add(client().prepareIndex("index_double").setSource("field", 12.6));
+        builders.add(client().prepareIndex("index_long").setSource("field", 12));
+        builders.add(client().prepareIndex("index_float").setSource("field", 12.1));
         indexRandom(true, true, builders);
 
         {
@@ -1755,9 +1755,9 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen("index_date", "index_date_nanos");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("index_date", "_doc")
+        builders.add(client().prepareIndex("index_date")
             .setSource("field", "2024-04-11T23:47:17"));
-        builders.add(client().prepareIndex("index_date_nanos", "_doc")
+        builders.add(client().prepareIndex("index_date_nanos")
             .setSource("field", "2024-04-11T23:47:16.854775807Z"));
         indexRandom(true, true, builders);
 
@@ -1794,7 +1794,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
         {
             builders.clear();
-            builders.add(client().prepareIndex("index_date", "_doc")
+            builders.add(client().prepareIndex("index_date")
                 .setSource("field", "1905-04-11T23:47:17"));
             indexRandom(true, true, builders);
             SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
@@ -1810,7 +1810,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
         {
             builders.clear();
-            builders.add(client().prepareIndex("index_date", "_doc")
+            builders.add(client().prepareIndex("index_date")
                 .setSource("field", "2346-04-11T23:47:17"));
             indexRandom(true, true, builders);
             SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,

@@ -52,7 +52,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
                 new BytesArray(CLASSIFICATION_PIPELINE.getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON).get().isAcknowledged(), is(true));
 
-            client().prepareIndex("index_for_inference_test", "_doc")
+            client().prepareIndex("index_for_inference_test")
                 .setSource(new HashMap<>(){{
                     put("col1", randomFrom("female", "male"));
                     put("col2", randomFrom("S", "M", "L", "XL"));
@@ -69,7 +69,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
                 new BytesArray(REGRESSION_PIPELINE.getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON).get().isAcknowledged(), is(true));
 
-            client().prepareIndex("index_for_inference_test", "_doc")
+            client().prepareIndex("index_for_inference_test")
                 .setSource(new HashMap<>(){{
                     put("col1", randomFrom("female", "male"));
                     put("col2", randomFrom("S", "M", "L", "XL"));
@@ -92,12 +92,12 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
             XContentType.JSON).get().isAcknowledged(), is(true));
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("index_for_inference_test", "_doc")
+            client().prepareIndex("index_for_inference_test")
                 .setSource(generateSourceDoc())
                 .setPipeline("simple_classification_pipeline")
                 .get();
 
-            client().prepareIndex("index_for_inference_test", "_doc")
+            client().prepareIndex("index_for_inference_test")
                 .setSource(generateSourceDoc())
                 .setPipeline("simple_regression_pipeline")
                 .get();

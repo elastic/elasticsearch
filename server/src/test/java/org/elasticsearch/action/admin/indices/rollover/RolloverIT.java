@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,7 +87,7 @@ public class RolloverIT extends ESIntegTestCase {
     public void testRollover() throws Exception {
         long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
-        index("test_index-2", "type1", "1", "field", "value");
+        indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
@@ -111,7 +110,7 @@ public class RolloverIT extends ESIntegTestCase {
     public void testRolloverWithExplicitWriteIndex() throws Exception {
         long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias").writeIndex(true)).get());
-        index("test_index-2", "type1", "1", "field", "value");
+        indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
@@ -151,7 +150,7 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
-        index("test_index-2", "type1", "1", "field", "value");
+        indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -181,7 +180,7 @@ public class RolloverIT extends ESIntegTestCase {
 
     public void testRolloverDryRun() throws Exception {
         assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
-        index("test_index-1", "type1", "1", "field", "value");
+        indexDoc("test_index-1", "1", "field", "value");
         flush("test_index-1");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
@@ -203,7 +202,7 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index-0").addAlias(testAlias).get());
-        index("test_index-0", "type1", "1", "field", "value");
+        indexDoc("test_index-0", "1", "field", "value");
         flush("test_index-0");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .addMaxIndexSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB))
@@ -238,7 +237,7 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index").addAlias(testAlias).get());
-        index("test_index", "type1", "1", "field", "value");
+        indexDoc("test_index", "1", "field", "value");
         flush("test_index");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .setNewIndexName("test_new_index").get();
@@ -261,9 +260,9 @@ public class RolloverIT extends ESIntegTestCase {
 
     public void testRolloverOnExistingIndex() throws Exception {
         assertAcked(prepareCreate("test_index-0").addAlias(new Alias("test_alias")).get());
-        index("test_index-0", "type1", "1", "field", "value");
+        indexDoc("test_index-0", "1", "field", "value");
         assertAcked(prepareCreate("test_index-000001").get());
-        index("test_index-000001", "type1", "1", "field", "value");
+        indexDoc("test_index-000001", "1", "field", "value");
         flush("test_index-0", "test_index-000001");
         try {
             client().admin().indices().prepareRolloverIndex("test_alias").get();
@@ -321,7 +320,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test-1").addAlias(new Alias("test_alias")).get());
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
-            index("test-1", "doc", Integer.toString(i), "field", "foo-" + i);
+            indexDoc("test-1", Integer.toString(i), "field", "foo-" + i);
         }
         flush("test-1");
         refresh("test_alias");
@@ -392,9 +391,9 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
         assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
 
-        index(closedIndex, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
-        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
-        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        index(closedIndex, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
         refresh(aliasName);
 
         assertAcked(client().admin().indices().prepareClose(closedIndex).get());
@@ -416,9 +415,9 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
         assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
 
-        index(closedIndex, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
-        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
-        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        index(closedIndex, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
         refresh(aliasName);
 
         assertAcked(client().admin().indices().prepareClose(closedIndex).get());

@@ -295,7 +295,7 @@ public class TasksIT extends ESIntegTestCase {
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
         client().admin().indices().preparePutMapping("test").setType("doc").setSource("foo", "type=keyword").get();
-        client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id")
+        client().prepareBulk().add(client().prepareIndex("test").setId("test_id")
             .setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
@@ -346,7 +346,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManageListeners(SearchAction.NAME + "[*]");  // shard task
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
-        client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)
+        client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         Map<String, String> headers = new HashMap<>();
@@ -450,7 +450,7 @@ public class TasksIT extends ESIntegTestCase {
             }
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
             index = new Thread(() -> {
-                IndexResponse indexResponse = client().prepareIndex("test", "test").setSource("test", "test").get();
+                IndexResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
                 assertArrayEquals(ReplicationResponse.EMPTY, indexResponse.getShardInfo().getFailures());
             });
             index.start();

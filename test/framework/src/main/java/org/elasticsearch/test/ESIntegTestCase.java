@@ -1091,53 +1091,53 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for:
      * <pre>
-     *   client().prepareIndex(index, type).setSource(source).execute().actionGet();
+     *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, XContentBuilder source) {
-        return client().prepareIndex(index, type).setSource(source).execute().actionGet();
+    protected final IndexResponse index(String index, XContentBuilder source) {
+        return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   client().prepareIndex(index, type).setSource(source).execute().actionGet();
+     *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, Map<String, Object> source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    protected final IndexResponse index(String index, String id, Map<String, Object> source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, XContentBuilder source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    protected final IndexResponse index(String index, String id, XContentBuilder source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, Object... source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    protected final IndexResponse indexDoc(String index, String id, Object... source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      * <p>
      * where source is a JSON String.
      */
-    protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index, type, id).setSource(source, XContentType.JSON).execute().actionGet();
+    protected final IndexResponse index(String index, String id, String source) {
+        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
     /**
@@ -1360,7 +1360,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             for (List<String> doc : bogusIds) {
                 assertEquals("failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
                     DocWriteResponse.Result.DELETED,
-                    client().prepareDelete(doc.get(0), null, doc.get(1)).setRouting(doc.get(1)).get().getResult());
+                    client().prepareDelete(doc.get(0), doc.get(1)).setRouting(doc.get(1)).get().getResult());
             }
         }
         if (forceRefresh) {

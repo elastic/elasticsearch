@@ -354,7 +354,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             state = ShardState.fromValue(in.readByte());
             if (in.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
                 generation = in.readOptionalString();
-                assert generation != null || state != ShardState.SUCCESS : "Received null generation for shard state [" + state + "]";
             } else {
                 generation = null;
             }

@@ -231,7 +231,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
-        client().prepareIndex("test", "type", "1").setPipeline("_id").setSource("field", "value", "fail", false).get();
+        client().prepareIndex("test").setId("1").setPipeline("_id").setSource("field", "value", "fail", false).get();
 
         Map<String, Object> doc = client().prepareGet("test", "1")
                 .get().getSourceAsMap();
@@ -239,7 +239,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(doc.get("processed"), equalTo(true));
 
         client().prepareBulk().add(
-                client().prepareIndex("test", "type", "2").setSource("field", "value2", "fail", false).setPipeline("_id")).get();
+                client().prepareIndex("test").setId("2").setSource("field", "value2", "fail", false).setPipeline("_id")).get();
         doc = client().prepareGet("test", "2").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value2"));
         assertThat(doc.get("processed"), equalTo(true));
@@ -288,7 +288,7 @@ public class IngestClientIT extends ESIntegTestCase {
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         BulkItemResponse item = client(masterOnlyNode).prepareBulk().add(
-            client().prepareIndex("test", "type").setSource("field", "value2", "drop", true).setPipeline("_id")).get()
+            client().prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id")).get()
             .getItems()[0];
         assertFalse(item.isFailed());
         assertEquals("auto-generated", item.getResponse().getId());

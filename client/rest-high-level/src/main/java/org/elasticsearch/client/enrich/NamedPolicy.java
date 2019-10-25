@@ -20,7 +20,6 @@ package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,7 +59,7 @@ public final class NamedPolicy {
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder builder = XContentBuilder.builder(p.contentType().xContent());
             builder.copyCurrentStructure(p);
-            return BytesArray.bytes(builder);
+            return BytesReference.bytes(builder);
         }, QUERY_FIELD);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), MATCH_FIELD_FIELD);

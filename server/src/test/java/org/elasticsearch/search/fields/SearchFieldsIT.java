@@ -1024,7 +1024,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
         org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
 
-        index("test", "type", "1", "text_field", "foo", "date_field", formatter.print(date));
+        indexDoc("test", "1", "text_field", "foo", "date_field", formatter.print(date));
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -1087,7 +1087,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
         org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
 
-        index("test", "type", "1", "text_field", "foo", "date_field", formatter.print(date));
+        indexDoc("test", "1", "text_field", "foo", "date_field", formatter.print(date));
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -1143,7 +1143,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mapping));
 
-        index("test", "type", "1", "field1", "value1", "field2", "value2");
+        indexDoc("test", "1", "field1", "value1", "field2", "value2");
         refresh("test");
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -1187,7 +1187,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mapping));
 
-        index("test", "type", "1", "field1", "value1", "field2", "value2");
+        indexDoc("test", "1", "field1", "value1", "field2", "value2");
         refresh("test");
 
         SearchResponse searchResponse = client().prepareSearch()

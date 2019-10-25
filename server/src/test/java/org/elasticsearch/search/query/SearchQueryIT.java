@@ -1725,7 +1725,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             .endObject()
         .endObject();
 
-        index("index", "_doc", "1", source);
+        index("index", "1", source);
         refresh();
 
         QueryBuilder nestedQuery = QueryBuilders.nestedQuery("section",
@@ -1753,7 +1753,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mapping));
 
-        IndexRequestBuilder indexRequest = client().prepareIndex("test", "type")
+        IndexRequestBuilder indexRequest = client().prepareIndex("test")
             .setId("1")
             .setRouting("custom")
             .setSource("field", "value");

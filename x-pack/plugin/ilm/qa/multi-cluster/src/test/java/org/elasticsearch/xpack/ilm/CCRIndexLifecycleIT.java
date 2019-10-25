@@ -9,6 +9,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -107,6 +108,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48461")
     public void testCCRUnfollowDuringSnapshot() throws Exception {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {

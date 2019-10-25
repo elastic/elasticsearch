@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -101,6 +100,17 @@ public abstract class RemoteClusterAware {
     protected RemoteClusterAware(Settings settings) {
         this.settings = settings;
         this.clusterNameResolver = new ClusterNameExpressionResolver();
+    }
+
+    /**
+     * Returns remote clusters that are enabled in these settings
+     */
+    protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
+        final Stream<Setting<List<String>>> allConcreteSettings = REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings);
+        return allConcreteSettings
+            .map(REMOTE_CLUSTERS_SEEDS::getNamespace)
+            .filter(clusterAlias -> RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings))
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -177,29 +187,17 @@ public abstract class RemoteClusterAware {
         return perClusterIndices;
     }
 
-    void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy) {
-        Boolean compress = TransportSettings.TRANSPORT_COMPRESS.get(settings);
-        TimeValue pingSchedule = TransportSettings.PING_SCHEDULE.get(settings);
-        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
-    }
-
-    void updateRemoteCluster(String clusterAlias, Settings settings) {
-        String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        List<String> addresses = REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        Boolean compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
-            .getConcreteSettingForNamespace(clusterAlias)
-            .get(settings);
-
-        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
+    void validateAndUpdateRemoteCluster(String clusterAlias, Settings settings) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
+        updateRemoteCluster(clusterAlias, settings);
     }
 
     /**
-     * Subclasses must implement this to receive information about updated cluster aliases. If the given address list is
-     * empty the cluster alias is unregistered and should be removed.
+     * Subclasses must implement this to receive information about updated cluster aliases.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, boolean compressionEnabled,
-                                                TimeValue pingSchedule);
+    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.
@@ -208,7 +206,7 @@ public abstract class RemoteClusterAware {
         List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
             RemoteClusterAware.REMOTE_CLUSTERS_SEEDS, RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE);
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::updateRemoteCluster);
+        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 
     static InetSocketAddress parseSeedAddress(String remoteHost) {

@@ -337,8 +337,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2").get());
 
         indexRandom(true,
-                client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
-                client().prepareIndex("test2", "type").setSource());
+                client().prepareIndex("test1").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
+                client().prepareIndex("test2").setSource());
 
         SearchResponse resp = client().prepareSearch("test1", "test2")
                 .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))

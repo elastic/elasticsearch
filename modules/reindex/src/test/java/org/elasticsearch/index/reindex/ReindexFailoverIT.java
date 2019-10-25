@@ -93,7 +93,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int docCount = between(1500, 5000);
         for (int i = 0; i < docCount; i++) {
-            docs.add(client().prepareIndex("source", "_doc", Integer.toString(i)).setSource("foo", "a"));
+            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
         indexRandom(true, docs);

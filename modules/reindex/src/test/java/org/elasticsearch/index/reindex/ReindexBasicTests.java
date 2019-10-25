@@ -100,7 +100,7 @@ public class ReindexBasicTests extends ReindexRunAsJobAndTaskTestCase {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);
         for (int i = 0; i < max; i++) {
-            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("foo", "a"));
+            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
         indexRandom(true, docs);

@@ -87,7 +87,7 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
 
         int numberOfDocuments = randomIntBetween(10, 50);
         indexRandom(true, IntStream.range(0, numberOfDocuments)
-            .mapToObj(i -> client().prepareIndex("test", "doc", String.valueOf(i)).setSource("data", i)).collect(Collectors.toList()));
+            .mapToObj(i -> client().prepareIndex("test").setId(String.valueOf(i)).setSource("data", i)).collect(Collectors.toList()));
 
         ensureGreen("test");
         String reindexNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);

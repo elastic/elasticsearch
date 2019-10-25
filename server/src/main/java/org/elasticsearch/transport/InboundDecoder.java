@@ -24,16 +24,15 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 
-import java.io.Closeable;
 import java.io.IOException;
 
-public class InboundDecoder implements Closeable {
+public class InboundDecoder implements Releasable {
 
-    private static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {
-    });
+    static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
 
     private final InboundAggregator aggregator;
     private final PageCacheRecycler recycler;
@@ -50,21 +49,21 @@ public class InboundDecoder implements Closeable {
         this.recycler = recycler;
     }
 
-    public int handle(TcpChannel channel, ReleasableBytesReference releasable) throws IOException {
-        if (isOnHeader()) {
-            try (releasable) {
-                int expectedLength = TcpTransport.readMessageLength(releasable.getReference());
+    public int handle(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+        try (reference) {
+            if (isOnHeader()) {
+                int expectedLength = TcpTransport.readMessageLength(reference);
                 if (expectedLength == -1) {
                     return 0;
                 } else if (expectedLength == 0) {
                     aggregator.pingReceived(channel);
                     return 6;
                 } else {
-                    if (releasable.getReference().length() < TcpHeader.HEADER_SIZE) {
+                    if (reference.length() < TcpHeader.HEADER_SIZE) {
                         return 0;
                     } else {
                         networkMessageSize = expectedLength;
-                        Header header = parseHeader(networkMessageSize, releasable.getReference());
+                        Header header = parseHeader(networkMessageSize, reference);
                         bytesConsumed += TcpHeader.HEADER_SIZE - 6;
                         if (header.isCompressed()) {
                             decompressor = new TransportDecompressor(recycler);
@@ -73,32 +72,23 @@ public class InboundDecoder implements Closeable {
                         return TcpHeader.HEADER_SIZE;
                     }
                 }
-            }
-        } else {
-            // TODO: Retained functionality will clean-up error handling
-            boolean success = false;
-            try {
-                int bytesToConsume = Math.min(releasable.getReference().length(), networkMessageSize - bytesConsumed);
+            } else {
+                int bytesToConsume = Math.min(reference.length(), networkMessageSize - bytesConsumed);
                 bytesConsumed += bytesToConsume;
-                ReleasableBytesReference content;
+                ReleasableBytesReference retainedContent;
                 if (isDone()) {
-                    BytesReference sliced = releasable.getReference().slice(0, bytesToConsume);
-                    content = new ReleasableBytesReference(sliced, releasable.getReleasable());
+                    retainedContent = reference.retainedSlice(0, bytesToConsume);
                 } else {
-                    content = releasable;
+                    retainedContent = reference.retain();
                 }
                 if (decompressor != null) {
-                    int consumed = decompressor.decompress(content.getReference());
-                    assert consumed == content.getReference().length();
-                    releasable.close();
-                    success = true;
+                    decompress(retainedContent);
                     ReleasableBytesReference decompressed;
                     while ((decompressed = decompressor.pollDecompressedPage()) != null) {
                         aggregator.contentReceived(channel, decompressed);
                     }
                 } else {
-                    aggregator.contentReceived(channel, content);
-                    success = true;
+                    aggregator.contentReceived(channel, retainedContent);
                 }
                 if (isDone()) {
                     decompressor = null;
@@ -108,11 +98,6 @@ public class InboundDecoder implements Closeable {
                 }
 
                 return bytesToConsume;
-            } finally {
-                if (success == false) {
-                    releasable.close();
-                }
-
             }
         }
     }
@@ -120,6 +105,17 @@ public class InboundDecoder implements Closeable {
     @Override
     public void close() {
         IOUtils.closeWhileHandlingException(decompressor);
+        decompressor = null;
+        networkMessageSize = -1;
+        bytesConsumed = 0;
+    }
+
+    private void decompress(ReleasableBytesReference content) throws IOException {
+        try (content) {
+            int consumed = decompressor.decompress(content);
+            assert consumed == content.length();
+        }
+
     }
 
     private boolean isDone() {

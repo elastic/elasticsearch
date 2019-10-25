@@ -49,7 +49,7 @@ public class TransportDecompressorTests extends ESTestCase {
             assertEquals(bytes.length(), bytesConsumed);
             assertTrue(decompressor.isEOS());
             ReleasableBytesReference releasableBytesReference = decompressor.pollDecompressedPage();
-            assertEquals(randomByte, releasableBytesReference.getReference().get(0));
+            assertEquals(randomByte, releasableBytesReference.get(0));
             releasableBytesReference.close();
 
         }
@@ -73,8 +73,7 @@ public class TransportDecompressorTests extends ESTestCase {
             ReleasableBytesReference reference2 = decompressor.pollDecompressedPage();
             ReleasableBytesReference reference3 = decompressor.pollDecompressedPage();
             assertNull(decompressor.pollDecompressedPage());
-            CompositeBytesReference composite = new CompositeBytesReference(reference1.getReference(), reference2.getReference(),
-                reference3.getReference());
+            CompositeBytesReference composite = new CompositeBytesReference(reference1, reference2, reference3);
             assertEquals(4 * 10000, composite.length());
             StreamInput streamInput = composite.streamInput();
             for (int i = 0; i < 10000; ++i) {
@@ -115,8 +114,7 @@ public class TransportDecompressorTests extends ESTestCase {
             ReleasableBytesReference reference2 = decompressor.pollDecompressedPage();
             ReleasableBytesReference reference3 = decompressor.pollDecompressedPage();
             assertNull(decompressor.pollDecompressedPage());
-            CompositeBytesReference composite = new CompositeBytesReference(reference1.getReference(), reference2.getReference(),
-                reference3.getReference());
+            CompositeBytesReference composite = new CompositeBytesReference(reference1, reference2, reference3);
             assertEquals(4 * 10000, composite.length());
             StreamInput streamInput = composite.streamInput();
             for (int i = 0; i < 10000; ++i) {

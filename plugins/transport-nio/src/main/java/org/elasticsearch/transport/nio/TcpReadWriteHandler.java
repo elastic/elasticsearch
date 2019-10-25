@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesWriteHandler;
@@ -39,10 +40,12 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
 
     private final InboundDecoder decoder;
     private final NioTcpChannel channel;
+    private final InboundAggregator aggregator;
 
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
         this.channel = channel;
-        this.decoder = new InboundDecoder(new InboundAggregator(transport::inboundMessage2), recycler);
+        this.aggregator = new InboundAggregator(transport::inboundMessage);
+        this.decoder = new InboundDecoder(aggregator, recycler);
     }
 
     @Override
@@ -54,5 +57,11 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         }
         Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
         return decoder.handle(channel, new ReleasableBytesReference(new CompositeBytesReference(references), releasable));
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeWhileHandlingException(decoder, aggregator);
+        super.close();
     }
 }

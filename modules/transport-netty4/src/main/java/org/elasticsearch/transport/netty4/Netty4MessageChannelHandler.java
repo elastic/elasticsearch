@@ -28,6 +28,7 @@ import io.netty.channel.ChannelPromise;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.transport.InboundAggregator;
 import org.elasticsearch.transport.InboundDecoder;
@@ -44,6 +45,7 @@ import java.util.Queue;
 final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
+    private final InboundAggregator aggregator;
     private final InboundDecoder decoder;
 
     private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
@@ -52,7 +54,8 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     Netty4MessageChannelHandler(PageCacheRecycler pageCacheRecycler, Netty4Transport transport) {
         this.transport = transport;
-        this.decoder = new InboundDecoder(new InboundAggregator(transport::inboundMessage2), pageCacheRecycler);
+        this.aggregator = new InboundAggregator(transport::inboundMessage);
+        this.decoder = new InboundDecoder(aggregator, pageCacheRecycler);
     }
 
     @Override
@@ -115,7 +118,13 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         doFlush(ctx);
+        Releasables.closeWhileHandlingException(decoder, aggregator);
         super.channelInactive(ctx);
+    }
+
+    @Override
+    public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
+        super.close(ctx, promise);
     }
 
     private void doFlush(ChannelHandlerContext ctx) {

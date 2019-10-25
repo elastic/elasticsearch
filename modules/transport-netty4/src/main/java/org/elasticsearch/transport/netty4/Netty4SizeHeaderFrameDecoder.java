@@ -69,6 +69,7 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
                 } else {
                     int messageLength = TcpTransport.readMessageLength(Netty4Utils.toBytesReference(in));
                     if (messageLength < 0) {
+                        remainingBytes = 0;
                         throw new DecoderException("Invalid message length: " + remainingBytes);
                     } else {
                         remainingBytes = messageLength + HEADER_SIZE;
@@ -76,12 +77,12 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
                 }
             }
         } catch (IllegalArgumentException ex) {
+            remainingBytes = 0;
             throw new TooLongFrameException(ex);
         }
 
         int bytesToConsume = Math.min(in.readableBytes(), remainingBytes);
-        final ByteBuf message = in.retainedSlice(0, bytesToConsume);
-        out.add(message);
+        out.add(in.retainedSlice(in.readerIndex(), bytesToConsume));
         in.readerIndex(in.readerIndex() + bytesToConsume);
         remainingBytes = remainingBytes - bytesToConsume;
     }

@@ -35,13 +35,6 @@ public class AggregatedMessage {
         this.isPing = isPing;
     }
 
-    public AggregatedMessage(Exception exception) {
-        this.header = null;
-        this.content = null;
-        this.exception = exception;
-        this.isPing = false;
-    }
-
     public Header getHeader() {
         return header;
     }

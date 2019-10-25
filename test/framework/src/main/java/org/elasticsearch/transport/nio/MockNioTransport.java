@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -271,10 +272,12 @@ public class MockNioTransport extends TcpTransport {
 
         private final InboundDecoder decoder;
         private final MockSocketChannel channel;
+        private final InboundAggregator aggregator;
 
         private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
             this.channel = channel;
-            this.decoder = new InboundDecoder(new InboundAggregator(transport::inboundMessage2), recycler);
+            this.aggregator = new InboundAggregator(transport::inboundMessage);
+            this.decoder = new InboundDecoder(aggregator, recycler);
         }
 
         @Override
@@ -286,6 +289,12 @@ public class MockNioTransport extends TcpTransport {
             }
             Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
             return decoder.handle(channel, new ReleasableBytesReference(new CompositeBytesReference(references), releasable));
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeWhileHandlingException(decoder, aggregator);
+            super.close();
         }
     }
 

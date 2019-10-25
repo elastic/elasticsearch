@@ -23,12 +23,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 
 import java.util.ArrayList;
 import java.util.function.BiConsumer;
 
-public class InboundAggregator {
+public class InboundAggregator implements Releasable {
 
     private static final AggregatedMessage PING_MESSAGE = new AggregatedMessage(null, BytesArray.EMPTY, true);
 
@@ -55,16 +56,15 @@ public class InboundAggregator {
 
     public void contentReceived(TcpChannel channel, ReleasableBytesReference content) {
         if (currentHeader == null) {
+            content.close();
             throw new IllegalStateException("Received content without header");
-        } else if (content.getReference().length() != 0) {
+        } else if (content.length() != 0) {
             contentAggregation.add(content);
         } else {
-            BytesReference[] references = new BytesReference[contentAggregation.size()];
-            int i = 0;
-            for (ReleasableBytesReference reference : contentAggregation) {
-                references[i++] = reference.getReference();
-            }
-            CompositeBytesReference aggregatedContent = new CompositeBytesReference(references);
+            // Do not release END_CONTENT marker
+            assert content == InboundDecoder.END_CONTENT;
+
+            CompositeBytesReference aggregatedContent = new CompositeBytesReference(contentAggregation.toArray(new BytesReference[0]));
             try {
                 messageConsumer.accept(channel, new AggregatedMessage(currentHeader, aggregatedContent, false));
             } finally {
@@ -73,5 +73,13 @@ public class InboundAggregator {
                 currentHeader = null;
             }
         }
+    }
+
+
+    @Override
+    public void close() {
+        Releasables.close(contentAggregation);
+        contentAggregation.clear();
+        currentHeader = null;
     }
 }

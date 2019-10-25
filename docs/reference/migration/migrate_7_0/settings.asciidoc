@@ -149,7 +149,9 @@ used.
 TLS version 1.0 is now disabled by default as it suffers from
 https://www.owasp.org/index.php/Transport_Layer_Protection_Cheat_Sheet#Rule_-_Only_Support_Strong_Protocols[known security issues].
 The default protocols are now TLSv1.3 (if supported), TLSv1.2 and TLSv1.1.
-You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols` setting to include `"TLSv1"`, for example:
+You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols` setting to include `"TLSv1"` for http and transport protocols, and specific realms like LDAP, Active Directory, SAML and OpenID Connect.   
+
+The following is an example for http protocol (see <<security-settings, security settings>> for the other relevant `ssl.supported_protocols` settings for your deployment):
 [source,yaml]
 --------------------------------------------------
 xpack.security.http.ssl.supported_protocols: [ "TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1" ]

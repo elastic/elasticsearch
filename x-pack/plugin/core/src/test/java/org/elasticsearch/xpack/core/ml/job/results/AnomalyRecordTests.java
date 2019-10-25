@@ -249,24 +249,24 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false).utf8ToString();
-        assertThat(reference, containsString("\"geo\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
+        assertThat(reference, containsString("\"geo_results\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
 
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
             false).utf8ToString();
-        assertThat(reference, containsString("\"geo\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
+        assertThat(reference, containsString("\"geo_results\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
 
         anomalyRecord.setFunction(DetectorFunction.AVG.getFullName());
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
             false).utf8ToString();
-        assertThat(reference, not(containsString("\"geo\"")));
+        assertThat(reference, not(containsString("\"geo_results\"")));
 
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false).utf8ToString();
-        assertThat(reference, not(containsString("\"geo\"")));
+        assertThat(reference, not(containsString("\"geo_results\"")));
     }
 
     public void testActualTypicalCauseValuesGeoSerialization() throws IOException {
@@ -283,23 +283,23 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false).utf8ToString();
-        assertThat(reference, containsString("\"geo\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
+        assertThat(reference, containsString("\"geo_results\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
 
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
             false).utf8ToString();
-        assertThat(reference, containsString("\"geo\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
+        assertThat(reference, containsString("\"geo_results\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
 
         cause.setFunction(DetectorFunction.AVG.getFullName());
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false).utf8ToString();
-        assertThat(reference, not(containsString("\"geo\"")));
+        assertThat(reference, not(containsString("\"geo_results\"")));
 
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
             false).utf8ToString();
-        assertThat(reference, not(containsString("\"geo\"")));
+        assertThat(reference, not(containsString("\"geo_results\"")));
     }
 }

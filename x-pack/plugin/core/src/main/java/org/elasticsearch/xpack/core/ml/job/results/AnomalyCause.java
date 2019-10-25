@@ -40,7 +40,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
     public static final ParseField TYPICAL = new ParseField("typical");
     public static final ParseField ACTUAL = new ParseField("actual");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
-    public static final ParseField GEO_FIELDS = new ParseField("geo");
+    public static final ParseField GEO_FIELDS = new ParseField("geo_results");
 
     /**
      * Metric Results

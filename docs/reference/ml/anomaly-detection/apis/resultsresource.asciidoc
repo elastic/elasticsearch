@@ -303,7 +303,7 @@ A record object has the following properties:
   part of the core analytical modeling, these low-level anomaly records are
   aggregated for their parent over field record. The causes resource contains
   similar elements to the record resource, namely `actual`, `typical`,
-  `geo.actual`, `geo.typical`, `*_field_name` and `*_field_value`.
+  `geo_results.actual`, `geo_results.typical`, `*_field_name` and `*_field_value`.
   Probability and scores are not applicable to causes.
 
 `detector_index`::
@@ -383,12 +383,12 @@ A record object has the following properties:
 `typical`::
   (array) The typical value for the bucket, according to analytical modeling.
 
-`geo.actual`::
+`geo_results.actual`::
   (string) The actual value for the bucket formatted as a `geo_point`.
   If the detector function is `lat_long`, this is a comma delimited string
   of the latitude and longitude.
 
-`geo.typical`::
+`geo_results.typical`::
   (string) The typical value for the bucket formatted as a `geo_point`.
   If the detector function is `lat_long`, this is a comma delimited string
   of the latitude and longitude.

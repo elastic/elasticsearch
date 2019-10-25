@@ -56,7 +56,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     public static final ParseField ACTUAL = new ParseField("actual");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
-    public static final ParseField GEO_FIELDS = new ParseField("geo");
+    public static final ParseField GEO_FIELDS = new ParseField("geo_results");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("records");

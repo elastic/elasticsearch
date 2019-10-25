@@ -510,7 +510,7 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
         Loggers.addAppender(classLogger, mockAppender);
 
         try {
-            incrementalClusterStateWriter.updateClusterState(clusterState, clusterState);
+            incrementalClusterStateWriter.updateClusterState(clusterState);
         } finally {
             Loggers.removeAppender(classLogger, mockAppender);
             mockAppender.stop();

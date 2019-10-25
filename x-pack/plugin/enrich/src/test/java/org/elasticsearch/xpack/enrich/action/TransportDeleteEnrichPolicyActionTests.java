@@ -32,7 +32,7 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCase {
 
     @After
-    private void cleanupPolicy() {
+    public void cleanupPolicy() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         String name = "my-policy";
 
@@ -57,7 +57,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         final TransportDeleteEnrichPolicyAction transportAction = node().injector().getInstance(TransportDeleteEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
             new DeleteEnrichPolicyAction.Request(fakeId),
-            new ActionListener<AcknowledgedResponse>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     fail();
@@ -91,7 +91,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         final TransportDeleteEnrichPolicyAction transportAction = node().injector().getInstance(TransportDeleteEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
             new DeleteEnrichPolicyAction.Request(name),
-            new ActionListener<AcknowledgedResponse>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     reference.set(acknowledgedResponse);
@@ -132,7 +132,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         final TransportDeleteEnrichPolicyAction transportAction = node().injector().getInstance(TransportDeleteEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
             new DeleteEnrichPolicyAction.Request(name),
-            new ActionListener<AcknowledgedResponse>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     reference.set(acknowledgedResponse);
@@ -179,7 +179,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             final AtomicReference<Exception> reference = new AtomicReference<>();
             ActionTestUtils.execute(transportAction, null,
                 new DeleteEnrichPolicyAction.Request(name),
-                new ActionListener<AcknowledgedResponse>() {
+                new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         fail();
@@ -205,7 +205,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
             ActionTestUtils.execute(transportAction, null,
                 new DeleteEnrichPolicyAction.Request(name),
-                new ActionListener<AcknowledgedResponse>() {
+                new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         reference.set(acknowledgedResponse);

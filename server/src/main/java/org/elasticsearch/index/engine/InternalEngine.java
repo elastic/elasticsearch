@@ -36,6 +36,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.ShuflleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -2224,6 +2225,10 @@ public class InternalEngine extends Engine {
                 new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, softDeletesPolicy::getRetentionQuery,
                     new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)));
         }
+        // We wrap the merge policy for all indices even though it is mostly useful for time-based indices
+        // but there should be no overhead for other type of indices so it's simpler than adding a setting
+        // to enable it.
+        mergePolicy = new ShuflleForcedMergePolicy(mergePolicy);
         iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -31,6 +32,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class StopTransformAction extends ActionType<StopTransformAction.Response> {
 
@@ -136,6 +139,13 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
 
         @Override
         public ActionRequestValidationException validate() {
+            if (force && waitForCheckpoint) {
+                return addValidationError(new ParameterizedMessage(
+                    "cannot set both [{}] and [{}] to true",
+                        TransformField.FORCE,
+                        TransformField.WAIT_FOR_CHECKPOINT).getFormattedMessage(),
+                    null);
+            }
             return null;
         }
 

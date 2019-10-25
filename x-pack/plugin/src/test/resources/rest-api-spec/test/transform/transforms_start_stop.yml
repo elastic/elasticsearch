@@ -225,6 +225,15 @@ teardown:
         transform_id: "missing-transform*"
 
 ---
+"Test stop transform with force and wait_for_checkpoint true ":
+  - do:
+      catch: /cannot set both \[force\] and \[wait_for_checkpoint\] to true/
+      transform.stop_transform:
+        wait_for_checkpoint: true
+        force: true
+        transform_id: "airline-transform-start-stop-continuous"
+
+---
 "Test stop already stopped transform":
   - do:
       transform.stop_transform:

@@ -21,6 +21,11 @@
       ]
     },
     "params": {
+      "force": {
+        "type": "boolean",
+        "required": false,
+        "description": "Whether to force stop a failed transform or not. Default to false"
+      },
       "wait_for_completion": {
         "type": "boolean",
         "required": false,

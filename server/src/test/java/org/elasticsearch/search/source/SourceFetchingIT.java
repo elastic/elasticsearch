@@ -31,7 +31,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        index("test", "type1", "1", "field", "value");
+        indexDoc("test", "1", "field", "value");
         refresh();
 
         SearchResponse response = client().prepareSearch("test").get();

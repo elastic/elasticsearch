@@ -406,8 +406,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("_doc", mapping));
         ensureGreen();
 
-        index("test", "_doc", "1", "text", "lucene");
-        index("test", "_doc", "2", "text", "lucene release");
+        indexDoc("test", "1", "text", "lucene");
+        indexDoc("test", "2", "text", "lucene release");
         refresh();
 
         Item item = new Item("test", "1");

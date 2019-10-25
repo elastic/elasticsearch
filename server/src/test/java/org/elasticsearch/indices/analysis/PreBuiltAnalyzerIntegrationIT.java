@@ -90,7 +90,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
             Map<String, Object> data = new HashMap<>();
             data.put("foo", randomAlphaOfLength(scaledRandomIntBetween(5, 50)));
 
-            index(randomIndex, "type", randomId, data);
+            index(randomIndex, randomId, data);
         }
 
         refresh();

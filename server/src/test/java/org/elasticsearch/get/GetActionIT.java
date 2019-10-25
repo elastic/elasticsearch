@@ -663,7 +663,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "  }\n" +
                 "}";
 
-        index("test", "_doc", "1", doc);
+        index("test", "1", doc);
         String[] fieldsList = {"suggest"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysNull(indexOrAlias(), "1", fieldsList);
@@ -780,7 +780,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "  \"text1\": \"some text.\"\n," +
                 "  \"text2\": \"more text.\"\n" +
                 "}\n";
-        index("test", "_doc", "1", doc);
+        index("test", "1", doc);
     }
 
     private void assertGetFieldsAlwaysWorks(String index, String docId, String[] fields) {

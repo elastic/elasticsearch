@@ -246,7 +246,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         .build());
 
         // create one field
-        index("test", "doc", "1", "{ \"f\": 1 }");
+        index("test", "1", "{ \"f\": 1 }");
 
         ensureGreen();
 

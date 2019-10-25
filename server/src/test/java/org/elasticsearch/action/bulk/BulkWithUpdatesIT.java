@@ -457,7 +457,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
     public void testFailingVersionedUpdatedOnBulk() throws Exception {
         createIndex("test");
-        index("test", "type", "1", "field", "1");
+        indexDoc("test", "1", "field", "1");
         final BulkResponse[] responses = new BulkResponse[30];
         final CyclicBarrier cyclicBarrier = new CyclicBarrier(responses.length);
         Thread[] threads = new Thread[responses.length];
@@ -630,7 +630,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build());
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen(indexName);
-        IndexResponse doc = index(indexName, "_doc", "1", Map.of("user", "xyz"));
+        IndexResponse doc = index(indexName, "1", Map.of("user", "xyz"));
         assertThat(doc.getShardInfo().getSuccessful(), equalTo(2));
         final BulkResponse bulkResponse = client().prepareBulk()
             .add(new UpdateRequest().index(indexName).id("1").detectNoop(true).doc("user", "xyz")) // noop update

@@ -600,7 +600,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         NumShards test1 = getNumShards("test_index");
 
         for (int i = 0; i < 100; i++) {
-            index("test_index", "_doc", Integer.toString(i), "field", "value");
+            indexDoc("test_index", Integer.toString(i), "field", "value");
         }
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();

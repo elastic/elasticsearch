@@ -906,12 +906,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()));
         ensureGreen();
 
-        index("test", "type1", "1",
+        indexDoc("test", "1",
                 "foo", "running with scissors");
-        index("test", "type1", "2",
+        indexDoc("test", "2",
                 "foo", "cat cat junk junk junk junk junk junk junk cats junk junk",
                 "bar", "cat cat junk junk junk junk junk junk junk cats junk junk");
-        index("test", "type1", "3",
+        indexDoc("test", "3",
                 "foo", "weird",
                 "bar", "result");
         refresh();
@@ -1483,7 +1483,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        index("test", "type1", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
+        indexDoc("test", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -1503,7 +1503,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 "field2", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
 
-        index("test", "type1", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
+        indexDoc("test", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -1589,7 +1589,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 "type=text," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"));
         ensureGreen();
 
-        index("test", "type1", "1", "text", "Testing the highlight query feature");
+        indexDoc("test", "1", "text", "Testing the highlight query feature");
         refresh();
 
         for (String type : ALL_TYPES) {
@@ -1631,7 +1631,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ensureGreen();
 
         String text = "I am pretty long so some of me should get cut off. Second sentence";
-        index("test", "type1", "1", "text", text);
+        indexDoc("test", "1", "text", text);
         refresh();
 
         // When you don't set noMatchSize you don't get any results if there isn't anything to highlight.
@@ -1741,7 +1741,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         String text1 = "I am pretty long so some of me should get cut off. We'll see how that goes.";
         String text2 = "I am short";
-        index("test", "type1", "1", "text", new String[] {text1, text2});
+        indexDoc("test", "1", "text", new String[] {text1, text2});
         refresh();
 
         // The no match fragment should come from the first value of a multi-valued field
@@ -1762,7 +1762,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some"));
 
         // And noMatchSize returns nothing when the first entry is empty string!
-        index("test", "type1", "2", "text", new String[] {"", text2});
+        indexDoc("test", "2", "text", new String[] {"", text2});
         refresh();
 
         IdsQueryBuilder idsQueryBuilder = QueryBuilders.idsQuery().addIds("2");
@@ -1786,7 +1786,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am short"));
 
         // But if the field was actually empty then you should get no highlighting field
-        index("test", "type1", "3", "text", new String[] {});
+        indexDoc("test", "3", "text", new String[] {});
         refresh();
         idsQueryBuilder = QueryBuilders.idsQuery().addIds("3");
         field.highlighterType("plain");
@@ -1808,7 +1808,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertNotHighlighted(response, 0, "text");
 
         // Same for if the field doesn't even exist on the document
-        index("test", "type1", "4");
+        indexDoc("test", "4");
         refresh();
 
         idsQueryBuilder = QueryBuilders.idsQuery().addIds("4");
@@ -1854,7 +1854,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         String text1 = "This is the first sentence. This is the second sentence." + HighlightUtils.PARAGRAPH_SEPARATOR;
         String text2 = "This is the third sentence. This is the fourth sentence.";
         String text3 = "This is the fifth sentence";
-        index("test", "type1", "1", "text", new String[] {text1, text2, text3});
+        indexDoc("test", "1", "text", new String[] {text1, text2, text3});
         refresh();
 
         // The no match fragment should come from the first value of a multi-valued field
@@ -1964,7 +1964,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()).get());
         ensureGreen();
 
-        index("test", "type1", "1",
+        indexDoc("test", "1",
                 "field1", "The <b>quick<b> brown fox. Second sentence.",
                 "field2", "The <b>slow<b> brown fox. Second sentence.");
         refresh();
@@ -2527,7 +2527,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (int i = 0; i<10; i++) {
             text.append("junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk\n");
         }
-        index("test", "type1", "1", "field1", text.toString());
+        indexDoc("test", "1", "field1", text.toString());
         refresh();
 
         // Match queries

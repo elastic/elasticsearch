@@ -209,13 +209,13 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "svalue", "type=keyword").get());
         ensureGreen();
-        index("test", "type1", jsonBuilder().startObject()
+        index("test", jsonBuilder().startObject()
                 .field("id", "1")
                 .field("svalue", "aaa")
                 .field("ivalue", 100)
                 .field("dvalue", 0.1)
                 .endObject());
-        index("test", "type1", jsonBuilder().startObject()
+        index("test", jsonBuilder().startObject()
                 .field("id", "2")
                 .field("svalue", "bbb")
                 .field("ivalue", 200)

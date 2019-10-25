@@ -116,7 +116,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        index("test", "type1", "1", "field", "value");
+        indexDoc("test", "1", "field", "value");
         refresh();
 
         {

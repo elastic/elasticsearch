@@ -82,7 +82,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final String policyName = "test-policy";
         int docCount = 20;
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", i + "", Collections.singletonMap("foo", "bar"));
+            index(indexName, i + "", Collections.singletonMap("foo", "bar"));
         }
 
         // Create a snapshot repo
@@ -130,7 +130,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final String policyId = "slm-policy";
         int docCount = 20;
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", null, Collections.singletonMap("foo", "bar"));
+            index(indexName, null, Collections.singletonMap("foo", "bar"));
         }
 
         initializeRepo(REPO);
@@ -165,7 +165,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
         logger.info("--> indexing more docs to force new segment files");
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", null, Collections.singletonMap("foo", "bar"));
+            index(indexName, null, Collections.singletonMap("foo", "bar"));
         }
         refresh(indexName);
 
@@ -216,6 +216,10 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                     SnapshotsStatusResponse s =
                         client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(completedSnapshotName).get();
                     assertNull("expected no snapshot but one was returned", s.getSnapshots().get(0));
+                } catch (RepositoryException e) {
+                    // Concurrent status calls and write operations may lead to failures in determining the current repository generation
+                    // TODO: Remove this hack once tracking the current repository generation has been made consistent
+                    throw new AssertionError(e);
                 } catch (SnapshotMissingException e) {
                     // Great, we wanted it to be deleted!
                 }

@@ -37,13 +37,12 @@ class ClientTransformIndexerBuilder {
     private TransformCheckpoint lastCheckpoint;
     private TransformCheckpoint nextCheckpoint;
     private SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex;
-    private TransformContext context;
 
     ClientTransformIndexerBuilder() {
         this.initialStats = new TransformIndexerStats();
     }
 
-    ClientTransformIndexer build(Executor executor) {
+    ClientTransformIndexer build(Executor executor, TransformContext context) {
         CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(transformConfig);
 
         return new ClientTransformIndexer(executor,
@@ -129,11 +128,6 @@ class ClientTransformIndexerBuilder {
 
     ClientTransformIndexerBuilder setSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex) {
         this.seqNoPrimaryTermAndIndex = seqNoPrimaryTermAndIndex;
-        return this;
-    }
-
-    ClientTransformIndexerBuilder setContext(TransformContext context) {
-        this.context = context;
         return this;
     }
 

@@ -98,7 +98,7 @@ class ClientTransformIndexer extends TransformIndexer {
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
 
         this.client = ExceptionsHelper.requireNonNull(client, "client");
-        this.context = context;
+        this.context = ExceptionsHelper.requireNonNull(context, "context");
         this.failureCount = new AtomicInteger(0);
         this.seqNoPrimaryTermAndIndex = new AtomicReference<>(seqNoPrimaryTermAndIndex);
     }
@@ -268,11 +268,13 @@ class ClientTransformIndexer extends TransformIndexer {
                         // TODO gather information on irrecoverable failures and update isIrrecoverableFailure
                     }
                     if (auditBulkFailures) {
+                        String failureMessage = bulkResponse.buildFailureMessage();
+                        logger.debug("[{}] Bulk index failure encountered: {}", failureMessage);
                         auditor.warning(getJobId(),
                             "Experienced at least [" +
                                 failureCount +
                                 "] bulk index failures. See the logs of the node running the transform for details. " +
-                                bulkResponse.buildFailureMessage());
+                                failureMessage);
                         auditBulkFailures = false;
                     }
                     // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
@@ -312,7 +314,7 @@ class ClientTransformIndexer extends TransformIndexer {
         TransformTaskState taskState = context.getTaskState();
 
         if (indexerState.equals(IndexerState.STARTED)
-            && getLastCheckpoint().getCheckpoint() == 1
+            && context.getCheckpoint() == 1
             && this.isContinuous() == false) {
             // set both to stopped so they are persisted as such
             indexerState = IndexerState.STOPPED;
@@ -334,7 +336,7 @@ class ClientTransformIndexer extends TransformIndexer {
             taskState,
             indexerState,
             position,
-            getLastCheckpoint().getCheckpoint(),
+            context.getCheckpoint(),
             context.getStateReason(),
             getProgress());
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());

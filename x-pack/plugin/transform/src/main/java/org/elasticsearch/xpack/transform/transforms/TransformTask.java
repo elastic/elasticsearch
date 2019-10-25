@@ -436,7 +436,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     synchronized void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
-        indexer.set(indexerBuilder.build(getThreadPool().executor(ThreadPool.Names.GENERIC)));
+        indexer.set(indexerBuilder.build(getThreadPool().executor(ThreadPool.Names.GENERIC), context));
     }
 
     ThreadPool getThreadPool() {

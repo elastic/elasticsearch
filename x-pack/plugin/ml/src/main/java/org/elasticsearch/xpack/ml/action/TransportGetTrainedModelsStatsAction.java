@@ -100,7 +100,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                     .setTotalModelCount(tuple.v1());
                 String[] ingestNodes = ingestNodes(clusterService.state());
                 NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear().ingest(true);
-                client.execute(NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
+                executeAsyncWithOrigin(client, ML_ORIGIN, NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
             },
             listener::onFailure
         );

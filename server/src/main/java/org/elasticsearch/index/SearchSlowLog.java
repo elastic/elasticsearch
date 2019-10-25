@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,6 +41,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
+    private static final Charset UTF_8 = Charset.forName("UTF-8");
+
     private long queryWarnThreshold;
     private long queryInfoThreshold;
     private long queryDebugThreshold;
@@ -169,13 +173,13 @@ public final class SearchSlowLog implements SearchOperationListener {
             } else {
                 messageFields.put("total_hits", "-1");
             }
-            messageFields.put("stats", ESLogMessage.escapeJson(ESLogMessage.asJsonArray(
+            messageFields.put("stats", escapeJson(ESLogMessage.asJsonArray(
                 context.groupStats() != null ? context.groupStats().stream() : Stream.empty())));
             messageFields.put("search_type", context.searchType());
             messageFields.put("total_shards", context.numberOfShards());
 
             if (context.request().source() != null) {
-                String source = ESLogMessage.escapeJson(context.request().source().toString(FORMAT_PARAMS));
+                String source = escapeJson(context.request().source().toString(FORMAT_PARAMS));
 
                 messageFields.put("source", source);
             } else {
@@ -220,6 +224,11 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("id[], ");
             }
             return sb.toString();
+        }
+
+        private static String escapeJson(String text) {
+            byte[] sourceEscaped = JsonStringEncoder.getInstance().quoteAsUTF8(text);
+            return new String(sourceEscaped, UTF_8);
         }
     }
 

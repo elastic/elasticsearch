@@ -120,7 +120,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").execute().actionGet();
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
         logger.info("Refreshing");

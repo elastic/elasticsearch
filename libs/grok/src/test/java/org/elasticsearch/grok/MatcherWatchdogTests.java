@@ -24,6 +24,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.elasticsearch.test.ESTestCase;
+import org.joni.Matcher;
 import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.is;
@@ -31,15 +32,16 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
-public class ThreadWatchdogTests extends ESTestCase {
+public class MatcherWatchdogTests extends ESTestCase {
 
     public void testInterrupt() throws Exception {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
-        ThreadWatchdog watchdog = ThreadWatchdog.newInstance(10, 100, System::currentTimeMillis, (delay, command) -> {
+        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(10, 100, System::currentTimeMillis, (delay, command) -> {
             try {
                 Thread.sleep(delay);
             } catch (InterruptedException e) {
@@ -53,17 +55,17 @@ public class ThreadWatchdogTests extends ESTestCase {
             thread.start();
         });
 
-        Map<?, ?> registry = ((ThreadWatchdog.Default) watchdog).registry;
+        Map<?, ?> registry = ((MatcherWatchdog.Default) watchdog).registry;
         assertThat(registry.size(), is(0));
         // need to call #register() method on a different thread, assertBusy() fails if current thread gets interrupted
         AtomicBoolean interrupted = new AtomicBoolean(false);
         Thread thread = new Thread(() -> {
-            Thread currentThread = Thread.currentThread();
-            watchdog.register();
-            while (currentThread.isInterrupted() == false) {}
+            Matcher matcher = mock(Matcher.class);
+            watchdog.register(matcher);
+            verify(matcher, timeout(9999).times(1)).interrupt();
             interrupted.set(true);
             while (run.get()) {} // wait here so that the size of the registry can be asserted
-            watchdog.unregister();
+            watchdog.unregister(matcher);
         });
         thread.start();
         assertBusy(() -> {
@@ -79,7 +81,7 @@ public class ThreadWatchdogTests extends ESTestCase {
     public void testIdleIfNothingRegistered() throws Exception {
         long interval = 1L;
         ScheduledExecutorService threadPool = mock(ScheduledExecutorService.class);
-        ThreadWatchdog watchdog = ThreadWatchdog.newInstance(interval, Long.MAX_VALUE, System::currentTimeMillis,
+        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(interval, Long.MAX_VALUE, System::currentTimeMillis,
             (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS));
         // Periodic action is not scheduled because no thread is registered
         verifyZeroInteractions(threadPool);
@@ -91,16 +93,20 @@ public class ThreadWatchdogTests extends ESTestCase {
         }).when(threadPool).schedule(
             any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS)
         );
-        watchdog.register();
+        Matcher matcher = mock(Matcher.class);
+        watchdog.register(matcher);
         // Registering the first thread should have caused the command to get scheduled again
         Runnable command = commandFuture.get(1L, TimeUnit.MILLISECONDS);
         Mockito.reset(threadPool);
-        watchdog.unregister();
+        watchdog.unregister(matcher);
         command.run();
         // Periodic action is not scheduled again because no thread is registered
         verifyZeroInteractions(threadPool);
-        watchdog.register();
-        Thread otherThread = new Thread(watchdog::register);
+        watchdog.register(matcher);
+        Thread otherThread = new Thread(() -> {
+            Matcher otherMatcher = mock(Matcher.class);
+            watchdog.register(otherMatcher);
+        });
         try {
             verify(threadPool).schedule(any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS));
             // Registering a second thread does not cause the command to get scheduled twice

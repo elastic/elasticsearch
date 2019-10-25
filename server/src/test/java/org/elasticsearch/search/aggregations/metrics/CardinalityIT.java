@@ -132,7 +132,7 @@ public class CardinalityIT extends ESIntegTestCase {
         precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
         IndexRequestBuilder[] builders = new IndexRequestBuilder[(int) numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                     .startObject()
                         .field("str_value", "s" + i)
                         .array("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
@@ -147,7 +147,7 @@ public class CardinalityIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] dummyDocsBuilder = new IndexRequestBuilder[10];
         for (int i = 0; i < dummyDocsBuilder.length; i++) {
-            dummyDocsBuilder[i] = client().prepareIndex("idx", "type").setSource("a_field", "1");
+            dummyDocsBuilder[i] = client().prepareIndex("idx").setSource("a_field", "1");
         }
         indexRandom(true, dummyDocsBuilder);
 
@@ -456,8 +456,8 @@ public class CardinalityIT extends ESIntegTestCase {
         assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

@@ -283,7 +283,7 @@ public class NativePrivilegeStore {
                     }, listener::onFailure), names.size());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, toDocId(application, name))
+                        client.prepareDelete(SECURITY_MAIN_ALIAS, toDocId(application, name))
                             .setRefreshPolicy(refreshPolicy)
                             .request(), groupListener, client::delete);
                 }

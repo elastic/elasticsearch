@@ -4,8 +4,7 @@
 === Enrich Processor
 
 The `enrich` processor can enrich documents with data from another index.
-See <<ingest-enriching-data,enrich data>> section for more information how to set this up and
-check out the <<ingest-enriching-data,tutorial>> to get familiar with enrich policies and related APIs.
+See <<ingest-enriching-data,enrich data>> section for more information about how to set this up.
 
 [[enrich-options]]
 .Enrich Options

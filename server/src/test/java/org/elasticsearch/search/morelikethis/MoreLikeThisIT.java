@@ -406,8 +406,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("_doc", mapping));
         ensureGreen();
 
-        index("test", "_doc", "1", "text", "lucene");
-        index("test", "_doc", "2", "text", "lucene release");
+        indexDoc("test", "1", "text", "lucene");
+        indexDoc("test", "2", "text", "lucene release");
         refresh();
 
         Item item = new Item("test", "1");
@@ -469,9 +469,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         logger.info("Indexing...");
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene").setId("1"));
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene release").setId("2"));
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "apache lucene").setId("3"));
+        builders.add(client().prepareIndex("test").setSource("text", "lucene").setId("1"));
+        builders.add(client().prepareIndex("test").setSource("text", "lucene release").setId("2"));
+        builders.add(client().prepareIndex("test").setSource("text", "apache lucene").setId("3"));
         indexRandom(true, builders);
 
         logger.info("Running MoreLikeThis");

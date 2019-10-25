@@ -159,7 +159,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(dataNode, random());
         internalCluster().setDisruptionScheme(disruption);
         logger.info("--> indexing a doc");
-        index("test", "type", "1");
+        indexDoc("test", "1");
         refresh();
         disruption.startDisrupting();
         logger.info("--> delete index and recreate it");

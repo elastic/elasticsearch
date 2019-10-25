@@ -68,7 +68,7 @@ TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
   systemProperty 'es.use_unpooled_allocator', 'false'
 }
-// TODO: we can't use task avoidance here because RestIntegTestTask does the testcluster creation
+
 RestIntegTestTask pooledIntegTest = tasks.create("pooledIntegTest", RestIntegTestTask) {
   runner {
     systemProperty 'es.set.netty.runtime.available.processors', 'false'

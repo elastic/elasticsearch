@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.vectors.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.ScoreScript;
+import org.elasticsearch.xpack.vectors.mapper.SparseVectorFieldMapper;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.nio.ByteBuffer;
@@ -173,6 +176,8 @@ public class ScoreScriptUtils {
     // per script execution for all documents.
 
     public static class SparseVectorFunction {
+        static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SparseVectorFunction.class));
+
         final ScoreScript scoreScript;
         final float[] queryValues;
         final int[] queryDims;
@@ -197,6 +202,8 @@ public class ScoreScriptUtils {
             }
             // Sort dimensions in the ascending order and sort values in the same order as their corresponding dimensions
             sortSparseDimsFloatValues(queryDims, queryValues, n);
+
+            deprecationLogger.deprecatedAndMaybeLog("sparse_vector_function", SparseVectorFieldMapper.DEPRECATION_MESSAGE);
         }
 
         public void validateDocVector(BytesRef vector) {

@@ -19,7 +19,7 @@
           "id": {
             "type": "long"
           },
-          "parent_id": {
+          "parent_task_id": {
             "type": "keyword"
           },
           "node": {

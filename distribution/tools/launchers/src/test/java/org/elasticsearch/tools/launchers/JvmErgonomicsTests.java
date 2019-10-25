@@ -56,8 +56,8 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testExtractValidHeapSizeNoOptionPresent() throws InterruptedException, IOException {
-        // Muting on Windows, awaitsfix: https://github.com/elastic/elasticsearch/issues/47384
-        assumeFalse(System.getProperty("os.name").startsWith("Windows"));
+        // Muted for jdk8/Windows, see: https://github.com/elastic/elasticsearch/issues/47384
+        assumeFalse(System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8);
         assertThat(
                 JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.emptyList())),
                 greaterThan(0L));
@@ -132,6 +132,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testPooledMemoryChoiceOnNotSmallHeap() throws InterruptedException, IOException {
+        // Muted for jdk8/Windows, see: https://github.com/elastic/elasticsearch/issues/47384
         assumeFalse(System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8);
         final String largeHeap = randomFrom(Arrays.asList("1025M", "2048M", "2G", "8G"));
         assertThat(
@@ -140,6 +141,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testMaxDirectMemorySizeChoice() throws InterruptedException, IOException {
+        // Muted for jdk8/Windows, see: https://github.com/elastic/elasticsearch/issues/47384
         assumeFalse(System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8);
         final Map<String, String> heapMaxDirectMemorySize = new HashMap<>();
         heapMaxDirectMemorySize.put("64M", Long.toString((64L << 20) / 2));

@@ -838,6 +838,9 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(testOutputDir)
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
+
+                    //TODO remove once jvm.options are added to test system properties
+                    test.systemProperty ('java.locale.providers','SPI,COMPAT')
                 }
                 if (inFipsJvm()) {
                     project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1")
@@ -875,8 +878,6 @@ class BuildPlugin implements Plugin<Project> {
                         'tests.security.manager': 'true',
                         'jna.nosys': 'true'
 
-                //TODO remove once jvm.options are added to test system properties
-                test.systemProperty ('java.locale.providers','SPI,COMPAT')
 
                 // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
                 if (System.getProperty('ignore.tests.seed') != null) {

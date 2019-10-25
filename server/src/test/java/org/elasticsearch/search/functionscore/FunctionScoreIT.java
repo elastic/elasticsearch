@@ -170,7 +170,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         int scoreOffset = randomIntBetween(0, 2 * numDocs);
         int minScore = randomIntBetween(0, 2 * numDocs);
         for (int i = 0; i < numDocs; i++) {
-            docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
+            docs.add(client().prepareIndex(INDEX).setId(Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return (doc['num'].value)", Collections.emptyMap());

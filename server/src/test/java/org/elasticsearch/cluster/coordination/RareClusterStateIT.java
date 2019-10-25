@@ -254,7 +254,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // this request does not change the cluster state, because mapping is already created,
         // we don't await and cancel committed publication
         ActionFuture<IndexResponse> docIndexResponse =
-                client().prepareIndex("index", "type", "1").setSource("field", 42).execute();
+                client().prepareIndex("index").setId("1").setSource("field", 42).execute();
 
         // Wait a bit to make sure that the reason why we did not get a response
         // is that cluster state processing is blocked and not just that it takes
@@ -336,7 +336,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             assertNotNull(mapper.mappers().getMapper("field"));
         });
 
-        final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index", "type", "1").setSource("field", 42).execute();
+        final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
 
         assertBusy(() -> assertTrue(client().prepareGet("index", "1").get().isExists()));
 
@@ -346,7 +346,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // this request does not change the cluster state, because the mapping is dynamic,
         // we need to await and cancel committed publication
         ActionFuture<IndexResponse> dynamicMappingsFut =
-                executeAndCancelCommittedPublication(client().prepareIndex("index", "type", "2").setSource("field2", 42));
+                executeAndCancelCommittedPublication(client().prepareIndex("index").setId("2").setSource("field2", 42));
 
         // ...and wait for second mapping to be available on master
         assertBusy(() -> {

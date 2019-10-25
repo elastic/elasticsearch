@@ -203,9 +203,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build());
         ensureGreen();
         BulkResponse bulkResponse = client().prepareBulk()
-                .add(client().prepareIndex("test", "type", "1").setCreate(true).setSource("field", "1"))
-                .add(client().prepareIndex("test", "type", "2").setCreate(true).setSource("field", "1"))
-                .add(client().prepareIndex("test", "type", "1").setSource("field", "2")).get();
+                .add(client().prepareIndex("test").setId("1").setCreate(true).setSource("field", "1"))
+                .add(client().prepareIndex("test").setId("2").setCreate(true).setSource("field", "1"))
+                .add(client().prepareIndex("test").setId("1").setSource("field", "2")).get();
 
         assertEquals(DocWriteResponse.Result.CREATED, bulkResponse.getItems()[0].getResponse().getResult());
         assertThat(bulkResponse.getItems()[0].getResponse().getSeqNo(), equalTo(0L));
@@ -226,11 +226,11 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getSeqNo(), equalTo(4L));
 
         bulkResponse = client().prepareBulk()
-                .add(client().prepareIndex("test", "type", "e1")
+                .add(client().prepareIndex("test").setId("e1")
                         .setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
-                .add(client().prepareIndex("test", "type", "e2")
+                .add(client().prepareIndex("test").setId("e2")
                         .setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
-                .add(client().prepareIndex("test", "type", "e1")
+                .add(client().prepareIndex("test").setId("e1")
                         .setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL))
                 .get();
 
@@ -440,7 +440,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; ) {
             final BulkRequestBuilder builder = client().prepareBulk();
             for (int j = 0; j < bulk && i < numDocs; j++, i++) {
-                builder.add(client().prepareIndex("test", "type1", Integer.toString(i)).setSource("val", i));
+                builder.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("val", i));
             }
             logger.info("bulk indexing {}-{}", i - bulk, i - 1);
             BulkResponse response = builder.get();
@@ -591,7 +591,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     public void testFailedRequestsOnClosedIndex() throws Exception {
         createIndex("bulkindex1");
 
-        client().prepareIndex("bulkindex1", "index1_type", "1").setSource("text", "test").get();
+        client().prepareIndex("bulkindex1").setId("1").setSource("text", "test").get();
         assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex1")));
 
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE);

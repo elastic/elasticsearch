@@ -43,7 +43,8 @@ public class InferenceProcessorTests extends ESTestCase {
             "classification_model",
             new ClassificationConfig(0),
             Collections.emptyMap(),
-            "_ml_model.my_processor");
+            "ml.my_processor",
+            true);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -54,7 +55,7 @@ public class InferenceProcessorTests extends ESTestCase {
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat(document.getFieldValue(targetField, String.class), equalTo("foo"));
-        assertThat(document.getFieldValue("_ml_model", Map.class),
+        assertThat(document.getFieldValue("ml", Map.class),
             equalTo(Collections.singletonMap("my_processor", Collections.singletonMap("model_id", "classification_model"))));
     }
 
@@ -67,7 +68,8 @@ public class InferenceProcessorTests extends ESTestCase {
             "classification_model",
             new ClassificationConfig(2),
             Collections.emptyMap(),
-            "_ml_model.my_processor");
+            "ml.my_processor",
+            true);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -83,7 +85,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
         assertThat((List<Map<?,?>>)document.getFieldValue(targetField, List.class),
             contains(classes.stream().map(ClassificationInferenceResults.TopClassEntry::asValueMap).toArray(Map[]::new)));
-        assertThat(document.getFieldValue("_ml_model", Map.class),
+        assertThat(document.getFieldValue("ml", Map.class),
             equalTo(Collections.singletonMap("my_processor", Collections.singletonMap("model_id", "classification_model"))));
     }
 
@@ -95,7 +97,8 @@ public class InferenceProcessorTests extends ESTestCase {
             "regression_model",
             new RegressionConfig(),
             Collections.emptyMap(),
-            "_ml_model.my_processor");
+            "ml.my_processor",
+            true);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -106,7 +109,7 @@ public class InferenceProcessorTests extends ESTestCase {
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat(document.getFieldValue(targetField, Double.class), equalTo(0.7));
-        assertThat(document.getFieldValue("_ml_model", Map.class),
+        assertThat(document.getFieldValue("ml", Map.class),
             equalTo(Collections.singletonMap("my_processor", Collections.singletonMap("model_id", "regression_model"))));
     }
 
@@ -118,7 +121,8 @@ public class InferenceProcessorTests extends ESTestCase {
             "regression_model",
             new RegressionConfig(),
             Collections.emptyMap(),
-            null);
+            "ml.my_processor",
+            false);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -129,7 +133,40 @@ public class InferenceProcessorTests extends ESTestCase {
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat(document.getFieldValue(targetField, Double.class), equalTo(0.7));
-        assertThat(document.hasField("_ml_model"), is(false));
+        assertThat(document.hasField("ml"), is(false));
+    }
+
+    public void testMutateDocumentModelMetaDataExistingField() {
+        String targetField = "regression_value";
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            "my_processor",
+            targetField,
+            "regression_model",
+            new RegressionConfig(),
+            Collections.emptyMap(),
+            "ml.my_processor",
+            true);
+
+        //cannot use singleton map as attempting to mutate later
+        Map<String, Object> ml = new HashMap<>(){{
+            put("regression_prediction", 0.55);
+        }};
+        Map<String, Object> source = new HashMap<>(){{
+            put("ml", ml);
+        }};
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        InferModelAction.Response response = new InferModelAction.Response(
+            Collections.singletonList(new RegressionInferenceResults(0.7)));
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.getFieldValue(targetField, Double.class), equalTo(0.7));
+        assertThat(document.getFieldValue("ml", Map.class),
+            equalTo(new HashMap<>(){{
+                put("my_processor", Collections.singletonMap("model_id", "regression_model"));
+                put("regression_prediction", 0.55);
+            }}));
     }
 
     public void testGenerateRequestWithEmptyMapping() {
@@ -142,7 +179,8 @@ public class InferenceProcessorTests extends ESTestCase {
                 modelId,
                 new ClassificationConfig(topNClasses),
                 Collections.emptyMap(),
-                null);
+                "ml.my_processor",
+            false);
 
         Map<String, Object> source = new HashMap<>(){{
             put("value1", 1);
@@ -171,7 +209,8 @@ public class InferenceProcessorTests extends ESTestCase {
             modelId,
             new ClassificationConfig(topNClasses),
             fieldMapping,
-            null);
+            "ml.my_processor",
+            false);
 
         Map<String, Object> source = new HashMap<>(3){{
             put("value1", 1);

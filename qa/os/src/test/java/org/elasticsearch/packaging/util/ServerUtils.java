@@ -97,11 +97,11 @@ public class ServerUtils {
 
     public static void runElasticsearchTests() throws IOException {
         makeRequest(
-            Request.Post("http://localhost:9200/library/book/1?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON));
 
         makeRequest(
-            Request.Post("http://localhost:9200/library/book/2?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON));
 
         String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"));

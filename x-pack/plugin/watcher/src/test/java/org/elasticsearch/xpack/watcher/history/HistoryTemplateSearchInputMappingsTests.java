@@ -38,7 +38,7 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         String index = "the-index";
         String type = "the-type";
         createIndex(index);
-        index(index, type, "{}");
+        indexDoc(index, "{}");
         flush();
         refresh();
 

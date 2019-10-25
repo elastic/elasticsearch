@@ -61,7 +61,6 @@ Response：
 --------------------------------------------------
 {
   "_index" : "my-index",
-  "_type" : "_doc",
   "_id" : "my-id",
   "_version" : 1,
   "result" : "created",

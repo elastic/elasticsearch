@@ -13,6 +13,9 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -22,6 +25,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.metrics.Cardinality;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -34,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DataFrameDataExtractorFactory {
 
@@ -172,13 +180,65 @@ public class DataFrameDataExtractorFactory {
                                                       boolean isTaskRestarting,
                                                       ActionListener<ExtractedFields> listener) {
         AtomicInteger docValueFieldsLimitHolder = new AtomicInteger();
+        AtomicReference<ExtractedFields> extractedFieldsHolder = new AtomicReference<>();
 
-        // Step 3. Extract fields (if possible) and notify listener
+        // Step 4. Check fields cardinality vs limits and notify listener
+        ActionListener<SearchResponse> checkCardinalityHandler = ActionListener.wrap(
+            searchResponse -> {
+                if (searchResponse != null) {
+                    Aggregations aggs = searchResponse.getAggregations();
+                    if (aggs == null) {
+                        listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
+                        return;
+                    }
+                    for (Map.Entry<String, Long> entry : config.getAnalysis().getFieldCardinalityLimits().entrySet()) {
+                        String fieldName = entry.getKey();
+                        Long limit = entry.getValue();
+                        Cardinality cardinality = aggs.get(fieldName);
+                        if (cardinality == null) {
+                            listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
+                            return;
+                        }
+                        if (cardinality.getValue() > limit) {
+                            listener.onFailure(
+                                ExceptionsHelper.badRequestException(
+                                    "Field [{}] must have at most [{}] distinct values but there were at least [{}]",
+                                    fieldName, limit, cardinality.getValue()));
+                            return;
+                        }
+                    }
+                }
+                listener.onResponse(extractedFieldsHolder.get());
+            },
+            listener::onFailure
+        );
+
+        // Step 3. Extract fields (if possible)
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
-            fieldCapabilitiesResponse -> listener.onResponse(
-                new ExtractedFieldsDetector(
-                        index, config, resultsField, isTaskRestarting, docValueFieldsLimitHolder.get(), fieldCapabilitiesResponse)
-                    .detect()),
+            fieldCapabilitiesResponse -> {
+                extractedFieldsHolder.set(
+                    new ExtractedFieldsDetector(
+                            index, config, resultsField, isTaskRestarting, docValueFieldsLimitHolder.get(), fieldCapabilitiesResponse)
+                        .detect());
+
+                Map<String, Long> fieldCardinalityLimits = config.getAnalysis().getFieldCardinalityLimits();
+                if (fieldCardinalityLimits.isEmpty()) {
+                    checkCardinalityHandler.onResponse(null);
+                } else {
+                    SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
+                    for (Map.Entry<String, Long> entry : fieldCardinalityLimits.entrySet()) {
+                        String fieldName = entry.getKey();
+                        Long limit = entry.getValue();
+                        searchSourceBuilder.aggregation(
+                            AggregationBuilders.cardinality(fieldName)
+                                .field(fieldName)
+                                .precisionThreshold(limit + 1));
+                    }
+                    SearchRequest searchRequest = new SearchRequest(config.getSource().getIndex()).source(searchSourceBuilder);
+                    ClientHelper.executeWithHeadersAsync(
+                        config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, checkCardinalityHandler);
+                }
+            },
             listener::onFailure
         );
 

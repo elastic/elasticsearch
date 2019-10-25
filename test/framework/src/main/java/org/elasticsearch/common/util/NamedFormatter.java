@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util;
 
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -52,18 +53,35 @@ public class NamedFormatter {
      * @throws IllegalArgumentException if a parameter is found in the format string with no corresponding value
      */
     public static String format(String fmt, Map<String, Object> values) {
-        return PARAM_REGEX.matcher(fmt).replaceAll(match -> {
-            // Escaped characters are unchanged
-            if (match.group(1) != null) {
-                return match.group(1);
-            }
+        final Matcher matcher = PARAM_REGEX.matcher(fmt);
 
-            final String paramName = match.group(3);
-            if (values.containsKey(paramName) == true) {
-                return values.get(paramName).toString();
-            }
+        boolean result = matcher.find();
 
-            throw new IllegalArgumentException("No parameter value for %(" + paramName + ")");
-        });
+        if (result) {
+            final StringBuffer sb = new StringBuffer();
+            do {
+                String replacement;
+
+                // Escaped characters are unchanged
+                if (matcher.group(1) != null) {
+                    replacement = matcher.group(1);
+                } else {
+                    final String paramName = matcher.group(3);
+                    if (values.containsKey(paramName) == true) {
+                        replacement = values.get(paramName).toString();
+                    } else {
+                        throw new IllegalArgumentException("No parameter value for %(" + paramName + ")");
+                    }
+                }
+
+                matcher.appendReplacement(sb, replacement);
+                result = matcher.find();
+            } while (result);
+
+            matcher.appendTail(sb);
+            return sb.toString();
+        }
+
+        return fmt;
     }
 }

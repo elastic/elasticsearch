@@ -160,12 +160,18 @@ class BuildPlugin implements Plugin<Project> {
             project.pluginManager.withPlugin("elasticsearch.testclusters") {
                 NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
                 testClusters.all { ElasticsearchCluster cluster ->
-                    cluster.extraConfigFile("fips_java.security", securityProperties)
-                    cluster.extraConfigFile("fips_java.policy", securityPolicy)
-                    cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
                     for (File dep : project.getConfigurations().getByName("extraJars").getFiles()){
                         cluster.extraJarFile(dep)
                     }
+                    cluster.extraConfigFile("fips_java.security", securityProperties)
+                    cluster.extraConfigFile("fips_java.policy", securityPolicy)
+                    cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
+                    cluster.systemProperty('java.security.properties', '=${ES_PATH_CONF}/fips_java.security')
+                    cluster.systemProperty('java.security.policy', '=${ES_PATH_CONF}/fips_java.policy')
+                    cluster.systemProperty('javax.net.ssl.trustStore', '${ES_PATH_CONF}/cacerts.bcfks')
+                    cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                    cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                    cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
                 }
             }
             project.tasks.withType(Test).configureEach { Test task ->

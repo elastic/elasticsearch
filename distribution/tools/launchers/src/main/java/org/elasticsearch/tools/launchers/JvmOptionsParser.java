@@ -88,7 +88,9 @@ final class JvmOptionsParser {
                         .collect(Collectors.toUnmodifiableList()));
             }
             final List<String> substitutedJvmOptions =
-                substitutePlaceholders(jvmOptions, Map.of("ES_TMPDIR", System.getenv("ES_TMPDIR")));
+                substitutePlaceholders(jvmOptions, Map.of(
+                    "ES_TMPDIR", System.getenv("ES_TMPDIR"),
+                    "ES_PATH_CONF", System.getenv("ES_PATH_CONF")));
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
             substitutedJvmOptions.addAll(ergonomicJvmOptions);
             final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(substitutedJvmOptions);

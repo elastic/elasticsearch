@@ -458,8 +458,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         copyExtraJars();
 
-        configureNodeForFips();
-
         if (isSettingTrue("xpack.security.enabled")) {
             if (credentials.isEmpty()) {
                 user(Collections.emptyMap());
@@ -553,21 +551,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 throw new UncheckedIOException("Can't copy extra jar dependency " + from.getName() + " to " + destination.toString(), e);
             }
         });
-    }
-
-    private void configureNodeForFips() {
-        boolean inFipsJvm = Boolean.parseBoolean(System.getProperty("tests.fips.enabled", "false"));
-        if (inFipsJvm) {
-            systemProperties.put("java.security.properties",
-                String.format(Locale.ROOT, "=%s/fips_java.security", getConfigDir().toString()));
-            systemProperties.put("java.security.policy",
-                String.format(Locale.ROOT, "=%s/fips_java.policy", getConfigDir().toString()));
-            systemProperties.put("javax.net.ssl.trustStore",
-                String.format(Locale.ROOT, "%s/cacerts.bcfks", getConfigDir().toString()));
-            systemProperties.put("javax.net.ssl.trustStorePassword", "password");
-            systemProperties.put("javax.net.ssl.keyStorePassword", "password");
-            systemProperties.put("javax.net.ssl.trustStoreType","BCFKS");
-        }
     }
 
     private void installModules() {

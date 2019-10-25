@@ -765,6 +765,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46021")
     public void testAddSnapshotLifecyclePolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

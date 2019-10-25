@@ -37,8 +37,9 @@ public class ServerUtils {
 
     protected static final Logger logger =  LogManager.getLogger(ServerUtils.class);
 
-    private static final long waitTime = TimeUnit.SECONDS.toMillis(60);
-    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
+    // generous timeout  as nested virtualization can be quite slow ...
+    private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
+    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(30);
 
     public static void waitForElasticsearch(Installation installation) throws IOException {
         waitForElasticsearch("green", null, installation);

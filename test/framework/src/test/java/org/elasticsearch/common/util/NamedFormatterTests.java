@@ -23,10 +23,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;

@@ -34,7 +34,6 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
     public static final String NAME = "cluster:monitor/xpack/ml/inference/stats/get";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
-    public static final ParseField INGEST_STATS = new ParseField("ingest_stats");
     public static final ParseField PIPELINE_COUNT = new ParseField("pipeline_count");
 
     private GetTrainedModelsStatsAction() {
@@ -101,10 +100,8 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 builder.field(MODEL_ID.getPreferredName(), modelId);
                 builder.field(PIPELINE_COUNT.getPreferredName(), pipelineCount);
                 if (pipelineCount > 0) {
-                    builder.startObject(INGEST_STATS.getPreferredName());
                     // Ingest stats is a fragment
                     builder.value(ingestStats);
-                    builder.endObject();
                 }
                 builder.endObject();
                 return builder;

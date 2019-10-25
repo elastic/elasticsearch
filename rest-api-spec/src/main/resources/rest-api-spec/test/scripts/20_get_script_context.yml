@@ -4,20 +4,7 @@
       reason: "get_all_contexts introduced in 7.6.0"
   - do:
       get_script_context: {}
-  - match: { contexts.0.name: "aggregation_selector" }
-  - match: { contexts.0.methods: [{"name": "execute", "return_type": "boolean", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}] }
 
-  - match: { contexts.1.name: "aggs" }
-  - match: { contexts.1.methods: [{"name": "execute", "return_type": "java.lang.Object", "params": []}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "get_score", "return_type": "java.lang.Number", "params": []}, {"name": "get_value", "return_type": "java.lang.Object", "params": []}] }
-
-  - match: { contexts.2.name: "aggs_combine" }
-  - match: { contexts.2.methods: [{"name": "execute", "return_type": "java.lang.Object", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "getState", "return_type": "java.util.Map", "params": []}] }
-
-  - match: { contexts.3.name: "aggs_init" }
-  - match: { contexts.3.methods: [{"name": "execute", "return_type": "void", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "getState", "return_type": "java.lang.Object", "params": []}] }
-
-  - match: { contexts.4.name: "aggs_map" }
-  - match: { contexts.4.methods: [{"name": "execute", "return_type": "void", "params": []}, {"name": "getDoc", "return_type": "java.util.Map", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "getState", "return_type": "java.util.Map", "params": []}, {"name": "get_score", "return_type": "double", "params": []}] }
-
-  - match: { contexts.5.name: "aggs_reduce" }
-  - match: { contexts.5.methods: [{"name": "execute", "return_type": "java.lang.Object", "params": []}, {"name": "getParams", "return_type": "java.util.Map", "params": []}, {"name": "getStates", "return_type": "java.util.List", "params": []}] }
+  - is_true: contexts.0.name
+  - is_true: contexts.0.methods.0.return_type
+  - match: { contexts.0.methods.0.name: "execute" }

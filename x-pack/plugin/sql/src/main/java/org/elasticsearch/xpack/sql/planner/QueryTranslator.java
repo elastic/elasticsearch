@@ -41,9 +41,11 @@ import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
@@ -106,10 +108,13 @@ import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.elasticsearch.xpack.sql.util.Holder;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
 import java.time.OffsetTime;
+import java.time.Period;
 import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -279,7 +284,11 @@ final class QueryTranslator {
                     // dates are handled differently because of date histograms
                     if (exp instanceof DateTimeHistogramFunction) {
                         DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
-                        key = new GroupByDateHistogram(aggId, nameOf(exp), dthf.interval(), dthf.zoneId());
+                        if (dthf.calendarInterval() != null) {
+                            key = new GroupByDateHistogram(aggId, nameOf(exp), dthf.calendarInterval(), dthf.zoneId());
+                        } else {
+                            key = new GroupByDateHistogram(aggId, nameOf(exp), dthf.fixedInterval(), dthf.zoneId());
+                        }
                     }
                     // all other scalar functions become a script
                     else if (exp instanceof ScalarFunction) {
@@ -294,19 +303,33 @@ final class QueryTranslator {
 
                             // date histogram
                             if (h.dataType().isDateBased()) {
-                                long intervalAsMillis = Intervals.inMillis(h.interval());
-
-                                // When the histogram in SQL is applied on DATE type instead of DATETIME, the interval
-                                // specified is truncated to the multiple of a day. If the interval specified is less
-                                // than 1 day, then the interval used will be `INTERVAL '1' DAY`.
-                                if (h.dataType() == DATE) {
-                                    intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
-                                }
-
-                                if (field instanceof FieldAttribute) {
-                                    key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());
-                                } else if (field instanceof Function) {
-                                    key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), intervalAsMillis, h.zoneId());
+                                Object value = h.interval().value();
+                                if (value instanceof IntervalYearMonth
+                                        && ((IntervalYearMonth) value).interval().equals(Period.of(1, 0, 0))) {
+                                    String calendarInterval = Year.YEAR_INTERVAL;
+                                    
+                                    // When the histogram is `INTERVAL '1' YEAR`, the interval used in the ES date_histogram will be
+                                    // a calendar_interval with value "1y". All other intervals will be fixed_intervals expressed in ms.
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, nameOf(field), calendarInterval, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), calendarInterval, h.zoneId());
+                                    }
+                                } else {
+                                    long intervalAsMillis = Intervals.inMillis(h.interval());
+    
+                                    // When the histogram in SQL is applied on DATE type instead of DATETIME, the interval
+                                    // specified is truncated to the multiple of a day. If the interval specified is less
+                                    // than 1 day, then the interval used will be `INTERVAL '1' DAY`.
+                                    if (h.dataType() == DATE) {
+                                        intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
+                                    }
+    
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), intervalAsMillis, h.zoneId());
+                                    }
                                 }
                             }
                             // numeric histogram
@@ -800,9 +823,36 @@ final class QueryTranslator {
                 if (onAggs) {
                     aggFilter = new AggFilter(at.id().toString(), r.asScript());
                 } else {
+                    Holder<Object> lower = new Holder<>(valueOf(r.lower()));
+                    Holder<Object> upper = new Holder<>(valueOf(r.upper()));
+                    Holder<String> format = new Holder<>(dateFormat(r.value()));
+
+                    // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
+                    // no matter the timezone provided by the user
+                    if (format.get() == null) {
+                        DateFormatter formatter = null;
+                        if (lower.get() instanceof ZonedDateTime || upper.get() instanceof ZonedDateTime) {
+                            formatter = DateFormatter.forPattern(DATE_FORMAT);
+                        } else if (lower.get() instanceof OffsetTime || upper.get() instanceof OffsetTime) {
+                            formatter = DateFormatter.forPattern(TIME_FORMAT);
+                        }
+                        if (formatter != null) {
+                            // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime
+                            // instance which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
+                            // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format.
+                            if (lower.get() instanceof ZonedDateTime || lower.get() instanceof OffsetTime) {
+                                lower.set(formatter.format((TemporalAccessor) lower.get()));
+                            }
+                            if (upper.get() instanceof ZonedDateTime || upper.get() instanceof OffsetTime) {
+                                upper.set(formatter.format((TemporalAccessor) upper.get()));
+                            }
+                            format.set(formatter.pattern());
+                        }
+                    }
+                    
                     query = handleQuery(r, r.value(),
-                        () -> new RangeQuery(r.source(), nameOf(r.value()), valueOf(r.lower()), r.includeLower(),
-                            valueOf(r.upper()), r.includeUpper(), dateFormat(r.value())));
+                        () -> new RangeQuery(r.source(), nameOf(r.value()), lower.get(), r.includeLower(),
+                            upper.get(), r.includeUpper(), format.get()));
                 }
                 return new QueryTranslation(query, aggFilter);
             } else {

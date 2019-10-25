@@ -83,7 +83,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final String policyName = "test-policy";
         int docCount = 20;
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", i + "", Collections.singletonMap("foo", "bar"));
+            index(indexName, i + "", Collections.singletonMap("foo", "bar"));
         }
 
         // Create a snapshot repo
@@ -131,7 +131,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final String policyId = "slm-policy";
         int docCount = 20;
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", null, Collections.singletonMap("foo", "bar"));
+            index(indexName, null, Collections.singletonMap("foo", "bar"));
         }
 
         initializeRepo(REPO);
@@ -166,7 +166,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
         logger.info("--> indexing more docs to force new segment files");
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", null, Collections.singletonMap("foo", "bar"));
+            index(indexName, null, Collections.singletonMap("foo", "bar"));
         }
         refresh(indexName);
 

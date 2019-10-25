@@ -196,12 +196,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         for (int i = 0; i < 1 + randomInt(100); i++) {
             for (int id = 0; id < Math.max(value1Docs, value2Docs); id++) {
                 if (id < value1Docs) {
-                    index("test", "type1", "1_" + id,
+                    index("test", "1_" + id,
                         jsonBuilder().startObject().field("field", "value1").startArray("num").value(14).value(179).endArray().endObject()
                     );
                 }
                 if (id < value2Docs) {
-                    index("test", "type1", "2_" + id,
+                    index("test", "2_" + id,
                         jsonBuilder().startObject().field("field", "value2").startArray("num").value(14).endArray().endObject()
                     );
                 }
@@ -545,7 +545,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);
-        index("test", "type", "1");
+        indexDoc("test", "1");
         flush("test");
 
         final boolean corrupt = randomBoolean();

@@ -98,15 +98,18 @@ The following parameters are supported:
 `input`::
     The input to store, this can be an array of strings or just
     a string. This field is mandatory.
++
+NOTE: This value cannot contain the following UTF-16 control characters:
+
+* `\u0000` (null)
+* `\u001f` (information separator one)
+* `\u001e` (information separator two)
+
 
 `weight`::
     A positive integer or a string containing a positive integer,
     which defines a weight and allows you to rank your suggestions.
     This field is optional.
-
-NOTE: The `input` value must not contain any of the three reserved UTF-16
-control characters `Null (\u0000)`, `Information Separator Two (\u001e)` or
-`Information Separator One (\u001f)`
 
 You can index multiple suggestions for a document as follows:
 

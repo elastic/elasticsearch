@@ -35,7 +35,7 @@ import java.util.Objects;
  *
  * Note, {@link #toBytesRef()} will materialize all pages in this BytesReference.
  */
-public final class CompositeBytesReference extends BytesReference {
+public final class CompositeBytesReference extends AbstractBytesReference {
 
     private final BytesReference[] references;
     private final int[] offsets;

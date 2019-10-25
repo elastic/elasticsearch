@@ -602,7 +602,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void waitForYellow(String indexName) throws IOException {
         Request request = new Request("GET", "/_cluster/health/" + indexName);
         request.addParameter("wait_for_status", "yellow");
-        request.addParameter("timeout", "30s");
+        request.addParameter("timeout", "60s");
         request.addParameter("wait_for_no_relocating_shards", "true");
         if (getOldClusterVersion().onOrAfter(Version.V_6_2_0)) {
             request.addParameter("wait_for_no_initializing_shards", "true");

@@ -22,8 +22,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -33,7 +33,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,19 +43,15 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -322,17 +317,33 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.updateRemoteCluster("cluster_1", Collections.singletonList(cluster1Seed.getAddress().toString()), null);
+                    Settings cluster1Settings = createSettings("cluster_1",
+                        Collections.singletonList(cluster1Seed.getAddress().toString()));
+                    PlainActionFuture<Void> clusterAdded = PlainActionFuture.newFuture();
+                    // Add the cluster on a different thread to test that we wait for a new cluster to
+                    // connect before returning.
+                    new Thread(() -> {
+                        try {
+                            service.validateAndUpdateRemoteCluster("cluster_1", cluster1Settings);
+                            clusterAdded.onResponse(null);
+                        } catch (Exception e) {
+                            clusterAdded.onFailure(e);
+                        }
+                    }).start();
+                    clusterAdded.actionGet();
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
-                    service.updateRemoteCluster("cluster_2", Collections.singletonList(cluster2Seed.getAddress().toString()), null);
+                    Settings cluster2Settings = createSettings("cluster_2",
+                        Collections.singletonList(cluster2Seed.getAddress().toString()));
+                    service.validateAndUpdateRemoteCluster("cluster_2", cluster2Settings);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
-                    service.updateRemoteCluster("cluster_2", Collections.emptyList(), null);
+                    Settings cluster2SettingsDisabled = createSettings("cluster_2", Collections.emptyList());
+                    service.validateAndUpdateRemoteCluster("cluster_2", cluster2SettingsDisabled);
                     assertFalse(service.isRemoteClusterRegistered("cluster_2"));
                     IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                        () -> service.updateRemoteCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Collections.emptyList(), null));
+                        () -> service.validateAndUpdateRemoteCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Settings.EMPTY));
                     assertEquals("remote clusters must not have the empty string as its key", iae.getMessage());
                 }
             }
@@ -362,7 +373,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
                     assertTrue(service.isCrossClusterSearchEnabled());
-                    service.updateRemoteCluster("cluster_1", Collections.singletonList(seedNode.getAddress().toString()), null);
+                    service.validateAndUpdateRemoteCluster("cluster_1",
+                        createSettings("cluster_1", Collections.singletonList(seedNode.getAddress().toString())));
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
@@ -434,7 +446,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     boolean compressionEnabled = true;
                     settingsChange.put("cluster.remote.cluster_1.transport.compress", compressionEnabled);
                     settingsChange.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                    service.updateRemoteCluster("cluster_1", settingsChange.build());
+                    service.validateAndUpdateRemoteCluster("cluster_1", settingsChange.build());
                     assertBusy(remoteClusterConnection::isClosed);
 
                     remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
@@ -490,15 +502,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch firstLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_1",
-                            Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString()), null,
-                            genericProfile("cluster_1"), connectionListener(firstLatch));
+                            createSettings("cluster_1", Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
+                            connectionListener(firstLatch));
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_2",
-                            Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString()), null,
-                            genericProfile("cluster_2"), connectionListener(secondLatch));
+                            createSettings("cluster_2", Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
+                            connectionListener(secondLatch));
                     secondLatch.await();
 
                     assertTrue(service.isCrossClusterSearchEnabled());
@@ -555,15 +567,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch firstLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_1",
-                            Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString()), null,
-                            genericProfile("cluster_1"), connectionListener(firstLatch));
+                            createSettings("cluster_1", Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
+                            connectionListener(firstLatch));
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_2",
-                            Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString()), null,
-                            genericProfile("cluster_2"), connectionListener(secondLatch));
+                            createSettings("cluster_2", Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
+                            connectionListener(secondLatch));
                     secondLatch.await();
 
                     assertTrue(service.isCrossClusterSearchEnabled());
@@ -628,15 +640,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch firstLatch = new CountDownLatch(1);
 
                     service.updateRemoteCluster("cluster_1",
-                        Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString()), null,
-                        genericProfile("cluster_1"), connectionListener(firstLatch));
+                        createSettings("cluster_1", Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
+                        connectionListener(firstLatch));
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                         "cluster_2",
-                        Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString()), null,
-                        genericProfile("cluster_2"), connectionListener(secondLatch));
+                        createSettings("cluster_2", Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
+                        connectionListener(secondLatch));
                     secondLatch.await();
                     CountDownLatch latch = new CountDownLatch(1);
                     service.collectNodes(new HashSet<>(Arrays.asList("cluster_1", "cluster_2")),
@@ -771,118 +783,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetNodePredicateNodeRoles() {
-        TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(Settings.EMPTY);
-        {
-            DiscoveryNode all = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
-            assertTrue(nodePredicate.test(all));
-        }
-        {
-            final Set<DiscoveryNodeRole> roles =
-                    Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
-            DiscoveryNode dataMaster = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    roles, Version.CURRENT);
-            assertTrue(nodePredicate.test(dataMaster));
-        }
-        {
-            DiscoveryNode dedicatedMaster = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
-            assertFalse(nodePredicate.test(dedicatedMaster));
-        }
-        {
-            DiscoveryNode dedicatedIngest = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.INGEST_ROLE), Version.CURRENT);
-            assertTrue(nodePredicate.test(dedicatedIngest));
-        }
-        {
-            final Set<DiscoveryNodeRole> roles =
-                    Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
-            DiscoveryNode masterIngest = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    roles, Version.CURRENT);
-            assertTrue(nodePredicate.test(masterIngest));
-        }
-        {
-            DiscoveryNode dedicatedData = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
-            assertTrue(nodePredicate.test(dedicatedData));
-        }
-        {
-            final Set<DiscoveryNodeRole> roles =
-                    Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE)));
-            DiscoveryNode ingestData = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    roles, Version.CURRENT);
-            assertTrue(nodePredicate.test(ingestData));
-        }
-        {
-            DiscoveryNode coordOnly = new DiscoveryNode("id", address, Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
-            assertTrue(nodePredicate.test(coordOnly));
-        }
-    }
-
-    public void testGetNodePredicateNodeVersion() {
-        TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.BUILT_IN_ROLES;
-        Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(Settings.EMPTY);
-        Version version = VersionUtils.randomVersion(random());
-        DiscoveryNode node = new DiscoveryNode("id", address, Collections.emptyMap(), roles, version);
-        assertThat(nodePredicate.test(node), equalTo(Version.CURRENT.isCompatible(version)));
-    }
-
-    public void testGetNodePredicateNodeAttrs() {
-        TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.BUILT_IN_ROLES;
-        Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
-        Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(settings);
-        {
-            DiscoveryNode nonGatewayNode = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "false"),
-                    roles, Version.CURRENT);
-            assertFalse(nodePredicate.test(nonGatewayNode));
-            assertTrue(RemoteClusterService.getNodePredicate(Settings.EMPTY).test(nonGatewayNode));
-        }
-        {
-            DiscoveryNode gatewayNode = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
-                    roles, Version.CURRENT);
-            assertTrue(nodePredicate.test(gatewayNode));
-            assertTrue(RemoteClusterService.getNodePredicate(Settings.EMPTY).test(gatewayNode));
-        }
-        {
-            DiscoveryNode noAttrNode = new DiscoveryNode("id", address, Collections.emptyMap(), roles, Version.CURRENT);
-            assertFalse(nodePredicate.test(noAttrNode));
-            assertTrue(RemoteClusterService.getNodePredicate(Settings.EMPTY).test(noAttrNode));
-        }
-    }
-
-    public void testGetNodePredicatesCombination() {
-        TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
-        Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(settings);
-        Set<DiscoveryNodeRole> allRoles = DiscoveryNodeRole.BUILT_IN_ROLES;
-        Set<DiscoveryNodeRole> dedicatedMasterRoles = Collections.singleton(DiscoveryNodeRole.MASTER_ROLE);
-        {
-            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
-                    dedicatedMasterRoles, Version.CURRENT);
-            assertFalse(nodePredicate.test(node));
-        }
-        {
-            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "false"),
-                    dedicatedMasterRoles, Version.CURRENT);
-            assertFalse(nodePredicate.test(node));
-        }
-        {
-            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "false"),
-                    dedicatedMasterRoles, Version.CURRENT);
-            assertFalse(nodePredicate.test(node));
-        }
-        {
-            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
-                    allRoles, Version.CURRENT);
-            assertTrue(nodePredicate.test(node));
-        }
-    }
-
-    public void testReconnectWhenSeedsNodesAreUpdated() throws Exception {
+    public void testReconnectWhenStrategySettingsUpdated() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService cluster_node_0 = startTransport("cluster_node_0", knownNodes, Version.CURRENT);
              MockTransportService cluster_node_1 = startTransport("cluster_node_1", knownNodes, Version.CURRENT)) {
@@ -914,8 +815,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch firstLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                         "cluster_test",
-                        Collections.singletonList(node0.getAddress().toString()), null,
-                        genericProfile("cluster_test"), connectionListener(firstLatch));
+                        createSettings("cluster_test", Collections.singletonList(node0.getAddress().toString())),
+                        connectionListener(firstLatch));
                     firstLatch.await();
 
                     assertTrue(service.isCrossClusterSearchEnabled());
@@ -935,8 +836,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                         "cluster_test",
-                        newSeeds, null,
-                        genericProfile("cluster_test"), connectionListener(secondLatch));
+                        createSettings("cluster_test", newSeeds),
+                        connectionListener(secondLatch));
                     secondLatch.await();
 
                     assertTrue(service.isCrossClusterSearchEnabled());
@@ -954,78 +855,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(secondRemoteClusterConnection.isClosed());
                 }
             }
-        }
-    }
-
-    public void testRemoteClusterWithProxy() throws Exception {
-        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService cluster_1_node0 = startTransport("cluster_1_node0", knownNodes, Version.CURRENT);
-             MockTransportService cluster_1_node_1 = startTransport("cluster_1_node1", knownNodes, Version.CURRENT);
-             MockTransportService cluster_2_node0 = startTransport("cluster_2_node0", Collections.emptyList(), Version.CURRENT)) {
-            knownNodes.add(cluster_1_node0.getLocalDiscoNode());
-            knownNodes.add(cluster_1_node_1.getLocalDiscoNode());
-            String cluster1Proxy = "1.1.1.1:99";
-            String cluster2Proxy = "2.2.2.2:99";
-            Map<String, DiscoveryNode> nodesCluster1 = new HashMap<>();
-            nodesCluster1.put("cluster_1_node0", cluster_1_node0.getLocalDiscoNode());
-            nodesCluster1.put("cluster_1_node1", cluster_1_node_1.getLocalDiscoNode());
-            Map<String, Map<String, DiscoveryNode>> mapping = new HashMap<>();
-            mapping.put(cluster1Proxy, nodesCluster1);
-            mapping.put(cluster2Proxy, Collections.singletonMap("cluster_2_node0", cluster_2_node0.getLocalDiscoNode()));
-
-            Collections.shuffle(knownNodes, random());
-            Transport proxyTransport = RemoteClusterConnectionTests.getProxyTransport(threadPool, mapping);
-            try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, proxyTransport,
-                Version.CURRENT, threadPool, null, Collections.emptySet());) {
-                transportService.start();
-                transportService.acceptIncomingRequests();
-                Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", "cluster_1_node0:8080");
-                builder.put("cluster.remote.cluster_1.proxy", cluster1Proxy);
-                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
-                    assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
-                    assertTrue(service.isCrossClusterSearchEnabled());
-                    updateRemoteCluster(service, "cluster_1", Collections.singletonList("cluster_1_node1:8081"), cluster1Proxy);
-                    assertTrue(service.isCrossClusterSearchEnabled());
-                    assertTrue(service.isRemoteClusterRegistered("cluster_1"));
-                    assertFalse(service.isRemoteClusterRegistered("cluster_2"));
-                    updateRemoteCluster(service, "cluster_2", Collections.singletonList("cluster_2_node0:9300"), cluster2Proxy);
-                    assertTrue(service.isCrossClusterSearchEnabled());
-                    assertTrue(service.isRemoteClusterRegistered("cluster_1"));
-                    assertTrue(service.isRemoteClusterRegistered("cluster_2"));
-                    List<RemoteConnectionInfo> infos = service.getRemoteConnectionInfos().collect(Collectors.toList());
-                    for (RemoteConnectionInfo info : infos) {
-                        switch (info.clusterAlias) {
-                            case "cluster_1":
-                                assertEquals(2, info.numNodesConnected);
-                                break;
-                            case "cluster_2":
-                                assertEquals(1, info.numNodesConnected);
-                                break;
-                            default:
-                                fail("unknown cluster: " + info.clusterAlias);
-                        }
-                    }
-                    service.updateRemoteCluster("cluster_2", Collections.emptyList(), randomBoolean() ? cluster2Proxy : null);
-                    assertFalse(service.isRemoteClusterRegistered("cluster_2"));
-                }
-            }
-        }
-    }
-
-    private static void updateRemoteCluster(RemoteClusterService service, String clusterAlias, List<String> addresses, String proxyAddress)
-        throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-        ActionListener<Void> listener = ActionListener.wrap(x -> latch.countDown(), x -> {
-            exceptionAtomicReference.set(x);
-            latch.countDown();
-        });
-        service.updateRemoteCluster(clusterAlias, addresses, proxyAddress, genericProfile(clusterAlias), listener);
-        latch.await();
-        if (exceptionAtomicReference.get() != null) {
-            throw exceptionAtomicReference.get();
         }
     }
 
@@ -1065,7 +894,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    private static ConnectionProfile genericProfile(String clusterName) {
-        return RemoteClusterService.buildConnectionProfileFromSettings(Settings.EMPTY, clusterName);
+    private static Settings createSettings(String clusterAlias, List<String> seeds) {
+        Settings.Builder builder = Settings.builder();
+        builder.put(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+            Strings.collectionToCommaDelimitedString(seeds));
+        return builder.build();
     }
 }

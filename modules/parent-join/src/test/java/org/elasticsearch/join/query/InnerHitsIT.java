@@ -514,7 +514,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertAcked(prepareCreate("index2"));
         createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
         createIndexRequest("index1", "child_type", "2", "1").get();
-        client().prepareIndex("index2", "type", "3").setSource("key", "value").get();
+        client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("index1", "index2")

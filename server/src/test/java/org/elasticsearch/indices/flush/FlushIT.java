@@ -294,7 +294,7 @@ public class FlushIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(index, 0);
         final int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            index("test", "doc", Integer.toString(i));
+            indexDoc("test", Integer.toString(i));
         }
         final List<IndexShard> indexShards = internalCluster().nodesInclude("test").stream()
             .map(node -> internalCluster().getInstance(IndicesService.class, node).getShardOrNull(shardId))
@@ -337,7 +337,7 @@ public class FlushIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(index, 0);
         final int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            index("test", "doc", Integer.toString(i));
+            indexDoc("test", Integer.toString(i));
         }
         final ShardsSyncedFlushResult firstSeal = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         assertThat(firstSeal.successfulShards(), equalTo(numberOfReplicas + 1));
@@ -348,7 +348,7 @@ public class FlushIT extends ESIntegTestCase {
         // Shards were updated, renew synced flush.
         final int moreDocs = between(1, 10);
         for (int i = 0; i < moreDocs; i++) {
-            index("test", "doc", "more-" + i);
+            indexDoc("test", "more-" + i);
         }
         final ShardsSyncedFlushResult thirdSeal = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         assertThat(thirdSeal.successfulShards(), equalTo(numberOfReplicas + 1));

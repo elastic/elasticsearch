@@ -91,7 +91,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
         CountDownLatch indexingDone = new CountDownLatch(numDocs);
-        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         indexingDone.countDown(); // one doc is indexed above blocking
         IndexShard shard = indexService.getShard(0);
         boolean hasRefreshed = shard.scheduledRefresh();
@@ -122,7 +122,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         started.await();
         assertThat(count.applyAsLong(totalNumDocs.get()), equalTo(1L));
         for (int i = 1; i < numDocs; i++) {
-            client().prepareIndex("test", "test", "" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+            client().prepareIndex("test").setId("" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
                 .execute(new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
@@ -147,7 +147,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", builder.build());
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
-        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertFalse(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
@@ -155,7 +155,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh()
             .execute(ActionListener.wrap(refreshLatch::countDown));// async on purpose to make sure it happens concurrently
         assertHitCount(client().prepareSearch().get(), 1);
-        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertFalse(shard.scheduledRefresh());
 
         // now disable background refresh and make sure the refresh happens
@@ -171,7 +171,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // We need to ensure a `scheduledRefresh` triggered by the internal refresh setting update is executed before we index a new doc;
         // otherwise, it will compete to call `Engine#maybeRefresh` with the `scheduledRefresh` that we are going to verify.
         ensureNoPendingScheduledRefresh(indexService.getThreadPool());
-        client().prepareIndex("test", "test", "2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertTrue(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
         assertHitCount(client().prepareSearch().get(), 3);

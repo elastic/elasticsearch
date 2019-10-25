@@ -65,9 +65,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
     public void testWhenMetadataAreLoaded() throws Exception {
         createIndex("docs");
         indexRandom(true,
-            client().prepareIndex("docs", "doc", "1").setSource("rank", 1),
-            client().prepareIndex("docs", "doc", "2").setSource("rank", 2),
-            client().prepareIndex("docs", "doc", "3").setSource("rank", 3),
+            client().prepareIndex("docs").setId("1").setSource("rank", 1),
+            client().prepareIndex("docs").setId("2").setSource("rank", 2),
+            client().prepareIndex("docs").setId("3").setSource("rank", 3),
             client().prepareIndex("others").setSource("rank", 4),
             client().prepareIndex("others").setSource("rank", 5));
 

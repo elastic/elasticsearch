@@ -317,7 +317,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     "this shard is not allocated on the most utilized disk and can remain");
         }
         if (freeBytes < 0L) {
-            final long sizeOfRelocatingShards = sizeOfRelocatingShards(node, false, usage.getPath(),
+            final long sizeOfRelocatingShards = sizeOfRelocatingShards(node, true, usage.getPath(),
                 allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
             logger.debug("fewer free bytes remaining than the size of all incoming shards: " +
                     "usage {} on node {} including {} bytes of relocations, shard cannot remain",

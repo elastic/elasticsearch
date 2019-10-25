@@ -3,20 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
+package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
 
 /**
  * Used by ensemble to pass into sub-models.
  */
-class NullInferenceConfig implements InferenceConfig {
+public class NullInferenceConfig implements InferenceConfig {
 
     public static final NullInferenceConfig INSTANCE = new NullInferenceConfig();
 

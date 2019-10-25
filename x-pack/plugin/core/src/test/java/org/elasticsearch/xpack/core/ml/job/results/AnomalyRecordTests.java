@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +31,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecord> {
+
+    private boolean lenient;
+
+    @Before
+    public void setLenient() {
+        lenient = randomBoolean();
+    }
 
     @Override
     protected AnomalyRecord createTestInstance() {
@@ -62,7 +70,15 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
             anomalyRecord.setOverFieldName(randomAlphaOfLength(12));
             anomalyRecord.setOverFieldValue(randomAlphaOfLength(12));
         }
-        anomalyRecord.setFunction(randomAlphaOfLengthBetween(5, 20));
+        if (randomBoolean() && lenient) {
+            anomalyRecord.setFunction(DetectorFunction.LAT_LONG.getFullName());
+            anomalyRecord.setActual(Arrays.asList(randomDoubleBetween(-90.0, 90.0, true),
+                randomDoubleBetween(-90.0, 90.0, true)));
+            anomalyRecord.setTypical(Arrays.asList(randomDoubleBetween(-90.0, 90.0, true),
+                randomDoubleBetween(-90.0, 90.0, true)));
+        } else {
+            anomalyRecord.setFunction(randomAlphaOfLengthBetween(5, 25));
+        }
         anomalyRecord.setFunctionDescription(randomAlphaOfLengthBetween(5, 20));
         if (randomBoolean()) {
             anomalyRecord.setCorrelatedByFieldValue(randomAlphaOfLength(16));
@@ -79,7 +95,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
             int count = randomIntBetween(0, 9);
             List<AnomalyCause>  causes = new ArrayList<>();
             for (int i=0; i<count; i++) {
-                causes.add(new AnomalyCauseTests().createTestInstance());
+                causes.add(new AnomalyCauseTests().createTestInstance(lenient));
             }
             anomalyRecord.setCauses(causes);
         }
@@ -94,7 +110,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
 
     @Override
     protected AnomalyRecord doParseInstance(XContentParser parser) {
-        return AnomalyRecord.STRICT_PARSER.apply(parser, null);
+        return lenient ? AnomalyRecord.LENIENT_PARSER.apply(parser, null) : AnomalyRecord.STRICT_PARSER.apply(parser, null);
     }
 
     @SuppressWarnings("unchecked")
@@ -233,22 +249,24 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false).utf8ToString();
-        assertThat(reference, containsString("\"actual_geo\":\"34.93873,-82.22706\""));
-        assertThat(reference, containsString("\"typical_geo\":\"29.4241,-98.4936\""));
+        assertThat(reference, containsString("\"geo\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
 
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
             false).utf8ToString();
-        assertThat(reference, not(containsString("\"actual_geo\":\"34.93873,-82.22706\"")));
-        assertThat(reference, not(containsString("\"typical_geo\":\"29.4241,-98.4936\"")));
+        assertThat(reference, containsString("\"geo\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
 
         anomalyRecord.setFunction(DetectorFunction.AVG.getFullName());
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
+            false).utf8ToString();
+        assertThat(reference, not(containsString("\"geo\"")));
+
+        reference = XContentHelper.toXContent(anomalyRecord,
+            XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false).utf8ToString();
-        assertThat(reference, not(containsString("\"actual_geo\":\"34.93873,-82.22706\"")));
-        assertThat(reference, not(containsString("\"typical_geo\":\"29.4241,-98.4936\"")));
+        assertThat(reference, not(containsString("\"geo\"")));
     }
 
     public void testActualTypicalCauseValuesGeoSerialization() throws IOException {
@@ -265,21 +283,23 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false).utf8ToString();
-        assertThat(reference, containsString("\"actual_geo\":\"34.93873,-82.22706\""));
-        assertThat(reference, containsString("\"typical_geo\":\"29.4241,-98.4936\""));
+        assertThat(reference, containsString("\"geo\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
 
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
             false).utf8ToString();
-        assertThat(reference, not(containsString("\"actual_geo\":\"34.93873,-82.22706\"")));
-        assertThat(reference, not(containsString("\"typical_geo\":\"29.4241,-98.4936\"")));
+        assertThat(reference, containsString("\"geo\":{\"actual\":\"34.93873,-82.22706\",\"typical\":\"29.4241,-98.4936\"}"));
 
         cause.setFunction(DetectorFunction.AVG.getFullName());
         reference = XContentHelper.toXContent(anomalyRecord,
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false).utf8ToString();
-        assertThat(reference, not(containsString("\"actual_geo\":\"34.93873,-82.22706\"")));
-        assertThat(reference, not(containsString("\"typical_geo\":\"29.4241,-98.4936\"")));
+        assertThat(reference, not(containsString("\"geo\"")));
+
+        reference = XContentHelper.toXContent(anomalyRecord,
+            XContentType.JSON,
+            false).utf8ToString();
+        assertThat(reference, not(containsString("\"geo\"")));
     }
 }

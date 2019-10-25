@@ -9,17 +9,26 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.job.config.DetectorFunction;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause> {
 
-    @Override
-    protected AnomalyCause createTestInstance() {
+    private boolean lenient;
+
+    @Before
+    public void setLenient() {
+        lenient = randomBoolean();
+    }
+
+    protected AnomalyCause createTestInstance(boolean lenient) {
         AnomalyCause anomalyCause = new AnomalyCause();
         if (randomBoolean()) {
             int size = randomInt(10);
@@ -59,7 +68,15 @@ public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause>
             anomalyCause.setPartitionFieldValue(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            anomalyCause.setFunction(randomAlphaOfLengthBetween(1, 20));
+            if (randomBoolean() && lenient) {
+                anomalyCause.setFunction(DetectorFunction.LAT_LONG.getFullName());
+                anomalyCause.setActual(Arrays.asList(randomDoubleBetween(-90.0, 90.0, true),
+                    randomDoubleBetween(-90.0, 90.0, true)));
+                anomalyCause.setTypical(Arrays.asList(randomDoubleBetween(-90.0, 90.0, true),
+                    randomDoubleBetween(-90.0, 90.0, true)));
+            } else {
+                anomalyCause.setFunction(randomAlphaOfLengthBetween(5, 25));
+            }
         }
         if (randomBoolean()) {
             anomalyCause.setFunctionDescription(randomAlphaOfLengthBetween(1, 20));
@@ -87,13 +104,18 @@ public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause>
     }
 
     @Override
+    protected AnomalyCause createTestInstance() {
+        return createTestInstance(lenient);
+    }
+
+    @Override
     protected Reader<AnomalyCause> instanceReader() {
         return AnomalyCause::new;
     }
 
     @Override
     protected AnomalyCause doParseInstance(XContentParser parser) {
-        return AnomalyCause.STRICT_PARSER.apply(parser, null);
+        return lenient ? AnomalyCause.LENIENT_PARSER.apply(parser, null) : AnomalyCause.STRICT_PARSER.apply(parser, null);
     }
 
     public void testStrictParser() throws IOException {

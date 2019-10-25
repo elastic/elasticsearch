@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.DetectorFunction;
-import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,10 +38,9 @@ public class AnomalyCause implements ToXContentObject, Writeable {
     public static final ParseField FUNCTION = new ParseField("function");
     public static final ParseField FUNCTION_DESCRIPTION = new ParseField("function_description");
     public static final ParseField TYPICAL = new ParseField("typical");
-    public static final ParseField TYPICAL_GEO = new ParseField("typical_geo");
     public static final ParseField ACTUAL = new ParseField("actual");
-    public static final ParseField ACTUAL_GEO = new ParseField("actual_geo");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
+    public static final ParseField GEO_FIELDS = new ParseField("geo");
 
     /**
      * Metric Results
@@ -177,25 +175,9 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         }
         if (typical != null) {
             builder.field(TYPICAL.getPreferredName(), typical);
-            if (DetectorFunction.LAT_LONG.getFullName().equals(function) &&
-                params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-                //TODO should we fail if `typical` is not an array of length 2?
-                assert typical.size() == 2 : "lat_lon function typical result has invalid format " + typical;
-                if (typical.size() == 2) {
-                    builder.field(TYPICAL_GEO.getPreferredName(), typical.get(0) + "," + typical.get(1));
-                }
-            }
         }
         if (actual != null) {
             builder.field(ACTUAL.getPreferredName(), actual);
-            if (DetectorFunction.LAT_LONG.getFullName().equals(function) &&
-                params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-                //TODO should we fail if `actual` is not an array of length 2?
-                assert actual.size() == 2 : "lat_lon function actual result has invalid format " + actual;
-                if (actual.size() == 2) {
-                    builder.field(ACTUAL_GEO.getPreferredName(), actual.get(0) + "," + actual.get(1));
-                }
-            }
         }
         if (fieldName != null) {
             builder.field(FIELD_NAME.getPreferredName(), fieldName);
@@ -209,8 +191,24 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         if (influencers != null) {
             builder.field(INFLUENCERS.getPreferredName(), influencers);
         }
+        if (DetectorFunction.LAT_LONG.getFullName().equals(function)) {
+            builder.startObject(GEO_FIELDS.getPreferredName());
+            writeDoublesAsGeoPoint(builder, ACTUAL.getPreferredName(), actual);
+            writeDoublesAsGeoPoint(builder, TYPICAL.getPreferredName(), typical);
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
+    }
+
+    private void writeDoublesAsGeoPoint(XContentBuilder builder, String fieldName, List<Double> doubles) throws IOException {
+        if (doubles != null) {
+            //TODO should we fail if `doubles` is not an array of length 2?
+            assert doubles.size() == 2 : "for lat_lon function [" + fieldName + "] result has invalid format " + doubles;
+            if (doubles.size() == 2) {
+                builder.field(fieldName, doubles.get(0) + "," + doubles.get(1));
+            }
+        }
     }
 
 

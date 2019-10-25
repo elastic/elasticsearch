@@ -163,7 +163,7 @@ public class LocalModelTests extends ESTestCase {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(Arrays.asList(0.7, 0.5, 1.0)))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}))
             .build();
     }
 
@@ -208,7 +208,7 @@ public class LocalModelTests extends ESTestCase {
             .setTargetType(TargetType.REGRESSION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedSum(Arrays.asList(0.5, 0.5, 0.5)))
+            .setOutputAggregator(new WeightedSum(new double[]{0.5, 0.5, 0.5}))
             .build();
     }
 

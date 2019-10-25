@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,14 +18,15 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class TreeNode implements ToXContentObject, Writeable {
 
+public class TreeNode implements ToXContentObject, Writeable, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TreeNode.class);
     public static final String NAME = "tree_node";
 
     public static final ParseField DECISION_TYPE = new ParseField("decision_type");
@@ -63,31 +67,31 @@ public class TreeNode implements ToXContentObject, Writeable {
     }
 
     private final Operator operator;
-    private final Double threshold;
-    private final Integer splitFeature;
+    private final double threshold;
+    private final int splitFeature;
     private final int nodeIndex;
-    private final Double splitGain;
-    private final Double leafValue;
+    private final double splitGain;
+    private final double leafValue;
     private final boolean defaultLeft;
     private final int leftChild;
     private final int rightChild;
 
 
-    TreeNode(Operator operator,
-             Double threshold,
-             Integer splitFeature,
-             Integer nodeIndex,
-             Double splitGain,
-             Double leafValue,
-             Boolean defaultLeft,
-             Integer leftChild,
-             Integer rightChild) {
+    private TreeNode(Operator operator,
+                     Double threshold,
+                     Integer splitFeature,
+                     int nodeIndex,
+                     Double splitGain,
+                     Double leafValue,
+                     Boolean defaultLeft,
+                     Integer leftChild,
+                     Integer rightChild) {
         this.operator = operator == null ? Operator.LTE : operator;
-        this.threshold  = threshold;
-        this.splitFeature = splitFeature;
-        this.nodeIndex = ExceptionsHelper.requireNonNull(nodeIndex, NODE_INDEX.getPreferredName());
-        this.splitGain  = splitGain;
-        this.leafValue = leafValue;
+        this.threshold  = threshold == null ? Double.NaN : threshold;
+        this.splitFeature = splitFeature == null ? -1 : splitFeature;
+        this.nodeIndex = nodeIndex;
+        this.splitGain  = splitGain == null ? Double.NaN : splitGain;
+        this.leafValue = leafValue == null ? Double.NaN : leafValue;
         this.defaultLeft = defaultLeft == null ? false : defaultLeft;
         this.leftChild  = leftChild == null ? -1 : leftChild;
         this.rightChild = rightChild == null ? -1 : rightChild;
@@ -95,11 +99,11 @@ public class TreeNode implements ToXContentObject, Writeable {
 
     public TreeNode(StreamInput in) throws IOException {
         operator = Operator.readFromStream(in);
-        threshold = in.readOptionalDouble();
-        splitFeature = in.readOptionalInt();
-        splitGain = in.readOptionalDouble();
-        nodeIndex = in.readInt();
-        leafValue = in.readOptionalDouble();
+        threshold = in.readDouble();
+        splitFeature = in.readInt();
+        splitGain = in.readDouble();
+        nodeIndex = in.readVInt();
+        leafValue = in.readDouble();
         defaultLeft = in.readBoolean();
         leftChild = in.readInt();
         rightChild = in.readInt();
@@ -110,23 +114,23 @@ public class TreeNode implements ToXContentObject, Writeable {
         return operator;
     }
 
-    public Double getThreshold() {
+    public double getThreshold() {
         return threshold;
     }
 
-    public Integer getSplitFeature() {
+    public int getSplitFeature() {
         return splitFeature;
     }
 
-    public Integer getNodeIndex() {
+    public int getNodeIndex() {
         return nodeIndex;
     }
 
-    public Double getSplitGain() {
+    public double getSplitGain() {
         return splitGain;
     }
 
-    public Double getLeafValue() {
+    public double getLeafValue() {
         return leafValue;
     }
 
@@ -164,11 +168,11 @@ public class TreeNode implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         operator.writeTo(out);
-        out.writeOptionalDouble(threshold);
-        out.writeOptionalInt(splitFeature);
-        out.writeOptionalDouble(splitGain);
-        out.writeInt(nodeIndex);
-        out.writeOptionalDouble(leafValue);
+        out.writeDouble(threshold);
+        out.writeInt(splitFeature);
+        out.writeDouble(splitGain);
+        out.writeVInt(nodeIndex);
+        out.writeDouble(leafValue);
         out.writeBoolean(defaultLeft);
         out.writeInt(leftChild);
         out.writeInt(rightChild);
@@ -177,12 +181,14 @@ public class TreeNode implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        addOptionalField(builder, DECISION_TYPE, operator);
-        addOptionalField(builder, THRESHOLD, threshold);
-        addOptionalField(builder, SPLIT_FEATURE, splitFeature);
-        addOptionalField(builder, SPLIT_GAIN, splitGain);
+        builder.field(DECISION_TYPE.getPreferredName(), operator);
+        addOptionalDouble(builder, THRESHOLD, threshold);
+        if (splitFeature > -1) {
+            builder.field(SPLIT_FEATURE.getPreferredName(), splitFeature);
+        }
+        addOptionalDouble(builder, SPLIT_GAIN, splitGain);
         builder.field(NODE_INDEX.getPreferredName(), nodeIndex);
-        addOptionalField(builder, LEAF_VALUE, leafValue);
+        addOptionalDouble(builder, LEAF_VALUE, leafValue);
         builder.field(DEFAULT_LEFT.getPreferredName(), defaultLeft);
         if (leftChild >= 0) {
             builder.field(LEFT_CHILD.getPreferredName(), leftChild);
@@ -194,8 +200,8 @@ public class TreeNode implements ToXContentObject, Writeable {
         return builder;
     }
 
-    private void addOptionalField(XContentBuilder builder, ParseField field, Object value) throws IOException {
-        if (value != null) {
+    private void addOptionalDouble(XContentBuilder builder, ParseField field, double value) throws IOException {
+        if (Numbers.isValidDouble(value)) {
             builder.field(field.getPreferredName(), value);
         }
     }
@@ -237,7 +243,12 @@ public class TreeNode implements ToXContentObject, Writeable {
     public static Builder builder(int nodeIndex) {
         return new Builder(nodeIndex);
     }
-    
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE;
+    }
+
     public static class Builder {
         private Operator operator;
         private Double threshold;

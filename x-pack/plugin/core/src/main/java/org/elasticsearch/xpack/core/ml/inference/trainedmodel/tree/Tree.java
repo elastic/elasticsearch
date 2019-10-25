@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -41,8 +45,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 
-public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
+public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel, Accountable {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Tree.class);
     // TODO should we have regression/classification sub-classes that accept the builder?
     public static final ParseField NAME = new ParseField("tree");
 
@@ -315,6 +320,24 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return targetType == TargetType.CLASSIFICATION ?
             this.nodes.stream().filter(TreeNode::isLeaf).mapToDouble(TreeNode::getLeafValue).max().getAsDouble() :
             null;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOfCollection(classificationLabels);
+        size += RamUsageEstimator.sizeOfCollection(featureNames);
+        size += RamUsageEstimator.sizeOfCollection(nodes);
+        return size;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> accountables = new ArrayList<>(nodes.size());
+        for (TreeNode node : nodes) {
+            accountables.add(Accountables.namedAccountable("tree_node_" + node.getNodeIndex(), node));
+        }
+        return Collections.unmodifiableCollection(accountables);
     }
 
     public static class Builder {

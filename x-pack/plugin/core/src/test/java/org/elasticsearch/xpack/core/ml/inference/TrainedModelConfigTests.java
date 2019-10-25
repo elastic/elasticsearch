@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -28,6 +29,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
@@ -86,6 +88,16 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return lenient ? ToXContent.EMPTY_PARAMS : new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true"));
+    }
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
     }
 
     public void testValidateWithNullDefinition() {

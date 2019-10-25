@@ -108,6 +108,19 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         return Tree::new;
     }
 
+    public void testInferWithStump() {
+        Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
+        builder.setRoot(TreeNode.builder(0).setLeafValue(42.0));
+        builder.setFeatureNames(Collections.emptyList());
+
+        Tree tree = builder.build();
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        List<Double> featureVector = Arrays.asList(0.6, 0.0);
+        Map<String, Object> featureMap = zipObjMap(featureNames, featureVector); // does not really matter as this is a stump
+        assertThat(42.0,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+    }
+
     public void testInfer() {
         // Build a tree with 2 nodes and 3 leaves using 2 features
         // The leaves have unique values 0.1, 0.2, 0.3

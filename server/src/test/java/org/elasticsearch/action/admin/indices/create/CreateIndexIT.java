@@ -246,7 +246,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
+            client().prepareIndex("test").setSource("index_version", indexVersion.get()).get();
         }
         synchronized (indexVersionLock) { // not necessarily needed here but for completeness we lock here too
             indexVersion.incrementAndGet();
@@ -259,7 +259,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                     public void run() {
                          try {
                              // recreate that index
-                             client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
+                             client().prepareIndex("test").setSource("index_version", indexVersion.get()).get();
                              synchronized (indexVersionLock) {
                                  // we sync here since we have to ensure that all indexing operations below for a given ID are done before
                                  // we increment the index version otherwise a doc that is in-flight could make it into an index that it
@@ -286,7 +286,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 synchronized (indexVersionLock) {
-                    client().prepareIndex("test", "test").setSource("index_version", indexVersion.get())
+                    client().prepareIndex("test").setSource("index_version", indexVersion.get())
                         .setTimeout(TimeValue.timeValueSeconds(10)).get();
                 }
             } catch (IndexNotFoundException inf) {

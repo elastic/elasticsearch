@@ -104,4 +104,4 @@ ${error.file}
 -Xlog:gc*,gc+age=trace,safepoint:file=${loggc}:utctime,pid,tags:filecount=32,filesize=64m
 # due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise
 # time/date parsing will break in an incompatible way for some date patterns and locals
--Djava.locale.providers=COMPAT
+-Djava.locale.providers=SPI,COMPAT

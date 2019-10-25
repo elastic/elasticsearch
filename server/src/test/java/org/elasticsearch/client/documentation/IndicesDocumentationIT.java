@@ -22,12 +22,10 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * This class is used to generate the Java indices administration documentation.
@@ -60,8 +58,6 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
         // end::index-with-mapping
         GetMappingsResponse getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
-        ImmutableOpenMap<String, MappingMetaData> indexMapping = getMappingsResponse.getMappings().get("twitter");
-        assertThat(indexMapping.get("_doc"), instanceOf(MappingMetaData.class));
 
         // we need to delete in order to create a fresh new index with another type
         client.admin().indices().prepareDelete("twitter").get();
@@ -95,9 +91,9 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
         // end::putMapping-request-source
         getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
-        indexMapping = getMappingsResponse.getMappings().get("twitter");
+        MappingMetaData indexMapping = getMappingsResponse.getMappings().get("twitter");
         assertEquals(singletonMap("properties", singletonMap("name", singletonMap("type", "text"))),
-                indexMapping.get("_doc").getSourceAsMap());
+                indexMapping.getSourceAsMap());
     }
 
 }

@@ -1579,21 +1579,21 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()));
 
         indexRandom(true,
-            client().prepareIndex("test", "type1", "1").setSource("date_field", "Mi., 06 Dez. 2000 02:55:00 -0800"),
-            client().prepareIndex("test", "type1", "2").setSource("date_field", "Do., 07 Dez. 2000 02:55:00 -0800")
+            client().prepareIndex("test", "type1", "1").setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800"),
+            client().prepareIndex("test", "type1", "2").setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800")
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.rangeQuery("date_field")
-                .gte("Di., 05 Dez. 2000 02:55:00 -0800")
-                .lte("Do., 07 Dez. 2000 00:00:00 -0800"))
+                .gte("Di, 05 Dez 2000 02:55:00 -0800")
+                .lte("Do, 07 Dez 2000 00:00:00 -0800"))
             .get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.rangeQuery("date_field")
-                .gte("Di., 05 Dez. 2000 02:55:00 -0800")
-                .lte("Fr., 08 Dez. 2000 00:00:00 -0800"))
+                .gte("Di, 05 Dez 2000 02:55:00 -0800")
+                .lte("Fr, 08 Dez 2000 00:00:00 -0800"))
             .get();
         assertHitCount(searchResponse, 2L);
     }
@@ -1753,7 +1753,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mapping));
 
-        IndexRequestBuilder indexRequest = client().prepareIndex("test", "type")
+        IndexRequestBuilder indexRequest = client().prepareIndex("test")
             .setId("1")
             .setRouting("custom")
             .setSource("field", "value");

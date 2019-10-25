@@ -37,14 +37,28 @@ suitable for writing beats output to {es}.
 
 --
 
+[[built-in-roles-transform-admin]] `transform_admin` :: 
+Grants `manage_transform` cluster privileges, which enable you to manage 
+{transforms}. This role also includes all 
+{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+
+[[built-in-roles-transform-user]] `transform_user` ::
+Grants `monitor_transform` cluster privileges, which enable you to use 
+{transforms}. This role also includes all
+{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+
 [[built-in-roles-data-frame-transforms-admin]] `data_frame_transforms_admin` ::
-Grants `manage_data_frame_transforms` cluster privileges, which enable you to
-manage {transforms}. This role also includes all
+(This role is deprecated, please use the 
+<<built-in-roles-transform-admin,`transform_admin`>> role instead.) Grants 
+`manage_data_frame_transforms` cluster privileges, which enable you to manage 
+{transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-data-frame-transforms-user]] `data_frame_transforms_user` ::
-Grants `monitor_data_fram_transforms` cluster privileges, which enable you to
-use {transforms}. This role also includes all
+(This role is deprecated, please use the 
+<<built-in-roles-transform-user,`transform_user`>> role instead.) Grants 
+`monitor_data_frame_transforms` cluster privileges, which enable you to use 
+{transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-enrich-user]] `enrich_user` ::

@@ -143,7 +143,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
 
     public void testMaxDirectMemorySizeChoiceWhenSet() throws InterruptedException, IOException {
         assertThat(
-                JvmErgonomics.choose(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:MaxDirectMemorySize=1g")),
+                JvmErgonomics.choose(Arrays.asList("-Xms5g", "-Xmx5g", "-XX:MaxDirectMemorySize=4g")),
                 everyItem(not(startsWith("-XX:MaxDirectMemorySize="))));
     }
 

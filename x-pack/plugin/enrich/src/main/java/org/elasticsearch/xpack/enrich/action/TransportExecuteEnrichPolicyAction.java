@@ -62,6 +62,12 @@ public class TransportExecuteEnrichPolicyAction
     @Override
     protected void masterOperation(Task task, ExecuteEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<ExecuteEnrichPolicyAction.Response> listener) {
+        if (state.getNodes().getIngestNodes().isEmpty()) {
+            // if we don't fail here then reindex will fail with a more complicated error.
+            // (EnrichPolicyRunner uses a pipeline with reindex)
+            throw new IllegalStateException("no ingest nodes in this cluster");
+        }
+
         if (request.isWaitForCompletion()) {
             executor.runPolicy(request, new ActionListener<>() {
                 @Override

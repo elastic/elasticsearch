@@ -1021,7 +1021,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         final int numDocs = scaledRandomIntBetween(5, 52);
         for (int i = 1; i <= numDocs; i++) {
-            client().prepareIndex("my-index", "my-type").setSource("timestamp", "2016-12-12").get();
+            client().prepareIndex("my-index").setSource("timestamp", "2016-12-12").get();
             if (i % 2 == 0) {
                 refresh();
                 SearchResponse response = client().prepareSearch("filter1").get();

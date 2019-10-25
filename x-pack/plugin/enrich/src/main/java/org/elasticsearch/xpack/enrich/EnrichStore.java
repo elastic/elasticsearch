@@ -8,17 +8,23 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -37,7 +43,11 @@ public final class EnrichStore {
      * @param policy    The policy to store
      * @param handler   The handler that gets invoked if policy has been stored or a failure has occurred.
      */
-    public static void putPolicy(String name, EnrichPolicy policy, ClusterService clusterService, Consumer<Exception> handler) {
+    public static void putPolicy(final String name,
+                                 final EnrichPolicy policy,
+                                 final ClusterService clusterService,
+                                 final IndexNameExpressionResolver indexNameExpressionResolver,
+                                 final Consumer<Exception> handler) {
         assert clusterService.localNode().isMasterNode();
 
         if (Strings.isNullOrEmpty(name)) {
@@ -53,7 +63,11 @@ public final class EnrichStore {
         if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
             throw new IllegalArgumentException("Invalid policy name [" + name + "], must be lowercase");
         }
-        // TODO: add policy validation
+        Set<String> supportedPolicyTypes = Set.of(EnrichPolicy.SUPPORTED_POLICY_TYPES);
+        if (supportedPolicyTypes.contains(policy.getType()) == false) {
+            throw new IllegalArgumentException("unsupported policy type [" + policy.getType() +
+                "], supported types are " + Arrays.toString(EnrichPolicy.SUPPORTED_POLICY_TYPES));
+        }
 
         final EnrichPolicy finalPolicy;
         if (policy.getElasticsearchVersion() == null) {
@@ -69,6 +83,22 @@ public final class EnrichStore {
             finalPolicy = policy;
         }
         updateClusterState(clusterService, handler, current -> {
+            for (String indexExpression : finalPolicy.getIndices()) {
+                // indices field in policy can contain wildcards, aliases etc.
+                String[] concreteIndices =
+                    indexNameExpressionResolver.concreteIndexNames(current, IndicesOptions.strictExpandOpen(), indexExpression);
+                for (String concreteIndex : concreteIndices) {
+                    IndexMetaData imd = current.getMetaData().index(concreteIndex);
+                    assert imd != null;
+                    MappingMetaData mapping = imd.mapping();
+                    if (mapping == null) {
+                        throw new IllegalArgumentException("source index [" + concreteIndex + "] has no mapping");
+                    }
+                    Map<String, Object> mappingSource = mapping.getSourceAsMap();
+                    EnrichPolicyRunner.validateMappings(name, finalPolicy, concreteIndex, mappingSource);
+                }
+            }
+
             final Map<String, EnrichPolicy> policies = getPolicies(current);
             if (policies.get(name) != null) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);

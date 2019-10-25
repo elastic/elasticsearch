@@ -180,7 +180,7 @@ public class AllocationIdIT extends ESIntegTestCase {
             final int numExtraDocs = between(10, 100);
             IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
             for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName, "type").setSource(source);
+                builders[i] = client().prepareIndex(indexName).setSource(source);
             }
 
             indexRandom(true, false, true, Arrays.asList(builders));

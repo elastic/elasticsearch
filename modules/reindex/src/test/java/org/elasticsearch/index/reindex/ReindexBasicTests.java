@@ -41,10 +41,10 @@ public class ReindexBasicTests extends ReindexRunAsJobAndTaskTestCase {
     }
 
     public void testFiltering() throws Exception {
-        indexRandom(true, client().prepareIndex("source", "test", "1").setSource("foo", "a"),
-                client().prepareIndex("source", "test", "2").setSource("foo", "a"),
-                client().prepareIndex("source", "test", "3").setSource("foo", "b"),
-                client().prepareIndex("source", "test", "4").setSource("foo", "c"));
+        indexRandom(true, client().prepareIndex("source").setId("1").setSource("foo", "a"),
+                client().prepareIndex("source").setId("2").setSource("foo", "a"),
+                client().prepareIndex("source").setId("3").setSource("foo", "b"),
+                client().prepareIndex("source").setId("4").setSource("foo", "c"));
         assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
 
         // Copy all the docs
@@ -73,7 +73,7 @@ public class ReindexBasicTests extends ReindexRunAsJobAndTaskTestCase {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);
         for (int i = 0; i < max; i++) {
-            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("foo", "a"));
+            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
         indexRandom(true, docs);
@@ -133,7 +133,7 @@ public class ReindexBasicTests extends ReindexRunAsJobAndTaskTestCase {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);
         for (int i = 0; i < max; i++) {
-            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("foo", "a"));
+            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
         indexRandom(true, docs);
@@ -170,7 +170,7 @@ public class ReindexBasicTests extends ReindexRunAsJobAndTaskTestCase {
             docs.put(indexName, new ArrayList<>());
             int numDocs = between(50, 200);
             for (int i = 0; i < numDocs; i++) {
-                docs.get(indexName).add(client().prepareIndex(indexName, typeName, "id_" + sourceIndex + "_" + i).setSource("foo", "a"));
+                docs.get(indexName).add(client().prepareIndex(indexName).setId("id_" + sourceIndex + "_" + i).setSource("foo", "a"));
             }
         }
 

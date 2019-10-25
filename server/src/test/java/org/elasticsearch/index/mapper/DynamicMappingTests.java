@@ -741,7 +741,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject().endObject();
         IndexService index = createIndex("test", Settings.EMPTY, "type", mapping);
-        client().prepareIndex("test", "type", "1").setSource("foo", "abc").get();
+        client().prepareIndex("test").setId("1").setSource("foo", "abc").get();
         assertThat(index.mapperService().fullName("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
@@ -749,7 +749,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
-        client().prepareIndex("test", "type", "1").setSource("field", "text").get();
+        client().prepareIndex("test").setId("1").setSource("field", "text").get();
         assertThat(clusterService.state().metaData().index("test").getMappingVersion(), equalTo(1 + previousVersion));
     }
 

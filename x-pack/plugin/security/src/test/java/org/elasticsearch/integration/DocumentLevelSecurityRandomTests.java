@@ -98,7 +98,7 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
         IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
         for (int i = 1; i <= numberOfRoles; i++) {
             String value = "value" + i;
-            requests.add(client().prepareIndex("test", "type1", value).setSource("field1", value));
+            requests.add(client().prepareIndex("test").setId(value).setSource("field1", value));
             builder.addAlias("test", "alias" + i, QueryBuilders.termQuery("field1", value));
         }
         indexRandom(true, requests);

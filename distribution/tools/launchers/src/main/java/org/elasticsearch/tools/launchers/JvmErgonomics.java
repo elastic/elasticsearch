@@ -60,6 +60,11 @@ final class JvmErgonomics {
         final long heapSize = extractHeapSize(finalJvmOptions);
         final Map<String, String> systemProperties = extractSystemProperties(userDefinedJvmOptions);
         if (systemProperties.containsKey("io.netty.allocator.type") == false) {
+            if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
+                Launchers.errPrintln("Warning: with JDK 8 on Windows, Elasticsearch may set io.netty.allocator.type");
+                Launchers.errPrintln("  incorrectly due to a JDK issue (JDK-8074459).");
+                Launchers.errPrintln("  Please use a newer version of Java or set io.netty.allocator.type explicitly");
+            }
             if (heapSize <= 1 << 30) {
                 ergonomicChoices.add("-Dio.netty.allocator.type=unpooled");
             } else {

@@ -40,7 +40,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
     public static final ParseField TYPICAL = new ParseField("typical");
     public static final ParseField ACTUAL = new ParseField("actual");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
-    public static final ParseField GEO_FIELDS = new ParseField("geo_results");
+    public static final ParseField GEO_RESULTS = new ParseField("geo_results");
 
     /**
      * Metric Results
@@ -192,7 +192,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
             builder.field(INFLUENCERS.getPreferredName(), influencers);
         }
         if (DetectorFunction.LAT_LONG.getFullName().equals(function)) {
-            builder.startObject(GEO_FIELDS.getPreferredName());
+            builder.startObject(GEO_RESULTS.getPreferredName());
             writeDoublesAsGeoPoint(builder, ACTUAL.getPreferredName(), actual);
             writeDoublesAsGeoPoint(builder, TYPICAL.getPreferredName(), typical);
             builder.endObject();

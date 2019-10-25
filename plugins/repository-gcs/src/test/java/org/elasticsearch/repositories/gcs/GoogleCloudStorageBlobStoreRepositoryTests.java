@@ -176,7 +176,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     StorageOptions options = super.createStorageOptions(clientSettings, httpTransportOptions);
                     return options.toBuilder()
                         .setRetrySettings(RetrySettings.newBuilder()
-                            .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
+                            .setTotalTimeout(Duration.ofSeconds(120L))
                             .setInitialRetryDelay(Duration.ofMillis(10L))
                             .setRetryDelayMultiplier(options.getRetrySettings().getRetryDelayMultiplier())
                             .setMaxRetryDelay(Duration.ofSeconds(1L))

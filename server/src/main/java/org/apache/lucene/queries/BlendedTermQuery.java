@@ -57,7 +57,6 @@ import java.util.Objects;
  * which is the minimum number of documents the terms occurs in.
  * </p>
  */
-// TODO maybe contribute to Lucene
 public abstract class BlendedTermQuery extends Query {
 
     private final Term[] terms;

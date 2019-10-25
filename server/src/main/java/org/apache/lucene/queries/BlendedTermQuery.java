@@ -271,7 +271,7 @@ public abstract class BlendedTermQuery extends Query {
             }
 
             TermAndBoost that = (TermAndBoost) o;
-            return term.equals(that.term) && boost == that.boost;
+            return term.equals(that.term) && (Float.compare(boost, that.boost) == 0);
         }
 
         @Override

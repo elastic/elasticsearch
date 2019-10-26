@@ -133,7 +133,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test")
             .addMapping("type", mappings));
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("text", "foo").endObject())
             .get();
         refresh();
@@ -158,7 +158,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test")
                 .addMapping("type", mappings));
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("text", "text").endObject())
                 .get();
         refresh();
@@ -188,7 +188,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1").setSource("text", "foo").get();
+        client().prepareIndex("test").setId("1").setSource("text", "foo").get();
         refresh();
 
         for (String type : ALL_TYPES) {
@@ -223,7 +223,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1").setSource("text", "foo bar").get();
+        client().prepareIndex("test").setId("1").setSource("text", "foo bar").get();
         refresh();
 
         for (String type : ALL_TYPES) {
@@ -255,7 +255,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1").setSource("keyword", "foo").get();
+        client().prepareIndex("test").setId("1").setSource("keyword", "foo").get();
         refresh();
 
         HighlightBuilder builder = new HighlightBuilder()
@@ -293,7 +293,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test")
                 .addMapping("type", mappings));
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("unstored_text", "text").field("text", "text").endObject())
                 .get();
         refresh();
@@ -316,7 +316,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (int i = 0; i < 6000; i++) {
             builder.append("abc").append(" ");
         }
-        client().prepareIndex("test", "test", "1")
+        client().prepareIndex("test").setId("1")
             .setSource("name", builder.toString())
             .get();
         refresh();
@@ -331,7 +331,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         "no_long_term", "type=text,term_vector=with_positions_offsets",
                         "long_term", "type=text,term_vector=with_positions_offsets"));
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource("no_long_term", "This is a test where foo is highlighed and should be highlighted",
                         "long_term", "This is a test thisisaverylongwordandmakessurethisfails where foo is highlighed "
                             + "and should be highlighted")
@@ -376,7 +376,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
                             .field("title", "This is a test on the highlighting bug present in elasticsearch")
                             .startArray("attachments")
@@ -429,7 +429,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
                             .field("title", "This is a test on the highlighting bug present in elasticsearch")
                             .startArray("attachments")
@@ -481,7 +481,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
                             .array("title", "This is a test on the highlighting bug present in elasticsearch. Hopefully it works.",
                                     "This is the second bug to perform highlighting on.")
@@ -533,9 +533,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         "titleTV", "type=text,store=false,term_vector=with_positions_offsets"));
 
         String[] titles = new String[] {"This is a test on the highlighting bug present in elasticsearch", "The bug is bugging us"};
-        indexRandom(false, client().prepareIndex("test", "type1", "1").setSource("title", titles, "titleTV", titles));
+        indexRandom(false, client().prepareIndex("test").setId("1").setSource("title", titles, "titleTV", titles));
 
-        indexRandom(true, client().prepareIndex("test", "type1", "2")
+        indexRandom(true, client().prepareIndex("test").setId("2")
                 .setSource("titleTV", new String[]{"some text to highlight", "highlight other text"}));
 
         SearchResponse search = client().prepareSearch()
@@ -906,12 +906,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()));
         ensureGreen();
 
-        index("test", "type1", "1",
+        indexDoc("test", "1",
                 "foo", "running with scissors");
-        index("test", "type1", "2",
+        indexDoc("test", "2",
                 "foo", "cat cat junk junk junk junk junk junk junk cats junk junk",
                 "bar", "cat cat junk junk junk junk junk junk junk cats junk junk");
-        index("test", "type1", "3",
+        indexDoc("test", "3",
                 "foo", "weird",
                 "bar", "result");
         refresh();
@@ -1035,7 +1035,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         int COUNT = between(20, 100);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[COUNT];
         for (int i = 0; i < COUNT; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "test " + i);
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i)).setSource("field1", "test " + i);
         }
         logger.info("--> indexing docs");
         indexRandom(true, indexRequestBuilders);
@@ -1068,7 +1068,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("title", "This is a test on the highlighting bug present in elasticsearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1090,7 +1090,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("title", "This is a test on the highlighting bug present in elasticsearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1112,7 +1112,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("title", "This is a html escaping highlighting test for *&? elasticsearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1134,7 +1134,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("title", "This is a html escaping highlighting test for *&? elasticsearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1167,7 +1167,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                             .endObject()
                         .endObject().endObject().endObject().endObject()));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -1206,7 +1206,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .endObject().endObject().endObject().endObject()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -1246,7 +1246,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .endObject().endObject().endObject()));
 
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
 
@@ -1286,7 +1286,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                             .endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -1313,7 +1313,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("title", "This is a test for the enabling fast vector highlighter");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1344,7 +1344,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("title", "This is a test for the workaround for the fast vector highlighting SOLR-3724");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1388,7 +1388,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "tags", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource("tags", new String[] {
                         "this is a really long tag i would like to highlight",
                         "here is another one that is very long and has the tag token near the end"}).get();
@@ -1442,7 +1442,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "tags", "type=text"));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().array("tags",
                         "this is a really long tag i would like to highlight",
                         "here is another one that is very long tag and has the tag token near the end").endObject()).get();
@@ -1483,7 +1483,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        index("test", "type1", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
+        indexDoc("test", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -1503,7 +1503,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 "field2", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
 
-        index("test", "type1", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
+        indexDoc("test", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -1521,7 +1521,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "highlight_field", "type=text,store=true"));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject()
                         .field("field", "highlight")
                         .endObject()).get();
@@ -1549,7 +1549,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         "double", "type=double"));
         ensureGreen();
 
-        client().prepareIndex("test", "test", "1").setSource("text", "elasticsearch test",
+        client().prepareIndex("test").setId("1").setSource("text", "elasticsearch test",
                 "byte", 25, "short", 42, "int", 100, "long", -1, "float", 3.2f, "double", 42.42).get();
         refresh();
 
@@ -1573,7 +1573,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .build())
                 .addMapping("type", "text", "type=text,analyzer=my_analyzer"));
         ensureGreen();
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource("text", "elasticsearch test").get();
         refresh();
 
@@ -1589,7 +1589,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 "type=text," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"));
         ensureGreen();
 
-        index("test", "type1", "1", "text", "Testing the highlight query feature");
+        indexDoc("test", "1", "text", "Testing the highlight query feature");
         refresh();
 
         for (String type : ALL_TYPES) {
@@ -1631,7 +1631,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ensureGreen();
 
         String text = "I am pretty long so some of me should get cut off. Second sentence";
-        index("test", "type1", "1", "text", text);
+        indexDoc("test", "1", "text", text);
         refresh();
 
         // When you don't set noMatchSize you don't get any results if there isn't anything to highlight.
@@ -1741,7 +1741,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         String text1 = "I am pretty long so some of me should get cut off. We'll see how that goes.";
         String text2 = "I am short";
-        index("test", "type1", "1", "text", new String[] {text1, text2});
+        indexDoc("test", "1", "text", new String[] {text1, text2});
         refresh();
 
         // The no match fragment should come from the first value of a multi-valued field
@@ -1762,7 +1762,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some"));
 
         // And noMatchSize returns nothing when the first entry is empty string!
-        index("test", "type1", "2", "text", new String[] {"", text2});
+        indexDoc("test", "2", "text", new String[] {"", text2});
         refresh();
 
         IdsQueryBuilder idsQueryBuilder = QueryBuilders.idsQuery().addIds("2");
@@ -1786,7 +1786,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am short"));
 
         // But if the field was actually empty then you should get no highlighting field
-        index("test", "type1", "3", "text", new String[] {});
+        indexDoc("test", "3", "text", new String[] {});
         refresh();
         idsQueryBuilder = QueryBuilders.idsQuery().addIds("3");
         field.highlighterType("plain");
@@ -1808,7 +1808,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertNotHighlighted(response, 0, "text");
 
         // Same for if the field doesn't even exist on the document
-        index("test", "type1", "4");
+        indexDoc("test", "4");
         refresh();
 
         idsQueryBuilder = QueryBuilders.idsQuery().addIds("4");
@@ -1854,7 +1854,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         String text1 = "This is the first sentence. This is the second sentence." + HighlightUtils.PARAGRAPH_SEPARATOR;
         String text2 = "This is the third sentence. This is the fourth sentence.";
         String text3 = "This is the fifth sentence";
-        index("test", "type1", "1", "text", new String[] {text1, text2, text3});
+        indexDoc("test", "1", "text", new String[] {text1, text2, text3});
         refresh();
 
         // The no match fragment should come from the first value of a multi-valued field
@@ -1964,7 +1964,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()).get());
         ensureGreen();
 
-        index("test", "type1", "1",
+        indexDoc("test", "1",
                 "field1", "The <b>quick<b> brown fox. Second sentence.",
                 "field2", "The <b>slow<b> brown fox. Second sentence.");
         refresh();
@@ -1983,7 +1983,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(
+        client().prepareIndex("test").setId("1").setSource(
                 "field1", "The quick brown fox jumps over the lazy dog. The lazy red fox jumps over the quick dog. "
                     + "The quick brown dog jumps over the lazy fox.",
                 "field2", "The quick brown fox jumps over the lazy dog. The lazy red fox jumps over the quick dog. "
@@ -2006,7 +2006,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(searchResponse, 0, "field1", 1, 2,
             equalTo("The quick brown dog jumps over the lazy <field1>fox</field1>."));
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test").setId("2")
             .setSource("field1", new String[]{
                 "The quick brown fox jumps over the lazy dog. Second sentence not finished",
                 "The lazy red fox jumps over the quick dog.",
@@ -2124,7 +2124,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("title", "This is a html escaping highlighting test for *&? elasticsearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -2157,7 +2157,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                                 .endObject()
                             .endObject().endObject().endObject().endObject()));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test . Second sentence.").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test . Second sentence.").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -2201,7 +2201,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                             .endObject().endObject().endObject().endObject()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -2229,7 +2229,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("title", "This is a test for the postings highlighter");
         }
         indexRandom(true, indexRequestBuilders);
@@ -2448,7 +2448,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             //(https://github.com/elastic/elasticsearch/issues/4103)
             String prefix = randomAlphaOfLengthBetween(5, 30);
             prefixes.put(String.valueOf(i), prefix);
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "Sentence " + prefix
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i)).setSource("field1", "Sentence " + prefix
                 + " test. Sentence two.");
         }
         logger.info("--> indexing docs");
@@ -2527,7 +2527,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (int i = 0; i<10; i++) {
             text.append("junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk\n");
         }
-        index("test", "type1", "1", "field1", text.toString());
+        indexDoc("test", "1", "field1", text.toString());
         refresh();
 
         // Match queries
@@ -2598,7 +2598,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
             .addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("text", "Arbitrary text field which will should not cause a failure").endObject())
             .get();
         refresh();
@@ -2634,7 +2634,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .addMapping("jobs", mappings));
         ensureYellow();
 
-        client().prepareIndex("test", "jobs", "1")
+        client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("jd", "some आवश्यकता है- आर्य समाज अनाथालय, 68 सिविल लाइन्स, बरेली को एक पुरूष" +
                 " रस text")
                 .field("loc", "12.934059,77.610741").endObject())
@@ -2665,7 +2665,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
             .addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("keyword_field", "some text").endObject())
             .get();
         refresh();
@@ -2697,7 +2697,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject());
         prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
 
-        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().startArray("foo")
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().startArray("foo")
                     .startObject().field("text", "brown").endObject()
                     .startObject().field("text", "cow").endObject()
             .endArray().endObject())
@@ -2718,7 +2718,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testFunctionScoreQueryHighlight() throws Exception {
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("text", "brown").endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -2735,7 +2735,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testFiltersFunctionScoreQueryHighlight() throws Exception {
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("text", "brown").field("enable", "yes").endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -2765,9 +2765,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");
         indexRandom(true,
-            client().prepareIndex("index-1", "type", "1").setSource("d", formatter.format(now), "field", "hello world"),
-            client().prepareIndex("index-1", "type", "2").setSource("d", formatter.format(now.minusDays(1)), "field", "hello"),
-            client().prepareIndex("index-1", "type", "3").setSource("d", formatter.format(now.minusDays(2)), "field", "world"));
+            client().prepareIndex("index-1").setId("1").setSource("d", formatter.format(now), "field", "hello world"),
+            client().prepareIndex("index-1").setId("2").setSource("d", formatter.format(now.minusDays(1)), "field", "hello"),
+            client().prepareIndex("index-1").setId("3").setSource("d", formatter.format(now.minusDays(2)), "field", "world"));
         ensureSearchable("index-1");
         for (int i = 0; i < 5; i++) {
             final SearchResponse r1 = client().prepareSearch("index-1")
@@ -2807,7 +2807,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .endObject().endObject().endObject());
         prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
 
-        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
             .startArray("foo")
                 .startObject().field("text", "brown").endObject()
                 .startObject().field("text", "cow").endObject()
@@ -2875,7 +2875,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 "type=keyword,normalizer=my_normalizer"));
         ensureGreen();
 
-        client().prepareIndex("test", "doc", "0")
+        client().prepareIndex("test").setId("0")
             .setSource("keyword", "Hello World")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -2898,7 +2898,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .addMapping("doc", "keyword", "type=keyword"));
         ensureGreen();
 
-        client().prepareIndex("test", "doc", "d33f85bf1e51e84d9ab38948db9f3a068e1fe5294f1d8603914ac8c7bcc39ca1")
+        client().prepareIndex("test").setId("d33f85bf1e51e84d9ab38948db9f3a068e1fe5294f1d8603914ac8c7bcc39ca1")
             .setSource("keyword", "Hello World")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();

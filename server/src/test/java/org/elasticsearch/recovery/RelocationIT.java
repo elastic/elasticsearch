@@ -126,13 +126,13 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         logger.info("--> flush so we have an actual index");
         client().admin().indices().prepareFlush().execute().actionGet();
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
 
         logger.info("--> verifying count");
@@ -472,7 +472,7 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String id = randomRealisticUnicodeOfLength(10) + String.valueOf(i);
             ids.add(id);
-            docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(i));
+            docs[i] = client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i));
         }
         indexRandom(true, docs);
         SearchResponse countResponse = client().prepareSearch("test").get();
@@ -488,7 +488,7 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String id = randomRealisticUnicodeOfLength(10) + String.valueOf(numDocs + i);
             ids.add(id);
-            docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(numDocs + i));
+            docs[i] = client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(numDocs + i));
         }
         indexRandom(true, docs);
         numDocs *= 2;
@@ -519,13 +519,13 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         logger.info("--> flush so we have an actual index");
         client().admin().indices().prepareFlush().execute().actionGet();
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+            client().prepareIndex("test").setId(Integer.toString(i)).setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource("field", "value" + i).execute();
         }
 
@@ -562,14 +562,14 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         logger.info("--> flush so we have an actual index");
         client().admin().indices().prepareFlush().execute().actionGet();
         logger.info("--> index more docs so we have something in the translog");
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 10; i < 20; i++) {
-            pendingIndexResponses.add(client().prepareIndex("test", "type", Integer.toString(i))
+            pendingIndexResponses.add(client().prepareIndex("test").setId(Integer.toString(i))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource("field", "value" + i).execute());
         }
@@ -586,7 +586,7 @@ public class RelocationIT extends ESIntegTestCase {
             .execute();
         logger.info("--> index 100 docs while relocating");
         for (int i = 20; i < 120; i++) {
-            pendingIndexResponses.add(client().prepareIndex("test", "type", Integer.toString(i))
+            pendingIndexResponses.add(client().prepareIndex("test").setId(Integer.toString(i))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource("field", "value" + i).execute());
         }

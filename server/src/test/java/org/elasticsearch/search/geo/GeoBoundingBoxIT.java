@@ -55,43 +55,43 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("name", "New York")
                 .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
                 .endObject()).get();
 
         // to NY: 5.286 km
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
                 .field("name", "Times Square")
                 .startObject("location").field("lat", 40.759011).field("lon", -73.9844722).endObject()
                 .endObject()).get();
 
         // to NY: 0.4621 km
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("3").setSource(jsonBuilder().startObject()
                 .field("name", "Tribeca")
                 .startObject("location").field("lat", 40.718266).field("lon", -74.007819).endObject()
                 .endObject()).get();
 
         // to NY: 1.055 km
-        client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("4").setSource(jsonBuilder().startObject()
                 .field("name", "Wall Street")
                 .startObject("location").field("lat", 40.7051157).field("lon", -74.0088305).endObject()
                 .endObject()).get();
 
         // to NY: 1.258 km
-        client().prepareIndex("test", "type1", "5").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("5").setSource(jsonBuilder().startObject()
                 .field("name", "Soho")
                 .startObject("location").field("lat", 40.7247222).field("lon", -74).endObject()
                 .endObject()).get();
 
         // to NY: 2.029 km
-        client().prepareIndex("test", "type1", "6").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("6").setSource(jsonBuilder().startObject()
                 .field("name", "Greenwich Village")
                 .startObject("location").field("lat", 40.731033).field("lon", -73.9962255).endObject()
                 .endObject()).get();
 
         // to NY: 8.572 km
-        client().prepareIndex("test", "type1", "7").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("7").setSource(jsonBuilder().startObject()
                 .field("name", "Brooklyn")
                 .startObject("location").field("lat", 40.65).field("lon", -73.95).endObject()
                 .endObject()).get();
@@ -126,7 +126,7 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("userid", 880)
                 .field("title", "Place in Stockholm")
                 .startObject("location").field("lat", 59.328355000000002).field("lon", 18.036842).endObject()
@@ -134,7 +134,7 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
                 .field("userid", 534)
                 .field("title", "Place in Montreal")
                 .startObject("location").field("lat", 45.509526999999999).field("lon", -73.570986000000005).endObject()
@@ -180,7 +180,7 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("userid", 880)
                 .field("title", "Place in Stockholm")
                 .startObject("location").field("lat", 59.328355000000002).field("lon", 18.036842).endObject()
@@ -188,7 +188,7 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
                 .field("userid", 534)
                 .field("title", "Place in Montreal")
                 .startObject("location").field("lat", 45.509526999999999).field("lon", -73.570986000000005).endObject()

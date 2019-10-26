@@ -76,14 +76,14 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
         final String expectedXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             + "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://my.sp.example.net/\">"
             + "  <md:SPSSODescriptor"
-            + "      AuthnRequestsSigned=\"false\"
+            + "      AuthnRequestsSigned=\"false\""
             + "      WantAssertionsSigned=\"true\""
             + "      protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">"
             + "    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>"
-            + "    <md:AssertionConsumerService
+            + "    <md:AssertionConsumerService"
             + "        Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\""
-            + "        Location=\"https://my.sp.example.net/saml/acs/post\"
-            + "        index=\"1\"
+            + "        Location=\"https://my.sp.example.net/saml/acs/post\""
+            + "        index=\"1\""
             + "        isDefault=\"true\"/>"
             + "  </md:SPSSODescriptor>"
             + "</md:EntityDescriptor>";
@@ -189,7 +189,7 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
             + "  </md:ContactPerson>"
             + "</md:EntityDescriptor>";
 
-        final Map<String, Object> replacements = Map.of("expectedCertificate", expectedCertificate);
+        final Map<String, Object> replacements = Collections.singletonMap("expectedCertificate", expectedCertificate);
         final String expectedXmlWithCertificate = NamedFormatter.format(expectedXml, replacements);
 
         assertThat(xml, equalTo(normaliseXml(expectedXmlWithCertificate)));

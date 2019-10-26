@@ -54,7 +54,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
-        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
         try {
             client().prepareSearch("test")
                     .addSort("field1", SortOrder.ASC)
@@ -157,8 +157,8 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
         indexRandom(true,
-                client().prepareIndex("test", "type1", "0").setSource("field1", 0),
-                client().prepareIndex("test", "type1", "1").setSource("field1", 100, "field2", "toto"));
+                client().prepareIndex("test").setId("0").setSource("field1", 0),
+                client().prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto"));
         SearchResponse searchResponse = client().prepareSearch("test")
                 .addSort("field1", SortOrder.ASC)
                 .addSort("field2", SortOrder.ASC)
@@ -255,7 +255,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     builder.field("field" + Integer.toString(j), documents.get(i).get(j));
                 }
                 builder.endObject();
-                requests.add(client().prepareIndex(INDEX_NAME, TYPE_NAME, Integer.toString(i)).setSource(builder));
+                requests.add(client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
             }
             indexRandom(true, requests);
         }

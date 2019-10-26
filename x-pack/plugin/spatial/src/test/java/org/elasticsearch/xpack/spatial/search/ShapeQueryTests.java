@@ -75,8 +75,8 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
                 .startObject().field(FIELD), null).endObject();
 
             try {
-                client().prepareIndex(INDEX, FIELD_TYPE).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
-                client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
+                client().prepareIndex(INDEX).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
+                client().prepareIndex(IGNORE_MALFORMED_INDEX).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
             } catch (Exception e) {
                 // sometimes GeoTestUtil will create invalid geometry; catch and continue:
                 if (queryGeometry == geometry) {
@@ -92,7 +92,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
 
-        client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE, "Big_Rectangle").setSource(jsonBuilder().startObject()
+        client().prepareIndex(IGNORE_MALFORMED_INDEX).setId("Big_Rectangle").setSource(jsonBuilder().startObject()
             .field(FIELD, shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch(IGNORE_MALFORMED_INDEX)
@@ -108,13 +108,13 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
         String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 
-        client().prepareIndex(indexName, "type", "1")
+        client().prepareIndex(indexName).setId("1")
             .setSource(
                 String.format(
                     Locale.ROOT, "{ %s, \"1\" : { %s, \"2\" : { %s, \"3\" : { %s } }} }", location, location, location, location
                 ), XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex(searchIndex, "type", "1")
+        client().prepareIndex(searchIndex).setId("1")
             .setSource(jsonBuilder().startObject().startObject("location")
                 .field("type", "polygon")
                 .startArray("coordinates").startArray()
@@ -206,7 +206,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
             "    }\n" +
             "}";
 
-        client().prepareIndex(INDEX, FIELD_TYPE, "0").setSource(source, XContentType.JSON).setRouting("ABC").get();
+        client().prepareIndex(INDEX).setId("0").setSource(source, XContentType.JSON).setRouting("ABC").get();
         client().admin().indices().prepareRefresh(INDEX).get();
 
         SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(
@@ -218,9 +218,9 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testNullShape() {
         // index a null shape
-        client().prepareIndex(INDEX, FIELD_TYPE, "aNullshape").setSource("{\"" + FIELD + "\": null}", XContentType.JSON)
+        client().prepareIndex(INDEX).setId("aNullshape").setSource("{\"" + FIELD + "\": null}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE, "aNullshape").setSource("{\"" + FIELD + "\": null}",
+        client().prepareIndex(IGNORE_MALFORMED_INDEX).setId("aNullshape").setSource("{\"" + FIELD + "\": null}",
             XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         GetResponse result = client().prepareGet(INDEX, "aNullshape").get();
         assertThat(result.getField(FIELD), nullValue());

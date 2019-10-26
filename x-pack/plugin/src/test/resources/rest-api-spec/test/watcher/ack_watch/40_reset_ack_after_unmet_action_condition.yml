@@ -7,7 +7,7 @@ setup:
 ---
 teardown:
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "my_watch"
         ignore: 404
 
@@ -15,7 +15,7 @@ teardown:
 "Ensure that ack status is reset after unmet action condition":
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body: >
           {
@@ -38,7 +38,6 @@ teardown:
                 },
                 "index" : {
                  "index" : "my_test_index",
-                 "doc_type" : "my-type",
                  "doc_id": "my-id"
                 }
               }
@@ -46,7 +45,7 @@ teardown:
           }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
         body: >
           {
@@ -55,18 +54,18 @@ teardown:
   - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
 
   - do:
-      xpack.watcher.ack_watch:
+      watcher.ack_watch:
         watch_id: "my_watch"
   - match: { "status.actions.indexme.ack.state" : "acked" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { "status.actions.indexme.ack.state" : "acked" }
 
   # having a false result will reset the ack state
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
         body: >
           {
@@ -81,12 +80,12 @@ teardown:
   - match: { watch_record.status.actions.indexme.ack.state: "awaits_successful_execution" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { "status.actions.indexme.ack.state" : "awaits_successful_execution" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
         body: >
           {
@@ -98,7 +97,7 @@ teardown:
   - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { "status.actions.indexme.ack.state" : "ackable" }
 

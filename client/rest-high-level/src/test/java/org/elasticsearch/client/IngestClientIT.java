@@ -130,7 +130,6 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
             {
                 builder.startObject()
                     .field("_index", "index")
-                    .field("_type", "doc")
                     .field("_id", "doc_" + 1)
                     .startObject("_source").field("foo", "rab_" + 1).field("rank", rankValue).endObject()
                     .endObject();

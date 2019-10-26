@@ -27,7 +27,6 @@ teardown:
 - do:
     index:
       index: test
-      type: test
       id: 1
       pipeline: "my_pipeline"
       body: {message: "foo bar baz"}
@@ -35,7 +34,6 @@ teardown:
 - do:
     get:
       index: test
-      type: test
       id: 1
 - match: { _source.message: "foo bar baz" }
 - match: { _source.a: "foo" }
@@ -64,7 +62,6 @@ teardown:
     catch: '/Unable to find match for dissect pattern: \%\{a\},\%\{b\},\%\{c\} against source: foo bar baz/'
     index:
       index: test
-      type: test
       id: 2
       pipeline: "my_pipeline"
       body: {message: "foo bar baz"}
@@ -87,4 +84,3 @@ teardown:
             }
           ]
         }
-

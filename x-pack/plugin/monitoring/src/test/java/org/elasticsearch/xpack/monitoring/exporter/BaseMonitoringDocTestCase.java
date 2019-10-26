@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardMonitoringDoc;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -164,13 +162,6 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
                 assertThat(sourceNode.get("timestamp"), equalTo(MonitoringDoc.toUTC(node.getTimestamp())));
             }
         }
-    }
-
-    public void testToUTC() {
-        final long timestamp = System.currentTimeMillis();
-        final String expected = new DateTime(timestamp, DateTimeZone.UTC).toString();
-
-        assertEquals(expected, MonitoringDoc.toUTC(timestamp));
     }
 
     public void testMonitoringNodeConstructor() {

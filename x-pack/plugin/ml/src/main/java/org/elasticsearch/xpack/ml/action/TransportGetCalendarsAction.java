@@ -12,8 +12,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -27,8 +27,7 @@ public class TransportGetCalendarsAction extends HandledTransportAction<GetCalen
     @Inject
     public TransportGetCalendarsAction(TransportService transportService, ActionFilters actionFilters,
                                        JobResultsProvider jobResultsProvider) {
-        super(GetCalendarsAction.NAME, transportService, actionFilters,
-            GetCalendarsAction.Request::new);
+        super(GetCalendarsAction.NAME, transportService, actionFilters, GetCalendarsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
     }
 

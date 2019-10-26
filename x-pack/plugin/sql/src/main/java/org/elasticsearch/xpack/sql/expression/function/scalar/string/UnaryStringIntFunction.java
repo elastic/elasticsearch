@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
@@ -19,6 +18,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -45,7 +45,7 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-        return Expressions.typeMustBeInteger(field(), operation().toString(), ParamOrdinal.DEFAULT);
+        return isInteger(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

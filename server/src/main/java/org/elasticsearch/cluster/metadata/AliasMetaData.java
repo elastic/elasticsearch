@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
@@ -141,15 +140,13 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        AliasMetaData that = (AliasMetaData) o;
+        final AliasMetaData that = (AliasMetaData) o;
 
         if (alias != null ? !alias.equals(that.alias) : that.alias != null) return false;
         if (filter != null ? !filter.equals(that.filter) : that.filter != null) return false;
         if (indexRouting != null ? !indexRouting.equals(that.indexRouting) : that.indexRouting != null) return false;
-        if (searchRouting != null ? !searchRouting.equals(that.searchRouting) : that.searchRouting != null)
-            return false;
-        if (writeIndex != null ? writeIndex != that.writeIndex : that.writeIndex != null)
-            return false;
+        if (searchRouting != null ? !searchRouting.equals(that.searchRouting) : that.searchRouting != null) return false;
+        if (writeIndex != null ? writeIndex != that.writeIndex : that.writeIndex != null) return false;
 
         return true;
     }
@@ -185,10 +182,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         } else {
             out.writeBoolean(false);
         }
-
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeOptionalBoolean(writeIndex());
-        }
+        out.writeOptionalBoolean(writeIndex());
     }
 
     public AliasMetaData(StreamInput in) throws IOException {
@@ -210,11 +204,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             searchRouting = null;
             searchRoutingValues = emptySet();
         }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            writeIndex = in.readOptionalBoolean();
-        } else {
-            writeIndex = null;
-        }
+        writeIndex = in.readOptionalBoolean();
     }
 
     public static Diff<AliasMetaData> readDiffFrom(StreamInput in) throws IOException {

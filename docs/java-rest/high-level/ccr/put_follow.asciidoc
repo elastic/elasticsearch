@@ -3,7 +3,7 @@
 :request: PutFollowRequest
 :response: PutFollowResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Follow API
 
@@ -20,6 +20,8 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> The name of the remote cluster alias.
 <2> The name of the leader in the remote cluster.
 <3> The name of the follower index that gets created as part of the put follow API call.
+<4> The number of active shard copies to wait for before the put follow API returns a
+response, as an `ActiveShardCount`
 
 [id="{upid}-{api}-response"]
 ==== Response

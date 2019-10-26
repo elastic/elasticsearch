@@ -46,16 +46,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertFalse(itr.hasNext());
     }
 
-    public void testDefaultMapping() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        try {
-            lookup.copyAndAddAll(MapperService.DEFAULT_MAPPING, emptyList(), emptyList());
-            fail();
-        } catch (IllegalArgumentException expected) {
-            assertEquals("Default mappings should not be added to the lookup", expected.getMessage());
-        }
-    }
-
     public void testAddNewField() {
         FieldTypeLookup lookup = new FieldTypeLookup();
         MockFieldMapper f = new MockFieldMapper("foo");
@@ -77,46 +67,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(1, size(lookup2.iterator()));
         assertSame(f.fieldType(), lookup2.get("foo"));
         assertEquals(f2.fieldType(), lookup2.get("foo"));
-    }
-
-    public void testMismatchedFieldTypes() {
-        FieldMapper f1 = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(f1), emptyList());
-
-        OtherFakeFieldType ft2 = new OtherFakeFieldType();
-        ft2.setName("foo");
-        FieldMapper f2 = new MockFieldMapper("foo", ft2);
-        try {
-            lookup.copyAndAddAll("type2", newList(f2), emptyList());
-            fail("expected type mismatch");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("cannot be changed from type [faketype] to [otherfaketype]"));
-        }
-    }
-
-    public void testConflictingFieldTypes() {
-        FieldMapper f1 = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(f1), emptyList());
-
-        MappedFieldType ft2 = new MockFieldMapper.FakeFieldType();
-        ft2.setName("foo");
-        ft2.setBoost(2.0f);
-        FieldMapper f2 = new MockFieldMapper("foo", ft2);
-        lookup.copyAndAddAll("type", newList(f2), emptyList()); // boost is updateable, so ok since we are implicitly updating all types
-        lookup.copyAndAddAll("type2", newList(f2), emptyList()); // boost is updateable, so ok if forcing
-        // now with a non changeable setting
-        MappedFieldType ft3 = new MockFieldMapper.FakeFieldType();
-        ft3.setName("foo");
-        ft3.setStored(true);
-        FieldMapper f3 = new MockFieldMapper("foo", ft3);
-        try {
-            lookup.copyAndAddAll("type2", newList(f3), emptyList());
-            fail("expected conflict");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("has different [store] values"));
-        }
     }
 
     public void testAddFieldAlias() {
@@ -179,68 +129,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         // Check that the alias maps to the new field type.
         MappedFieldType aliasType2 = lookup.get("alias");
         assertEquals(fieldType2, aliasType2);
-    }
-
-    public void testAliasThatRefersToAlias() {
-        MockFieldMapper field = new MockFieldMapper("foo");
-        FieldAliasMapper alias = new FieldAliasMapper("alias", "alias", "foo");
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", newList(field), newList(alias));
-
-        FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "alias");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> lookup.copyAndAddAll("type", emptyList(), newList(invalidAlias)));
-        assertEquals("Invalid [path] value [alias] for field alias [invalid-alias]: an alias" +
-            " cannot refer to another alias.", e.getMessage());
-    }
-
-    public void testAliasThatRefersToItself() {
-        FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "invalid-alias");
-
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> lookup.copyAndAddAll("type", emptyList(), newList(invalidAlias)));
-        assertEquals("Invalid [path] value [invalid-alias] for field alias [invalid-alias]: an alias" +
-            " cannot refer to itself.", e.getMessage());
-    }
-
-    public void testAliasWithNonExistentPath() {
-        FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "non-existent");
-
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> lookup.copyAndAddAll("type", emptyList(), newList(invalidAlias)));
-        assertEquals("Invalid [path] value [non-existent] for field alias [invalid-alias]: an alias" +
-            " must refer to an existing field in the mappings.", e.getMessage());
-    }
-
-    public void testAddAliasWithPreexistingField() {
-        MockFieldMapper field = new MockFieldMapper("field");
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", newList(field), emptyList());
-
-        MockFieldMapper invalidField = new MockFieldMapper("invalid");
-        FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid", "invalid", "field");
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> lookup.copyAndAddAll("type", newList(invalidField), newList(invalidAlias)));
-        assertEquals("The name for field alias [invalid] has already been used to define a concrete field.",
-            e.getMessage());
-    }
-
-    public void testAddFieldWithPreexistingAlias() {
-        MockFieldMapper field = new MockFieldMapper("field");
-        FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid", "invalid", "field");
-
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", newList(field), newList(invalidAlias));
-
-        MockFieldMapper invalidField = new MockFieldMapper("invalid");
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> lookup.copyAndAddAll("type", newList(invalidField), emptyList()));
-        assertEquals("The name for field [invalid] has already been used to define a field alias.",
-            e.getMessage());
     }
 
     public void testSimpleMatchToFullName() {

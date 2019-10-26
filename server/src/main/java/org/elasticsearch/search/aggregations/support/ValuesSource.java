@@ -42,6 +42,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -65,6 +66,28 @@ public abstract class ValuesSource {
         return false;
     }
 
+    public static class Range extends ValuesSource {
+        private final RangeType rangeType;
+        protected final IndexFieldData<?> indexFieldData;
+
+        public Range(IndexFieldData<?> indexFieldData, RangeType rangeType) {
+            this.indexFieldData = indexFieldData;
+            this.rangeType = rangeType;
+        }
+
+        @Override
+        public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            return indexFieldData.load(context).getBytesValues();
+        }
+
+        @Override
+        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
+            final SortedBinaryDocValues bytes = bytesValues(context);
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
+        }
+
+        public RangeType rangeType() { return rangeType; }
+    }
     public abstract static class Bytes extends ValuesSource {
 
         @Override
@@ -111,6 +134,15 @@ public abstract class ValuesSource {
             public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
                     throws IOException;
 
+            /**
+             * Whether this values source is able to provide a mapping between global and segment ordinals,
+             * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
+             * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
+             */
+            public boolean supportsGlobalOrdinalsMapping() {
+                return true;
+            }
+
             /** Returns a mapping from segment ordinals to global ordinals. */
             public abstract LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context)
                     throws IOException;
@@ -154,6 +186,11 @@ public abstract class ValuesSource {
                 }
 
                 @Override
+                public boolean supportsGlobalOrdinalsMapping() {
+                    return indexFieldData.supportsGlobalOrdinalsMapping();
+                }
+
+                @Override
                 public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
                     final OrdinalMap map = global.getOrdinalMap();
@@ -179,6 +216,7 @@ public abstract class ValuesSource {
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
+
         }
 
         public static class Script extends Bytes {
@@ -452,6 +490,7 @@ public abstract class ValuesSource {
                 if (bytesValues.advanceExact(doc)) {
                     count = bytesValues.docValueCount();
                     grow();
+                    script.setDocument(doc);
                     for (int i = 0; i < count; ++i) {
                         final BytesRef value = bytesValues.nextValue();
                         script.setNextAggregationValue(value.utf8ToString());

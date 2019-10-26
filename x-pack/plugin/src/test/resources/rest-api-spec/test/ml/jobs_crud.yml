@@ -113,8 +113,9 @@
   - match: { analysis_limits.model_memory_limit: "2048mb" }
 
 ---
-"Test put job with model_memory_limit as string":
-
+"Test put job with model_memory_limit as string and lazy open":
+  - skip:
+      features: headers
   - do:
       ml.put_job:
         job_id: job-model-memory-limit-as-string
@@ -126,11 +127,42 @@
             "data_description" : {
             },
             "analysis_limits": {
-                "model_memory_limit": "3g"
-            }
+                "model_memory_limit": "3000g"
+            },
+            "allow_lazy_open": true
           }
   - match: { job_id: "job-model-memory-limit-as-string" }
-  - match: { analysis_limits.model_memory_limit: "3072mb" }
+  - match: { analysis_limits.model_memory_limit: "3072000mb" }
+
+  # The assumption here is that a 3000GB job will not fit on the test
+  # node - increase in future if the test ever fails because of this!
+  # But because the job is allowed to open lazily, opening it shouldn't
+  # throw an exception - it should wait for a big enough node to be
+  # added to the cluster.
+  - do:
+      ml.open_job:
+        job_id: job-model-memory-limit-as-string
+  - match: { opened: false }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.get_job_stats:
+        job_id: job-model-memory-limit-as-string
+  - match: {"jobs.0.state": opening}
+
+  # Despite never being assigned to a node the job should close gracefully
+  - do:
+      ml.close_job:
+        job_id: job-model-memory-limit-as-string
+  - match: { closed: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.get_job_stats:
+        job_id: job-model-memory-limit-as-string
+  - match: {"jobs.0.state": closed}
 
 ---
 "Test get job API with non existing job id":
@@ -220,24 +252,6 @@
           }
   - do:
       catch: /The job cannot be created with the Id 'jobs-crud-id-already-taken'. The Id is already used./
-      ml.put_job:
-        job_id: jobs-crud-id-already-taken
-        body:  >
-          {
-            "job_id":"jobs-crud-id-already-taken",
-            "description":"Analysis of response time by airline",
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-                "field_delimiter":",",
-                "time_field":"time",
-                "time_format":"yyyy-MM-dd HH:mm:ssX"
-            }
-          }
-  - do:
-      catch: param
       ml.put_job:
         job_id: jobs-crud-id-already-taken
         body:  >
@@ -447,7 +461,6 @@
         Content-Type: application/json
       index:
         index: .ml-anomalies-shared
-        type: doc
         id: jobs-crud-model-memory-limit-decrease_model_size_stats_1517443200000
         body:
           job_id: jobs-crud-model-memory-limit-decrease
@@ -908,7 +921,6 @@
   - do:
       index:
         index: .ml-state
-        type: doc
         id: jobs-crud-existing-docs_categorizer_state#1
         body:
           key: value
@@ -936,7 +948,6 @@
   - do:
       index:
         index: .ml-state
-        type: doc
         id: jobs-crud-existing-docs_quantiles
         body:
           key: value
@@ -968,7 +979,6 @@
         Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "jobs-crud-existing-result-docs_1464739200000_1"
         body:
           {
@@ -1043,6 +1053,45 @@
                 "detectors" :[{"function":"mean","field_name":"time"}]
             },
             "data_description" : {}
+          }
+
+---
+"Test put job with duplicate detector configurations":
+
+  - do:
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
+      ml.put_job:
+        job_id: jobs-crud-duplicate-detectors
+        body:  >
+          {
+            "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [
+                    {"function":"max", "field_name":"responsetime"},
+                    {"function":"max", "field_name":"responsetime"}
+                ]
+            },
+            "data_description": {
+                "time_field": "@timestamp"
+            }
+          }
+
+  - do:
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
+      ml.put_job:
+        job_id: jobs-crud-duplicate-detectors-with-explicit-indices
+        body:  >
+          {
+            "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [
+                    {"function":"max", "field_name":"responsetime", "detector_index": 0},
+                    {"function":"max", "field_name":"responsetime", "detector_index": 1}
+                ]
+            },
+            "data_description": {
+                "time_field": "@timestamp"
+            }
           }
 
 ---
@@ -1393,3 +1442,64 @@
       ml.open_job:
         job_id: persistent-task-allocation-allowed-test
   - match: { opened: true }
+
+---
+"Test reopen job resets the finished time":
+  - do:
+      ml.put_job:
+        job_id: jobs-crud-reset-finished-time
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: jobs-crud-reset-finished-time }
+
+  - do:
+      ml.open_job:
+        job_id: jobs-crud-reset-finished-time
+
+  - do:
+      ml.get_jobs:
+        job_id: jobs-crud-reset-finished-time
+  - is_false: jobs.0.finished_time
+
+  - do:
+      ml.close_job:
+        job_id: jobs-crud-reset-finished-time
+
+  - do:
+      ml.get_jobs:
+        job_id: jobs-crud-reset-finished-time
+  - is_true: jobs.0.finished_time
+
+  - do:
+      ml.open_job:
+        job_id: jobs-crud-reset-finished-time
+
+  - do:
+      ml.get_jobs:
+        job_id: jobs-crud-reset-finished-time
+  - is_false: jobs.0.finished_time
+
+---
+"Test close job with body params":
+  - do:
+      catch: missing
+      ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_jobs" : false
+          }
+
+  - do:
+      ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_jobs" : true
+          }

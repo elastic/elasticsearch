@@ -48,6 +48,14 @@ setup:
         duration: "-1s"
 
 ---
+"Test forecast given duration is too large":
+  - do:
+      catch: /\[duration\] must be 3650d or less[:] \[3651d\]/
+      ml.forecast:
+        job_id: "forecast-job"
+        duration: "3651d"
+
+---
 "Test forecast given expires_in is negative":
   - do:
       catch: /\[expires_in\] must be non-negative[:] \[-1\]/

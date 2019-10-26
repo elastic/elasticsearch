@@ -1,5 +1,5 @@
-[[search-request-scroll]]
-=== Scroll
+[[request-body-search-scroll]]
+==== Scroll
 
 While a `search` request returns a single ``page'' of results, the `scroll`
 API can be used to retrieve large numbers of results (or even all results)
@@ -36,7 +36,7 @@ In order to use scrolling, the initial search request should specify the
 `scroll` parameter in the query string, which tells Elasticsearch how long it
 should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?scroll=1m`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_search?scroll=1m
 {
@@ -48,30 +48,27 @@ POST /twitter/_search?scroll=1m
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The result from the above request includes a `_scroll_id`, which should
 be passed to the `scroll` API in order to retrieve the next batch of
 results.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST <1> /_search/scroll <2>
+POST /_search/scroll <1>
 {
-    "scroll" : "1m", <3>
-    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <4>
+    "scroll" : "1m", <2>
+    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <3>
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
 
-<1> `GET` or `POST` can be used.
-<2> The URL should not include the `index` name -- this
-    is specified in the original `search` request instead.
-<3> The `scroll` parameter tells Elasticsearch to keep the search context open
+<1> `GET` or `POST` can be used and the URL should not include the `index`
+    name -- this is specified in the original `search` request instead.
+<2> The `scroll` parameter tells Elasticsearch to keep the search context open
     for another `1m`.
-<4> The `scroll_id` parameter
+<3> The `scroll_id` parameter
 
 The `size` parameter allows you to configure the maximum number of hits to be 
 returned with each batch of results.  Each call to the `scroll` API returns the 
@@ -89,7 +86,7 @@ NOTE: Scroll requests have optimizations that make them faster when the sort
 order is `_doc`. If you want to iterate over all documents regardless of the
 order, this is the most efficient option:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search?scroll=1m
 {
@@ -98,11 +95,16 @@ GET /_search?scroll=1m
   ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[scroll-search-context]]
-==== Keeping the search context alive
+===== Keeping the search context alive
+
+A scroll returns all the documents which matched the search at the time of the
+initial search request. It ignores any subsequent changes to these documents.
+The `scroll_id` identifies a _search context_ which keeps track of everything
+that {es} needs to return the correct documents. The search context is created
+by the initial request and kept alive by subsequent requests.
 
 The `scroll` parameter (passed to the `search` request and to every `scroll`
 request) tells Elasticsearch how long it should keep the search context alive.
@@ -113,17 +115,21 @@ new  expiry time. If a `scroll` request doesn't pass in the `scroll`
 parameter, then the search context will be freed as part of _that_ `scroll`
 request.
 
-Normally, the background merge process optimizes the
-index by merging together smaller segments to create new bigger segments, at
-which time the smaller segments are deleted. This process continues during
-scrolling, but an open search context prevents the old segments from being
-deleted while they are still in use.  This is how Elasticsearch is able to
-return the results of the initial search request, regardless of subsequent
-changes to documents.
+Normally, the background merge process optimizes the index by merging together
+smaller segments to create new, bigger segments. Once the smaller segments are
+no longer needed they are deleted. This process continues during scrolling, but
+an open search context prevents the old segments from being deleted since they
+are still in use.
 
-TIP: Keeping older segments alive means that more file handles are needed.
-Ensure that you have configured your nodes to have ample free file handles.
-See <<file-descriptors>>.
+TIP: Keeping older segments alive means that more disk space and file handles
+are needed. Ensure that you have configured your nodes to have ample free file
+handles. See <<file-descriptors>>.
+
+Additionally, if a segment contains deleted or updated documents then the
+search context must keep track of whether each document in the segment was live
+at the time of the initial search request. Ensure that your nodes have
+sufficient heap space if you have many open scrolls on an index that is subject
+to ongoing deletes or updates.
 
 NOTE: To prevent against issues caused by having too many scrolls open, the
 user is not allowed to open scrolls past a certain limit. By default, the
@@ -133,13 +139,12 @@ maximum number of open scrolls is 500. This limit can be updated with the
 You can check how many search contexts are open with the
 <<cluster-nodes-stats,nodes stats API>>:
 
-[source,js]
+[source,console]
 ---------------------------------------
 GET /_nodes/stats/indices/search
 ---------------------------------------
-// CONSOLE
 
-==== Clear scroll API
+===== Clear scroll API
 
 Search context are automatically removed when the `scroll` timeout has been
 exceeded. However keeping scrolls open has a cost, as discussed in the
@@ -147,19 +152,18 @@ exceeded. However keeping scrolls open has a cost, as discussed in the
 cleared as soon as the scroll is not being used anymore using the
 `clear-scroll` API:
 
-[source,js]
+[source,console]
 ---------------------------------------
 DELETE /_search/scroll
 {
     "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
 }
 ---------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 Multiple scroll IDs can be passed as array:
 
-[source,js]
+[source,console]
 ---------------------------------------
 DELETE /_search/scroll
 {
@@ -169,34 +173,31 @@ DELETE /_search/scroll
     ]
 }
 ---------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 All search contexts can be cleared with the `_all` parameter:
 
-[source,js]
+[source,console]
 ---------------------------------------
 DELETE /_search/scroll/_all
 ---------------------------------------
-// CONSOLE
 
 The `scroll_id` can also be passed as a query string parameter or in the request body.
 Multiple scroll IDs can be passed as comma separated values:
 
-[source,js]
+[source,console]
 ---------------------------------------
 DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==,DnF1ZXJ5VGhlbkZldGNoBQAAAAAAAAABFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAAAxZrUllkUVlCa1NqNmRMaUhiQlZkMWFBAAAAAAAAAAIWa1JZZFFZQmtTajZkTGlIYkJWZDFhQQAAAAAAAAAFFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAABBZrUllkUVlCa1NqNmRMaUhiQlZkMWFB
 ---------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 [[sliced-scroll]]
-==== Sliced Scroll
+===== Sliced Scroll
 
 For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
 can be consumed independently:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search?scroll=1m
 {
@@ -223,7 +224,6 @@ GET /twitter/_search?scroll=1m
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 <1> The id of the slice
@@ -259,7 +259,7 @@ slice gets deterministic results.
 
     * The cardinality of the field should be high. This ensures that each slice gets approximately the same amount of documents.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search?scroll=1m
 {
@@ -275,7 +275,6 @@ GET /twitter/_search?scroll=1m
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 For append only time-based indices, the `timestamp` field can be used safely.

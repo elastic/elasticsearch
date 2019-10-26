@@ -6,37 +6,27 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> {
+public class PutInternalCcrRepositoryAction extends ActionType<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> {
 
     public static final PutInternalCcrRepositoryAction INSTANCE = new PutInternalCcrRepositoryAction();
     public static final String NAME = "internal:admin/ccr/internal_repository/put";
 
     private PutInternalCcrRepositoryAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutInternalCcrRepositoryResponse newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Writeable.Reader<PutInternalCcrRepositoryResponse> getResponseReader() {
-        return PutInternalCcrRepositoryResponse::new;
+        super(NAME, PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse::new);
     }
 
     public static class TransportPutInternalRepositoryAction
@@ -68,5 +58,8 @@ public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrReposit
         PutInternalCcrRepositoryResponse(StreamInput streamInput) throws IOException {
             super(streamInput);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

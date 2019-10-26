@@ -79,13 +79,13 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         if (isWatcherTest()) {
             assertBusy(() -> {
                 ClientYamlTestResponse response =
-                        getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                        getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
                 String state = (String) response.evaluate("stats.0.watcher_state");
 
                 switch (state) {
                     case "stopped":
                         ClientYamlTestResponse startResponse =
-                                getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                                getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());
                         boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
                         throw new AssertionError("waiting until stopped state reached started state");

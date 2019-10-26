@@ -21,8 +21,6 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongArray;
 
 /**
  * A bit array that is implemented using a growing {@link LongArray}

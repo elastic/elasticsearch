@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 public abstract class Publication {
 
@@ -90,6 +92,13 @@ public abstract class Publication {
     public void onFaultyNode(DiscoveryNode faultyNode) {
         publicationTargets.forEach(t -> t.onFaultyNode(faultyNode));
         onPossibleCompletion();
+    }
+
+    public List<DiscoveryNode> completedNodes() {
+        return publicationTargets.stream()
+            .filter(PublicationTarget::isSuccessfullyCompleted)
+            .map(PublicationTarget::getDiscoveryNode)
+            .collect(Collectors.toList());
     }
 
     public boolean isCommitted() {
@@ -187,6 +196,16 @@ public abstract class Publication {
             ", version=" + publishRequest.getAcceptedState().version() + '}';
     }
 
+    void logIncompleteNodes(Level level) {
+        final String message = publicationTargets.stream().filter(PublicationTarget::isActive).map(publicationTarget ->
+            publicationTarget.getDiscoveryNode() + " [" + publicationTarget.getState() + "]").collect(Collectors.joining(", "));
+        if (message.isEmpty() == false) {
+            final TimeValue elapsedTime = TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime);
+            logger.log(level, "after [{}] publication of cluster state version [{}] is still waiting for {}", elapsedTime,
+                publishRequest.getAcceptedState().version(), message);
+        }
+    }
+
     enum PublicationTargetState {
         NOT_STARTED,
         FAILED,
@@ -203,6 +222,10 @@ public abstract class Publication {
 
         PublicationTarget(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
+        }
+
+        PublicationTargetState getState() {
+            return state;
         }
 
         @Override
@@ -231,12 +254,18 @@ public abstract class Publication {
             if (applyCommitRequest.isPresent()) {
                 sendApplyCommit();
             } else {
-                Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
-                    assert applyCommitRequest.isPresent() == false;
-                    applyCommitRequest = Optional.of(applyCommit);
-                    ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
-                    publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum).forEach(PublicationTarget::sendApplyCommit);
-                });
+                try {
+                    Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
+                        assert applyCommitRequest.isPresent() == false;
+                        applyCommitRequest = Optional.of(applyCommit);
+                        ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
+                        publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum)
+                            .forEach(PublicationTarget::sendApplyCommit);
+                    });
+                } catch (Exception e) {
+                    setFailed(e);
+                    onPossibleCommitFailure();
+                }
             }
         }
 
@@ -268,6 +297,10 @@ public abstract class Publication {
             }
         }
 
+        DiscoveryNode getDiscoveryNode() {
+            return discoveryNode;
+        }
+
         private void ackOnce(Exception e) {
             if (ackIsPending) {
                 ackIsPending = false;
@@ -278,6 +311,10 @@ public abstract class Publication {
         boolean isActive() {
             return state != PublicationTargetState.FAILED
                 && state != PublicationTargetState.APPLIED_COMMIT;
+        }
+
+        boolean isSuccessfullyCompleted() {
+            return state == PublicationTargetState.APPLIED_COMMIT;
         }
 
         boolean isWaitingForQuorum() {

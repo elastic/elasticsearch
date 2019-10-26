@@ -12,10 +12,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -24,7 +26,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
@@ -132,8 +134,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         when(watcherService.validate(clusterState)).thenReturn(true);
 
         lifeCycleService.shutDown();
-        verify(watcherService, never()).stop(anyString());
-        verify(watcherService, times(1)).shutDown();
+        verify(watcherService, never()).stop(anyString(), any());
+        verify(watcherService, times(1)).shutDown(any());
 
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
@@ -174,7 +176,12 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", stoppedClusterState, clusterState));
-        verify(watcherService, times(1)).stop(eq("watcher manually marked to shutdown by cluster state update"));
+        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+        verify(watcherService, times(1))
+            .stop(eq("watcher manually marked to shutdown by cluster state update"), captor.capture());
+        assertEquals(WatcherState.STOPPING, lifeCycleService.getState());
+        captor.getValue().run();
+        assertEquals(WatcherState.STOPPED, lifeCycleService.getState());
 
         // Starting via cluster state update, as the watcher metadata block is removed/set to true
         reset(watcherService);
@@ -327,13 +334,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
         DiscoveryNode node1 = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(randomFrom(DiscoveryNode.Role.INGEST, DiscoveryNode.Role.MASTER))), Version.CURRENT);
+            new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))), Version.CURRENT);
 
         DiscoveryNode node2 = new DiscoveryNode("node_2", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
 
         DiscoveryNode node3 = new DiscoveryNode("node_3", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
 
         IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(Watch.INDEX)
             .settings(Settings.builder()
@@ -458,14 +465,15 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .masterNodeId("node_1")
             .add(newNode("node_1"))
             .build();
-        ClusterBlocks clusterBlocks = ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_WRITES).build();
+        ClusterBlocks clusterBlocks = ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build();
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).blocks(clusterBlocks).build();
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
         verify(watcherService, times(1)).pauseExecution(eq("write level cluster block"));
     }
 
     public void testMasterOnlyNodeCanStart() {
-        List<DiscoveryNode.Role> roles = Collections.singletonList(randomFrom(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST));
+        List<DiscoveryNodeRole> roles =
+                Collections.singletonList(randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE));
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
                 .add(new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
@@ -596,6 +604,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
         return new DiscoveryNode(nodeName, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNode.Role.values())), version);
+            DiscoveryNodeRole.BUILT_IN_ROLES, version);
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -27,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class TaskSubmissionResponse extends ActionResponse {
+public class TaskSubmissionResponse {
 
     private static final ParseField TASK = new ParseField("task");
 
@@ -74,5 +73,4 @@ public class TaskSubmissionResponse extends ActionResponse {
     public static TaskSubmissionResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
-
 }

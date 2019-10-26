@@ -20,6 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,6 +44,7 @@ public class TransportShardMultiTermsVectorAction extends
     private final IndicesService indicesService;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
+    public static final ActionType<MultiTermVectorsShardResponse> TYPE = new ActionType<>(ACTION_NAME, MultiTermVectorsShardResponse::new);
 
     @Inject
     public TransportShardMultiTermsVectorAction(ClusterService clusterService, TransportService transportService,
@@ -58,8 +61,8 @@ public class TransportShardMultiTermsVectorAction extends
     }
 
     @Override
-    protected MultiTermVectorsShardResponse newResponse() {
-        return new MultiTermVectorsShardResponse();
+    protected Writeable.Reader<MultiTermVectorsShardResponse> getResponseReader() {
+        return MultiTermVectorsShardResponse::new;
     }
 
     @Override
@@ -87,10 +90,10 @@ public class TransportShardMultiTermsVectorAction extends
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]",
-                        shardId, termVectorsRequest.type(), termVectorsRequest.id()), e);
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]", shardId,
+                            termVectorsRequest.id()), e);
                     response.add(request.locations.get(i),
-                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), e));
+                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.id(), e));
                 }
             }
         }

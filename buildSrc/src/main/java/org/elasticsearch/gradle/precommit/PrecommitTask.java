@@ -36,7 +36,6 @@ public class PrecommitTask extends DefaultTask {
 
     @TaskAction
     public void writeMarker() throws IOException {
-        getSuccessMarker().getParentFile().mkdirs();
         Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
     }
 

@@ -103,7 +103,7 @@ which prompts you for details about each instance. Alternatively, you can use
 the `--in` parameter to specify a YAML file that contains details about the
 instances.
 
-The `cert` mode produces a single zip file which contains the CSRs and the
+The `csr` mode produces a single zip file which contains the CSRs and the
 private keys for each instance. Each CSR is provided as a standard PEM
 encoding of a PKCS#10 CSR. Each key is provided as a PEM encoding of an RSA
 private key.
@@ -177,14 +177,17 @@ with the `ca` parameter.
 
 `--pass <password>`:: Specifies the password for the generated private keys.
 +
-Keys stored in PKCS#12 format are always password protected.
+Keys stored in PKCS#12 format are always password protected, however,
+this password may be _blank_. If you want to specify a blank password
+without a prompt, use `--pass ""` (with no `=`) on the command line.
 +
 Keys stored in PEM format are password protected only if the
 `--pass` parameter is specified. If you do not supply an argument for the
 `--pass` parameter, you are prompted for a password.
-+
-If you want to specify a _blank_ password (without prompting), use 
-`--pass ""` (with no `=`).
+Encrypted PEM files do not support blank passwords (if you do not
+wish to password-protect your PEM keys, then do not specify
+`--pass`).
+
 
 `--pem`:: Generates certificates and keys in PEM format instead of PKCS#12. This
 parameter cannot be used with the `csr` parameter.
@@ -221,7 +224,7 @@ Alternatively, you can specify the `--ca-pass`, `--out`, and `--pass` parameters
 By default, this command generates a file called `elastic-certificates.p12`,
 which you can copy to the relevant configuration directory for each Elastic
 product that you want to configure. For more information, see
-{xpack-ref}/ssl-tls.html[Setting Up TLS on a Cluster].
+<<ssl-tls>>.
 
 [float]
 [[certutil-silent]]

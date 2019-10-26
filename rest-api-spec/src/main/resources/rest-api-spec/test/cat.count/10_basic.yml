@@ -24,7 +24,6 @@
   - do:
       index:
         index:  index1
-        type:   type1
         id:     1
         body:   { foo: bar }
         refresh: true
@@ -40,7 +39,6 @@
   - do:
       index:
         index:  index2
-        type:   type2
         id:     1
         body:   { foo: bar }
         refresh: true

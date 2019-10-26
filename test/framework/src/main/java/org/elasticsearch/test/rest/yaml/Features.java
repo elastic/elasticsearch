@@ -19,12 +19,9 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import static java.util.Collections.unmodifiableList;
+import java.util.List;
 
 /**
  * Allows to register additional features supported by the tests runner.
@@ -35,7 +32,8 @@ import static java.util.Collections.unmodifiableList;
  * and the related skip sections can be removed from the tests as well.
  */
 public final class Features {
-    private static final List<String> SUPPORTED = unmodifiableList(Arrays.asList(
+
+    private static final List<String> SUPPORTED = List.of(
             "catch_unauthorized",
             "default_shards",
             "embedded_stash_key",
@@ -46,8 +44,9 @@ public final class Features {
             "stash_path_replace",
             "warnings",
             "yaml",
-            "contains"
-    ));
+            "contains",
+            "transform_and_set",
+            "arbitrary_key");
 
     private Features() {
 

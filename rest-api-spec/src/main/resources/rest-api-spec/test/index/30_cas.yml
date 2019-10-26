@@ -1,10 +1,5 @@
 ---
 "Compare And Swap Sequence Numbers":
-
- - skip:
-      version: " - 6.99.99"
-      reason:  cas ops are introduced in 7.0.0
-
  - do:
       index:
           index:  test_1

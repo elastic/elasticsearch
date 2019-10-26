@@ -27,16 +27,14 @@
           settings:
             number_of_shards: "1"
           mappings:
-            type:
-              properties:
-                foo:
-                  type: text
-                  fielddata: true
+            properties:
+              foo:
+                type: text
+                fielddata: true
 
   - do:
       index:
         index: index
-        type: type
         body: { foo: bar }
         refresh: true
 

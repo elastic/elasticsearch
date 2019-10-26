@@ -8,18 +8,16 @@ setup:
                   number_of_shards: 1
                   index.highlight.max_analyzed_offset: 10
               mappings:
-                  test_type:
-                      properties:
-                          field1:
-                              type: text
-                          field2:
-                              type: text
-                              index_options: offsets
+                  properties:
+                      field1:
+                          type: text
+                      field2:
+                          type: text
+                          index_options: offsets
 
   - do:
       index:
           index: test1
-          type:  test_type
           id:    1
           body:
               "field1" : "The quick brown fox went to the forest and saw another fox."
@@ -30,9 +28,7 @@ setup:
 
 ---
 "Unified highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
+
   - do:
       catch: bad_request
       search:
@@ -44,9 +40,7 @@ setup:
 
 ---
 "Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
+
   - do:
       catch: bad_request
       search:
@@ -58,9 +52,7 @@ setup:
 
 ---
 "Unified highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should SUCCEED":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highligt.max_analyzed_offset setting has been added in 7.0.0
+
   - do:
       search:
           rest_total_hits_as_int: true
@@ -71,9 +63,7 @@ setup:
 
 ---
 "Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
+
   - do:
       catch: bad_request
       search:

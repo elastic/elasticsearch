@@ -13,5 +13,5 @@ Audit logs are **disabled** by default. To enable this functionality, you
 must set `xpack.security.audit.enabled` to `true` in `elasticsearch.yml`.
 ============================================================================
 
-The audit log persists events to a dedicated `<clustername>_audit.log` file on
+The audit log persists events to a dedicated `<clustername>_audit.json` file on
 the host's file system (on each node).

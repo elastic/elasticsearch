@@ -21,12 +21,12 @@
           pipeline:
             description: _description
             processors: [ grok: { field: host, patterns : ["%{IPORHOST:hostname}:%{NUMBER:port:int}"]} ]
-          docs: [ { _index: index, _type: type, _id: id, _source: { host: $host } } ]
+          docs: [ { _index: index, _id: id, _source: { host: $host } } ]
   - set: { docs.0.doc._source.hostname: hostname }
   - set: { docs.0.doc._source.port: port }
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "test_watch"
         body:
           trigger:
@@ -43,7 +43,7 @@
                 method: PUT
                 host: $hostname
                 port: $port
-                path: "/my_index/my_type/{{ctx.watch_id}}"
+                path: "/my_index/_doc/{{ctx.watch_id}}"
                 body:
                   source:
                     watch_id: "{{ctx.watch_id}}"
@@ -53,7 +53,7 @@
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: test_watch
         body:
           record_execution: true
@@ -66,7 +66,6 @@
   - do:
       get:
         index: my_index
-        type:  my_type
         id:    test_watch
 
   - match: { _source:  { watch_id: "test_watch" } }

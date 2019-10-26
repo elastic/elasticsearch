@@ -18,27 +18,36 @@
  */
 package org.elasticsearch.client.core;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.hamcrest.Matchers.is;
 
-public class AcknowledgedResponseTests extends ESTestCase {
+public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.support.master.AcknowledgedResponse,
+    AcknowledgedResponse> {
 
-    public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
-            this::createTestInstance,
-            AcknowledgedResponseTests::toXContent,
-            AcknowledgedResponse::fromXContent)
-            .supportsUnknownFields(false)
-            .test();
-    }
-    private AcknowledgedResponse createTestInstance() {
-        return new AcknowledgedResponse(randomBoolean());
+    @Override
+    protected org.elasticsearch.action.support.master.AcknowledgedResponse createServerTestInstance(XContentType xContentType) {
+        return new org.elasticsearch.action.support.master.AcknowledgedResponse(randomBoolean());
     }
 
+    @Override
+    protected AcknowledgedResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return AcknowledgedResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(org.elasticsearch.action.support.master.AcknowledgedResponse serverTestInstance,
+                                   AcknowledgedResponse clientInstance) {
+        assertThat(clientInstance.isAcknowledged(), is(serverTestInstance.isAcknowledged()));
+    }
+
+    // Still needed for StopRollupJobResponseTests and StartRollupJobResponseTests test classes
+    // This method can't be moved to these classes because getFieldName() method isn't accessible from these test classes.
     public static void toXContent(AcknowledgedResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         {

@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.test.test;
 
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
 
@@ -60,5 +63,27 @@ public class InternalTestClusterIT extends ESIntegTestCase {
         }
 
         ensureGreen();
+    }
+
+    public void testOperationsDuringRestart() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                ensureGreen();
+                internalCluster().validateClusterFormed();
+                assertNotNull(internalCluster().getInstance(NodeClient.class));
+                internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+                    @Override
+                    public Settings onNodeStopped(String nodeName) throws Exception {
+                        ensureGreen();
+                        internalCluster().validateClusterFormed();
+                        return super.onNodeStopped(nodeName);
+                    }
+                });
+                return super.onNodeStopped(nodeName);
+            }
+        });
     }
 }

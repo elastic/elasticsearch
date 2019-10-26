@@ -10,13 +10,15 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
@@ -24,10 +26,10 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -80,8 +82,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     public void testEmail() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-        watcherClient.preparePutWatch("_id")
+        new PutWatchRequestBuilder(client(), "_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(simpleInput())
@@ -95,7 +96,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .get();
 
         // verifying the email password is stored encrypted in the index
-        GetResponse response = client().prepareGet(Watch.INDEX, Watch.DOC_TYPE, "_id").get();
+        GetResponse response = client().prepareGet().setIndex(Watch.INDEX).setId("_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getId(), is("_id"));
         Map<String, Object> source = response.getSource();
@@ -113,7 +114,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         }
 
         // verifying the password is not returned by the GET watch API
-        GetWatchResponse watchResponse = watcherClient.prepareGetWatch("_id").get();
+        GetWatchResponse watchResponse = new GetWatchRequestBuilder(client(), "_id").get();
         assertThat(watchResponse, notNullValue());
         assertThat(watchResponse.getId(), is("_id"));
         XContentSource contentSource = watchResponse.getSource();
@@ -135,8 +136,8 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
             latch.countDown();
         });
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC));
-        ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
+        ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client(), "_id")
                 .setRecordExecution(false)
                 .setTriggerEvent(triggerEvent)
                 .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)

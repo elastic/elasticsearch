@@ -7,7 +7,6 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           1
         body:         { "company": "cat" }
         version:      2
@@ -15,13 +14,11 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           2
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        type:         test
         id:           1
         body:         { "company": "dog" }
   - do:
@@ -54,7 +51,6 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           1
         body:         { "company": "cat" }
         version:      2
@@ -62,13 +58,11 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           2
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        type:         test
         id:           1
         body:         { "company": "dog" }
   - do:
@@ -103,7 +97,6 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           1
         body:         { "company": "cat" }
         version:      2
@@ -111,13 +104,11 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           2
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        type:         test
         id:           1
         body:         { "company": "dog" }
   - do:
@@ -151,19 +142,16 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           1
         body:         { "company": "cat" }
   - do:
       index:
         index:        src
-        type:         test
         id:           2
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        type:         test
         id:           1
         body:         { "company": "dog" }
   - do:

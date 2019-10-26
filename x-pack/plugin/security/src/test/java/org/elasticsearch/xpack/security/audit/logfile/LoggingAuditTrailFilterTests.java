@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.AuditEventMetaInfo;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.MockMessage;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.RestContent;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.Before;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -82,6 +84,79 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
     }
 
+    public void testPolicyDoesNotMatchNullValuesInEvent() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Settings.Builder settingsBuilder = Settings.builder().put(settings);
+        // filter by username
+        final List<String> filteredUsernames = randomNonEmptyListOfFilteredNames();
+        final List<User> filteredUsers = filteredUsernames.stream().map(u -> {
+            if (randomBoolean()) {
+                return new User(u);
+            } else {
+                return new User(new User(u), new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4)));
+            }
+        }).collect(Collectors.toList());
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.userPolicy.users", filteredUsernames);
+        // filter by realms
+        final List<String> filteredRealms = randomNonEmptyListOfFilteredNames();
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.realmsPolicy.realms", filteredRealms);
+        // filter by roles
+        final List<String> filteredRoles = randomNonEmptyListOfFilteredNames();
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.rolesPolicy.roles", filteredRoles);
+        // filter by indices
+        final List<String> filteredIndices = randomNonEmptyListOfFilteredNames();
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.indicesPolicy.indices", filteredIndices);
+
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
+
+        // user field matches
+        assertTrue("Matches the user filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(
+                new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.empty(), Optional.empty(), Optional.empty())));
+        final User unfilteredUser;
+        if (randomBoolean()) {
+            unfilteredUser = new User(null);
+        } else {
+            unfilteredUser = new User(new User(null), new User(randomFrom(filteredUsers).principal()));
+        }
+        // null user field does NOT match
+        assertFalse("Does not match the user filter predicate because of null username.",
+                auditTrail.eventFilterPolicyRegistry.ignorePredicate()
+                        .test(new AuditEventMetaInfo(Optional.of(unfilteredUser), Optional.empty(), Optional.empty(), Optional.empty())));
+        // realm field matches
+        assertTrue("Matches the realm filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(
+                new AuditEventMetaInfo(Optional.empty(), Optional.of(randomFrom(filteredRealms)), Optional.empty(), Optional.empty())));
+        // null realm field does NOT match
+        assertFalse("Does not match the realm filter predicate because of null realm.",
+                auditTrail.eventFilterPolicyRegistry.ignorePredicate()
+                        .test(new AuditEventMetaInfo(Optional.empty(), Optional.ofNullable(null), Optional.empty(), Optional.empty())));
+        // role field matches
+        assertTrue("Matches the role filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(),
+                        Optional.of(authzInfo(
+                            randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
+                        Optional.empty())));
+        final List<String> unfilteredRoles = new ArrayList<>();
+        unfilteredRoles.add(null);
+        unfilteredRoles.addAll(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles));
+        // null role among roles field does NOT match
+        assertFalse("Does not match the role filter predicate because of null role.",
+                auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(),
+                        Optional.of(authzInfo(unfilteredRoles.toArray(new String[0]))), Optional.empty())));
+        // indices field matches
+        assertTrue("Matches the index filter predicate.",
+                auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(),
+                        Optional.empty(),
+                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
+        final List<String> unfilteredIndices = new ArrayList<>();
+        unfilteredIndices.add(null);
+        unfilteredIndices.addAll(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices));
+        // null index among indices field does NOT match
+        assertFalse("Does not match the indices filter predicate because of null index.",
+                auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.of(unfilteredIndices.toArray(new String[0])))));
+    }
+
     public void testSingleCompletePolicyPredicate() throws Exception {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -113,7 +188,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertTrue("Matches the filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(
                 Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
-                Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
                 Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         final User unfilteredUser;
         if (randomBoolean()) {
@@ -126,22 +201,26 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertFalse("Does not match the filter predicate because of the user.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(unfilteredUser),
                         Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         assertFalse("Does not match the filter predicate because of the empty user.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(),
                         Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         assertFalse("Does not match the filter predicate because of the realm.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         assertFalse("Does not match the filter predicate because of the empty realm.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.empty(),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                                .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         final List<String> someRolesDoNotMatch = new ArrayList<>(randomSubsetOf(randomIntBetween(0, filteredRoles.size()), filteredRoles));
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
@@ -149,9 +228,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         }
         assertFalse("Does not match the filter predicate because of some of the roles.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
-                        Optional.of(randomFrom(filteredRealms)), Optional.of(someRolesDoNotMatch.toArray(new String[0])),
+                        Optional.of(randomFrom(filteredRealms)), Optional.of(authzInfo(someRolesDoNotMatch.toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
-        final Optional<String[]> emptyRoles = randomBoolean() ? Optional.empty() : Optional.of(new String[0]);
+        final Optional<AuthorizationInfo> emptyRoles = randomBoolean() ? Optional.empty() : Optional.of(authzInfo(new String[0]));
         assertFalse("Does not match the filter predicate because of the empty roles.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(randomFrom(filteredRealms)), emptyRoles,
@@ -164,13 +243,15 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertFalse("Does not match the filter predicate because of some of the indices.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                                .toArray(new String[0]))),
                         Optional.of(someIndicesDoNotMatch.toArray(new String[0])))));
         final Optional<String[]> emptyIndices = randomBoolean() ? Optional.empty() : Optional.of(new String[0]);
         assertFalse("Does not match the filter predicate because of the empty indices.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         emptyIndices)));
     }
 
@@ -212,7 +293,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertTrue("Matches the filter predicate.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         final User unfilteredUser;
         if (randomBoolean()) {
@@ -225,22 +307,26 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertFalse("Does not match the filter predicate because of the user.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(unfilteredUser),
                         Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         assertTrue("Matches the filter predicate because of the empty user.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(),
                         Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         assertFalse("Does not match the filter predicate because of the realm.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         assertTrue("Matches the filter predicate because of the empty realm.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.empty(),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         final List<String> someRolesDoNotMatch = new ArrayList<>(randomSubsetOf(randomIntBetween(0, filteredRoles.size()), filteredRoles));
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
@@ -248,9 +334,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         }
         assertFalse("Does not match the filter predicate because of some of the roles.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
-                        Optional.of(randomFrom(filteredRealms)), Optional.of(someRolesDoNotMatch.toArray(new String[0])),
+                        Optional.of(randomFrom(filteredRealms)), Optional.of(authzInfo(someRolesDoNotMatch.toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
-        final Optional<String[]> emptyRoles = randomBoolean() ? Optional.empty() : Optional.of(new String[0]);
+        final Optional<AuthorizationInfo> emptyRoles = randomBoolean() ? Optional.empty() : Optional.of(authzInfo(new String[0]));
         assertTrue("Matches the filter predicate because of the empty roles.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(randomFrom(filteredRealms)), emptyRoles,
@@ -263,13 +349,24 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertFalse("Does not match the filter predicate because of some of the indices.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(someIndicesDoNotMatch.toArray(new String[0])))));
-        final Optional<String[]> emptyIndices = randomBoolean() ? Optional.empty() : Optional.of(new String[0]);
         assertTrue("Matches the filter predicate because of the empty indices.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
-                        emptyIndices)));
+                        Optional.of(authzInfo(
+                            randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
+                        Optional.empty())));
+        assertTrue("Matches the filter predicate because of the empty indices.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
+                        Optional.of(authzInfo(
+                            randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
+                        Optional.of(new String[0]))));
+        assertTrue("Matches the filter predicate because of the empty indices.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
+                        Optional.of(authzInfo(
+                            randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
+                        Optional.of(new String[] { null }))));
     }
 
     public void testTwoPolicyPredicatesWithMissingFields() throws Exception {
@@ -317,26 +414,28 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertTrue("Matches both the first and the second filter predicates.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         // matches first policy but not the second
         assertTrue("Matches the first filter predicate but not the second.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(unfilteredUser),
                         Optional.of(randomFrom(filteredRealms)),
-                        Optional.of(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0])),
+                        Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
+                            .toArray(new String[0]))),
                         Optional.of(someIndicesDoNotMatch.toArray(new String[0])))));
         // matches the second policy but not the first
         assertTrue("Matches the second filter predicate but not the first.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                        Optional.of(someRolesDoNotMatch.toArray(new String[0])),
+                        Optional.of(authzInfo(someRolesDoNotMatch.toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])))));
         // matches neither the first nor the second policies
         assertFalse("Matches neither the first nor the second filter predicates.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                         .test(new AuditEventMetaInfo(Optional.of(unfilteredUser),
                         Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                        Optional.of(someRolesDoNotMatch.toArray(new String[0])),
+                        Optional.of(authzInfo(someRolesDoNotMatch.toArray(new String[0]))),
                         Optional.of(someIndicesDoNotMatch.toArray(new String[0])))));
     }
 
@@ -469,55 +568,61 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // accessGranted
-        auditTrail.accessGranted(randomAlphaOfLength(8), unfilteredAuthentication, "_action", message, new String[] { "role1" });
+        auditTrail.accessGranted(randomAlphaOfLength(8), unfilteredAuthentication, "_action", message, authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), filteredAuthentication, "_action", message, new String[] { "role1" });
+        auditTrail.accessGranted(randomAlphaOfLength(8), filteredAuthentication, "_action", message, authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
-            "internal:_action", message, new String[] { "role1" });
+            "internal:_action", message, authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message: system user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), unfilteredAuthentication, "internal:_action", message, new String[] { "role1" });
+        auditTrail.accessGranted(randomAlphaOfLength(8), unfilteredAuthentication, "internal:_action", message,
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), filteredAuthentication, "internal:_action", message, new String[] { "role1" });
+        auditTrail.accessGranted(randomAlphaOfLength(8), filteredAuthentication, "internal:_action", message,
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         // accessDenied
-        auditTrail.accessDenied(randomAlphaOfLength(8), unfilteredAuthentication, "_action", message, new String[] { "role1" });
+        auditTrail.accessDenied(randomAlphaOfLength(8), unfilteredAuthentication, "_action", message,
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied message: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), filteredAuthentication, "_action", message, new String[] { "role1" });
+        auditTrail.accessDenied(randomAlphaOfLength(8), filteredAuthentication, "_action", message,
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied message: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"), "internal:_action",
-                message, new String[] { "role1" });
+                message, authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied internal message: system user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), unfilteredAuthentication, "internal:_action", message, new String[] { "role1" });
+        auditTrail.accessDenied(randomAlphaOfLength(8), unfilteredAuthentication, "internal:_action", message,
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied internal message: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), filteredAuthentication, "internal:_action", message, new String[] { "role1" });
+        auditTrail.accessDenied(randomAlphaOfLength(8), filteredAuthentication, "internal:_action", message,
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied internal message: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -573,36 +678,36 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         // runAsGranted
         auditTrail.runAsGranted(randomAlphaOfLength(8), unfilteredAuthentication, "_action", new MockMessage(threadContext),
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("RunAsGranted message: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.runAsGranted(randomAlphaOfLength(8), filteredAuthentication, "_action", new MockMessage(threadContext),
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("RunAsGranted message: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         // runAsDenied
         auditTrail.runAsDenied(randomAlphaOfLength(8), unfilteredAuthentication, "_action", new MockMessage(threadContext),
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied message: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.runAsDenied(randomAlphaOfLength(8), filteredAuthentication, "_action", new MockMessage(threadContext),
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied message: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), unfilteredAuthentication, getRestRequest(), new String[] { "role1" });
+        auditTrail.runAsDenied(randomAlphaOfLength(8), unfilteredAuthentication, getRestRequest(), authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied rest request: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), filteredAuthentication, getRestRequest(), new String[] { "role1" });
+        auditTrail.runAsDenied(randomAlphaOfLength(8), filteredAuthentication, getRestRequest(), authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied rest request: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -747,74 +852,74 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         // accessGranted
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "_action", message,
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "_action", message,
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, filteredRealm), "internal:_action",
-            message, new String[] { "role1" });
+            message, authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message system user: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, unfilteredRealm), "internal:_action",
-            message, new String[] { "role1" });
+            message, authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message system user: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "internal:_action", message,
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "internal:_action", message,
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         // accessDenied
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "_action", message,
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "_action", message,
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, filteredRealm), "internal:_action",
-            message, new String[] { "role1" });
+            message, authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied internal message system user: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, unfilteredRealm), "internal:_action",
-            message, new String[] { "role1" });
+            message, authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied internal message system user: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "internal:_action", message,
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "internal:_action", message,
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
@@ -869,38 +974,38 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         // runAsGranted
         auditTrail.runAsGranted(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "_action",
-            new MockMessage(threadContext), new String[] { "role1" });
+            new MockMessage(threadContext), authzInfo(new String[] { "role1" }));
         assertThat("RunAsGranted message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.runAsGranted(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "_action",
-            new MockMessage(threadContext), new String[] { "role1" });
+            new MockMessage(threadContext), authzInfo(new String[] { "role1" }));
         assertThat("RunAsGranted message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         // runAsDenied
         auditTrail.runAsDenied(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "_action", new MockMessage(threadContext),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.runAsDenied(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "_action",
-            new MockMessage(threadContext), new String[] { "role1" });
+            new MockMessage(threadContext), authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.runAsDenied(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), getRestRequest(),
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied rest request: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.runAsDenied(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), getRestRequest(),
-            new String[] { "role1" });
+            authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied rest request: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
@@ -1064,67 +1169,67 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // accessGranted
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", message, unfilteredRoles);
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", message, authzInfo(unfilteredRoles));
         assertThat("AccessGranted message: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", message, filteredRoles);
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", message, authzInfo(filteredRoles));
         assertThat("AccessGranted message: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
-            "internal:_action", message, unfilteredRoles);
+            "internal:_action", message, authzInfo(unfilteredRoles));
         assertThat("AccessGranted internal message system user: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
-            "internal:_action", message, filteredRoles);
+            "internal:_action", message, authzInfo(filteredRoles));
         assertThat("AccessGranted internal message system user: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "internal:_action", message, unfilteredRoles);
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "internal:_action", message, authzInfo(unfilteredRoles));
         assertThat("AccessGranted internal message: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "internal:_action", message, filteredRoles);
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "internal:_action", message, authzInfo(filteredRoles));
         assertThat("AccessGranted internal message: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         // accessDenied
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", message, unfilteredRoles);
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", message, authzInfo(unfilteredRoles));
         assertThat("AccessDenied message: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", message, filteredRoles);
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", message, authzInfo(filteredRoles));
         assertThat("AccessDenied message: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"), "internal:_action",
-            message, unfilteredRoles);
+            message, authzInfo(unfilteredRoles));
         assertThat("AccessDenied internal message system user: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"), "internal:_action",
-            message, filteredRoles);
+            message, authzInfo(filteredRoles));
         assertThat("AccessDenied internal message system user: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action", message, unfilteredRoles);
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action", message, authzInfo(unfilteredRoles));
         assertThat("AccessDenied internal message: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action", message, filteredRoles);
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action", message, authzInfo(filteredRoles));
         assertThat("AccessDenied internal message: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -1150,33 +1255,36 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // runAsGranted
-        auditTrail.runAsGranted(randomAlphaOfLength(8), authentication, "_action", new MockMessage(threadContext), unfilteredRoles);
+        auditTrail.runAsGranted(randomAlphaOfLength(8), authentication, "_action", new MockMessage(threadContext),
+            authzInfo(unfilteredRoles));
         assertThat("RunAsGranted message: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsGranted(randomAlphaOfLength(8), authentication, "_action", new MockMessage(threadContext), filteredRoles);
+        auditTrail.runAsGranted(randomAlphaOfLength(8), authentication, "_action", new MockMessage(threadContext),
+            authzInfo(filteredRoles));
         assertThat("RunAsGranted message: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         // runAsDenied
-        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, "_action", new MockMessage(threadContext), unfilteredRoles);
+        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, "_action", new MockMessage(threadContext),
+            authzInfo(unfilteredRoles));
         assertThat("RunAsDenied message: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, "_action", new MockMessage(threadContext), filteredRoles);
+        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, "_action", new MockMessage(threadContext), authzInfo(filteredRoles));
         assertThat("RunAsDenied message: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getRestRequest(), unfilteredRoles);
+        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getRestRequest(), authzInfo(unfilteredRoles));
         assertThat("RunAsDenied rest request: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getRestRequest(), filteredRoles);
+        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getRestRequest(), authzInfo(filteredRoles));
         assertThat("RunAsDenied rest request: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -1385,7 +1493,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // accessGranted
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", noIndexMessage, new String[] { "role1" });
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", noIndexMessage, authzInfo(new String[] { "role1" }));
         if (filterMissingIndices) {
             assertThat("AccessGranted message no index: not filtered out by the missing indices filter", logOutput.size(), is(0));
         } else {
@@ -1396,19 +1504,19 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action",
             new MockIndicesRequest(threadContext, unfilteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message unfiltered indices: filtered out by indices filter", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", new MockIndicesRequest(threadContext, filteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message filtered indices: not filtered out by indices filter", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
-            "internal:_action", noIndexMessage, new String[] { "role1" });
+            "internal:_action", noIndexMessage, authzInfo(new String[] { "role1" }));
         if (filterMissingIndices) {
             assertThat("AccessGranted message system user no index: not filtered out by the missing indices filter", logOutput.size(),
                     is(0));
@@ -1419,19 +1527,19 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
-            "internal:_action", new MockIndicesRequest(threadContext, unfilteredIndices), new String[] { "role1" });
+            "internal:_action", new MockIndicesRequest(threadContext, unfilteredIndices), authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message system user unfiltered indices: filtered out by indices filter", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
-            "internal:_action", new MockIndicesRequest(threadContext, filteredIndices), new String[] { "role1" });
+            "internal:_action", new MockIndicesRequest(threadContext, filteredIndices), authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message system user filtered indices: not filtered out by indices filter", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         // accessDenied
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", noIndexMessage, new String[] { "role1" });
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", noIndexMessage, authzInfo(new String[] { "role1" }));
         if (filterMissingIndices) {
             assertThat("AccessDenied message no index: not filtered out by the missing indices filter", logOutput.size(), is(0));
         } else {
@@ -1441,19 +1549,19 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", new MockIndicesRequest(threadContext, unfilteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied message unfiltered indices: filtered out by indices filter", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", new MockIndicesRequest(threadContext, filteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied message filtered indices: not filtered out by indices filter", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"), "internal:_action",
-            noIndexMessage, new String[] { "role1" });
+            noIndexMessage, authzInfo(new String[] { "role1" }));
         if (filterMissingIndices) {
             assertThat("AccessDenied message system user no index: not filtered out by the missing indices filter", logOutput.size(),
                     is(0));
@@ -1465,14 +1573,14 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"), "internal:_action",
                 new MockIndicesRequest(threadContext, unfilteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("AccessDenied message system user unfiltered indices: filtered out by indices filter", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"), "internal:_action",
                 new MockIndicesRequest(threadContext, filteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message system user filtered indices: not filtered out by indices filter", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -1498,7 +1606,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // runAsGranted
-        auditTrail.runAsGranted(randomAlphaOfLength(8), authentication, "_action", noIndexMessage, new String[] { "role1" });
+        auditTrail.runAsGranted(randomAlphaOfLength(8), authentication, "_action", noIndexMessage, authzInfo(new String[] { "role1" }));
         if (filterMissingIndices) {
             assertThat("RunAsGranted message no index: not filtered out by missing indices filter", logOutput.size(), is(0));
         } else {
@@ -1508,19 +1616,19 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         auditTrail.runAsGranted(randomAlphaOfLength(8), authentication, "_action", new MockIndicesRequest(threadContext, unfilteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("RunAsGranted message unfiltered indices: filtered out by indices filter", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.runAsGranted(randomAlphaOfLength(8), authentication, "_action", new MockIndicesRequest(threadContext, filteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("RunAsGranted message filtered indices: not filtered out by indices filter", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         // runAsDenied
-        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, "_action", noIndexMessage, new String[] { "role1" });
+        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, "_action", noIndexMessage, authzInfo(new String[] { "role1" }));
         if (filterMissingIndices) {
             assertThat("RunAsDenied message no index: not filtered out by missing indices filter", logOutput.size(), is(0));
         } else {
@@ -1530,18 +1638,18 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, "_action", new MockIndicesRequest(threadContext, unfilteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied message unfiltered indices: filtered out by indices filter", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, "_action", new MockIndicesRequest(threadContext, filteredIndices),
-                new String[] { "role1" });
+                authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied message filtered indices: not filtered out by indices filter", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getRestRequest(), new String[] { "role1" });
+        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getRestRequest(), authzInfo(new String[] { "role1" }));
         if (filterMissingIndices) {
             assertThat("RunAsDenied rest request: not filtered out by missing indices filter", logOutput.size(), is(0));
         } else {
@@ -1677,5 +1785,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         }
     }
 
-
+    private static AuthorizationInfo authzInfo(String[] roles) {
+        return () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, roles);
+    }
 }

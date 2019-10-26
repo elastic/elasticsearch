@@ -73,6 +73,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
+    protected final CorsHandler.Config corsConfig;
     private final NamedXContentRegistry xContentRegistry;
 
     protected final PortsRange port;
@@ -94,6 +95,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
+        this.corsConfig = CorsHandler.fromSettings(settings);
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
@@ -249,7 +251,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return publishPort;
     }
 
-    protected void onException(HttpChannel channel, Exception e) {
+    public void onException(HttpChannel channel, Exception e) {
         if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
@@ -262,6 +264,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         } else if (NetworkExceptionHelper.isConnectException(e)) {
             logger.trace(() -> new ParameterizedMessage(
                 "connect exception caught while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
+        } else if (e instanceof HttpReadTimeoutException) {
+            logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
             CloseableChannel.closeChannel(channel);
         } else if (e instanceof CancelledKeyException) {
             logger.trace(() -> new ParameterizedMessage(
@@ -312,7 +317,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             if (badRequestCause != null) {
-                dispatcher.dispatchBadRequest(restRequest, channel, threadContext, badRequestCause);
+                dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {
                 dispatcher.dispatchRequest(restRequest, channel, threadContext);
             }

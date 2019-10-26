@@ -7,6 +7,7 @@ package org.elasticsearch.smoketest;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -14,17 +15,18 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -63,7 +65,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         });
 
         assertBusy(() -> {
-            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+            for (String template : XPackRestTestConstants.TEMPLATE_NAMES_NO_ILM) {
                 Response templateExistsResponse = adminClient().performRequest(new Request("HEAD", "/_template/" + template));
                 assertThat(templateExistsResponse.getStatusLine().getStatusCode(), is(200));
             }
@@ -92,7 +94,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override
@@ -168,6 +170,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         Response response = client().performRequest(request);
         Map<String, Object> responseMap = entityAsMap(response);
         assertThat(responseMap, hasEntry("_id", watchId));
+        logger.info("Successfully indexed watch with id [{}]", watchId);
     }
 
     private void deleteWatch(String watchId) throws IOException {
@@ -181,7 +184,14 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
     private ObjectPath getWatchHistoryEntry(String watchId) throws Exception {
         final AtomicReference<ObjectPath> objectPathReference = new AtomicReference<>();
         assertBusy(() -> {
-            client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
+            logger.info("Refreshing watcher history");
+            try {
+                client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
+            } catch (ResponseException e) {
+                final String err = "Failed to perform refresh of watcher history - " + e;
+                logger.info(err);
+                fail(err);
+            }
 
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
@@ -193,16 +203,23 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                     .endObject().endArray();
                 builder.endObject();
 
+                logger.info("Searching watcher history");
                 Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
                 searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
                 searchRequest.setJsonEntity(Strings.toString(builder));
                 Response response = client().performRequest(searchRequest);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
                 int totalHits = objectPath.evaluate("hits.total");
+                logger.info("Found [{}] hits in watcher history", totalHits);
                 assertThat(totalHits, is(greaterThanOrEqualTo(1)));
-                String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
-                assertThat(watchid, is(watchId));
+                String foundWatchId = objectPath.evaluate("hits.hits.0._source.watch_id");
+                logger.info("Watch hit 0 has id [{}] (expecting [{}])", foundWatchId,  watchId);
+                assertThat("watch_id for hit 0 in watcher history", foundWatchId, is(watchId));
                 objectPathReference.set(objectPath);
+            } catch (ResponseException e) {
+                final String err = "Failed to perform search of watcher history";
+                logger.info(err, e);
+                fail(err);
             }
         });
         return objectPathReference.get();
@@ -212,6 +229,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         Response watcherStatsResponse = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
         ObjectPath objectPath = ObjectPath.createFromResponse(watcherStatsResponse);
         int watchCount = objectPath.evaluate("stats.0.watch_count");
-        assertThat(watchCount, is(expectedWatches));
+        assertThat("Watch count (from _watcher/stats)", watchCount, is(expectedWatches));
+        logger.info("Watch count is [{}]", watchCount);
     }
 }

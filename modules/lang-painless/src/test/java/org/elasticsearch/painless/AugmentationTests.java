@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class AugmentationTests extends ScriptTestCase {
 
@@ -190,13 +191,51 @@ public class AugmentationTests extends ScriptTestCase {
     }
 
     public void testFeatureTest() {
-        assertEquals(5, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(5, exec("org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();" +
             " ft.setX(3); ft.setY(2); return ft.getTotal()"));
-        assertEquals(5, exec("def ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(5, exec("def ft = new org.elasticsearch.painless.FeatureTestObject();" +
             " ft.setX(3); ft.setY(2); return ft.getTotal()"));
-        assertEquals(8, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(8, exec("org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();" +
             " ft.setX(3); ft.setY(2); return ft.addToTotal(3)"));
-        assertEquals(8, exec("def ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(8, exec("def ft = new org.elasticsearch.painless.FeatureTestObject();" +
             " ft.setX(3); ft.setY(2); return ft.addToTotal(3)"));
+    }
+
+    private static class SplitCase {
+        final String input;
+        final String token;
+        final int count;
+
+        SplitCase(String input, String token, int count) {
+            this.input = input;
+            this.token = token;
+            this.count = count;
+        }
+        SplitCase(String input, String token) {
+            this(input, token, -1);
+        }
+    }
+    public void testString_SplitOnToken() {
+        SplitCase[] cases = new SplitCase[] {
+            new SplitCase("", ""),
+            new SplitCase("a,b,c", ","),
+            new SplitCase("a,b,c", "|"),
+            new SplitCase("a,,b,,c", ","),
+            new SplitCase("a,,b,,c", ",", 1),
+            new SplitCase("a,,b,,c", ",", 3),
+            new SplitCase("a,,b,,c", ",", 300),
+            new SplitCase("a,b,c", "a,b,c,d"),
+            new SplitCase("aaaaaaa", "a"),
+            new SplitCase("aaaaaaa", "a", 2),
+            new SplitCase("1.1.1.1.111", "1"),
+            new SplitCase("1.1.1.1.111", "."),
+            new SplitCase("1\n1.1.\r\n1\r\n111", "\r\n"),
+        };
+        for (SplitCase split : cases) {
+            assertArrayEquals(
+                split.input.split(Pattern.quote(split.token), split.count),
+                (String[])exec("return \""+split.input+"\".splitOnToken(\""+split.token+"\", "+split.count+");")
+            );
+        }
     }
 }

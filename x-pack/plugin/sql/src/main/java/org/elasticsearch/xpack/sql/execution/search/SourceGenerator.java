@@ -33,6 +33,8 @@ import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 
 public abstract class SourceGenerator {
 
+    private SourceGenerator() {}
+
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
     public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
@@ -58,7 +60,7 @@ public abstract class SourceGenerator {
         // need to be retrieved from the result documents
 
         // NB: the sortBuilder takes care of eliminating duplicates
-        container.columns().forEach(cr -> cr.collectFields(sortBuilder));
+        container.fields().forEach(f -> f.v1().collectFields(sortBuilder));
         sortBuilder.build(source);
         optimize(sortBuilder, source);
 
@@ -74,12 +76,21 @@ public abstract class SourceGenerator {
         // set page size
         if (size != null) {
             int sz = container.limit() > 0 ? Math.min(container.limit(), size) : size;
+            // now take into account the the minimum page (if set)
+            // that is, return the multiple of the minimum page size closer to the set size
+            int minSize = container.minPageSize();
+            sz = minSize > 0 ? (Math.max(sz / minSize, 1) * minSize) : sz;
 
             if (source.size() == -1) {
                 source.size(sz);
             }
             if (aggBuilder instanceof CompositeAggregationBuilder) {
-                ((CompositeAggregationBuilder) aggBuilder).size(sz);
+                // limit the composite aggs only for non-local sorting
+                if (container.sortingColumns().isEmpty()) {
+                    ((CompositeAggregationBuilder) aggBuilder).size(sz);
+                } else {
+                    ((CompositeAggregationBuilder) aggBuilder).size(size);
+                }
             }
         }
 
@@ -107,8 +118,7 @@ public abstract class SourceGenerator {
 
                 // sorting only works on not-analyzed fields - look for a multi-field replacement
                 if (attr instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) attr;
-                    fa = fa.isInexact() ? fa.exactAttribute() : fa;
+                    FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
 
                     sortBuilder = fieldSort(fa.name())
                             .missing(as.missing().position())
@@ -125,7 +135,8 @@ public abstract class SourceGenerator {
                         if (nestedSort == null) {
                             fieldSort.setNestedSort(newSort);
                         } else {
-                            for (; nestedSort.getNestedSort() != null; nestedSort = nestedSort.getNestedSort()) {
+                            while (nestedSort.getNestedSort() != null) {
+                                nestedSort = nestedSort.getNestedSort();
                             }
                             nestedSort.setNestedSort(newSort);
                         }
@@ -166,6 +177,9 @@ public abstract class SourceGenerator {
             builder.trackScores(false);
             // disable source fetching (only doc values are used)
             disableSource(builder);
+        }
+        if (query.shouldTrackHits()) {
+            builder.trackTotalHits(true);
         }
     }
 

@@ -114,4 +114,34 @@ public final class TimedRunnableTests extends ESTestCase {
         assertTrue(onAfter.get());
     }
 
+    public void testTimedRunnableRethrowsExceptionWhenNotAbstractRunnable() {
+        final AtomicBoolean hasRun = new AtomicBoolean();
+        final RuntimeException exception = new RuntimeException();
+
+        final Runnable runnable = () -> {
+            hasRun.set(true);
+            throw exception;
+        };
+
+        final TimedRunnable timedRunnable = new TimedRunnable(runnable);
+        final RuntimeException thrown = expectThrows(RuntimeException.class, () -> timedRunnable.run());
+        assertTrue(hasRun.get());
+        assertSame(exception, thrown);
+    }
+
+    public void testTimedRunnableRethrowsRejectionWhenNotAbstractRunnable() {
+        final AtomicBoolean hasRun = new AtomicBoolean();
+        final RuntimeException exception = new RuntimeException();
+
+        final Runnable runnable = () -> {
+            hasRun.set(true);
+            throw new AssertionError("should not run");
+        };
+
+        final TimedRunnable timedRunnable = new TimedRunnable(runnable);
+        final RuntimeException thrown = expectThrows(RuntimeException.class, () -> timedRunnable.onRejection(exception));
+        assertFalse(hasRun.get());
+        assertSame(exception, thrown);
+    }
+
 }

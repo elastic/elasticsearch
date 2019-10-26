@@ -59,7 +59,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
             supersetDf = in.readVLong();
             term = in.readLong();
             score = in.readDouble();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override
@@ -84,11 +84,6 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         @Override
         public Number getKeyAsNumber() {
             return term;
-        }
-
-        @Override
-        Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
-            return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations, format);
         }
 
         @Override
@@ -151,5 +146,11 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
     @Override
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
+    }
+
+    @Override
+    Bucket createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
+                        InternalAggregations aggregations, SignificantLongTerms.Bucket prototype) {
+        return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, prototype.term, aggregations, format);
     }
 }

@@ -52,9 +52,12 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LeaderCheckerTests extends ESTestCase {
@@ -146,7 +149,10 @@ public class LeaderCheckerTests extends ESTestCase {
         final AtomicBoolean leaderFailed = new AtomicBoolean();
 
         final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService,
-            () -> assertTrue(leaderFailed.compareAndSet(false, true)));
+            e -> {
+                assertThat(e.getMessage(), matchesRegex("node \\[.*\\] failed \\[[1-9][0-9]*\\] consecutive checks"));
+                assertTrue(leaderFailed.compareAndSet(false, true));
+            });
 
         logger.info("--> creating first checker");
         leaderChecker.updateLeader(leader1);
@@ -214,7 +220,7 @@ public class LeaderCheckerTests extends ESTestCase {
                     return;
                 }
                 assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
-                assertTrue(node.equals(leader));
+                assertEquals(node, leader);
                 final Response response = responseHolder[0];
 
                 deterministicTaskQueue.scheduleNow(new Runnable() {
@@ -247,7 +253,10 @@ public class LeaderCheckerTests extends ESTestCase {
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
         final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService,
-            () -> assertTrue(leaderFailed.compareAndSet(false, true)));
+            e -> {
+                assertThat(e.getMessage(), anyOf(endsWith("disconnected"), endsWith("disconnected during check")));
+                assertTrue(leaderFailed.compareAndSet(false, true));
+            });
 
         leaderChecker.updateLeader(leader);
         {
@@ -316,7 +325,7 @@ public class LeaderCheckerTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, () -> fail("shouldn't be checking anything"));
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, e -> fail("shouldn't be checking anything"));
 
         final DiscoveryNodes discoveryNodes
             = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()).build();
@@ -331,7 +340,7 @@ public class LeaderCheckerTests extends ESTestCase {
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));
             CoordinationStateRejectedException cause = (CoordinationStateRejectedException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(), equalTo("leader check from unknown node"));
+            assertThat(cause.getMessage(), equalTo("rejecting leader check since [" + otherNode + "] has been removed from the cluster"));
         }
 
         {
@@ -355,7 +364,8 @@ public class LeaderCheckerTests extends ESTestCase {
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));
             CoordinationStateRejectedException cause = (CoordinationStateRejectedException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(), equalTo("non-leader rejecting leader check"));
+            assertThat(cause.getMessage(),
+                equalTo("rejecting leader check from [" + otherNode + "] sent to a node that is no longer the master"));
         }
     }
 
@@ -388,7 +398,7 @@ public class LeaderCheckerTests extends ESTestCase {
     public void testLeaderCheckRequestEqualsHashcodeSerialization() {
         LeaderCheckRequest request = new LeaderCheckRequest(
             new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT));
-        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
+        //noinspection RedundantCast since it is needed for some IDEs (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
                 (CopyFunction<LeaderCheckRequest>) rq -> copyWriteable(rq, writableRegistry(), LeaderCheckRequest::new),
             rq -> new LeaderCheckRequest(new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT)));

@@ -25,6 +25,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -59,7 +60,9 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
 import java.security.KeyStore;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -116,21 +119,21 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
+            .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
             .put(Environment.PATH_LOGS_SETTING.getKey(), resolve)
             .put(TransportSettings.PORT.getKey(), 0)
             .put(Node.WRITE_PORTS_FILE_SETTING.getKey(), "true")
             .put(AzureComputeService.Management.ENDPOINT_SETTING.getKey(), "https://" + InetAddress.getLoopbackAddress().getHostAddress() +
                 ":" + httpsServer.getAddress().getPort())
             .put(AzureComputeService.Management.KEYSTORE_PATH_SETTING.getKey(), keyStoreFile.toAbsolutePath())
-            .put(AzureComputeService.Discovery.HOST_TYPE_SETTING.getKey(), AzureUnicastHostsProvider.HostType.PUBLIC_IP.name())
+            .put(AzureComputeService.Discovery.HOST_TYPE_SETTING.getKey(), AzureSeedHostsProvider.HostType.PUBLIC_IP.name())
             .put(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING.getKey(), "keypass")
             .put(AzureComputeService.Management.KEYSTORE_TYPE_SETTING.getKey(), "jks")
             .put(AzureComputeService.Management.SERVICE_NAME_SETTING.getKey(), "myservice")
             .put(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING.getKey(), "subscription")
             .put(AzureComputeService.Discovery.DEPLOYMENT_NAME_SETTING.getKey(), "mydeployment")
             .put(AzureComputeService.Discovery.ENDPOINT_NAME_SETTING.getKey(), "myendpoint")
-            .put(AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING.getKey(), AzureUnicastHostsProvider.Deployment.PRODUCTION.name())
+            .put(AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING.getKey(), AzureSeedHostsProvider.Deployment.PRODUCTION.name())
             .build();
     }
 
@@ -262,20 +265,39 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         kmf.init(ks, passphrase);
         TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
         tmf.init(ks);
-        SSLContext ssl = SSLContext.getInstance("TLS");
+        SSLContext ssl = SSLContext.getInstance(getProtocol());
         ssl.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
         return ssl;
     }
 
+    /**
+     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
+     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
+     */
+    private static String getProtocol() {
+        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
+            return "TLSv1.2";
+        } else {
+            JavaVersion full =
+                AccessController.doPrivileged(
+                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
+                return "TLSv1.2";
+            }
+        }
+        return "TLS";
+    }
+
     @AfterClass
     public static void stopHttpd() throws IOException {
-        for (int i = 0; i < internalCluster().size(); i++) {
+        try {
             // shut them all down otherwise we get spammed with connection refused exceptions
-            internalCluster().stopRandomDataNode();
+            internalCluster().close();
+        } finally {
+            httpsServer.stop(0);
+            httpsServer = null;
+            logDir = null;
         }
-        httpsServer.stop(0);
-        httpsServer = null;
-        logDir = null;
     }
 
     public void testJoin() throws ExecutionException, InterruptedException {

@@ -72,15 +72,15 @@ public class BoolQuery extends Query {
         return boolQuery;
     }
 
-    boolean isAnd() {
+    public boolean isAnd() {
         return isAnd;
     }
 
-    Query left() {
+    public Query left() {
         return left;
     }
 
-    Query right() {
+    public Query right() {
         return right;
     }
 

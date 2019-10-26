@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
-import org.joda.time.DateTime;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -49,6 +48,7 @@ import java.security.Principal;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.cert.Certificate;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -194,7 +195,8 @@ public class SSLServiceTests extends ESTestCase {
             sslService.createSSLEngine(configuration, null, -1);
             fail("expected an exception");
         } catch (ElasticsearchException e) {
-            assertThat(e.getMessage(), containsString("failed to initialize a KeyManagerFactory"));
+            assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+            assertThat(e.getCause(), throwableWithMessage(containsString("failed to initialize SSL KeyManager")));
         }
     }
 
@@ -326,7 +328,8 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
-        assertThat(e.getMessage(), is("failed to initialize a TrustManagerFactory"));
+        assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+        assertThat(e.getCause(), throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
     }
 
     public void testThatKeystorePasswordIsRequired() throws Exception {
@@ -336,7 +339,8 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
-        assertThat(e.getMessage(), is("failed to create trust manager"));
+        assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+        assertThat(e.getCause(), throwableWithMessage("failed to create trust manager"));
     }
 
     public void testCiphersAndInvalidCiphersWork() throws Exception {
@@ -369,9 +373,10 @@ public class SSLServiceTests extends ESTestCase {
             .setSecureSettings(secureSettings)
             .putList("xpack.security.transport.ssl.cipher_suites", new String[] { "foo", "bar" })
             .build();
-        IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> new SSLService(settings, env));
-        assertThat(e.getMessage(), is("none of the ciphers [foo, bar] are supported by this JVM"));
+        ElasticsearchException e =
+                expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
+        assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+        assertThat(e.getCause(), throwableWithMessage("none of the ciphers [foo, bar] are supported by this JVM"));
     }
 
     public void testThatSSLEngineHasCipherSuitesOrderSet() throws Exception {
@@ -563,7 +568,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("PEM"));
         assertThat(cert.serialNumber(), equalTo("580db8ad52bb168a4080e1df122a3f56"));
         assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2029-08-27T16:32:42Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2029-08-27T16:32:42Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
         cert = iterator.next();
@@ -572,7 +577,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("580db8ad52bb168a4080e1df122a3f56"));
         assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2029-08-27T16:32:42Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2029-08-27T16:32:42Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
         cert = iterator.next();
@@ -581,7 +586,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("3151a81eec8d4e34c56a8466a8510bcfbe63cc31"));
         assertThat(cert.subjectDn(), equalTo("CN=samba4"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2021-02-14T17:49:11.000Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2021-02-14T17:49:11.000Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
         cert = iterator.next();
@@ -590,7 +595,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("d3850b2b1995ad5f"));
         assertThat(cert.subjectDn(), equalTo("CN=OpenLDAP, OU=Elasticsearch, O=Elastic, L=Mountain View, ST=CA, C=US"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2027-07-23T16:41:14Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2027-07-23T16:41:14Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
         cert = iterator.next();
@@ -599,7 +604,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("b9d497f2924bbe29"));
         assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Client, OU=elasticsearch, O=org"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:55Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:55Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
         cert = iterator.next();
@@ -608,7 +613,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("c0ea4216e8ff0fd8"));
         assertThat(cert.subjectDn(), equalTo("CN=testnode-client-profile"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:56Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:56Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
         cert = iterator.next();
@@ -617,7 +622,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("223c736a"));
         assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2045-10-02T09:43:18.000Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2045-10-02T09:43:18.000Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         cert = iterator.next();
@@ -626,7 +631,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("7268203b"));
         assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2045-10-02T09:36:10.000Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2045-10-02T09:36:10.000Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         cert = iterator.next();
@@ -635,7 +640,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
         assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:57.000Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:57.000Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         cert = iterator.next();
@@ -644,7 +649,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.format(), equalTo("PKCS12"));
         assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
         assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:57Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:57Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         assertFalse(iterator.hasNext());
@@ -707,7 +712,7 @@ public class SSLServiceTests extends ESTestCase {
         SSLContext sslContext = sslService.sslContext(sslService.sslConfiguration(Settings.EMPTY));
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
-            // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
+            // This will result in an SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
             privilegedConnect(() -> client.execute(new HttpGet("https://www.elastic.co/")).close());
         }
@@ -740,7 +745,7 @@ public class SSLServiceTests extends ESTestCase {
             client.start();
 
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
-            // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
+            // This will result in an SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
             client.execute(new HttpHost("elastic.co", 443, "https"), new HttpGet("/"), new AssertionCallback()).get();
         }

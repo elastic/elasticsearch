@@ -25,12 +25,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -41,12 +42,12 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
-import org.joda.time.format.DateTimeFormatter;
 
 import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static java.util.Map.entry;
 
 /**
  * {@code HttpExporter} uses the low-level {@link RestClient} to connect to a user-specified set of nodes for exporting Monitoring
@@ -79,9 +82,78 @@ public class HttpExporter extends Exporter {
      * A string array representing the Elasticsearch node(s) to communicate with over HTTP(S).
      */
     public static final Setting.AffixSetting<List<String>> HOST_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","host",
-                    (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
-                            Property.Dynamic, Property.NodeScope));
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "host",
+                key -> Setting.listSetting(
+                    key,
+                    Collections.emptyList(),
+                    Function.identity(),
+                    new Setting.Validator<>() {
+
+                        @Override
+                        public void validate(final List<String> value) {
+
+                        }
+
+                        @Override
+                        public void validate(final List<String> hosts, final Map<Setting<?>, Object> settings) {
+                            final String namespace =
+                                HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
+                            final String type = (String) settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+
+                            if (hosts.isEmpty()) {
+                                final String defaultType =
+                                    Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace).get(Settings.EMPTY);
+                                if (Objects.equals(type, defaultType)) {
+                                    // hosts can only be empty if the type is unset
+                                    return;
+                                } else {
+                                    throw new SettingsException("host list for [" + key + "] is empty but type is [" + type + "]");
+                                }
+                            } else if ("http".equals(type) == false) {
+                                // the hosts can only be non-empty if the type is "http"
+                                throw new SettingsException("host list for [" + key + "] is set but type is [" + type + "]");
+                            }
+
+                            boolean httpHostFound = false;
+                            boolean httpsHostFound = false;
+
+                            // every host must be configured
+                            for (final String host : hosts) {
+                                final HttpHost httpHost;
+
+                                try {
+                                    httpHost = HttpHostBuilder.builder(host).build();
+                                } catch (final IllegalArgumentException e) {
+                                    throw new SettingsException("[" + key + "] invalid host: [" + host + "]", e);
+                                }
+
+                                if ("http".equals(httpHost.getSchemeName())) {
+                                    httpHostFound = true;
+                                } else {
+                                    httpsHostFound = true;
+                                }
+
+                                // fail if we find them configuring the scheme/protocol in different ways
+                                if (httpHostFound && httpsHostFound) {
+                                    throw new SettingsException("[" + key + "] must use a consistent scheme: http or https");
+                                }
+                            }
+                        }
+
+                        @Override
+                        public Iterator<Setting<?>> settings() {
+                            final String namespace =
+                                HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
+                            final List<Setting<?>> settings = List.of(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+                            return settings.iterator();
+                        }
+
+                    },
+                    Property.Dynamic,
+                    Property.NodeScope));
+
     /**
      * Master timeout associated with bulk requests.
      */
@@ -193,7 +265,7 @@ public class HttpExporter extends Exporter {
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
 
     private final ThreadContext threadContext;
-    private final DateTimeFormatter dateTimeFormatter;
+    private final DateFormatter dateTimeFormatter;
 
     /**
      * Create an {@link HttpExporter}.
@@ -380,43 +452,17 @@ public class HttpExporter extends Exporter {
      */
     private static HttpHost[] createHosts(final Config config) {
         final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        String configKey = HOST_SETTING.getConcreteSettingForNamespace(config.name()).getKey();
-
-        if (hosts.isEmpty()) {
-            throw new SettingsException("missing required setting [" + configKey + "]");
-        }
 
         final List<HttpHost> httpHosts = new ArrayList<>(hosts.size());
-        boolean httpHostFound = false;
-        boolean httpsHostFound = false;
 
-        // every host must be configured
         for (final String host : hosts) {
-            final HttpHost httpHost;
-
-            try {
-                httpHost = HttpHostBuilder.builder(host).build();
-            } catch (IllegalArgumentException e) {
-                throw new SettingsException("[" + configKey + "] invalid host: [" + host + "]", e);
-            }
-
-            if ("http".equals(httpHost.getSchemeName())) {
-                httpHostFound = true;
-            } else {
-                httpsHostFound = true;
-            }
-
-            // fail if we find them configuring the scheme/protocol in different ways
-            if (httpHostFound && httpsHostFound) {
-                throw new SettingsException("[" + configKey + "] must use a consistent scheme: http or https");
-            }
-
+            final HttpHost httpHost = HttpHostBuilder.builder(host).build();
             httpHosts.add(httpHost);
         }
 
         logger.debug("exporter [{}] using hosts {}", config.name(), hosts);
 
-        return httpHosts.toArray(new HttpHost[httpHosts.size()]);
+        return httpHosts.toArray(new HttpHost[0]);
     }
 
     /**
@@ -554,21 +600,21 @@ public class HttpExporter extends Exporter {
     static Map<String, String> createDefaultParams(final Config config) {
         final TimeValue bulkTimeout = BULK_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
-        final MapBuilder<String, String> params = new MapBuilder<>();
+        final var entries = new ArrayList<Map.Entry<String, String>>(3);
 
         if (TimeValue.MINUS_ONE.equals(bulkTimeout) == false) {
-            params.put("timeout", bulkTimeout.toString());
+            entries.add(entry("timeout", bulkTimeout.toString()));
         }
 
         // allow the use of ingest pipelines to be completely optional
         if (USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
-            params.put("pipeline", MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION));
+            entries.add(entry("pipeline", MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION)));
         }
 
         // widdle down the response to just what we care to check
-        params.put("filter_path", "errors,items.*.error");
+        entries.add(entry("filter_path", "errors,items.*.error"));
 
-        return params.immutableMap();
+        return Maps.ofEntries(entries);
     }
 
     /**
@@ -592,7 +638,8 @@ public class HttpExporter extends Exporter {
             resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
         }
 
-        // add old templates, like ".monitoring-data-2" and ".monitoring-es-2" so that other versions can continue to work
+        // Add dummy templates (e.g. ".monitoring-es-6") to enable the ability to check which version of the actual
+        // index template (e.g. ".monitoring-es") should be applied.
         boolean createLegacyTemplates =
                 TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         if (createLegacyTemplates) {

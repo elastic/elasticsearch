@@ -21,10 +21,10 @@ package org.elasticsearch.ingest.common;
 
 import java.util.regex.Pattern;
 
-public class GsubProcessorTests extends AbstractStringProcessorTestCase {
+public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> {
 
     @Override
-    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField) {
+    protected AbstractStringProcessor<String> newProcessor(String field, boolean ignoreMissing, String targetField) {
         return new GsubProcessor(randomAlphaOfLength(10), field, Pattern.compile("\\."), "-", ignoreMissing, targetField);
     }
 

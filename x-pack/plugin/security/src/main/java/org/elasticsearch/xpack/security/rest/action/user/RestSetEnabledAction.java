@@ -17,8 +17,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -61,12 +61,14 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
         final boolean enabled = request.path().endsWith("_enable");
         assert enabled || request.path().endsWith("_disable");
         final String username = request.param("username");
-        return channel -> new SecurityClient(client).prepareSetEnabled(username, enabled)
-                .execute(new RestBuilderListener<SetEnabledResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(SetEnabledResponse setEnabledResponse, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
-                    }
-                });
+        return channel -> new SetEnabledRequestBuilder(client)
+            .username(username)
+            .enabled(enabled)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(SetEnabledResponse setEnabledResponse, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
+                }
+            });
     }
 }

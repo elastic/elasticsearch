@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,7 +81,7 @@ public final class GlobalPrivileges implements ToXContentObject {
             throw new IllegalArgumentException("Privileges cannot be empty or null");
         }
         // duplicates are just ignored
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(privileges)));
+        this.privileges = Set.copyOf(Objects.requireNonNull(privileges));
         this.privilegesByCategoryMap = Collections
                 .unmodifiableMap(this.privileges.stream().collect(Collectors.groupingBy(GlobalOperationPrivilege::getCategory)));
         for (final Map.Entry<String, List<GlobalOperationPrivilege>> privilegesByCategory : privilegesByCategoryMap.entrySet()) {

@@ -244,21 +244,28 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         }
 
         RunningStats runningStats = new RunningStats();
-        for (int i=0; i < aggs.size(); ++i) {
-            runningStats.merge(((InternalMatrixStats) aggs.get(i)).stats);
+        for (InternalAggregation agg : aggs) {
+            runningStats.merge(((InternalMatrixStats) agg).stats);
         }
-        MatrixStatsResults results = new MatrixStatsResults(runningStats);
 
-        return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
+        if (reduceContext.isFinalReduce()) {
+            MatrixStatsResults results = new MatrixStatsResults(runningStats);
+            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
+        }
+        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, pipelineAggregators(), getMetaData());
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(stats, results);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), stats, results);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalMatrixStats other = (InternalMatrixStats) obj;
         return Objects.equals(this.stats, other.stats) &&
             Objects.equals(this.results, other.results);

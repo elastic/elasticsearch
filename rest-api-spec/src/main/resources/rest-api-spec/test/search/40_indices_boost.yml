@@ -19,14 +19,12 @@ setup:
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  test_2
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -37,7 +35,6 @@ setup:
 ---
 "Indices boost using object":
   - skip:
-      reason: deprecation was added in 5.2.0
       features: "warnings"
 
   - do:

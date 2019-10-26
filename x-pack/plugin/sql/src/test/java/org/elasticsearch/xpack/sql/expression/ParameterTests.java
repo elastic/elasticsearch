@@ -28,7 +28,7 @@ public class ParameterTests extends ESTestCase {
     public void testSingleParameter() {
         Expression expression = new SqlParser().createExpression("a = \n?",
                 Collections.singletonList(
-                        new SqlTypedParamValue(DataType.KEYWORD.esType, "foo")
+                        new SqlTypedParamValue(DataType.KEYWORD.typeName, "foo")
                 ));
         logger.info(expression);
         assertThat(expression, instanceOf(Equals.class));
@@ -42,10 +42,10 @@ public class ParameterTests extends ESTestCase {
 
     public void testMultipleParameters() {
         Expression expression = new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                new SqlTypedParamValue(DataType.LONG.esType, 1L),
-                new SqlTypedParamValue(DataType.LONG.esType, 2L),
-                new SqlTypedParamValue(DataType.LONG.esType, 3L),
-                new SqlTypedParamValue(DataType.LONG.esType, 4L)
+                new SqlTypedParamValue(DataType.LONG.typeName, 1L),
+                new SqlTypedParamValue(DataType.LONG.typeName, 2L),
+                new SqlTypedParamValue(DataType.LONG.typeName, 3L),
+                new SqlTypedParamValue(DataType.LONG.typeName, 4L)
                 ));
         assertThat(expression, instanceOf(Sub.class));
         Sub sub = (Sub) expression;
@@ -62,9 +62,9 @@ public class ParameterTests extends ESTestCase {
     public void testNotEnoughParameters() {
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                        new SqlTypedParamValue(DataType.LONG.esType, 1L),
-                        new SqlTypedParamValue(DataType.LONG.esType, 2L),
-                        new SqlTypedParamValue(DataType.LONG.esType, 3L)
+                        new SqlTypedParamValue(DataType.LONG.typeName, 1L),
+                        new SqlTypedParamValue(DataType.LONG.typeName, 2L),
+                        new SqlTypedParamValue(DataType.LONG.typeName, 3L)
                 )));
         assertThat(ex.getMessage(), containsString("Not enough actual parameters"));
     }

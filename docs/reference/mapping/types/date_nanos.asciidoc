@@ -1,0 +1,101 @@
+[[date_nanos]]
+=== Date nanoseconds datatype
+++++
+<titleabbrev>Date nanoseconds</titleabbrev>
+++++
+
+This datatype is an addition to the `date` datatype. However there is an
+important distinction between the two. The existing `date` datatype stores
+dates in millisecond resolution. The `date_nanos` data type stores dates
+in nanosecond resolution, which limits its range of dates from roughly
+1970 to 2262, as dates are still stored as a long representing nanoseconds
+since the epoch.
+
+Queries on nanoseconds are internally converted to range queries on this long
+representation, and the result of aggregations and stored fields is converted
+back to a string depending on the date format that is associated with the field.
+
+Date formats can be customised, but if no `format` is specified then it uses
+the default:
+
+    "strict_date_optional_time||epoch_millis"
+
+This means that it will accept dates with optional timestamps, which conform
+to the formats supported by
+<<strict-date-time,`strict_date_optional_time`>> including up to nine second
+fractionals or milliseconds-since-the-epoch (thus losing precision on the
+nano second part).
+
+For instance:
+
+[source,console]
+--------------------------------------------------
+PUT my_index?include_type_name=true
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "date": {
+          "type": "date_nanos" <1>
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/1
+{ "date": "2015-01-01" } <2>
+
+PUT my_index/_doc/2
+{ "date": "2015-01-01T12:10:30.123456789Z" } <3>
+
+PUT my_index/_doc/3
+{ "date": 1420070400 } <4>
+
+GET my_index/_search
+{
+  "sort": { "date": "asc"} <5>
+}
+
+GET my_index/_search
+{
+  "script_fields" : {
+    "my_field" : {
+      "script" : {
+        "lang" : "painless",
+        "source" : "doc['date'].date.nanos" <6>
+      }
+    }
+  }
+}
+
+GET my_index/_search
+{
+  "docvalue_fields" : [
+    {
+      "field" : "my_ip_field",
+      "format": "strict_date_time" <7>
+    }
+  ]
+}
+--------------------------------------------------
+
+<1> The `date` field uses the default `format`.
+<2> This document uses a plain date.
+<3> This document includes a time.
+<4> This document uses milliseconds-since-the-epoch.
+<5> Note that the `sort` values that are returned are all in
+nanoseconds-since-the-epoch.
+<6> Access the nanosecond part of the date in a script
+<7> Use doc value fields, which can be formatted in nanosecond
+resolution
+
+You can also specify multiple date formats separated by `||`. The
+same mapping parameters than with the `date` field can be used.
+
+[[date-nanos-limitations]]
+==== Limitations
+
+Aggregations are still on millisecond resolution, even when using a
+`date_nanos` field.
+

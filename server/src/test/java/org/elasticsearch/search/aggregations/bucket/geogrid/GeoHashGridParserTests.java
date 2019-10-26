@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -99,8 +98,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException e = expectThrows(XContentParseException.class,
                 () -> GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
+        assertThat(e.getMessage(), containsString("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {

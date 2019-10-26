@@ -125,13 +125,6 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     }
 
     /**
-     * Returns the current queue capacity
-     */
-    public int getCurrentCapacity() {
-        return workQueue.capacity();
-    }
-
-    /**
      * Returns the exponentially weighted moving average of the task execution time
      */
     public double getTaskExecutionEWMA() {
@@ -155,11 +148,17 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
         final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
         final long taskNanos = timedRunnable.getTotalNanos();
+        final boolean failedOrRejected = timedRunnable.getFailedOrRejected();
         final long totalNanos = totalTaskNanos.addAndGet(taskNanos);
 
         final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
-        assert taskExecutionNanos >= 0 : "expected task to always take longer than 0 nanoseconds, got: " + taskExecutionNanos;
-        executionEWMA.addValue(taskExecutionNanos);
+        assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1) :
+            "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: " + taskExecutionNanos +
+                ", failedOrRejected: " + failedOrRejected;
+        if (taskExecutionNanos != -1) {
+            // taskExecutionNanos may be -1 if the task threw an exception
+            executionEWMA.addValue(taskExecutionNanos);
+        }
 
         if (taskCount.incrementAndGet() == this.tasksPerFrame) {
             final long endTimeNs = System.nanoTime();

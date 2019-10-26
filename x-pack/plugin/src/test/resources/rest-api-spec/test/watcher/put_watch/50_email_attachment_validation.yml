@@ -6,7 +6,7 @@
 
   - do:
       catch: /Configured URL is empty/
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -45,7 +45,7 @@
 
   - do:
       catch: /Malformed URL/
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {

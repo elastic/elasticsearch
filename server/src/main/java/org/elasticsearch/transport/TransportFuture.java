@@ -19,21 +19,68 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
+
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
-public interface TransportFuture<V> extends Future<V> {
+public class TransportFuture<V extends TransportResponse> extends BaseFuture<V> implements Future<V>, TransportResponseHandler<V> {
 
-    /**
-     * Waits if necessary for the computation to complete, and then
-     * retrieves its result.
-     */
-    V txGet();
+    private final TransportResponseHandler<V> handler;
 
-    /**
-     * Waits if necessary for at most the given time for the computation
-     * to complete, and then retrieves its result, if available.
-     */
-    V txGet(long timeout, TimeUnit unit);
+    public TransportFuture(TransportResponseHandler<V> handler) {
+        this.handler = handler;
+    }
+
+    public V txGet() {
+        try {
+            return get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Future got interrupted", e);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e.getCause();
+            } else {
+                throw new TransportException("Failed execution", e);
+            }
+        }
+    }
+
+    @Override
+    public V read(StreamInput in) throws IOException {
+        return handler.read(in);
+    }
+
+    @Override
+    public String executor() {
+        return handler.executor();
+    }
+
+    @Override
+    public void handleResponse(V response) {
+        try {
+            handler.handleResponse(response);
+            set(response);
+        } catch (Exception e) {
+            handleException(new ResponseHandlerFailureTransportException(e));
+        }
+    }
+
+    @Override
+    public void handleException(TransportException exp) {
+        try {
+            handler.handleException(exp);
+        } finally {
+            setException(exp);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "future(" + handler.toString() + ")";
+    }
 }
-

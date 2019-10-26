@@ -86,8 +86,8 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap2.isAggregatable(), equalTo(false));
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
-            assertThat(cap1.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
-            assertThat(cap1.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
+            assertThat(cap2.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
+            assertThat(cap2.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
         }
     }
 

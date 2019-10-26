@@ -91,20 +91,26 @@ public class IngestRestartIT extends ESIntegTestCase {
         checkPipelineExists.accept(pipelineIdWithoutScript);
 
 
-        internalCluster().stopCurrentMasterNode();
-        internalCluster().startNode(Settings.builder().put("script.allowed_types", "none"));
+        internalCluster().restartNode(internalCluster().getMasterName(), new InternalTestCluster.RestartCallback() {
+
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put("script.allowed_types", "none").build();
+            }
+
+        });
 
         checkPipelineExists.accept(pipelineIdWithoutScript);
         checkPipelineExists.accept(pipelineIdWithScript);
 
-        client().prepareIndex("index", "doc", "1")
+        client().prepareIndex("index").setId("1")
             .setSource("x", 0)
             .setPipeline(pipelineIdWithoutScript)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> client().prepareIndex("index", "doc", "2")
+            () -> client().prepareIndex("index").setId("2")
                 .setSource("x", 0)
                 .setPipeline(pipelineIdWithScript)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -113,14 +119,11 @@ public class IngestRestartIT extends ESIntegTestCase {
         assertThat(exception.getHeader("processor_type"), equalTo(Arrays.asList("unknown")));
         assertThat(exception.getRootCause().getMessage(),
             equalTo("pipeline with id [" + pipelineIdWithScript + "] could not be loaded, caused by " +
-                "[ElasticsearchParseException[Error updating pipeline with id [" + pipelineIdWithScript + "]]; " +
-                "nested: ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
-                "nested: IllegalArgumentException[cannot execute [inline] scripts];; " +
-                "ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
-                "nested: IllegalArgumentException[cannot execute [inline] scripts];; java.lang.IllegalArgumentException: " +
-                "cannot execute [inline] scripts]"));
+                "[org.elasticsearch.ElasticsearchParseException: Error updating pipeline with id [" + pipelineIdWithScript + "]; " +
+                "org.elasticsearch.ElasticsearchException: java.lang.IllegalArgumentException: cannot execute [inline] scripts; " +
+                "java.lang.IllegalArgumentException: cannot execute [inline] scripts]"));
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
     }
@@ -141,13 +144,13 @@ public class IngestRestartIT extends ESIntegTestCase {
                 "}");
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index", "doc", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource("x", 0)
                 .setPipeline("_id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
         assertThat(source.get("z"), equalTo(0));
@@ -159,13 +162,13 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureYellow("index");
 
-        client().prepareIndex("index", "doc", "2")
+        client().prepareIndex("index").setId("2")
                 .setSource("x", 0)
                 .setPipeline("_id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        source = client().prepareGet("index", "doc", "2").get().getSource();
+        source = client().prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
         assertThat(source.get("z"), equalTo(0));
@@ -185,26 +188,26 @@ public class IngestRestartIT extends ESIntegTestCase {
                 "}");
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index", "doc", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource("x", 0)
                 .setPipeline("_id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
 
         logger.info("Stopping");
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback());
 
-        client(ingestNode).prepareIndex("index", "doc", "2")
+        client(ingestNode).prepareIndex("index").setId("2")
                 .setSource("x", 0)
                 .setPipeline("_id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        source = client(ingestNode).prepareGet("index", "doc", "2").get().getSource();
+        source = client(ingestNode).prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
     }

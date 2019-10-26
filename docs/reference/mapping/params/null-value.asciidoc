@@ -8,7 +8,7 @@ field has no values.
 The `null_value` parameter allows you to replace explicit `null` values with
 the specified value so that it can be indexed and searched.  For instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -41,7 +41,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Replace explicit `null` values with the term `NULL`.
 <2> An empty array does not contain an explicit `null`, and so won't be replaced with the `null_value`.
 <3> A query for `NULL` returns document 1, but not document 2.

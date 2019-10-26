@@ -1,0 +1,11 @@
+`max_restore_bytes_per_sec`::
+
+    Throttles per node restore rate. Defaults to `40mb` per second.
+
+`max_snapshot_bytes_per_sec`::
+
+    Throttles per node snapshot rate. Defaults to `40mb` per second.
+
+`readonly`::
+
+    Makes repository read-only.  Defaults to `false`.

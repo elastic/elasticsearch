@@ -7,7 +7,6 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -23,7 +22,6 @@ setup:
       search:
           rest_total_hits_as_int: true
           index: test
-          type:  test
           search_type: query_and_fetch
           body:
               query:
@@ -38,7 +36,6 @@ setup:
       search:
           rest_total_hits_as_int: true
           index: test
-          type:  test
           search_type: dfs_query_and_fetch
           body:
               query:

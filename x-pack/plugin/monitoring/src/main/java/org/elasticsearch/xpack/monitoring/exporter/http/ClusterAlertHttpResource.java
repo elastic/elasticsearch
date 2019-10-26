@@ -105,7 +105,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     @Override
     protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
         putResource(client, listener, logger,
-                    "/_watcher/watch", watchId.get(), this::watchToHttpEntity, "monitoring cluster alert",
+                    "/_watcher/watch", watchId.get(), Collections.emptyMap(), this::watchToHttpEntity, "monitoring cluster alert",
                     resourceOwnerName, "monitoring cluster");
     }
 

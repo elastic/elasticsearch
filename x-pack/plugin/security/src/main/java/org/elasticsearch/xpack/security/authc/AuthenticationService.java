@@ -10,9 +10,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
@@ -27,13 +29,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -81,12 +84,13 @@ public class AuthenticationService {
     private final TokenService tokenService;
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final AtomicLong numInvalidation = new AtomicLong();
+    private final ApiKeyService apiKeyService;
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
 
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
-                                 AnonymousUser anonymousUser, TokenService tokenService) {
+                                 AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
         this.auditTrail = auditTrail;
@@ -104,6 +108,7 @@ public class AuthenticationService {
         } else {
             this.lastSuccessfulAuthCache = null;
         }
+        this.apiKeyService = apiKeyService;
     }
 
     /**
@@ -135,8 +140,8 @@ public class AuthenticationService {
     }
 
     /**
-     * Authenticates the username and password that are provided as parameters. This will not look
-     * at the values in the ThreadContext for Authentication.
+     * Authenticates the user based on the contents of the token that is provided as parameter. This will not look at the values in the
+     * ThreadContext for Authentication.
      *
      * @param action  The action of the message
      * @param message The message that resulted in this authenticate call
@@ -192,8 +197,9 @@ public class AuthenticationService {
 
         private final AuditableRequest request;
         private final User fallbackUser;
-
+        private final List<Realm> defaultOrderedRealmList;
         private final ActionListener<Authentication> listener;
+
         private RealmRef authenticatedBy = null;
         private RealmRef lookedupBy = null;
         private AuthenticationToken authenticationToken = null;
@@ -211,6 +217,7 @@ public class AuthenticationService {
         private Authenticator(AuditableRequest auditableRequest, User fallbackUser, ActionListener<Authentication> listener) {
             this.request = auditableRequest;
             this.fallbackUser = fallbackUser;
+            this.defaultOrderedRealmList = realms.asList();
             this.listener = listener;
         }
 
@@ -229,27 +236,59 @@ public class AuthenticationService {
          * </ol>
          */
         private void authenticateAsync() {
-            lookForExistingAuthentication((authentication) -> {
-                if (authentication != null) {
-                    listener.onResponse(authentication);
-                } else {
-                    tokenService.getAndValidateToken(threadContext, ActionListener.wrap(userToken -> {
-                        if (userToken != null) {
-                            writeAuthToContext(userToken.getAuthentication());
-                        } else {
-                            extractToken(this::consumeToken);
-                        }
-                    }, e -> {
-                        if (e instanceof ElasticsearchSecurityException &&
+            if (defaultOrderedRealmList.isEmpty()) {
+                // this happens when the license state changes between the call to authenticate and the actual invocation
+                // to get the realm list
+                listener.onResponse(null);
+            } else {
+                lookForExistingAuthentication((authentication) -> {
+                    if (authentication != null) {
+                        listener.onResponse(authentication);
+                    } else {
+                        tokenService.getAndValidateToken(threadContext, ActionListener.wrap(userToken -> {
+                            if (userToken != null) {
+                                writeAuthToContext(userToken.getAuthentication());
+                            } else {
+                                checkForApiKey();
+                            }
+                        }, e -> {
+                            if (e instanceof ElasticsearchSecurityException &&
                                 tokenService.isExpiredTokenException((ElasticsearchSecurityException) e) == false) {
-                            // intentionally ignore the returned exception; we call this primarily
-                            // for the auditing as we already have a purpose built exception
-                            request.tamperedRequest();
-                        }
+                                // intentionally ignore the returned exception; we call this primarily
+                                // for the auditing as we already have a purpose built exception
+                                request.tamperedRequest();
+                            }
+                            listener.onFailure(e);
+                        }));
+                    }
+                });
+            }
+        }
+
+        private void checkForApiKey() {
+            apiKeyService.authenticateWithApiKeyIfPresent(threadContext, ActionListener.wrap(authResult -> {
+                    if (authResult.isAuthenticated()) {
+                        final User user = authResult.getUser();
+                        authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
+                        writeAuthToContext(new Authentication(user, authenticatedBy, null, Version.CURRENT,
+                            Authentication.AuthenticationType.API_KEY, authResult.getMetadata()));
+                    } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                        Exception e = (authResult.getException() != null) ? authResult.getException()
+                            : Exceptions.authenticationError(authResult.getMessage());
                         listener.onFailure(e);
-                    }));
-                }
-            });
+                    } else {
+                        if (authResult.getMessage() != null) {
+                            if (authResult.getException() != null) {
+                                logger.warn(new ParameterizedMessage("Authentication using apikey failed - {}", authResult.getMessage()),
+                                    authResult.getException());
+                            } else {
+                                logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
+                            }
+                        }
+                        extractToken(this::consumeToken);
+                    }
+                },
+                e -> listener.onFailure(request.exceptionProcessingRequest(e, null))));
         }
 
         /**
@@ -290,7 +329,7 @@ public class AuthenticationService {
                 if (authenticationToken != null) {
                     action = () -> consumer.accept(authenticationToken);
                 } else {
-                    for (Realm realm : realms) {
+                    for (Realm realm : defaultOrderedRealmList) {
                         final AuthenticationToken token = realm.token(threadContext);
                         if (token != null) {
                             action = () -> consumer.accept(token);
@@ -308,9 +347,10 @@ public class AuthenticationService {
 
         /**
          * Consumes the {@link AuthenticationToken} provided by the caller. In the case of a {@code null} token, {@link #handleNullToken()}
-         * is called. In the case of a {@code non-null} token, the realms are iterated over and the first realm that returns a non-null
-         * {@link User} is the authenticating realm and iteration is stopped. This user is then passed to {@link #consumeUser(User, Map)}
-         * if no exception was caught while trying to authenticate the token
+         * is called. In the case of a {@code non-null} token, the realms are iterated over in the order defined in the configuration
+         * while possibly also taking into consideration the last realm that authenticated this principal. When consulting multiple realms,
+         * the first realm that returns a non-null {@link User} is the authenticating realm and iteration is stopped. This user is then
+         * passed to {@link #consumeUser(User, Map)} if no exception was caught while trying to authenticate the token
          */
         private void consumeToken(AuthenticationToken token) {
             if (token == null) {
@@ -358,6 +398,7 @@ public class AuthenticationService {
                         userListener.onResponse(null);
                     }
                 };
+
                 final IteratingActionListener<User, Realm> authenticatingListener =
                     new IteratingActionListener<>(ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(
                         (user) -> consumeUser(user, messages),
@@ -371,25 +412,31 @@ public class AuthenticationService {
             }
         }
 
+        /**
+         * Possibly reorders the realm list depending on whether this principal has been recently authenticated by a specific realm
+         *
+         * @param principal The principal of the {@link AuthenticationToken} to be authenticated by a realm
+         * @return a list of realms ordered based on which realm should authenticate the current {@link AuthenticationToken}
+         */
         private List<Realm> getRealmList(String principal) {
-            final List<Realm> defaultOrderedRealms = realms.asList();
+            final List<Realm> orderedRealmList = this.defaultOrderedRealmList;
             if (lastSuccessfulAuthCache != null) {
                 final Realm lastSuccess = lastSuccessfulAuthCache.get(principal);
                 if (lastSuccess != null) {
-                    final int index = defaultOrderedRealms.indexOf(lastSuccess);
+                    final int index = orderedRealmList.indexOf(lastSuccess);
                     if (index > 0) {
-                        final List<Realm> smartOrder = new ArrayList<>(defaultOrderedRealms.size());
+                        final List<Realm> smartOrder = new ArrayList<>(orderedRealmList.size());
                         smartOrder.add(lastSuccess);
-                        for (int i = 1; i < defaultOrderedRealms.size(); i++) {
+                        for (int i = 1; i < orderedRealmList.size(); i++) {
                             if (i != index) {
-                                smartOrder.add(defaultOrderedRealms.get(i));
+                                smartOrder.add(orderedRealmList.get(i));
                             }
                         }
                         return Collections.unmodifiableList(smartOrder);
                     }
                 }
             }
-            return defaultOrderedRealms;
+            return orderedRealmList;
         }
 
         /**
@@ -410,10 +457,12 @@ public class AuthenticationService {
             final Authentication authentication;
             if (fallbackUser != null) {
                 RealmRef authenticatedBy = new RealmRef("__fallback", "__fallback", nodeName);
-                authentication = new Authentication(fallbackUser, authenticatedBy, null);
+                authentication = new Authentication(fallbackUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.INTERNAL,
+                    Collections.emptyMap());
             } else if (isAnonymousUserEnabled) {
                 RealmRef authenticatedBy = new RealmRef("__anonymous", "__anonymous", nodeName);
-                authentication = new Authentication(anonymousUser, authenticatedBy, null);
+                authentication = new Authentication(anonymousUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.ANONYMOUS,
+                    Collections.emptyMap());
             } else {
                 authentication = null;
             }
@@ -443,6 +492,13 @@ public class AuthenticationService {
                     final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";
                     logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
                 });
+                List<Realm> unlicensedRealms = realms.getUnlicensedRealms();
+                if (unlicensedRealms.isEmpty() == false) {
+                    logger.warn("Authentication failed using realms [{}]." +
+                            " Realms [{}] were skipped because they are not permitted on the current license",
+                        Strings.collectionToCommaDelimitedString(defaultOrderedRealmList),
+                        Strings.collectionToCommaDelimitedString(unlicensedRealms));
+                }
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
                 threadContext.putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, authenticationResult);
@@ -611,7 +667,7 @@ public class AuthenticationService {
 
         @Override
         ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
-            auditTrail.runAsDenied(requestId, authentication, action, message, Role.EMPTY.names());
+            auditTrail.runAsDenied(requestId, authentication, action, message, EmptyAuthorizationInfo.INSTANCE);
             return failureHandler.failedAuthentication(message, token, action, threadContext);
         }
 
@@ -675,7 +731,7 @@ public class AuthenticationService {
 
         @Override
         ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
-            auditTrail.runAsDenied(requestId, authentication, request, Role.EMPTY.names());
+            auditTrail.runAsDenied(requestId, authentication, request, EmptyAuthorizationInfo.INSTANCE);
             return failureHandler.failedAuthentication(request, token, threadContext);
         }
 

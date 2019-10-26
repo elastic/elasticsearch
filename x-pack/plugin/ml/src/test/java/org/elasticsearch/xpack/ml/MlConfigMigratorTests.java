@@ -14,9 +14,13 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -47,6 +51,12 @@ import static org.mockito.Mockito.when;
 
 public class MlConfigMigratorTests extends ESTestCase {
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
     public void testNonDeletingJobs() {
         Job job1 = JobTests.buildJobBuilder("openjob1").build();
         Job job2 = JobTests.buildJobBuilder("openjob2").build();
@@ -64,7 +74,7 @@ public class MlConfigMigratorTests extends ESTestCase {
                 .putJob(closedJob, false)
                 .putJob(jobWithoutAllocation, false)
                 .putJob(openJob, false)
-                .putDatafeed(createCompatibleDatafeed(closedJob.getId()), Collections.emptyMap());
+                .putDatafeed(createCompatibleDatafeed(closedJob.getId()), Collections.emptyMap(), xContentRegistry());
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         tasksBuilder.addTask(MlTasks.jobTaskId("jobwithoutallocation"), MlTasks.JOB_TASK_NAME,
@@ -103,9 +113,9 @@ public class MlConfigMigratorTests extends ESTestCase {
                 .putJob(job1, false)
                 .putJob(job2, false)
                 .putJob(job3, false)
-                .putDatafeed(stopppedDatafeed, Collections.emptyMap())
-                .putDatafeed(datafeedWithoutAllocation, Collections.emptyMap())
-                .putDatafeed(startedDatafeed, Collections.emptyMap());
+                .putDatafeed(stopppedDatafeed, Collections.emptyMap(), xContentRegistry())
+                .putDatafeed(datafeedWithoutAllocation, Collections.emptyMap(), xContentRegistry())
+                .putDatafeed(startedDatafeed, Collections.emptyMap(), xContentRegistry());
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         tasksBuilder.addTask(MlTasks.datafeedTaskId(stopppedDatafeed.getId()), MlTasks.DATAFEED_TASK_NAME,
@@ -135,7 +145,7 @@ public class MlConfigMigratorTests extends ESTestCase {
 
     public void testUpdateJobForMigration() {
         Job.Builder oldJob = JobTests.buildJobBuilder("pre-migration");
-        Version oldVersion = Version.V_6_3_0;
+        Version oldVersion = VersionUtils.randomVersion(random());
         oldJob.setJobVersion(oldVersion);
 
         Job migratedJob = MlConfigMigrator.updateJobForMigration(oldJob.build());
@@ -206,8 +216,8 @@ public class MlConfigMigratorTests extends ESTestCase {
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
                 .putJob(job1, false)
                 .putJob(job2, false)
-                .putDatafeed(datafeedConfig1, Collections.emptyMap())
-                .putDatafeed(datafeedConfig2, Collections.emptyMap());
+                .putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry())
+                .putDatafeed(datafeedConfig2, Collections.emptyMap(), xContentRegistry());
 
         MlConfigMigrator.RemovalResult removalResult = MlConfigMigrator.removeJobsAndDatafeeds(
                 Arrays.asList(job1, job2), Arrays.asList(datafeedConfig1, datafeedConfig2), mlMetadata.build());
@@ -225,7 +235,7 @@ public class MlConfigMigratorTests extends ESTestCase {
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
                 .putJob(job1, false)
                 .putJob(job2, false)
-                .putDatafeed(datafeedConfig1, Collections.emptyMap());
+                .putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
 
         MlConfigMigrator.RemovalResult removalResult = MlConfigMigrator.removeJobsAndDatafeeds(
                 Arrays.asList(job1, JobTests.buildJobBuilder("job-none").build()),

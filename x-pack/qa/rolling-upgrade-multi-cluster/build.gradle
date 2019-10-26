@@ -1,0 +1,135 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+    testCompile project(':x-pack:qa')
+}
+
+tasks.register("bwcTest") {
+    description = 'Runs backwards compatibility tests.'
+    group = 'verification'
+}
+
+configurations {
+    restSpec
+}
+
+dependencies {
+    restSpec project(':rest-api-spec')
+}
+
+processTestResources {
+    dependsOn configurations.restSpec
+    from ({ zipTree(configurations.restSpec.singleFile) }) {
+        include 'rest-api-spec/api/**'
+    }
+    from (project(xpackProject('plugin').path).sourceSets.test.resources) {
+        include 'rest-api-spec/api/**'
+    }
+}
+
+for (Version bwcVersion : bwcVersions.wireCompatible) {
+    String baseName = "v${bwcVersion}"
+
+    testClusters {
+        "${baseName}-leader" {
+            numberOfNodes = 3
+        }
+        "${baseName}-follower" {
+            numberOfNodes = 3
+        }
+    }
+    testClusters.matching{ it.name.startsWith(baseName)}.all {
+        testDistribution = "DEFAULT"
+        versions = [bwcVersion.toString(), project.version]
+
+        setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+        setting 'xpack.security.enabled', 'false'
+        setting 'xpack.monitoring.enabled', 'false'
+        setting 'xpack.ml.enabled', 'false'
+        setting 'xpack.watcher.enabled', 'false'
+        setting 'xpack.license.self_generated.type', 'trial'
+
+        javaHome = project.file(project.ext.runtimeJavaHome)
+    }
+
+    tasks.withType(RestTestRunnerTask).matching{it.name.startsWith(baseName)}.configureEach {
+        useCluster testClusters."${baseName}-leader"
+        useCluster testClusters."${baseName}-follower"
+        systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+
+        doFirst {
+            if (name.endsWith("#clusterTest") == false ) {
+                println "Upgrade node $it"
+                testClusters."${baseName}-${kindExt}".nextNodeToNextVersion()
+            }
+            nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}-${kindExt}".allHttpSocketURI.join(",") }")
+            nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}-${kindExt}".getName() }")
+            nonInputProperties.systemProperty('tests.leader_host', "${-> testClusters."${baseName}-leader".allHttpSocketURI.last()}")
+            nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', "${-> testClusters."${baseName}-leader".allTransportPortURI.last()}")
+            nonInputProperties.systemProperty('tests.follower_host', "${-> testClusters."${baseName}-follower".allHttpSocketURI.last()}")
+            nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', "${-> testClusters."${baseName}-follower".allTransportPortURI.last()}")
+        }
+    }
+
+    for (kind in ["follower", "leader"]) {
+        // Attention!! Groovy trap: do not pass `kind` to a closure
+
+        tasks.register("${baseName}#${kind}#clusterTest", RestTestRunnerTask) {
+            systemProperty 'tests.rest.upgrade_state', 'none'
+            systemProperty 'tests.rest.cluster_name', kind
+            ext.kindExt = kind
+        }
+
+        tasks.register("${baseName}#${kind}#oneThirdUpgradedTest", RestTestRunnerTask) {
+            systemProperty 'tests.rest.upgrade_state', 'one_third'
+            systemProperty 'tests.rest.cluster_name', kind
+            dependsOn "${baseName}#leader#clusterTest", "${baseName}#follower#clusterTest"
+            ext.kindExt = kind
+        }
+
+        tasks.register("${baseName}#${kind}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+            systemProperty 'tests.rest.upgrade_state', 'two_third'
+            systemProperty 'tests.rest.cluster_name', kind
+            dependsOn "${baseName}#${kind}#oneThirdUpgradedTest"
+            ext.kindExt = kind
+        }
+
+        tasks.register("${baseName}#${kind}#upgradedClusterTest", RestTestRunnerTask) {
+            systemProperty 'tests.rest.upgrade_state', 'all'
+            systemProperty 'tests.rest.cluster_name', kind
+            dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"
+            ext.kindExt = kind
+        }
+    }
+
+    tasks.named("${baseName}#follower#clusterTest") {
+        dependsOn "${baseName}#leader#clusterTest"
+    }
+
+    tasks.named("${baseName}#leader#oneThirdUpgradedTest") {
+        dependsOn "${baseName}#follower#upgradedClusterTest"
+    }
+
+    tasks.register("${baseName}#bwcTest") {
+        dependsOn "${baseName}#leader#upgradedClusterTest"
+    }
+
+    if (project.bwc_tests_enabled) {
+        bwcTest.dependsOn("${baseName}#bwcTest")
+    }
+}
+
+task bwcTestSnapshots {
+    if (project.bwc_tests_enabled) {
+        for (final def version : bwcVersions.unreleasedWireCompatible) {
+            dependsOn "v${version}#bwcTest"
+        }
+    }
+}
+check.dependsOn(bwcTestSnapshots)
+
+test.enabled = false

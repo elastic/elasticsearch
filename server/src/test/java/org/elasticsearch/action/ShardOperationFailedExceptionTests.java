@@ -20,7 +20,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -56,11 +55,6 @@ public class ShardOperationFailedExceptionTests extends ESTestCase {
 
         Failure(@Nullable String index, int shardId, String reason, RestStatus status, Throwable cause) {
            super(index, shardId, reason, status, cause);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-
         }
 
         @Override

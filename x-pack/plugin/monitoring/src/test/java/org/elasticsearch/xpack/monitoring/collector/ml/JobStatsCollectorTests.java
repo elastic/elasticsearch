@@ -6,16 +6,17 @@
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -128,7 +129,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         whenClusterStateWithUUID(clusterUuid);
 
         final MonitoringDoc.Node node = randomMonitoringNode(random());
-        final MachineLearningClient client = mock(MachineLearningClient.class);
+        final Client client = mock(Client.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
@@ -143,7 +144,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
         final Response response = new Response(new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
 
-        when(client.getJobsStats(eq(new Request(MetaData.ALL)))).thenReturn(future);
+        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(MetaData.ALL)))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
         final long interval = randomNonNegativeLong();

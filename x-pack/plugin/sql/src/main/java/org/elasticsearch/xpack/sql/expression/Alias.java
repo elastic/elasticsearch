@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 
@@ -75,6 +75,10 @@ public class Alias extends NamedExpression {
         return qualifier;
     }
 
+    public String qualifiedName() {
+        return qualifier == null ? name() : qualifier + "." + name();
+    }
+
     @Override
     public Nullability nullable() {
         return child.nullable();
@@ -104,7 +108,7 @@ public class Alias extends NamedExpression {
 
             Attribute attr = Expressions.attribute(c);
             if (attr != null) {
-                return attr.clone(source(), name(), qualifier, child.nullable(), id(), synthetic());
+                return attr.clone(source(), name(), child.dataType(), qualifier, child.nullable(), id(), synthetic());
             }
             else {
                 // TODO: WE need to fix this fake Field

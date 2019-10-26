@@ -17,8 +17,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -50,15 +50,16 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
         final String name = request.param("name");
         final String refresh = request.param("refresh");
 
-        return channel -> new SecurityClient(client).prepareDeleteRole(name)
-                .setRefreshPolicy(refresh)
-                .execute(new RestBuilderListener<DeleteRoleResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(
-                                response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
-                                builder.startObject().field("found", response.found()).endObject());
-                    }
-                });
+        return channel -> new DeleteRoleRequestBuilder(client)
+            .name(name)
+            .setRefreshPolicy(refresh)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(
+                            response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
+                            builder.startObject().field("found", response.found()).endObject());
+                }
+            });
     }
 }

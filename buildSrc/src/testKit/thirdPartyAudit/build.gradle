@@ -2,8 +2,8 @@ import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask
 
 plugins {
     id 'java'
-    //just to get build-tools
-    id 'elasticsearch.testclusters'
+    // bring in build-tools onto the classpath
+    id 'elasticsearch.global-build-info' apply false
 }
 
 repositories {
@@ -14,6 +14,7 @@ repositories {
      *   - version 0.0.2 has the same class and one extra file just to make the jar different
      */
     maven {
+        name = "local-test"
         url = file("sample_jars/build/testrepo")
     }
     jcenter()
@@ -22,7 +23,7 @@ repositories {
 configurations.create("forbiddenApisCliJar")
 
 dependencies {
-    forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.6'
+    forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.7'
     compileOnly "org.${project.properties.compileOnlyGroup}:${project.properties.compileOnlyVersion}"
     compile "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
 }

@@ -10,9 +10,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.junit.Assume;
 import org.junit.ClassRule;
 
+import java.net.URL;
 import java.sql.Connection;
 import java.sql.ResultSet;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -31,18 +31,9 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
-        Parser parser = specParser();
-        List<Object[]> tests = new ArrayList<>();
-        tests.addAll(readScriptSpec("/select.sql-spec", parser));
-        tests.addAll(readScriptSpec("/filter.sql-spec", parser));
-        tests.addAll(readScriptSpec("/datetime.sql-spec", parser));
-        tests.addAll(readScriptSpec("/math.sql-spec", parser));
-        tests.addAll(readScriptSpec("/agg.sql-spec", parser));
-        tests.addAll(readScriptSpec("/arithmetic.sql-spec", parser));
-        tests.addAll(readScriptSpec("/string-functions.sql-spec", parser));
-        tests.addAll(readScriptSpec("/case-functions.sql-spec", parser));
-        tests.addAll(readScriptSpec("/null.sql-spec", parser));
-        return tests;
+        List<URL> urls = JdbcTestUtils.classpathResources("/*.sql-spec");
+        assertTrue("Not enough specs found " + urls.toString(), urls.size() > 9);
+        return readScriptSpec(urls, specParser());
     }
 
     private static class SqlSpecParser implements Parser {
@@ -72,6 +63,13 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     public SqlSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, String query) {
         super(fileName, groupName, testName, lineNumber);
         this.query = query;
+    }
+
+    @Override
+    protected int fetchSize() {
+        // using a smaller fetchSize for nested documents' tests to uncover bugs
+        // similar to https://github.com/elastic/elasticsearch/issues/42581
+        return randomIntBetween(1, 20);
     }
 
     @Override

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -31,8 +32,10 @@ import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
@@ -84,6 +87,11 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
  */
 public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "completion";
+
+    /**
+     * Maximum allowed number of completion contexts in a mapping.
+     */
+    static final int COMPLETION_CONTEXTS_LIMIT = 10;
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new CompletionFieldType();
@@ -354,6 +362,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         private boolean preserveSeparators = Defaults.DEFAULT_PRESERVE_SEPARATORS;
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
 
+        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Builder.class));
+
         /**
          * @param name of the completion field to build
          */
@@ -397,6 +407,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
         @Override
         public CompletionFieldMapper build(BuilderContext context) {
+            checkCompletionContextsLimit(context);
             setupFieldType(context);
             CompletionFieldType completionFieldType = (CompletionFieldType) this.fieldType;
             completionFieldType.setContextMappings(contextMappings);
@@ -404,6 +415,20 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             completionFieldType.setPreserveSep(preserveSeparators);
             return new CompletionFieldMapper(name, this.fieldType, context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
+        }
+
+        private void checkCompletionContextsLimit(BuilderContext context) {
+            if (this.contextMappings != null && this.contextMappings.size() > COMPLETION_CONTEXTS_LIMIT) {
+                if (context.indexCreatedVersion().onOrAfter(Version.V_8_0_0)) {
+                    throw new IllegalArgumentException(
+                        "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");
+                } else {
+                    deprecationLogger.deprecated("You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
+                        " in the mapping for index [" + context.indexSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME) + "]. " +
+                        "The maximum allowed number of completion contexts in a mapping will be limited to " +
+                        "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
+                }
+            }
         }
     }
 

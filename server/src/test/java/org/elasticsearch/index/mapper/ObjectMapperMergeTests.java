@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldMapper.CopyTo;
@@ -27,6 +26,8 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -38,11 +39,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
     private static FieldMapper barFieldMapper = createTextFieldMapper("bar");
     private static FieldMapper bazFieldMapper = createTextFieldMapper("baz");
 
-    private static RootObjectMapper rootObjectMapper = createRootObjectMapper(
-        "type1", true, ImmutableMap.of(
-            "disabled", createObjectMapper("disabled", false, emptyMap()),
-            "foo", createObjectMapper("foo", true, ImmutableMap.of(
-                "bar", barFieldMapper))));
+    private static RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
     @AfterClass
     public static void cleanupReferences() {
@@ -51,14 +48,24 @@ public class ObjectMapperMergeTests extends ESTestCase {
         rootObjectMapper = null;
     }
 
+    private static RootObjectMapper createMapping(boolean disabledFieldEnabled, boolean fooFieldEnabled,
+                                                  boolean includeBarField, boolean includeBazField) {
+        Map<String, Mapper> mappers = new HashMap<>();
+        mappers.put("disabled", createObjectMapper("disabled", disabledFieldEnabled, emptyMap()));
+        Map<String, Mapper> fooMappers = new HashMap<>();
+        if (includeBarField) {
+            fooMappers.put("bar", barFieldMapper);
+        }
+        if (includeBazField) {
+            fooMappers.put("baz", bazFieldMapper);
+        }
+        mappers.put("foo", createObjectMapper("foo", fooFieldEnabled,  Collections.unmodifiableMap(fooMappers)));
+        return createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
+    }
+
     public void testMerge() {
         // GIVEN an enriched mapping with "baz" new field
-        ObjectMapper mergeWith = createRootObjectMapper(
-            "type1", true, ImmutableMap.of(
-                "disabled", createObjectMapper("disabled", false, emptyMap()),
-                "foo", createObjectMapper("foo", true, ImmutableMap.of(
-                    "bar", barFieldMapper,
-                    "baz", bazFieldMapper))));
+        ObjectMapper mergeWith = createMapping(false, true, true, true);
 
         // WHEN merging mappings
         final ObjectMapper merged = rootObjectMapper.merge(mergeWith);
@@ -71,10 +78,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     public void testMergeWhenDisablingField() {
         // GIVEN a mapping with "foo" field disabled
-        ObjectMapper mergeWith = createRootObjectMapper(
-            "type1", true, ImmutableMap.of(
-                "disabled", createObjectMapper("disabled", false, emptyMap()),
-                "foo", createObjectMapper("foo", false, emptyMap())));
+        ObjectMapper mergeWith = createMapping(false, false, false, false);
 
         // WHEN merging mappings
         // THEN a MapperException is thrown with an excepted message
@@ -84,11 +88,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     public void testMergeWhenEnablingField() {
         // GIVEN a mapping with "disabled" field enabled
-        ObjectMapper mergeWith = createRootObjectMapper(
-            "type1", true, ImmutableMap.of(
-                "disabled", createObjectMapper("disabled", true, emptyMap()),
-                "foo", createObjectMapper("foo", true, ImmutableMap.of(
-                    "bar", barFieldMapper))));
+        ObjectMapper mergeWith = createMapping(true, true, true, false);
 
         // WHEN merging mappings
         // THEN a MapperException is thrown with an excepted message

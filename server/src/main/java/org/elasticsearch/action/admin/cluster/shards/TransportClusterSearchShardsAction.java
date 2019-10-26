@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -46,7 +47,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class TransportClusterSearchShardsAction extends
-        TransportMasterNodeReadAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
+    TransportMasterNodeReadAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
 
     private final IndicesService indicesService;
 
@@ -72,26 +73,22 @@ public class TransportClusterSearchShardsAction extends
     }
 
     @Override
-    protected ClusterSearchShardsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClusterSearchShardsResponse read(StreamInput in) throws IOException {
         return new ClusterSearchShardsResponse(in);
     }
 
     @Override
-    protected void masterOperation(final ClusterSearchShardsRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final ClusterSearchShardsRequest request, final ClusterState state,
                                    final ActionListener<ClusterSearchShardsResponse> listener) {
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
+        Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
         for (String index : concreteIndices) {
-            final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, request.indices());
+            final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, indicesAndAliases);
             final String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index, aliasMetadata -> true, true,
-                request.indices());
+                indicesAndAliases);
             indicesAndFilters.put(index, new AliasFilter(aliasFilter.getQueryBuilder(), aliases));
         }
 

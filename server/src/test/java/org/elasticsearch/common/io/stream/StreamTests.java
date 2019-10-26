@@ -25,11 +25,13 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -48,7 +50,9 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StreamTests extends ESTestCase {
 
@@ -336,6 +340,37 @@ public class StreamTests extends ESTestCase {
         assertThat(targetSet, equalTo(sourceSet));
     }
 
+    public void testInstantSerialization() throws IOException {
+        final Instant instant = Instant.now();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeInstant(instant);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readInstant();
+                assertEquals(instant, serialized);
+            }
+        }
+    }
+
+    public void testOptionalInstantSerialization() throws IOException {
+        final Instant instant = Instant.now();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeOptionalInstant(instant);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readOptionalInstant();
+                assertEquals(instant, serialized);
+            }
+        }
+
+        final Instant missing = null;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeOptionalInstant(missing);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readOptionalInstant();
+                assertEquals(missing, serialized);
+            }
+        }
+    }
+
     static final class WriteableString implements Writeable {
         final String string;
 
@@ -370,6 +405,32 @@ public class StreamTests extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(string);
+        }
+    }
+
+    public void testSecureStringSerialization() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            final SecureString secureString = new SecureString("super secret".toCharArray());
+            output.writeSecureString(secureString);
+
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+
+            assertThat(secureString, is(equalTo(input.readSecureString())));
+        }
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            final SecureString secureString = randomBoolean() ? null : new SecureString("super secret".toCharArray());
+            output.writeOptionalSecureString(secureString);
+
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+
+            if (secureString != null) {
+                assertThat(input.readOptionalSecureString(), is(equalTo(secureString)));
+            } else {
+                assertThat(input.readOptionalSecureString(), is(nullValue()));
+            }
         }
     }
 

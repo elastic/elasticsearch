@@ -23,7 +23,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-get-influencers-test
-        type:   doc
         id:     get-influencers-test_1464739200000_1_1
         body:
           {
@@ -42,7 +41,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-get-influencers-test
-        type:   doc
         id:     get-influencers-test_1464825600000_1_2
         body:
           {
@@ -62,7 +60,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-get-influencers-test
-        type:   doc
         id:     get-influencers-test_1464912000000_1_3
         body:
           {

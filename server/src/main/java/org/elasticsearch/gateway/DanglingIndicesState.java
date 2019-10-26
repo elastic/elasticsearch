@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -44,7 +45,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * The dangling indices state is responsible for finding new dangling indices (indices that have
@@ -88,7 +88,7 @@ public class DanglingIndicesState implements ClusterStateListener {
      */
     Map<Index, IndexMetaData> getDanglingIndices() {
         // This might be a good use case for CopyOnWriteHashMap
-        return unmodifiableMap(new HashMap<>(danglingIndices));
+        return Map.copyOf(danglingIndices);
     }
 
     /**
@@ -143,13 +143,27 @@ public class DanglingIndicesState implements ClusterStateListener {
                 } else {
                     logger.info("[{}] dangling index exists on local file system, but not in cluster metadata, " +
                                 "auto import to cluster state", indexMetaData.getIndex());
-                    newIndices.put(indexMetaData.getIndex(), indexMetaData);
+                    newIndices.put(indexMetaData.getIndex(), stripAliases(indexMetaData));
                 }
             }
             return newIndices;
         } catch (IOException e) {
             logger.warn("failed to list dangling indices", e);
             return emptyMap();
+        }
+    }
+
+    /**
+     * Dangling importing indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
+     * previously had only one index with any is_write_index indication.
+     */
+    private IndexMetaData stripAliases(IndexMetaData indexMetaData) {
+        if (indexMetaData.getAliases().isEmpty()) {
+            return indexMetaData;
+        } else {
+            logger.info("[{}] stripping aliases: {} from index before importing",
+                indexMetaData.getIndex(), indexMetaData.getAliases().keys());
+            return IndexMetaData.builder(indexMetaData).removeAllAliases().build();
         }
     }
 
@@ -163,14 +177,14 @@ public class DanglingIndicesState implements ClusterStateListener {
         }
         try {
             allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
-                new LocalAllocateDangledIndices.Listener() {
+                new ActionListener<>() {
                     @Override
                     public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
                         logger.trace("allocated dangled");
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         logger.info("failed to send allocated dangled", e);
                     }
                 }

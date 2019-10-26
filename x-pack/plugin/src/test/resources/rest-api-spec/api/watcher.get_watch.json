@@ -1,0 +1,25 @@
+{
+  "watcher.get_watch":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-get-watch.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/watch/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Watch ID"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

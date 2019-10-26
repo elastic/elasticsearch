@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction.Response;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.randomValidJobId;
 
-public class PutJobActionResponseTests extends AbstractStreamableTestCase<Response> {
+public class PutJobActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -21,8 +22,7 @@ public class PutJobActionResponseTests extends AbstractStreamableTestCase<Respon
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
-
 }

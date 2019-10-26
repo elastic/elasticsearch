@@ -81,7 +81,7 @@ public class PreBuiltCacheFactory {
 
         @Override
         public Collection<T> values() {
-            return Collections.singleton(model);
+            return model == null ? Collections.emptySet() : Collections.singleton(model);
         }
     }
 

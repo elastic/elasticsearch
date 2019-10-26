@@ -60,11 +60,6 @@ public interface RoutingChangesObserver {
     void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource);
 
     /**
-     * Called on started primary shard after it has been promoted from replica to primary and is reinitialized due to shadow replicas.
-     */
-    void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard);
-
-    /**
      * Called when started replica is promoted to primary.
      */
     void replicaPromoted(ShardRouting replicaShard);
@@ -114,11 +109,6 @@ public interface RoutingChangesObserver {
 
         @Override
         public void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource) {
-
-        }
-
-        @Override
-        public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
 
         }
 
@@ -187,13 +177,6 @@ public interface RoutingChangesObserver {
         public void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
                 routingChangesObserver.relocationSourceRemoved(removedReplicaRelocationSource);
-            }
-        }
-
-        @Override
-        public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
-            for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
-                routingChangesObserver.startedPrimaryReinitialized(startedPrimaryShard, initializedShard);
             }
         }
 

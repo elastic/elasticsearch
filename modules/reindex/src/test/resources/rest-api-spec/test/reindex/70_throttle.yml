@@ -12,19 +12,16 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      3
         body:    { "text": "test" }
   - do:
@@ -61,19 +58,16 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      3
         body:    { "text": "test" }
   - do:
@@ -110,19 +104,16 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      3
         body:    { "text": "test" }
   - do:
@@ -165,19 +156,16 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      3
         body:    { "text": "test" }
   - do:

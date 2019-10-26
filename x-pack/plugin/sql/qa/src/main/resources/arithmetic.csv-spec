@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Arithmetic tests outside H2
 //
@@ -5,9 +7,14 @@
 // the standard behavior here is to return the constant for each element
 // the weird thing is that an actual query needs to be ran
 arithmeticWithFrom
-SELECT 5 - 2 x FROM test_emp;
+SELECT 5 - 2 x FROM test_emp LIMIT 5;
 
-x
+       x:i
+---------------
+3
+3
+3
+3
 3
 ;
 

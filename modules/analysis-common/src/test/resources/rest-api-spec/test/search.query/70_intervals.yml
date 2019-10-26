@@ -1,0 +1,59 @@
+# integration tests for intervals queries using analyzers
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: standard
+              text_en:
+                type: text
+                analyzer: english
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test", "_id": "4"}}'
+          - '{"text"    : "Outside it is cold and wet and raining cats and dogs",
+                "text_en" : "Outside it is cold and wet and raining cats and dogs"}'
+
+---
+"Test use_field":
+  - skip:
+      version: " - 7.1.99"
+      reason: "Implemented in 7.2"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cats
+                    - match:
+                        query: dog
+                  max_gaps: 1
+  - match: { hits.total.value: 0 }
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cats
+                    - match:
+                        query: dog
+                        use_field: text_en
+                  max_gaps: 1
+  - match: { hits.total.value: 1 }
+

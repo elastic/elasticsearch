@@ -1,43 +1,66 @@
 {
-  "indices.rollover": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-rollover-index.html",
-    "methods": ["POST"],
-    "url": {
-      "path": "/{alias}/_rollover",
-      "paths": ["/{alias}/_rollover", "/{alias}/_rollover/{new_index}"],
-      "parts": {
-        "alias": {
-          "type" : "string",
-          "required" : true,
-          "description" : "The name of the alias to rollover"
+  "indices.rollover":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-rollover-index.html",
+      "description":"Updates an alias to point to a new index when the existing index\nis considered to be too large or too old."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/{alias}/_rollover",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "alias":{
+              "type":"string",
+              "description":"The name of the alias to rollover"
+            }
+          }
         },
-        "new_index": {
-          "type" : "string",
-          "required" : false,
-          "description" : "The name of the rollover index"
+        {
+          "path":"/{alias}/_rollover/{new_index}",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "alias":{
+              "type":"string",
+              "description":"The name of the alias to rollover"
+            },
+            "new_index":{
+              "type":"string",
+              "description":"The name of the rollover index"
+            }
+          }
         }
+      ]
+    },
+    "params":{
+      "include_type_name":{
+        "type":"boolean",
+        "description":"Whether a type should be included in the body of the mappings."
       },
-      "params": {
-        "timeout": {
-          "type" : "time",
-          "description" : "Explicit operation timeout"
-        },
-        "dry_run": {
-          "type" : "boolean",
-          "description" : "If set to true the rollover action will only be validated but not actually performed even if a condition matches. The default is false"
-        },
-        "master_timeout": {
-          "type" : "time",
-          "description" : "Specify timeout for connection to master"
-        },
-        "wait_for_active_shards": {
-          "type" : "string",
-          "description" : "Set the number of active shards to wait for on the newly created rollover index before the operation returns."
-        }
+      "timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout"
+      },
+      "dry_run":{
+        "type":"boolean",
+        "description":"If set to true the rollover action will only be validated but not actually performed even if a condition matches. The default is false"
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to master"
+      },
+      "wait_for_active_shards":{
+        "type":"string",
+        "description":"Set the number of active shards to wait for on the newly created rollover index before the operation returns."
       }
     },
-    "body": {
-      "description" : "The conditions that needs to be met for executing rollover"
+    "body":{
+      "description":"The conditions that needs to be met for executing rollover"
     }
   }
 }

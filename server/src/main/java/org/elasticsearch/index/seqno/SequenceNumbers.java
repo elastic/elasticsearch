@@ -29,10 +29,6 @@ public class SequenceNumbers {
     public static final String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
     public static final String MAX_SEQ_NO = "max_seq_no";
     /**
-     * Represents a checkpoint coming from a pre-6.0 node
-     */
-    public static final long PRE_60_NODE_CHECKPOINT = -3L;
-    /**
      * Represents an unassigned sequence number (e.g., can be used on primary operations before they are executed).
      */
     public static final long UNASSIGNED_SEQ_NO = -2L;

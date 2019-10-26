@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -41,10 +42,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request class to swap index under an alias upon satisfying conditions
+ *
+ * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
+ * Any changes done to this class should also go to that client class.
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest, ToXContentObject {
 
-    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
+    private static final ObjectParser<RolloverRequest, Boolean> PARSER = new ObjectParser<>("rollover");
     private static final ObjectParser<Map<String, Condition<?>>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
@@ -66,9 +70,19 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CONDITIONS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
             CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, context) -> {
-            for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                request.createIndexRequest.mapping(mappingsEntry.getKey(), (Map<String, Object>) mappingsEntry.getValue());
+        PARSER.declareField((parser, request, includeTypeName) -> {
+            if (includeTypeName) {
+                for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
+                    request.createIndexRequest.mapping(mappingsEntry.getKey(), (Map<String, Object>) mappingsEntry.getValue());
+                }
+            } else {
+                // a type is not included, add a dummy _doc type
+                Map<String, Object> mappings = parser.map();
+                if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
+                    throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
+                        "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
+                }
+                request.createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappings);
             }
         }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
@@ -81,6 +95,19 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private Map<String, Condition<?>> conditions = new HashMap<>(2);
     //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+
+    public RolloverRequest(StreamInput in) throws IOException {
+        super(in);
+        alias = in.readString();
+        newIndexName = in.readOptionalString();
+        dryRun = in.readBoolean();
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            Condition<?> condition = in.readNamedWriteable(Condition.class);
+            this.conditions.put(condition.name, condition);
+        }
+        createIndexRequest = new CreateIndexRequest(in);
+    }
 
     RolloverRequest() {}
 
@@ -99,21 +126,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        alias = in.readString();
-        newIndexName = in.readOptionalString();
-        dryRun = in.readBoolean();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            Condition<?> condition = in.readNamedWriteable(Condition.class);
-            this.conditions.put(condition.name, condition);
-        }
-        createIndexRequest = new CreateIndexRequest();
-        createIndexRequest.readFrom(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(alias);
@@ -121,9 +133,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
         for (Condition<?> condition : conditions.values()) {
-            if (condition.includedInVersion(out.getVersion())) {
-                out.writeNamedWriteable(condition);
-            }
+            out.writeNamedWriteable(condition);
         }
         createIndexRequest.writeTo(out);
     }
@@ -230,7 +240,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return builder;
     }
 
-    public void fromXContent(XContentParser parser) throws IOException {
-        PARSER.parse(parser, this, null);
+    // param isTypeIncluded decides how mappings should be parsed from XContent
+    public void fromXContent(boolean isTypeIncluded, XContentParser parser) throws IOException {
+        PARSER.parse(parser, this, isTypeIncluded);
     }
 }

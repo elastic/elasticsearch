@@ -83,9 +83,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
     @Before
     public void indexData() throws Exception {
-        index("foo", "bar", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
-        index("fuu", "buu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
-        index("baz", "baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
+        index("foo", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
+        index("fuu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
+        index("baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
         refresh();
     }
 
@@ -119,20 +119,19 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37820")
     public void testMetadataVersion() {
         createIndex("index-1");
         createIndex("index-2");
-        long metadataVersion = client().admin().cluster().prepareState().get().getState().metaData().version();
-        assertThat(metadataVersion, greaterThan(0L));
+        long baselineVersion = client().admin().cluster().prepareState().get().getState().metaData().version();
+        assertThat(baselineVersion, greaterThan(0L));
         assertThat(client().admin().cluster().prepareState().setIndices("index-1").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().setIndices("index-2").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().setIndices("*").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().setIndices("not-found").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().clear().setMetaData(false).get().getState().metaData().version(),
             equalTo(0L));
     }
@@ -245,10 +244,10 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .setTimeout("60s").get());
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
         MappingMetaData masterMappingMetaData = client().admin().indices()
-            .prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
+            .prepareGetMappings("test").get().getMappings().get("test");
         for (Client client : clients()) {
             MappingMetaData mappingMetadata = client.admin().indices()
-                .prepareGetMappings("test").setTypes("type").setLocal(true).get().getMappings().get("test").get("type");
+                .prepareGetMappings("test").setLocal(true).get().getMappings().get("test");
             assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetaData.source().string()));
             assertThat(mappingMetadata, equalTo(masterMappingMetaData));
         }
@@ -258,9 +257,10 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
                 .get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(2));
+        ensureGreen("fuu");
 
         // close one index
-        client().admin().indices().close(Requests.closeIndexRequest("fuu")).get();
+        assertAcked(client().admin().indices().close(Requests.closeIndexRequest("fuu")).get());
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(1));
         assertThat(clusterStateResponse.getState().metaData().index("foo").getState(), equalTo(IndexMetaData.State.OPEN));

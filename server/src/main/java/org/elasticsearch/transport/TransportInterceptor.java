@@ -20,8 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-
-import java.util.function.Supplier;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 /**
  * This interface allows plugins to intercept requests on both the sender and the receiver side.
@@ -29,8 +28,8 @@ import java.util.function.Supplier;
 public interface TransportInterceptor {
     /**
      * This is called for each handler that is registered via
-     * {@link TransportService#registerRequestHandler(String, Supplier, String, boolean, boolean, TransportRequestHandler)} or
-     * {@link TransportService#registerRequestHandler(String, Supplier, String, TransportRequestHandler)}. The returned handler is
+     * {@link TransportService#registerRequestHandler(String, String, boolean, boolean, Reader, TransportRequestHandler)} or
+     * {@link TransportService#registerRequestHandler(String, String, Reader, TransportRequestHandler)}. The returned handler is
      * used instead of the passed in handler. By default the provided handler is returned.
      */
     default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,

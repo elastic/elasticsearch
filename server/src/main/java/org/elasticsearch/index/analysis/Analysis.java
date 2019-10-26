@@ -69,13 +69,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.unmodifiableMap;
+import static java.util.Map.entry;
 
 public class Analysis {
 
@@ -113,45 +112,40 @@ public class Analysis {
         }
     }
 
-    public static final Map<String, Set<?>> NAMED_STOP_WORDS;
-    static {
-        Map<String, Set<?>> namedStopWords = new HashMap<>();
-        namedStopWords.put("_arabic_", ArabicAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_armenian_", ArmenianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_basque_", BasqueAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_bengali_", BengaliAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_brazilian_", BrazilianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_catalan_", CatalanAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_czech_", CzechAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_danish_", DanishAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_dutch_", DutchAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_english_", EnglishAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_finnish_", FinnishAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_french_", FrenchAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_galician_", GalicianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_german_", GermanAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_greek_", GreekAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_hindi_", HindiAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_hungarian_", HungarianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_indonesian_", IndonesianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_irish_", IrishAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_italian_", ItalianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_latvian_", LatvianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_lithuanian_", LithuanianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_norwegian_", NorwegianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_persian_", PersianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_portuguese_", PortugueseAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_romanian_", RomanianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_russian_", RussianAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_sorani_", SoraniAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_spanish_", SpanishAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_swedish_", SwedishAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_thai_", ThaiAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_turkish_", TurkishAnalyzer.getDefaultStopSet());
-
-        NAMED_STOP_WORDS = unmodifiableMap(namedStopWords);
-    }
+    private static final Map<String, Set<?>> NAMED_STOP_WORDS = Map.ofEntries(
+            entry("_arabic_", ArabicAnalyzer.getDefaultStopSet()),
+            entry("_armenian_", ArmenianAnalyzer.getDefaultStopSet()),
+            entry("_basque_", BasqueAnalyzer.getDefaultStopSet()),
+            entry("_bengali_", BengaliAnalyzer.getDefaultStopSet()),
+            entry("_brazilian_", BrazilianAnalyzer.getDefaultStopSet()),
+            entry("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet()),
+            entry("_catalan_", CatalanAnalyzer.getDefaultStopSet()),
+            entry("_czech_", CzechAnalyzer.getDefaultStopSet()),
+            entry("_danish_", DanishAnalyzer.getDefaultStopSet()),
+            entry("_dutch_", DutchAnalyzer.getDefaultStopSet()),
+            entry("_english_", EnglishAnalyzer.getDefaultStopSet()),
+            entry("_finnish_", FinnishAnalyzer.getDefaultStopSet()),
+            entry("_french_", FrenchAnalyzer.getDefaultStopSet()),
+            entry("_galician_", GalicianAnalyzer.getDefaultStopSet()),
+            entry("_german_", GermanAnalyzer.getDefaultStopSet()),
+            entry("_greek_", GreekAnalyzer.getDefaultStopSet()),
+            entry("_hindi_", HindiAnalyzer.getDefaultStopSet()),
+            entry("_hungarian_", HungarianAnalyzer.getDefaultStopSet()),
+            entry("_indonesian_", IndonesianAnalyzer.getDefaultStopSet()),
+            entry("_irish_", IrishAnalyzer.getDefaultStopSet()),
+            entry("_italian_", ItalianAnalyzer.getDefaultStopSet()),
+            entry("_latvian_", LatvianAnalyzer.getDefaultStopSet()),
+            entry("_lithuanian_", LithuanianAnalyzer.getDefaultStopSet()),
+            entry("_norwegian_", NorwegianAnalyzer.getDefaultStopSet()),
+            entry("_persian_", PersianAnalyzer.getDefaultStopSet()),
+            entry("_portuguese_", PortugueseAnalyzer.getDefaultStopSet()),
+            entry("_romanian_", RomanianAnalyzer.getDefaultStopSet()),
+            entry("_russian_", RussianAnalyzer.getDefaultStopSet()),
+            entry("_sorani_", SoraniAnalyzer.getDefaultStopSet()),
+            entry("_spanish_", SpanishAnalyzer.getDefaultStopSet()),
+            entry("_swedish_", SwedishAnalyzer.getDefaultStopSet()),
+            entry("_thai_", ThaiAnalyzer.getDefaultStopSet()),
+            entry("_turkish_", TurkishAnalyzer.getDefaultStopSet()));
 
     public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords,
                                           Map<String, Set<?>> namedWords, boolean ignoreCase) {
@@ -221,7 +215,7 @@ public class Analysis {
      *          If the word list cannot be found at either key.
      */
     public static List<String> getWordList(Environment env, Settings settings, String settingPrefix) {
-        return getWordList(env, settings, settingPrefix + "_path", settingPrefix);
+        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, true);
     }
 
     /**
@@ -231,7 +225,8 @@ public class Analysis {
      * @throws IllegalArgumentException
      *          If the word list cannot be found at either key.
      */
-    public static List<String> getWordList(Environment env, Settings settings, String settingPath, String settingList) {
+    public static List<String> getWordList(Environment env, Settings settings,
+                                           String settingPath, String settingList, boolean removeComments) {
         String wordListPath = settings.get(settingPath, null);
 
         if (wordListPath == null) {
@@ -246,7 +241,7 @@ public class Analysis {
         final Path path = env.configFile().resolve(wordListPath);
 
         try {
-            return loadWordList(path, "#");
+            return loadWordList(path, removeComments);
         } catch (CharacterCodingException ex) {
             String message = String.format(Locale.ROOT,
                 "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
@@ -258,15 +253,15 @@ public class Analysis {
         }
     }
 
-    private static List<String> loadWordList(Path path, String comment) throws IOException {
+    private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {
         final List<String> result = new ArrayList<>();
         try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             String word;
             while ((word = br.readLine()) != null) {
-                if (!Strings.hasText(word)) {
+                if (Strings.hasText(word) == false) {
                     continue;
                 }
-                if (!word.startsWith(comment)) {
+                if (removeComments == false || word.startsWith("#") == false) {
                     result.add(word.trim());
                 }
             }

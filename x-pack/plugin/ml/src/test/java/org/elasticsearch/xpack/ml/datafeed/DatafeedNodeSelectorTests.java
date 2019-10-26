@@ -27,6 +27,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -52,6 +53,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
     private DiscoveryNodes nodes;
     private ClusterState clusterState;
     private PersistentTasksCustomMetaData tasks;
+    private MlMetadata mlMetadata;
 
     @Before
     public void init() {
@@ -60,6 +62,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
                 .build();
+        mlMetadata = new MlMetadata.Builder().build();
     }
 
     public void testSelectNode_GivenJobIsOpened() {
@@ -237,7 +240,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), nodeId, JobState.OPENED, tasksBuilder);
         // Set to lower allocationId, so job task is stale:
-        tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0, null));
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
@@ -283,6 +286,39 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 + "[cannot start datafeed [datafeed_id] because index [not_foo] does not exist, is closed, or is still initializing.]"));
     }
 
+    public void testSelectNode_GivenMlUpgradeMode() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+        mlMetadata = new MlMetadata.Builder().isUpgradeMode(true).build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetaData.Assignment result =
+            new DatafeedNodeSelector(clusterState, resolver, df.getId(), df.getJobId(), df.getIndices()).selectNode();
+        assertThat(result, equalTo(MlTasks.AWAITING_UPGRADE));
+    }
+
+    public void testCheckDatafeedTaskCanBeCreated_GivenMlUpgradeMode() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+        mlMetadata = new MlMetadata.Builder().isUpgradeMode(true).build();
+
+        givenClusterState("foo", 1, 0);
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> new DatafeedNodeSelector(clusterState, resolver, df.getId(), df.getJobId(), df.getIndices())
+                .checkDatafeedTaskCanBeCreated());
+        assertThat(e.getMessage(), equalTo("Could not start datafeed [datafeed_id] as indices are being upgraded"));
+    }
+
     private void givenClusterState(String index, int numberOfShards, int numberOfReplicas) {
         List<Tuple<Integer, ShardRoutingState>> states = new ArrayList<>(1);
         states.add(new Tuple<>(0, ShardRoutingState.STARTED));
@@ -299,6 +335,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder()
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasks)
+                        .putCustom(MlMetadata.TYPE, mlMetadata)
                         .put(indexMetaData, false))
                 .nodes(nodes)
                 .routingTable(generateRoutingTable(indexMetaData, states))

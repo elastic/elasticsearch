@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.TypeResolutions;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggNameInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -26,7 +28,7 @@ import static java.util.Collections.singletonList;
 public abstract class AggregateFunction extends Function {
 
     private final Expression field;
-    private final List<Expression> parameters;
+    private final List<? extends Expression> parameters;
 
     private AggregateFunctionAttribute lazyAttribute;
 
@@ -34,7 +36,7 @@ public abstract class AggregateFunction extends Function {
         this(source, field, emptyList());
     }
 
-    protected AggregateFunction(Source source, Expression field, List<Expression> parameters) {
+    protected AggregateFunction(Source source, Expression field, List<? extends Expression> parameters) {
         super(source, CollectionUtils.combine(singletonList(field), parameters));
         this.field = field;
         this.parameters = parameters;
@@ -44,7 +46,7 @@ public abstract class AggregateFunction extends Function {
         return field;
     }
 
-    public List<Expression> parameters() {
+    public List<? extends Expression> parameters() {
         return parameters;
     }
 
@@ -52,7 +54,7 @@ public abstract class AggregateFunction extends Function {
     public AggregateFunctionAttribute toAttribute() {
         if (lazyAttribute == null) {
             // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-            lazyAttribute = new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), null);
+            lazyAttribute = new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId());
         }
         return lazyAttribute;
     }
@@ -76,6 +78,11 @@ public abstract class AggregateFunction extends Function {
         AggregateFunction other = (AggregateFunction) obj;
         return Objects.equals(other.field(), field())
             && Objects.equals(other.parameters(), parameters());
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return TypeResolutions.isExact(field, sourceText(), Expressions.ParamOrdinal.DEFAULT);
     }
 
     @Override

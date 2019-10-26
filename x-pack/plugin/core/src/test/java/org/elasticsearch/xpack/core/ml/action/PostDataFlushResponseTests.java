@@ -8,13 +8,15 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction.Response;
-import org.joda.time.DateTime;
+
+import java.time.ZonedDateTime;
+import java.util.Date;
 
 public class PostDataFlushResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
-        return new Response(randomBoolean(), new DateTime(randomDateTimeZone()).toDate());
+        return new Response(randomBoolean(), Date.from(ZonedDateTime.now(randomZone()).toInstant()));
     }
 
     @Override

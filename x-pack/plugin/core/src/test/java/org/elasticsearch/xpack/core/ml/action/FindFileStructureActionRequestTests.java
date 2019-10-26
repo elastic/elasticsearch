@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 
 import java.util.Arrays;
@@ -15,7 +16,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
-public class FindFileStructureActionRequestTests extends AbstractStreamableTestCase<FindFileStructureAction.Request> {
+public class FindFileStructureActionRequestTests extends AbstractWireSerializingTestCase<FindFileStructureAction.Request> {
 
     @Override
     protected FindFileStructureAction.Request createTestInstance() {
@@ -24,6 +25,10 @@ public class FindFileStructureActionRequestTests extends AbstractStreamableTestC
 
         if (randomBoolean()) {
             request.setLinesToSample(randomIntBetween(10, 2000));
+        }
+
+        if (randomBoolean()) {
+            request.setLineMergeSizeLimit(randomIntBetween(1000, 20000));
         }
 
         if (randomBoolean()) {
@@ -69,8 +74,8 @@ public class FindFileStructureActionRequestTests extends AbstractStreamableTestC
     }
 
     @Override
-    protected FindFileStructureAction.Request createBlankInstance() {
-        return new FindFileStructureAction.Request();
+    protected Writeable.Reader<FindFileStructureAction.Request> instanceReader() {
+        return FindFileStructureAction.Request::new;
     }
 
     public void testValidateLinesToSample() {
@@ -83,6 +88,18 @@ public class FindFileStructureActionRequestTests extends AbstractStreamableTestC
         assertNotNull(e);
         assertThat(e.getMessage(), startsWith("Validation Failed: "));
         assertThat(e.getMessage(), containsString(" [lines_to_sample] must be positive if specified"));
+    }
+
+    public void testValidateLineMergeSizeLimit() {
+
+        FindFileStructureAction.Request request = new FindFileStructureAction.Request();
+        request.setLineMergeSizeLimit(randomIntBetween(-1, 0));
+        request.setSample(new BytesArray("foo\n"));
+
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), startsWith("Validation Failed: "));
+        assertThat(e.getMessage(), containsString(" [line_merge_size_limit] must be positive if specified"));
     }
 
     public void testValidateNonDelimited() {

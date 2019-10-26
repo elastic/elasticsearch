@@ -19,7 +19,10 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * A replication request that has no more information than ReplicationRequest.
@@ -28,14 +31,15 @@ import org.elasticsearch.index.shard.ShardId;
  * instead.
  */
 public class BasicReplicationRequest extends ReplicationRequest<BasicReplicationRequest> {
-    public BasicReplicationRequest() {
-    }
-
     /**
      * Creates a new request with resolved shard id
      */
     public BasicReplicationRequest(ShardId shardId) {
         super(shardId);
+    }
+
+    public BasicReplicationRequest(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

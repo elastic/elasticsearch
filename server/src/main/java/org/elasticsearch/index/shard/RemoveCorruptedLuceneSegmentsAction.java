@@ -33,14 +33,11 @@ import java.io.PrintStream;
  */
 public class RemoveCorruptedLuceneSegmentsAction {
 
-    public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
-                                                                                     Directory indexDirectory,
+    public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(Directory indexDirectory,
                                                                                      Lock writeLock,
                                                                                      PrintStream printStream,
                                                                                      boolean verbose) throws IOException {
-        if (RemoveCorruptedShardDataCommand.isCorruptMarkerFileIsPresent(indexDirectory) == false) {
-            return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CLEAN, null);
-        }
+        boolean markedCorrupted = RemoveCorruptedShardDataCommand.isCorruptMarkerFileIsPresent(indexDirectory);
 
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
@@ -55,20 +52,19 @@ public class RemoveCorruptedLuceneSegmentsAction {
             }
 
             return status.clean
-                ? Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CLEAN_WITH_CORRUPTED_MARKER, null)
+                ? Tuple.tuple(markedCorrupted
+                    ? RemoveCorruptedShardDataCommand.CleanStatus.CLEAN_WITH_CORRUPTED_MARKER
+                    : RemoveCorruptedShardDataCommand.CleanStatus.CLEAN, null)
                 : Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CORRUPTED,
                     "Corrupted Lucene index segments found - " + status.totLoseDocCount + " documents will be lost.");
         }
     }
 
     public void execute(Terminal terminal,
-                        ShardPath shardPath,
                         Directory indexDirectory,
                         Lock writeLock,
                         PrintStream printStream,
                         boolean verbose) throws IOException {
-        checkCorruptMarkerFileIsPresent(indexDirectory);
-
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
 
@@ -90,11 +86,4 @@ public class RemoveCorruptedLuceneSegmentsAction {
             }
         }
     }
-
-    protected void checkCorruptMarkerFileIsPresent(Directory directory) throws IOException {
-        if (RemoveCorruptedShardDataCommand.isCorruptMarkerFileIsPresent(directory) == false) {
-            throw new ElasticsearchException("There is no corruption file marker");
-        }
-    }
-
 }

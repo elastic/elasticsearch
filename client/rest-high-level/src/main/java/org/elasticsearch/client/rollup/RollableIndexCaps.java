@@ -44,7 +44,7 @@ public class RollableIndexCaps implements ToXContentFragment {
     public static final Function<String, ConstructingObjectParser<RollableIndexCaps, Void>> PARSER = indexName -> {
         @SuppressWarnings("unchecked")
         ConstructingObjectParser<RollableIndexCaps, Void> p
-            = new ConstructingObjectParser<>(indexName,
+            = new ConstructingObjectParser<>(indexName, true,
             a -> new RollableIndexCaps(indexName, (List<RollupJobCaps>) a[0]));
 
         p.declareObjectArray(ConstructingObjectParser.constructorArg(), RollupJobCaps.PARSER::apply,

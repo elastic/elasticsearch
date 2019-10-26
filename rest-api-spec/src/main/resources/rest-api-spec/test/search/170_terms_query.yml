@@ -1,8 +1,5 @@
 ---
 "Terms Query with No.of terms exceeding index.max_terms_count should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.max_terms_count setting has been added in 7.0.0
   - do:
       indices.create:
           index: test_index
@@ -11,23 +8,22 @@
                   number_of_shards: 1
                   index.max_terms_count: 2
               mappings:
-                  test_type:
-                      properties:
-                          user:
-                              type: keyword
-                          followers:
-                              type: keyword
+                  properties:
+                      user:
+                          type: keyword
+                      followers:
+                          type: keyword
   - do:
       bulk:
           refresh: true
           body:
-              - '{"index": {"_index": "test_index", "_type": "test_type", "_id": "u1"}}'
+              - '{"index": {"_index": "test_index", "_id": "u1"}}'
               - '{"user": "u1", "followers": ["u2", "u3"]}'
-              - '{"index": {"_index": "test_index", "_type": "test_type", "_id": "u2"}}'
+              - '{"index": {"_index": "test_index", "_id": "u2"}}'
               - '{"user": "u2", "followers": ["u1", "u3", "u4"]}'
-              - '{"index": {"_index": "test_index", "_type": "test_type", "_id": "u3"}}'
+              - '{"index": {"_index": "test_index", "_id": "u3"}}'
               - '{"user": "u3", "followers": ["u1"]}'
-              - '{"index": {"_index": "test_index", "_type": "test_type", "_id": "u4"}}'
+              - '{"index": {"_index": "test_index", "_id": "u4"}}'
               - '{"user": "u4", "followers": ["u3"]}'
 
   - do:

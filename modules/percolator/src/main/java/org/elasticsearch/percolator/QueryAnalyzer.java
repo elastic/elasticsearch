@@ -22,7 +22,6 @@ import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -55,7 +54,6 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -64,38 +62,33 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static java.util.Map.entry;
 import static java.util.stream.Collectors.toSet;
 
 final class QueryAnalyzer {
 
-    private static final Map<Class<? extends Query>, BiFunction<Query, Version, Result>> queryProcessors;
-
-    static {
-        Map<Class<? extends Query>, BiFunction<Query, Version, Result>> map = new HashMap<>();
-        map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
-        map.put(MatchAllDocsQuery.class, matchAllDocsQuery());
-        map.put(ConstantScoreQuery.class, constantScoreQuery());
-        map.put(BoostQuery.class, boostQuery());
-        map.put(TermQuery.class, termQuery());
-        map.put(TermInSetQuery.class, termInSetQuery());
-        map.put(CommonTermsQuery.class, commonTermsQuery());
-        map.put(BlendedTermQuery.class, blendedTermQuery());
-        map.put(PhraseQuery.class, phraseQuery());
-        map.put(MultiPhraseQuery.class, multiPhraseQuery());
-        map.put(SpanTermQuery.class, spanTermQuery());
-        map.put(SpanNearQuery.class, spanNearQuery());
-        map.put(SpanOrQuery.class, spanOrQuery());
-        map.put(SpanFirstQuery.class, spanFirstQuery());
-        map.put(SpanNotQuery.class, spanNotQuery());
-        map.put(BooleanQuery.class, booleanQuery());
-        map.put(DisjunctionMaxQuery.class, disjunctionMaxQuery());
-        map.put(SynonymQuery.class, synonymQuery());
-        map.put(FunctionScoreQuery.class, functionScoreQuery());
-        map.put(PointRangeQuery.class, pointRangeQuery());
-        map.put(IndexOrDocValuesQuery.class, indexOrDocValuesQuery());
-        map.put(ESToParentBlockJoinQuery.class, toParentBlockJoinQuery());
-        queryProcessors = Collections.unmodifiableMap(map);
-    }
+    private static final Map<Class<? extends Query>, BiFunction<Query, Version, Result>> QUERY_PROCESSORS = Map.ofEntries(
+        entry(MatchNoDocsQuery.class, matchNoDocsQuery()),
+        entry(MatchAllDocsQuery.class, matchAllDocsQuery()),
+        entry(ConstantScoreQuery.class, constantScoreQuery()),
+        entry(BoostQuery.class, boostQuery()),
+        entry(TermQuery.class, termQuery()),
+        entry(TermInSetQuery.class, termInSetQuery()),
+        entry(BlendedTermQuery.class, blendedTermQuery()),
+        entry(PhraseQuery.class, phraseQuery()),
+        entry(MultiPhraseQuery.class, multiPhraseQuery()),
+        entry(SpanTermQuery.class, spanTermQuery()),
+        entry(SpanNearQuery.class, spanNearQuery()),
+        entry(SpanOrQuery.class, spanOrQuery()),
+        entry(SpanFirstQuery.class, spanFirstQuery()),
+        entry(SpanNotQuery.class, spanNotQuery()),
+        entry(BooleanQuery.class, booleanQuery()),
+        entry(DisjunctionMaxQuery.class, disjunctionMaxQuery()),
+        entry(SynonymQuery.class, synonymQuery()),
+        entry(FunctionScoreQuery.class, functionScoreQuery()),
+        entry(PointRangeQuery.class, pointRangeQuery()),
+        entry(IndexOrDocValuesQuery.class, indexOrDocValuesQuery()),
+        entry(ESToParentBlockJoinQuery.class, toParentBlockJoinQuery()));
 
     private QueryAnalyzer() {
     }
@@ -130,11 +123,11 @@ final class QueryAnalyzer {
     static Result analyze(Query query, Version indexVersion) {
         Class<?> queryClass = query.getClass();
         if (queryClass.isAnonymousClass()) {
-            // Sometimes queries have anonymous classes in that case we need the direct super class.
-            // (for example blended term query)
+            // sometimes queries have anonymous classes in that case we need the direct super class (e.g., blended term query)
             queryClass = queryClass.getSuperclass();
         }
-        BiFunction<Query, Version, Result> queryProcessor = queryProcessors.get(queryClass);
+        assert Query.class.isAssignableFrom(queryClass) : query.getClass();
+        BiFunction<Query, Version, Result> queryProcessor = QUERY_PROCESSORS.get(queryClass);
         if (queryProcessor != null) {
             return queryProcessor.apply(query, indexVersion);
         } else {
@@ -190,13 +183,6 @@ final class QueryAnalyzer {
         };
     }
 
-    private static BiFunction<Query, Version, Result> commonTermsQuery() {
-        return (query, version) -> {
-            Set<QueryExtraction> terms = ((CommonTermsQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
-            return new Result(false, terms, Math.min(1, terms.size()));
-        };
-    }
-
     private static BiFunction<Query, Version, Result> blendedTermQuery() {
         return (query, version) -> {
             Set<QueryExtraction> terms = ((BlendedTermQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
@@ -211,20 +197,8 @@ final class QueryAnalyzer {
                 return new Result(true, Collections.emptySet(), 0);
             }
 
-            if (version.onOrAfter(Version.V_6_1_0)) {
-                Set<QueryExtraction> extractions = Arrays.stream(terms).map(QueryExtraction::new).collect(toSet());
-                return new Result(false, extractions, extractions.size());
-            } else {
-                // the longest term is likely to be the rarest,
-                // so from a performance perspective it makes sense to extract that
-                Term longestTerm = terms[0];
-                for (Term term : terms) {
-                    if (longestTerm.bytes().length < term.bytes().length) {
-                        longestTerm = term;
-                    }
-                }
-                return new Result(false, Collections.singleton(new QueryExtraction(longestTerm)), 1);
-            }
+            Set<QueryExtraction> extractions = Arrays.stream(terms).map(QueryExtraction::new).collect(toSet());
+            return new Result(false, extractions, extractions.size());
         };
     }
 
@@ -260,23 +234,14 @@ final class QueryAnalyzer {
     private static BiFunction<Query, Version, Result> spanNearQuery() {
         return (query, version) -> {
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
-            if (version.onOrAfter(Version.V_6_1_0)) {
-                // This has the same problem as boolean queries when it comes to duplicated clauses
-                // so we rewrite to a boolean query to keep things simple.
-                BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (SpanQuery clause : spanNearQuery.getClauses()) {
-                    builder.add(clause, Occur.FILTER);
-                }
-                // make sure to unverify the result
-                return booleanQuery().apply(builder.build(), version).unverify();
-            } else {
-                Result bestClause = null;
-                for (SpanQuery clause : spanNearQuery.getClauses()) {
-                    Result temp = analyze(clause, version);
-                    bestClause = selectBestResult(temp, bestClause);
-                }
-                return bestClause;
+            // This has the same problem as boolean queries when it comes to duplicated clauses
+            // so we rewrite to a boolean query to keep things simple.
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            for (SpanQuery clause : spanNearQuery.getClauses()) {
+                builder.add(clause, Occur.FILTER);
             }
+            // make sure to unverify the result
+            return booleanQuery().apply(builder.build(), version).unverify();
         };
     }
 
@@ -483,77 +448,69 @@ final class QueryAnalyzer {
         if (conjunctions.isEmpty()) {
             throw new IllegalArgumentException("Must have at least on conjunction sub result");
         }
-        if (version.onOrAfter(Version.V_6_1_0)) {
-            for (Result subResult : conjunctions) {
-                if (subResult.isMatchNoDocs()) {
-                    return subResult;
-                }
+        for (Result subResult : conjunctions) {
+            if (subResult.isMatchNoDocs()) {
+                return subResult;
             }
-            int msm = 0;
-            boolean verified = true;
-            boolean matchAllDocs = true;
-            boolean hasDuplicateTerms = false;
-            Set<QueryExtraction> extractions = new HashSet<>();
-            Set<String> seenRangeFields = new HashSet<>();
-            for (Result result : conjunctions) {
-                // In case that there are duplicate query extractions we need to be careful with
-                // incrementing msm,
-                // because that could lead to valid matches not becoming candidate matches:
-                // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
-                // doc: field: val1 val2 val3
-                // So lets be protective and decrease the msm:
-                int resultMsm = result.minimumShouldMatch;
-                for (QueryExtraction queryExtraction : result.extractions) {
-                    if (queryExtraction.range != null) {
-                        // In case of range queries each extraction does not simply increment the
-                        // minimum_should_match
-                        // for that percolator query like for a term based extraction, so that can lead
-                        // to more false
-                        // positives for percolator queries with range queries than term based queries.
-                        // The is because the way number fields are extracted from the document to be
-                        // percolated.
-                        // Per field a single range is extracted and if a percolator query has two or
-                        // more range queries
-                        // on the same field, then the minimum should match can be higher than clauses
-                        // in the CoveringQuery.
-                        // Therefore right now the minimum should match is incremented once per number
-                        // field when processing
-                        // the percolator query at index time.
-                        if (seenRangeFields.add(queryExtraction.range.fieldName)) {
-                            resultMsm = 1;
-                        } else {
-                            resultMsm = 0;
-                        }
-                    }
-
-                    if (extractions.contains(queryExtraction)) {
-
+        }
+        int msm = 0;
+        boolean verified = true;
+        boolean matchAllDocs = true;
+        boolean hasDuplicateTerms = false;
+        Set<QueryExtraction> extractions = new HashSet<>();
+        Set<String> seenRangeFields = new HashSet<>();
+        for (Result result : conjunctions) {
+            // In case that there are duplicate query extractions we need to be careful with
+            // incrementing msm,
+            // because that could lead to valid matches not becoming candidate matches:
+            // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
+            // doc: field: val1 val2 val3
+            // So lets be protective and decrease the msm:
+            int resultMsm = result.minimumShouldMatch;
+            for (QueryExtraction queryExtraction : result.extractions) {
+                if (queryExtraction.range != null) {
+                    // In case of range queries each extraction does not simply increment the
+                    // minimum_should_match
+                    // for that percolator query like for a term based extraction, so that can lead
+                    // to more false
+                    // positives for percolator queries with range queries than term based queries.
+                    // The is because the way number fields are extracted from the document to be
+                    // percolated.
+                    // Per field a single range is extracted and if a percolator query has two or
+                    // more range queries
+                    // on the same field, then the minimum should match can be higher than clauses
+                    // in the CoveringQuery.
+                    // Therefore right now the minimum should match is incremented once per number
+                    // field when processing
+                    // the percolator query at index time.
+                    if (seenRangeFields.add(queryExtraction.range.fieldName)) {
+                        resultMsm = 1;
+                    } else {
                         resultMsm = 0;
-                        verified = false;
-                        break;
                     }
                 }
-                msm += resultMsm;
 
-                if (result.verified == false
-                        // If some inner extractions are optional, the result can't be verified
-                        || result.minimumShouldMatch < result.extractions.size()) {
+                if (extractions.contains(queryExtraction)) {
+
+                    resultMsm = 0;
                     verified = false;
+                    break;
                 }
-                matchAllDocs &= result.matchAllDocs;
-                extractions.addAll(result.extractions);
             }
-            if (matchAllDocs) {
-                return new Result(matchAllDocs, verified);
-            } else {
-                return new Result(verified, extractions, hasDuplicateTerms ? 1 : msm);
+            msm += resultMsm;
+
+            if (result.verified == false
+                // If some inner extractions are optional, the result can't be verified
+                || result.minimumShouldMatch < result.extractions.size()) {
+                verified = false;
             }
+            matchAllDocs &= result.matchAllDocs;
+            extractions.addAll(result.extractions);
+        }
+        if (matchAllDocs) {
+            return new Result(matchAllDocs, verified);
         } else {
-            Result bestClause = null;
-            for (Result result : conjunctions) {
-                bestClause = selectBestResult(result, bestClause);
-            }
-            return bestClause;
+            return new Result(verified, extractions, hasDuplicateTerms ? 1 : msm);
         }
     }
 
@@ -570,12 +527,7 @@ final class QueryAnalyzer {
     private static Result handleDisjunction(List<Result> disjunctions, int requiredShouldClauses, Version version) {
         // Keep track of the msm for each clause:
         List<Integer> clauses = new ArrayList<>(disjunctions.size());
-        boolean verified;
-        if (version.before(Version.V_6_1_0)) {
-            verified = requiredShouldClauses <= 1;
-        } else {
-            verified = true;
-        }
+        boolean verified = true;
         int numMatchAllClauses = 0;
         boolean hasRangeExtractions = false;
 
@@ -622,10 +574,9 @@ final class QueryAnalyzer {
         boolean matchAllDocs = numMatchAllClauses > 0 && numMatchAllClauses >= requiredShouldClauses;
 
         int msm = 0;
-        if (version.onOrAfter(Version.V_6_1_0) &&
-            // Having ranges would mean we need to juggle with the msm and that complicates this logic a lot,
-            // so for now lets not do it.
-            hasRangeExtractions == false) {
+        // Having ranges would mean we need to juggle with the msm and that complicates this logic a lot,
+        // so for now lets not do it.
+        if (hasRangeExtractions == false) {
             // Figure out what the combined msm is for this disjunction:
             // (sum the lowest required clauses, otherwise we're too strict and queries may not match)
             clauses = clauses.stream()
@@ -651,103 +602,6 @@ final class QueryAnalyzer {
         } else {
             return new Result(verified, terms, msm);
         }
-    }
-
-    /**
-     * Return an extraction for the conjunction of {@code result1} and {@code result2}
-     * by picking up clauses that look most restrictive and making it unverified if
-     * the other clause is not null and doesn't match all documents. This is used by
-     * 6.0.0 indices which didn't use the terms_set query.
-     */
-    static Result selectBestResult(Result result1, Result result2) {
-        assert result1 != null || result2 != null;
-        if (result1 == null) {
-            return result2;
-        } else if (result2 == null) {
-            return result1;
-        } else if (result1.matchAllDocs) { // conjunction with match_all
-            Result result = result2;
-            if (result1.verified == false) {
-                result = result.unverify();
-            }
-            return result;
-        } else if (result2.matchAllDocs) { // conjunction with match_all
-            Result result = result1;
-            if (result2.verified == false) {
-                result = result.unverify();
-            }
-            return result;
-        } else {
-            // Prefer term based extractions over range based extractions:
-            boolean onlyRangeBasedExtractions = true;
-            for (QueryExtraction clause : result1.extractions) {
-                if (clause.term != null) {
-                    onlyRangeBasedExtractions = false;
-                    break;
-                }
-            }
-            for (QueryExtraction clause : result2.extractions) {
-                if (clause.term != null) {
-                    onlyRangeBasedExtractions = false;
-                    break;
-                }
-            }
-
-            if (onlyRangeBasedExtractions) {
-                BytesRef extraction1SmallestRange = smallestRange(result1.extractions);
-                BytesRef extraction2SmallestRange = smallestRange(result2.extractions);
-                if (extraction1SmallestRange == null) {
-                    return result2.unverify();
-                } else if (extraction2SmallestRange == null) {
-                    return result1.unverify();
-                }
-
-                // Keep the clause with smallest range, this is likely to be the rarest.
-                if (extraction1SmallestRange.compareTo(extraction2SmallestRange) <= 0) {
-                    return result1.unverify();
-                } else {
-                    return result2.unverify();
-                }
-            } else {
-                int extraction1ShortestTerm = minTermLength(result1.extractions);
-                int extraction2ShortestTerm = minTermLength(result2.extractions);
-                // keep the clause with longest terms, this likely to be rarest.
-                if (extraction1ShortestTerm >= extraction2ShortestTerm) {
-                    return result1.unverify();
-                } else {
-                    return result2.unverify();
-                }
-            }
-        }
-    }
-
-    private static int minTermLength(Set<QueryExtraction> extractions) {
-        // In case there are only range extractions, then we return Integer.MIN_VALUE,
-        // so that selectBestExtraction(...) we are likely to prefer the extractions that contains at least a single extraction
-        if (extractions.stream().filter(queryExtraction -> queryExtraction.term != null).count() == 0 &&
-                extractions.stream().filter(queryExtraction -> queryExtraction.range != null).count() > 0) {
-            return Integer.MIN_VALUE;
-        }
-
-        int min = Integer.MAX_VALUE;
-        for (QueryExtraction qt : extractions) {
-            if (qt.term != null) {
-                min = Math.min(min, qt.bytes().length);
-            }
-        }
-        return min;
-    }
-
-    private static BytesRef smallestRange(Set<QueryExtraction> terms) {
-        BytesRef min = null;
-        for (QueryExtraction qt : terms) {
-            if (qt.range != null) {
-                if (min == null || qt.range.interval.compareTo(min) < 0) {
-                    min = qt.range.interval;
-                }
-            }
-        }
-        return min;
     }
 
     /**

@@ -10,21 +10,16 @@
 
 ---
 "Max keep alive":
-  - skip:
-      version: " - 6.99.99"
-      reason: search.max_keep_alive was added in 7.0.0
 
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     1
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     2
         body:   { foo: 1 }
 

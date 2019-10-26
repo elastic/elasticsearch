@@ -19,7 +19,6 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -40,15 +39,7 @@ public class MockKeywordPlugin extends Plugin implements AnalysisPlugin {
 
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
-        return singletonMap("keyword", (indexSettings, environment, name, settings) -> {
-            class Factory implements TokenizerFactory {
-
-                @Override
-                public Tokenizer create() {
-                    return new MockTokenizer(MockTokenizer.KEYWORD, false);
-                }
-            }
-            return new Factory();
-        });
+        return singletonMap("keyword", (indexSettings, environment, name, settings) ->
+            TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
     }
 }

@@ -37,6 +37,11 @@ public class DeleteRepositoryRequest extends AcknowledgedRequest<DeleteRepositor
 
     private String name;
 
+    public DeleteRepositoryRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+    }
+
     public DeleteRepositoryRequest() {
     }
 
@@ -75,12 +80,6 @@ public class DeleteRepositoryRequest extends AcknowledgedRequest<DeleteRepositor
      */
     public String name() {
         return this.name;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
     }
 
     @Override

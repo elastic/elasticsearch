@@ -69,10 +69,13 @@ final class WatcherRequestConverters {
             .build();
 
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request).withVersion(putWatchRequest.getVersion());
+        RequestConverters.Params params = new RequestConverters.Params()
+            .withIfSeqNo(putWatchRequest.ifSeqNo())
+            .withIfPrimaryTerm(putWatchRequest.ifPrimaryTerm());
         if (putWatchRequest.isActive() == false) {
             params.putParam("active", "false");
         }
+        request.addParameters(params.asMap());
         ContentType contentType = RequestConverters.createContentType(putWatchRequest.xContentType());
         BytesReference source = putWatchRequest.getSource();
         request.setEntity(new NByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
@@ -116,7 +119,7 @@ final class WatcherRequestConverters {
             .addPathPartAsIs("_execute").build();
 
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (executeWatchRequest.isDebug()) {
             params.putParam("debug", "true");
         }
@@ -126,7 +129,7 @@ final class WatcherRequestConverters {
         if (executeWatchRequest.recordExecution()) {
             params.putParam("record_execution", "true");
         }
-
+        request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(executeWatchRequest, XContentType.JSON));
         return request;
     }
@@ -156,7 +159,7 @@ final class WatcherRequestConverters {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "stats");
         String endpoint = builder.build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         StringBuilder metric = new StringBuilder();
         if (watcherStatsRequest.includeCurrentWatches()) {
             metric.append("current_watches");
@@ -170,6 +173,7 @@ final class WatcherRequestConverters {
         if (metric.length() > 0) {
             parameters.putParam("metric", metric.toString());
         }
+        request.addParameters(parameters.asMap());
         return request;
     }
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -68,17 +69,17 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, NodesReloadSecureSettingsRequest request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(NodesReloadSecureSettingsRequest request) {
+        return new NodeRequest(request);
     }
 
     @Override
-    protected NodesReloadSecureSettingsResponse.NodeResponse newNodeResponse() {
-        return new NodesReloadSecureSettingsResponse.NodeResponse();
+    protected NodesReloadSecureSettingsResponse.NodeResponse newNodeResponse(StreamInput in) throws IOException {
+        return new NodesReloadSecureSettingsResponse.NodeResponse(in);
     }
 
     @Override
-    protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(NodeRequest nodeReloadRequest) {
+    protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(NodeRequest nodeReloadRequest, Task task) {
         try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
             // reread keystore from config file
             if (keystore == null) {
@@ -113,19 +114,13 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
 
         NodesReloadSecureSettingsRequest request;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesReloadSecureSettingsRequest(in);
         }
 
-        NodeRequest(String nodeId, NodesReloadSecureSettingsRequest request) {
-            super(nodeId);
+        NodeRequest(NodesReloadSecureSettingsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesReloadSecureSettingsRequest();
-            request.readFrom(in);
         }
 
         @Override

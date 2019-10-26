@@ -70,6 +70,6 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
 
     @Override
     protected TokenizerFactory create(Version version) {
-        return () -> create.apply(version);
+        return TokenizerFactory.newFactory(name, () -> create.apply(version));
     }
 }

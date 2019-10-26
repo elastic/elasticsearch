@@ -82,19 +82,28 @@ public class RunningStats implements Writeable, Cloneable {
         // read doc count
         docCount = (Long)in.readGenericValue();
         // read fieldSum
-        fieldSum = (HashMap<String, Double>)in.readGenericValue();
+        fieldSum = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // counts
-        counts = (HashMap<String, Long>)in.readGenericValue();
+        counts = convertIfNeeded((Map<String, Long>)in.readGenericValue());
         // means
-        means = (HashMap<String, Double>)in.readGenericValue();
+        means = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // variances
-        variances = (HashMap<String, Double>)in.readGenericValue();
+        variances = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // skewness
-        skewness = (HashMap<String, Double>)in.readGenericValue();
+        skewness = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // kurtosis
-        kurtosis = (HashMap<String, Double>)in.readGenericValue();
+        kurtosis = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // read covariances
-        covariances = (HashMap<String, HashMap<String, Double>>)in.readGenericValue();
+        covariances = convertIfNeeded((Map<String, HashMap<String, Double>>)in.readGenericValue());
+    }
+
+    // Convert Map to HashMap if it isn't
+    private static <K, V> HashMap<K, V> convertIfNeeded(Map<K,V> map) {
+        if (map instanceof HashMap) {
+            return (HashMap<K, V>) map;
+        } else {
+            return new HashMap<>(map);
+        }
     }
 
     @Override

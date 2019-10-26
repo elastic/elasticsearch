@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.ESBlobStoreTestCase;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,15 +43,14 @@ public class FsBlobStoreTests extends ESBlobStoreTestCase {
         } else {
             settings = Settings.EMPTY;
         }
-        return new FsBlobStore(settings, createTempDir());
+        return new FsBlobStore(settings, createTempDir(), false);
     }
 
     public void testReadOnly() throws Exception {
-        Settings settings = Settings.builder().put("readonly", true).build();
         Path tempDir = createTempDir();
         Path path = tempDir.resolve("bar");
 
-        try (FsBlobStore store = new FsBlobStore(settings, path)) {
+        try (FsBlobStore store = new FsBlobStore(Settings.EMPTY, path, true)) {
             assertFalse(Files.exists(path));
             BlobPath blobPath = BlobPath.cleanPath().add("foo");
             store.blobContainer(blobPath);
@@ -61,8 +61,7 @@ public class FsBlobStoreTests extends ESBlobStoreTestCase {
             assertFalse(Files.exists(storePath));
         }
 
-        settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("readonly", false).build();
-        try (FsBlobStore store = new FsBlobStore(settings, path)) {
+        try (FsBlobStore store = new FsBlobStore(Settings.EMPTY, path, false)) {
             assertTrue(Files.exists(path));
             BlobPath blobPath = BlobPath.cleanPath().add("foo");
             BlobContainer container = store.blobContainer(blobPath);
@@ -76,7 +75,7 @@ public class FsBlobStoreTests extends ESBlobStoreTestCase {
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             writeBlob(container, "test", new BytesArray(data));
             assertArrayEquals(readBlobFully(container, "test", data.length), data);
-            assertTrue(container.blobExists("test"));
+            assertTrue(BlobStoreTestUtil.blobExists(container, "test"));
         }
     }
 }

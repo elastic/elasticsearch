@@ -1,0 +1,28 @@
+{
+  "ml.set_upgrade_mode":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/set_upgrade_mode",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "enabled":{
+        "type":"boolean",
+        "description":"Whether to enable upgrade_mode ML setting or not. Defaults to false."
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Controls the time to wait before action times out. Defaults to 30 seconds"
+      }
+    }
+  }
+}

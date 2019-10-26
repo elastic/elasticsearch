@@ -20,16 +20,9 @@
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
@@ -41,17 +34,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportDeleteAction extends TransportSingleItemBulkWriteAction<DeleteRequest, DeleteResponse> {
 
     @Inject
-    public TransportDeleteAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                 IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                 TransportBulkAction bulkAction, TransportShardBulkAction shardBulkAction) {
-        super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, indexNameExpressionResolver, DeleteRequest::new, DeleteRequest::new, ThreadPool.Names.WRITE,
-            bulkAction, shardBulkAction);
-    }
-
-    @Override
-    protected DeleteResponse newResponseInstance() {
-        return new DeleteResponse();
+    public TransportDeleteAction(TransportService transportService, ActionFilters actionFilters, TransportBulkAction bulkAction) {
+        super(DeleteAction.NAME, transportService, actionFilters, DeleteRequest::new, bulkAction);
     }
 }

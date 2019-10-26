@@ -1,0 +1,24 @@
+{
+  "sql.translate":{
+    "documentation":{
+      "url":"Translate SQL into Elasticsearch queries"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_sql/translate",
+          "methods":[
+            "POST",
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"Specify the query in the `query` element.",
+      "required":true
+    }
+  }
+}

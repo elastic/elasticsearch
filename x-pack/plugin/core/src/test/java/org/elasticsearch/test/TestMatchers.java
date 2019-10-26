@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.test;
 
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.CustomMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -22,6 +25,39 @@ public class TestMatchers extends Matchers {
             @Override
             public boolean matches(Object item) {
                 return Files.exists(path, options);
+            }
+        };
+    }
+
+    public static Matcher<Throwable> throwableWithMessage(String message) {
+        return throwableWithMessage(CoreMatchers.equalTo(message));
+    }
+
+    public static Matcher<Throwable> throwableWithMessage(Matcher<String> messageMatcher) {
+        return new BaseMatcher<>() {
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("a throwable with message of ").appendDescriptionOf(messageMatcher);
+            }
+
+            @Override
+            public boolean matches(Object actual) {
+                if (actual instanceof Throwable) {
+                    final Throwable throwable = (Throwable) actual;
+                    return messageMatcher.matches(throwable.getMessage());
+                } else {
+                    return false;
+                }
+            }
+
+            @Override
+            public void describeMismatch(Object item, Description description) {
+                super.describeMismatch(item, description);
+                if (item instanceof Throwable) {
+                    Throwable e = (Throwable) item;
+                    final StackTraceElement at = e.getStackTrace()[0];
+                    description.appendText(" at ").appendText(at.toString());
+                }
             }
         };
     }

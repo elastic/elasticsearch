@@ -56,7 +56,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -187,8 +187,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
-        final SecurityIndexManager securityIndex =
-            new SecurityIndexManager(client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService);
+        final SecurityIndexManager securityIndex = SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService);
         final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex) {
             @Override
             void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
@@ -248,7 +247,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     private ClusterState getClusterStateWithSecurityIndex() {
         final boolean withAlias = randomBoolean();
-        final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
+        final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
 
         Settings settings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -257,7 +256,7 @@ public class NativeRolesStoreTests extends ESTestCase {
                 .build();
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(securityIndexName).settings(settings))
-                .put(new IndexTemplateMetaData(SecurityIndexManager.SECURITY_TEMPLATE_NAME, 0, 0,
+                .put(new IndexTemplateMetaData(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, 0, 0,
                         Collections.singletonList(securityIndexName), Settings.EMPTY, ImmutableOpenMap.of(),
                         ImmutableOpenMap.of()))
                 .build();

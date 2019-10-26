@@ -11,7 +11,8 @@ minimal:
       privileges:
         - indices:admin/create
         - indices:admin/refresh
-        - indices:data/read/field_caps
-        - indices:data/read/search
+        - read
+        - index
+        - view_index_metadata
         - indices:data/write/bulk
         - indices:data/write/index

@@ -26,6 +26,7 @@ import java.util.function.Predicate;
 import static org.apache.lucene.util.automaton.MinimizationOperations.minimize;
 import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 import static org.apache.lucene.util.automaton.Operations.concatenate;
+import static org.apache.lucene.util.automaton.Operations.intersection;
 import static org.apache.lucene.util.automaton.Operations.minus;
 import static org.apache.lucene.util.automaton.Operations.union;
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
@@ -170,6 +171,11 @@ public final class Automatons {
 
     public static Automaton minusAndMinimize(Automaton a1, Automaton a2) {
         Automaton res = minus(a1, a2, maxDeterminizedStates);
+        return minimize(res, maxDeterminizedStates);
+    }
+
+    public static Automaton intersectAndMinimize(Automaton a1, Automaton a2) {
+        Automaton res = intersection(a1, a2);
         return minimize(res, maxDeterminizedStates);
     }
 

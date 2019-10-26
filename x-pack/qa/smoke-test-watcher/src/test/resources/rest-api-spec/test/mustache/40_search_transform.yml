@@ -3,11 +3,10 @@ setup:
   - do:
       cluster.health:
           wait_for_status: yellow
-  - do: {xpack.watcher.stats:{}}
+  - do: {watcher.stats:{}}
   - do:
       index:
         index: idx
-        type: type
         id: 1
         body: >
           {
@@ -17,7 +16,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 2
         body: >
           {
@@ -27,7 +25,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 3
         body: >
           {
@@ -37,7 +34,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 4
         body: >
           {
@@ -51,7 +47,7 @@ setup:
 ---
 "Test search transform mustache integration (using request body)":
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "trigger_data" : {
@@ -110,7 +106,7 @@ setup:
 ---
 "Test search transform mustache integration (using request template)":
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "trigger_data" : {

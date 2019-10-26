@@ -19,11 +19,6 @@
 
 package org.elasticsearch.example.expertscript;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Collection;
-import java.util.Map;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
@@ -35,6 +30,11 @@ import org.elasticsearch.script.ScoreScript.LeafFactory;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.SearchLookup;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collection;
+import java.util.Map;
 
 /**
  * An example script plugin that adds a {@link ScriptEngine} implementing expert scoring.
@@ -115,7 +115,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                      */
                     return new ScoreScript(params, lookup, context) {
                         @Override
-                        public double execute() {
+                        public double execute(ExplanationHolder explanation) {
                             return 0.0d;
                         }
                     };
@@ -138,7 +138,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         currentDocid = docid;
                     }
                     @Override
-                    public double execute() {
+                    public double execute(ExplanationHolder explanation) {
                         if (postings.docID() != currentDocid) {
                             /*
                              * advance moved past the current doc, so this doc

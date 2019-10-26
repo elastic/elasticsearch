@@ -8,7 +8,9 @@ dependencies {
 }
 
 // add test resources from security, so certificate tool tests can use example certs
-sourceSets.test.resources.srcDirs(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
+processTestResources {
+  from(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
+}
 
 // we have to repeate these patterns because the security test resources are effectively in the src of this project
 forbiddenPatterns {

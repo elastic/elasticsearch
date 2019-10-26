@@ -54,7 +54,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
     private static final DateFormatter FORMATTER = DateFormatter.forPattern(DATE_FORMAT);
 
     private ZonedDateTime date(String date) {
-        return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
     }
 
     @Before
@@ -72,7 +72,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[numHours];
         for (int i = idxIdStart; i < idxIdStart + reqs.length; i++) {
-            reqs[i - idxIdStart] = client().prepareIndex("idx2", "type", "" + i)
+            reqs[i - idxIdStart] = client().prepareIndex("idx2").setId("" + i)
                     .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(stepSizeHours);
         }

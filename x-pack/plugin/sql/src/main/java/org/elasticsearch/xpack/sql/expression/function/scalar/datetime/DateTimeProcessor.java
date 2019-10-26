@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
@@ -38,6 +39,10 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
             return dt.get(field);
         }
 
+        public int extract(OffsetTime time) {
+            return time.get(field);
+        }
+
         public ChronoField chronoField() {
             return field;
         }
@@ -58,7 +63,6 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeEnum(extractor);
     }
 

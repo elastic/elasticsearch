@@ -1,0 +1,41 @@
+[testenv="platinum"]
+
+////////////
+Take us out of upgrade mode after running any snippets on this page.
+
+[source,console]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=false
+--------------------------------------------------
+// TEARDOWN
+////////////
+
+If your {ml} indices were created before {prev-major-version}, you must
+<<reindex-upgrade,reindex the indices>>.
+
+If your {ml} indices were created in {prev-major-version}, you can:
+
+* Leave your {ml} jobs running during the upgrade. When you shut down a
+{ml} node, its jobs automatically move to another node and restore the model
+states. This option enables your jobs to continue running during the upgrade but
+it puts increased load on the cluster.
+
+* Temporarily halt the tasks associated with your {ml} jobs and {dfeeds} and
+prevent new jobs from opening by using the
+<<ml-set-upgrade-mode,set upgrade mode API>>:
++
+[source,console]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=true
+--------------------------------------------------
++
+When you disable upgrade mode, the jobs resume using the last model
+state that was automatically saved. This option avoids the overhead of managing
+active jobs during the upgrade and is faster than explicitly stopping {dfeeds}
+and closing jobs.
+
+* {stack-ov}/stopping-ml.html[Stop all {dfeeds} and close all jobs]. This option
+saves the model state at the time of closure. When you reopen the jobs after the
+upgrade, they use the exact same model. However, saving the latest model state
+takes longer than using upgrade mode, especially if you have a lot of jobs or
+jobs with large model states.

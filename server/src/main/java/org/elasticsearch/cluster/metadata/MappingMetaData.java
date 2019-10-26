@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,10 +29,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -42,6 +42,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  * Mapping configuration for a type.
  */
 public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
+
+    public static final MappingMetaData EMPTY_MAPPINGS = new MappingMetaData("_doc", Collections.emptyMap());
 
     public static class Routing {
 
@@ -77,7 +79,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     private final CompressedXContent source;
 
-    private Routing routing;
+    private final Routing routing;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -85,6 +87,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         this.routing = new Routing(docMapper.routingFieldMapper().required());
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetaData(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -92,21 +95,28 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
-        initMappers((Map<String, Object>) mappingMap.get(this.type));
+        this.routing = initRouting((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
+    @SuppressWarnings("unchecked")
+    public MappingMetaData(String type, Map<String, Object> mapping) {
         this.type = type;
-        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
-        this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
+        try {
+            XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
+            this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
+        }
+        catch (IOException e) {
+            throw new UncheckedIOException(e);  // XContent exception, should never happen
+        }
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
-        initMappers(withoutType);
+        this.routing = initRouting(withoutType);
     }
 
-    private void initMappers(Map<String, Object> withoutType) {
+    @SuppressWarnings("unchecked")
+    private Routing initRouting(Map<String, Object> withoutType) {
         if (withoutType.containsKey("_routing")) {
             boolean required = false;
             Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_routing");
@@ -122,15 +132,9 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
                     }
                 }
             }
-            this.routing = new Routing(required);
+            return new Routing(required);
         } else {
-            this.routing = Routing.EMPTY;
-        }
-    }
-
-    void updateDefaultMapping(MappingMetaData defaultMapping) {
-        if (routing == Routing.EMPTY) {
-            routing = defaultMapping.routing();
+            return Routing.EMPTY;
         }
     }
 
@@ -171,16 +175,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routing().required());
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-            // timestamp
-            out.writeBoolean(false); // enabled
-            out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern());
-            out.writeOptionalString("now"); // 5.x default
-            out.writeOptionalBoolean(null);
-        }
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeBoolean(false); // hasParentField
-        }
     }
 
     @Override
@@ -210,19 +204,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         source = CompressedXContent.readCompressedString(in);
         // routing
         routing = new Routing(in.readBoolean());
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-            // timestamp
-            boolean enabled = in.readBoolean();
-            if (enabled) {
-                throw new IllegalArgumentException("_timestamp may not be enabled");
-            }
-            in.readString(); // format
-            in.readOptionalString(); // defaultTimestamp
-            in.readOptionalBoolean(); // ignoreMissing
-        }
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readBoolean(); // hasParentField
-        }
     }
 
     public static Diff<MappingMetaData> readDiffFrom(StreamInput in) throws IOException {

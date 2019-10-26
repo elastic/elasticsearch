@@ -67,11 +67,13 @@ public class DelayedAllocationIT extends ESIntegTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))).get();
         ensureGreen("test");
         indexRandomData();
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
+        String nodeWithShard = findNodeWithShard();
+        Settings nodeWithShardDataPathSettings = internalCluster().dataPathSettings(nodeWithShard);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithShard));
         assertBusy(() -> assertThat(client().admin().cluster().prepareState().all().get().getState()
             .getRoutingNodes().unassigned().size() > 0, equalTo(true)));
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
-        internalCluster().startNode(); // this will use the same data location as the stopped node
+        internalCluster().startNode(nodeWithShardDataPathSettings); // this will use the same data location as the stopped node
         ensureGreen("test");
     }
 
@@ -148,7 +150,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         // we want to test both full divergent copies of the shard in terms of segments, and
         // a case where they are the same (using sync flush), index Random does all this goodness

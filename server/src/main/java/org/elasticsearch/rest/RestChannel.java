@@ -36,6 +36,9 @@ public interface RestChannel {
     XContentBuilder newErrorBuilder() throws IOException;
 
     XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException;
+    
+    XContentBuilder newBuilder(@Nullable XContentType xContentType, @Nullable XContentType responseContentType,
+            boolean useFiltering) throws IOException;
 
     BytesStreamOutput bytesOutput();
 

@@ -89,7 +89,7 @@ public class NativeStorageProviderTests extends ESTestCase {
         Assert.assertTrue(Files.isRegularFile(testFile));
 
         // the native component should cleanup itself, but assume it has crashed
-        storageProvider.cleanupLocalTmpStorage(path);
+        storageProvider.cleanupLocalTmpStorage(id);
         Assert.assertFalse(Files.exists(testFile));
         Assert.assertFalse(Files.exists(path));
     }

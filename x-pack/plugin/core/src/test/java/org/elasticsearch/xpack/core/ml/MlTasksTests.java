@@ -22,6 +22,7 @@ import java.net.InetAddress;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MlTasksTests extends ESTestCase {
     public void testGetJobState() {
@@ -33,7 +34,7 @@ public class MlTasksTests extends ESTestCase {
                 new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
         assertEquals(JobState.OPENING, MlTasks.getJobState("foo", tasksBuilder.build()));
 
-        tasksBuilder.updateTaskState(MlTasks.jobTaskId("foo"), new JobTaskState(JobState.OPENED, tasksBuilder.getLastAllocationId()));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("foo"), new JobTaskState(JobState.OPENED, tasksBuilder.getLastAllocationId(), null));
         assertEquals(JobState.OPENED, MlTasks.getJobState("foo", tasksBuilder.build()));
     }
 
@@ -135,7 +136,7 @@ public class MlTasksTests extends ESTestCase {
                 .masterNodeId("node-1")
                 .build();
 
-        assertThat(MlTasks.unallocatedJobIds(tasksBuilder.build(), nodes),
+        assertThat(MlTasks.unassignedJobIds(tasksBuilder.build(), nodes),
                 containsInAnyOrder("job_without_assignment", "job_without_node"));
     }
 
@@ -158,7 +159,13 @@ public class MlTasksTests extends ESTestCase {
                 .masterNodeId("node-1")
                 .build();
 
-        assertThat(MlTasks.unallocatedDatafeedIds(tasksBuilder.build(), nodes),
+        assertThat(MlTasks.unassignedDatafeedIds(tasksBuilder.build(), nodes),
                 containsInAnyOrder("datafeed_without_assignment", "datafeed_without_node"));
+    }
+
+    public void testDataFrameAnalyticsTaskIds() {
+        String taskId = MlTasks.dataFrameAnalyticsTaskId("foo");
+        assertThat(taskId, equalTo("data_frame_analytics-foo"));
+        assertThat(MlTasks.dataFrameAnalyticsIdFromTaskId(taskId), equalTo("foo"));
     }
 }

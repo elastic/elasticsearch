@@ -17,6 +17,8 @@
  * under the License.
  */
 
+import org.apache.tools.ant.taskdefs.condition.Os
+
 esplugin {
   description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
@@ -27,7 +29,7 @@ dependencies {
   compile ('com.maxmind.geoip2:geoip2:2.9.0')
   // geoip2 dependencies:
   compile("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  compile("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  compile("com.fasterxml.jackson.core:jackson-databind:2.8.11.3")
   compile('com.maxmind.db:maxmind-db:1.2.2')
 
   testCompile 'org.elasticsearch:geolite2-databases:20180911'
@@ -40,9 +42,6 @@ task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
 }
 
 project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)
-
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked,-serial"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 bundlePlugin {
   from("${project.buildDir}/ingest-geoip") {
@@ -67,3 +66,11 @@ thirdPartyAudit.ignoreMissingClasses (
   'org.apache.http.impl.client.HttpClientBuilder',
   'org.apache.http.util.EntityUtils'
 )
+
+test {
+  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    // Windows cannot cleanup database files properly unless it loads everything on heap.
+    // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
+    systemProperty 'es.geoip.load_db_on_heap', 'true'
+  }
+}

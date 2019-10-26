@@ -32,11 +32,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -68,7 +67,7 @@ public class InnerHitBuilderTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
@@ -100,7 +99,7 @@ public class InnerHitBuilderTests extends ESTestCase {
      *
      * This is necessary to ensure because we use the serialized BytesReference
      * of this builder as part of the cacheKey in
-     * {@link ShardSearchLocalRequest} (via
+     * {@link ShardSearchRequest} (via
      * {@link SearchSourceBuilder#collapse(org.elasticsearch.search.collapse.CollapseBuilder)})
      */
     public void testSerializationOrder() throws Exception {
@@ -147,7 +146,7 @@ public class InnerHitBuilderTests extends ESTestCase {
     }
     public static InnerHitBuilder randomInnerHits() {
         InnerHitBuilder innerHits = new InnerHitBuilder();
-        innerHits.setName(randomAlphaOfLengthBetween(1, 16));
+        innerHits.setName(randomAlphaOfLengthBetween(5, 16));
         innerHits.setFrom(randomIntBetween(0, 32));
         innerHits.setSize(randomIntBetween(0, 32));
         innerHits.setExplain(randomBoolean());
@@ -158,8 +157,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
         }
         innerHits.setDocValueFields(randomListStuff(16,
-                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
-                        randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT)));
+                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -201,8 +199,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> {
             if (randomBoolean()) {
                 copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(),
-                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
-                                randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT))));
+                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null))));
             } else {
                 copy.addDocValueField(randomAlphaOfLengthBetween(1, 16));
             }

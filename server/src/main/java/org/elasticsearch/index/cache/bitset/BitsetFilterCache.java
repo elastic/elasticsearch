@@ -38,6 +38,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -91,6 +91,19 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         this.listener = listener;
     }
 
+    public static BitSet bitsetFromQuery(Query query, LeafReaderContext context) throws IOException {
+        final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+        final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+        searcher.setQueryCache(null);
+        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        Scorer s = weight.scorer(context);
+        if (s == null) {
+            return null;
+        } else {
+            return BitSet.of(s.iterator(), context.reader().maxDoc());
+        }
+    }
+
     public IndexWarmer.Listener createListener(ThreadPool threadPool) {
         return new BitSetProducerWarmer(threadPool);
     }
@@ -115,7 +128,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         loadedFilters.invalidateAll();
     }
 
-    private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws IOException, ExecutionException {
+    private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws ExecutionException {
         final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
         if (cacheHelper == null) {
             throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
@@ -133,18 +146,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         });
 
         return filterToFbs.computeIfAbsent(query, key -> {
-            final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-            final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-            searcher.setQueryCache(null);
-            final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            Scorer s = weight.scorer(context);
-            final BitSet bitSet;
-            if (s == null) {
-                bitSet = null;
-            } else {
-                bitSet = BitSet.of(s.iterator(), context.reader().maxDoc());
-            }
-
+            final BitSet bitSet = bitsetFromQuery(query, context);
             Value value = new Value(bitSet, shardId);
             listener.onCache(shardId, value.bitset);
             return value;
@@ -222,7 +224,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
 
         @Override
-        public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final Engine.Searcher searcher) {
+        public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
             if (indexSettings.getIndex().equals(indexShard.indexSettings().getIndex()) == false) {
                 // this is from a different index
                 return TerminationHandle.NO_WAIT;
@@ -251,11 +253,11 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             }
 
             if (hasNested) {
-                warmUp.add(Queries.newNonNestedFilter(indexSettings.getIndexVersionCreated()));
+                warmUp.add(Queries.newNonNestedFilter());
             }
 
-            final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());
-            for (final LeafReaderContext ctx : searcher.reader().leaves()) {
+            final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());
+            for (final LeafReaderContext ctx : reader.leaves()) {
                 for (final Query filterToWarm : warmUp) {
                     executor.execute(() -> {
                         try {

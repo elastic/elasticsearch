@@ -36,8 +36,13 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
     boolean ignoreIdleThreads = true;
 
     // for serialization
-    public NodesHotThreadsRequest() {
-
+    public NodesHotThreadsRequest(StreamInput in) throws IOException {
+        super(in);
+        threads = in.readInt();
+        ignoreIdleThreads = in.readBoolean();
+        type = in.readString();
+        interval = in.readTimeValue();
+        snapshots = in.readInt();
     }
 
     /**
@@ -91,16 +96,6 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
     public NodesHotThreadsRequest snapshots(int snapshots) {
         this.snapshots = snapshots;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        threads = in.readInt();
-        ignoreIdleThreads = in.readBoolean();
-        type = in.readString();
-        interval = in.readTimeValue();
-        snapshots = in.readInt();
     }
 
     @Override

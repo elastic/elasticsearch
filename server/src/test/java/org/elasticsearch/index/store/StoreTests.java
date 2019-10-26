@@ -42,9 +42,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
@@ -62,6 +64,8 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -96,6 +100,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class StoreTests extends ESTestCase {
 
@@ -820,10 +825,7 @@ public class StoreTests extends ESTestCase {
         Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
         storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
         storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
-        Map<String, String> commitUserData = new HashMap<>();
-        commitUserData.put("userdata_1", "test");
-        commitUserData.put("userdata_2", "test");
-        return new Store.MetadataSnapshot(unmodifiableMap(storeFileMetaDataMap), unmodifiableMap(commitUserData), 0);
+        return new Store.MetadataSnapshot(unmodifiableMap(storeFileMetaDataMap), Map.of("userdata_1", "test", "userdata_2", "test"), 0);
     }
 
     public void testUserDataRead() throws IOException {
@@ -857,9 +859,15 @@ public class StoreTests extends ESTestCase {
 
     public void testStreamStoreFilesMetaData() throws Exception {
         Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
+        int numOfLeases = randomIntBetween(0, 10);
+        List<RetentionLease> peerRecoveryRetentionLeases = new ArrayList<>();
+        for (int i = 0; i < numOfLeases; i++) {
+            peerRecoveryRetentionLeases.add(new RetentionLease(ReplicationTracker.getPeerRecoveryRetentionLeaseId(UUIDs.randomBase64UUID()),
+                randomNonNegativeLong(), randomNonNegativeLong(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+        }
         TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData =
             new TransportNodesListShardStoreMetaData.StoreFilesMetaData(new ShardId("test", "_na_", 0),
-                metadataSnapshot);
+                metadataSnapshot, peerRecoveryRetentionLeases);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.elasticsearch.Version targetNodeVersion = randomVersion(random());
@@ -869,12 +877,13 @@ public class StoreTests extends ESTestCase {
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
         TransportNodesListShardStoreMetaData.StoreFilesMetaData inStoreFileMetaData =
-            TransportNodesListShardStoreMetaData.StoreFilesMetaData.readStoreFilesMetaData(in);
+            new TransportNodesListShardStoreMetaData.StoreFilesMetaData(in);
         Iterator<StoreFileMetaData> outFiles = outStoreFileMetaData.iterator();
         for (StoreFileMetaData inFile : inStoreFileMetaData) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
         }
         assertThat(outStoreFileMetaData.syncId(), equalTo(inStoreFileMetaData.syncId()));
+        assertThat(outStoreFileMetaData.peerRecoveryRetentionLeases(), equalTo(peerRecoveryRetentionLeases));
     }
 
     public void testMarkCorruptedOnTruncatedSegmentsFile() throws IOException {
@@ -925,17 +934,17 @@ public class StoreTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         Path tempDir = createTempDir();
         final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
-        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l, d) -> new DummyShardLock(id)));
         IndexWriter writer = new IndexWriter(dir, iwc);
         Document doc = new Document();
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         writer.commit();
         writer.close();
-        assertTrue(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertTrue(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l, d) -> new DummyShardLock(id)));
         Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
-        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l, d) -> new DummyShardLock(id)));
         store.close();
     }
 
@@ -977,7 +986,7 @@ public class StoreTests extends ESTestCase {
         String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_STACK_TRACE);
-            output.writeString(ExceptionsHelper.detailedMessage(exception));
+            output.writeString(exception.getMessage());
             output.writeString(ExceptionsHelper.stackTrace(exception));
             CodecUtil.writeFooter(output);
         }
@@ -985,8 +994,7 @@ public class StoreTests extends ESTestCase {
             store.failIfCorrupted();
             fail("should be corrupted");
         } catch (CorruptIndexException e) {
-            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +
-                "] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
             assertTrue(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
         }
 
@@ -994,15 +1002,14 @@ public class StoreTests extends ESTestCase {
 
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START);
-            output.writeString(ExceptionsHelper.detailedMessage(exception));
+            output.writeString(exception.getMessage());
             CodecUtil.writeFooter(output);
         }
         try {
             store.failIfCorrupted();
             fail("should be corrupted");
         } catch (CorruptIndexException e) {
-            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +
-                "] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
             assertFalse(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
         }
 
@@ -1031,38 +1038,6 @@ public class StoreTests extends ESTestCase {
         store.close();
     }
 
-    public void testEnsureIndexHasHistoryUUID() throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
-
-            store.createEmpty(Version.LATEST);
-
-            // remove the history uuid
-            IndexWriterConfig iwc = new IndexWriterConfig(null)
-                .setCommitOnClose(false)
-                // we don't want merges to happen here - we call maybe merge on the engine
-                // later once we stared it up otherwise we would need to wait for it here
-                // we also don't specify a codec here and merges should use the engines for this index
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-            try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
-                Map<String, String> newCommitData = new HashMap<>();
-                for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
-                    if (entry.getKey().equals(Engine.HISTORY_UUID_KEY) == false) {
-                        newCommitData.put(entry.getKey(), entry.getValue());
-                    }
-                }
-                writer.setLiveCommitData(newCommitData.entrySet());
-                writer.commit();
-            }
-
-            store.ensureIndexHasHistoryUUID();
-
-            SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
-            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
-        }
-    }
-
     public void testHistoryUUIDCanBeForced() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
@@ -1078,6 +1053,18 @@ public class StoreTests extends ESTestCase {
             segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
             assertThat(segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY), not(equalTo(oldHistoryUUID)));
+        }
+    }
+
+    public void testGetPendingFiles() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final String testfile = "testfile";
+        try (Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId))) {
+            store.directory().createOutput(testfile, IOContext.DEFAULT).close();
+            try (IndexInput input = store.directory().openInput(testfile, IOContext.DEFAULT)) {
+                store.directory().deleteFile(testfile);
+                assertEquals(FilterDirectory.unwrap(store.directory()).getPendingDeletions(), store.directory().getPendingDeletions());
+            }
         }
     }
 }

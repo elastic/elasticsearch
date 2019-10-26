@@ -9,6 +9,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -73,7 +75,12 @@ public class LdapSessionFactoryTests extends LdapTestCase {
     public void testBindWithReadTimeout() throws Exception {
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
         String protocol = randomFrom("ldap", "ldaps");
-        String ldapUrl = new LDAPURL(protocol, "localhost", ldapServer.getListenPort(protocol), null, null, null, null).toString();
+        InetAddress listenAddress = ldapServer.getListenAddress(protocol);
+        if (listenAddress == null) {
+            listenAddress = InetAddress.getLoopbackAddress();
+        }
+        String ldapUrl = new LDAPURL(protocol, NetworkAddress.format(listenAddress), ldapServer.getListenPort(protocol),
+            null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 
@@ -233,7 +240,12 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      */
     public void testSslTrustIsReloaded() throws Exception {
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
-        String ldapUrl = new LDAPURL("ldaps", "localhost", ldapServer.getListenPort("ldaps"), null, null, null, null).toString();
+        InetAddress listenAddress = ldapServer.getListenAddress("ldaps");
+        if (listenAddress == null) {
+            listenAddress = InetAddress.getLoopbackAddress();
+        }
+        String ldapUrl = new LDAPURL("ldaps", NetworkAddress.format(listenAddress), ldapServer.getListenPort("ldaps"),
+            null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 

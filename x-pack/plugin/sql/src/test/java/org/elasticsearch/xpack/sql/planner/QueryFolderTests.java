@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
@@ -26,8 +27,10 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -70,6 +73,36 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
     }
 
+    public void testFoldingToLocalExecWithProjectAndLimit() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE 1 = 2 LIMIT 10");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testFoldingToLocalExecWithProjectAndOrderBy() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE 1 = 2 ORDER BY 1");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testFoldingToLocalExecWithProjectAndOrderByAndLimit() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE 1 = 2 ORDER BY 1 LIMIT 10");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
     public void testLocalExecWithPrunedFilterWithFunction() {
         PhysicalPlan p = plan("SELECT E() FROM test WHERE PI() = 5");
         assertEquals(LocalExec.class, p.getClass());
@@ -88,6 +121,36 @@ public class QueryFolderTests extends ESTestCase {
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(1, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("E(){c}#"));
+    }
+
+    public void testFoldingToLocalExecWithAggregationAndLimit() {
+        PhysicalPlan p = plan("SELECT 'foo' FROM test GROUP BY 1 LIMIT 10");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("'foo'{c}#"));
+    }
+
+    public void testFoldingToLocalExecWithAggregationAndOrderBy() {
+        PhysicalPlan p = plan("SELECT 'foo' FROM test GROUP BY 1 ORDER BY 1");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("'foo'{c}#"));
+    }
+
+    public void testFoldingToLocalExecWithAggregationAndOrderByAndLimit() {
+        PhysicalPlan p = plan("SELECT 'foo' FROM test GROUP BY 1 ORDER BY 1 LIMIT 10");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("'foo'{c}#"));
     }
 
     public void testLocalExecWithoutFromClause() {
@@ -302,7 +365,7 @@ public class QueryFolderTests extends ESTestCase {
                 "\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0)," +
                 "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{" +
                 "\"v0\":\"date\",\"v1\":\"P1Y2M\",\"v2\":\"INTERVAL_YEAR_TO_MONTH\"}},\"missing_bucket\":true," +
-                "\"value_type\":\"date\",\"order\":\"asc\"}}}]}}}"));
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
@@ -336,5 +399,19 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(AggregateFunctionAttribute.class, ee.output().get(0).getClass());
         AggregateFunctionAttribute afa = (AggregateFunctionAttribute) ee.output().get(0);
         assertThat(afa.propertyPath(), endsWith("[3.0]"));
+    }
+
+    public void testFoldingOfPivot() {
+        PhysicalPlan p = plan("SELECT * FROM (SELECT int, keyword, bool FROM test) PIVOT(AVG(int) FOR keyword IN ('A', 'B'))");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(3, ee.output().size());
+        assertEquals(Arrays.asList("bool", "'A'", "'B'"), Expressions.names(ee.output()));
+        String q = ee.toString().replaceAll("\\s+", "");
+        assertThat(q, containsString("\"query\":{\"terms\":{\"keyword\":[\"A\",\"B\"]"));
+        String a = ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", "");
+        assertThat(a, containsString("\"terms\":{\"field\":\"bool\""));
+        assertThat(a, containsString("\"terms\":{\"field\":\"keyword\""));
+        assertThat(a, containsString("{\"avg\":{\"field\":\"int\"}"));
     }
 }

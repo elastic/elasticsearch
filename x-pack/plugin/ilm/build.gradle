@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-ilm'
     description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
-    classname 'org.elasticsearch.xpack.indexlifecycle.IndexLifecycle'
+    classname 'org.elasticsearch.xpack.ilm.IndexLifecycle'
     extendedPlugins = ['x-pack-core']
     hasNativeController false
     requiresKeystore true
@@ -13,7 +13,6 @@ esplugin {
 archivesBaseName = 'x-pack-ilm'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
@@ -28,7 +27,3 @@ gradle.projectsEvaluated {
 }
 
 integTest.enabled = false
-
-run {
-    plugin xpackModule('core')
-}

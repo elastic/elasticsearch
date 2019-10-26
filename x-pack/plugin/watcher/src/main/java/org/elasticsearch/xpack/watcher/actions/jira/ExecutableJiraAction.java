@@ -88,6 +88,8 @@ public class ExecutableJiraAction extends ExecutableAction<JiraAction> {
                     for (Object v : (List) value) {
                         if (v instanceof String) {
                             newValues.add(fn.apply((String) v));
+                        } else if (v instanceof Map) {
+                            newValues.add(merge(new HashMap<>(), (Map<String, ?>) v, fn));
                         } else {
                             newValues.add(v);
                         }

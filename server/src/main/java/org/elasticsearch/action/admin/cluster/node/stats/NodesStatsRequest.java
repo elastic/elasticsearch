@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,6 +46,24 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean adaptiveSelection;
 
     public NodesStatsRequest() {
+        super((String[]) null);
+    }
+
+    public NodesStatsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = new CommonStatsFlags(in);
+        os = in.readBoolean();
+        process = in.readBoolean();
+        jvm = in.readBoolean();
+        threadPool = in.readBoolean();
+        fs = in.readBoolean();
+        transport = in.readBoolean();
+        http = in.readBoolean();
+        breaker = in.readBoolean();
+        script = in.readBoolean();
+        discovery = in.readBoolean();
+        ingest = in.readBoolean();
+        adaptiveSelection = in.readBoolean();
     }
 
     /**
@@ -282,28 +299,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = new CommonStatsFlags(in);
-        os = in.readBoolean();
-        process = in.readBoolean();
-        jvm = in.readBoolean();
-        threadPool = in.readBoolean();
-        fs = in.readBoolean();
-        transport = in.readBoolean();
-        http = in.readBoolean();
-        breaker = in.readBoolean();
-        script = in.readBoolean();
-        discovery = in.readBoolean();
-        ingest = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            adaptiveSelection = in.readBoolean();
-        } else {
-            adaptiveSelection = false;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
@@ -318,8 +313,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(script);
         out.writeBoolean(discovery);
         out.writeBoolean(ingest);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(adaptiveSelection);
-        }
+        out.writeBoolean(adaptiveSelection);
     }
 }

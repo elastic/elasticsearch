@@ -61,7 +61,6 @@ teardown:
       catch: conflict
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline1"
         body: {}
@@ -69,7 +68,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline2"
         body: {}

@@ -19,20 +19,16 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class DeletePipelineAction extends Action<AcknowledgedResponse> {
+public class DeletePipelineAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeletePipelineAction INSTANCE = new DeletePipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/delete";
 
     public DeletePipelineAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
-    }
 }

@@ -19,10 +19,18 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.common.CheckedConsumer;
+
 public class PlainActionFuture<T> extends AdapterActionFuture<T, T> {
 
     public static <T> PlainActionFuture<T> newFuture() {
         return new PlainActionFuture<>();
+    }
+
+    public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e) throws E {
+        PlainActionFuture<T> fut = newFuture();
+        e.accept(fut);
+        return fut.actionGet();
     }
 
     @Override

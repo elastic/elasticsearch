@@ -15,7 +15,9 @@ our writing index. We wish to roll over the index after it reaches a size
 of 50 gigabytes, or has been created 30 days ago, and then delete the index
 after 90 days.
 
-=== Setting up a new policy
+[float]
+[[ilm-gs-create-policy]]
+=== Setting up a policy
 
 There are many new features introduced by {ilm-init}, but we will only focus on
 a few that are needed for our example. For starters, we will use the
@@ -23,7 +25,7 @@ a few that are needed for our example. For starters, we will use the
 policies are defined in JSON and include specific
 <<ilm-policy-definition,phases and actions>>.
 
-[source,js]
+[source,console]
 ------------------------
 PUT _ilm/policy/datastream_policy   <1>
 {
@@ -47,8 +49,7 @@ PUT _ilm/policy/datastream_policy   <1>
   }
 }
 ------------------------
-// CONSOLE
-// TEST
+
 <1> call to the <<ilm-put-lifecycle,put lifecycle API>> endpoint to create
     a new policy named "datastream_policy"
 <2> policy definition sub-object
@@ -64,6 +65,8 @@ the index being written to after it reaches 50 gigabytes, or it is 30
 days old. The rollover will occur when either of these conditions is true.
 The index will be deleted 90 days after it is rolled over.
 
+[float]
+[[ilm-gs-apply-policy]]
 === Applying a policy to our index
 
 There are <<set-up-lifecycle-policy,a few ways>> to associate a
@@ -72,7 +75,7 @@ the new index created from Rollover, we will set the policy via
 index templates.
 
 
-[source,js]
+[source,console]
 -----------------------
 PUT _template/datastream_template
 {
@@ -85,8 +88,8 @@ PUT _template/datastream_template
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
+
 <1> match all indices starting with "datastream-". These will include all
     newly created indices from actions like rollover
 <2> the name of the lifecycle policy managing the index
@@ -105,7 +108,7 @@ The intention here is that the rollover alias is also defined on the index.
 To begin, we will want to bootstrap our first index to write to.
 
 
-[source,js]
+[source,console]
 -----------------------
 PUT datastream-000001
 {
@@ -116,7 +119,6 @@ PUT datastream-000001
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
 
 When creating our index, we have to consider a few important configurations
@@ -135,6 +137,8 @@ index being the index that is being written to at a time. Rollover swaps
 the write index to be the new index created from rollover, and sets the
 alias to be read-only for the source index.
 
+[float]
+[[ilm-gs-check-progress]]
 === Checking progress
 
 Now that we have an index managed by our policy, how do we tell what is going
@@ -147,18 +151,17 @@ things like which phase we're in and when we entered that phase. The API
 will also provide further info if errors occurred, or if we are blocked on
 certain checks within actions.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET datastream-*/_ilm/explain
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The above request will retrieve {ilm-init} execution information for all our
 managed indices.
 
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -167,15 +170,16 @@ managed indices.
       "managed": true,                           <1>
       "policy": "datastream_policy",             <2>
       "lifecycle_date_millis": 1538475653281,
-      "phase": "hot",                            <3>
+      "age": "30s",                              <3>
+      "phase": "hot",                            <4>
       "phase_time_millis": 1538475653317,
-      "action": "rollover",                      <4>
+      "action": "rollover",                      <5>
       "action_time_millis": 1538475653317,
-      "step": "attempt-rollover",                <5>
+      "step": "attempt-rollover",                <6>
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "datastream_policy",
-        "phase_definition": {                    <6>
+        "phase_definition": {                    <7>
           "min_age": "0ms",
           "actions": {
             "rollover": {
@@ -184,23 +188,24 @@ managed indices.
             }
           }
         },
-        "version": 1,                            <7>
+        "version": 1,                            <8>
         "modified_date_in_millis": 1539609701576
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
+
 <1> this index is managed by ILM
 <2> the policy in question, in this case, "datastream_policy"
-<3> what phase the index is currently in
-<4> what action the index is currently on
-<5> what step the index is currently on
-<6> the definition of the phase
+<3> the current age of the index
+<4> what phase the index is currently in
+<5> what action the index is currently on
+<6> what step the index is currently on
+<7> the definition of the phase
     (in this case, the "hot" phase) that the index is currently on
-<7> the version of the policy being used to execute the current phase
+<8> the version of the policy being used to execute the current phase
 
 You can read about the full details of this response in the
 <<ilm-explain-lifecycle, explain API docs>>. For now, let's focus on how

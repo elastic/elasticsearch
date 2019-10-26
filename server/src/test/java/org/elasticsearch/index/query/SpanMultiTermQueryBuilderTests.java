@@ -28,6 +28,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -38,14 +39,12 @@ import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -86,14 +85,14 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (query instanceof SpanMatchNoDocsQuery) {
             return;
         }
         assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class)).or(instanceOf(FieldMaskingSpanQuery.class)));
         if (query instanceof SpanMultiTermQueryWrapper) {
             SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
-            Query innerQuery = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
+            Query innerQuery = queryBuilder.innerQuery().toQuery(context);
             if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                 assertThat(innerQuery, instanceOf(BoostQuery.class));
                 BoostQuery boostQuery = (BoostQuery) innerQuery;
@@ -193,22 +192,13 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         final QueryShardContext context = createShardContext();
         {
             Query query = new SpanMultiTermQueryBuilder(new PrefixQueryBuilder(fieldName, "foo")).toQuery(context);
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
-                assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
-                FieldMaskingSpanQuery fieldQuery = (FieldMaskingSpanQuery) query;
-                assertThat(fieldQuery.getMaskedQuery(), instanceOf(SpanTermQuery.class));
-                assertThat(fieldQuery.getField(), equalTo("prefix_field"));
-                SpanTermQuery termQuery = (SpanTermQuery) fieldQuery.getMaskedQuery();
-                assertThat(termQuery.getTerm().field(), equalTo("prefix_field._index_prefix"));
-                assertThat(termQuery.getTerm().text(), equalTo("foo"));
-            } else {
-                assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
-                SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
-                assertThat(wrapper.getWrappedQuery(), instanceOf(PrefixQuery.class));
-                PrefixQuery prefixQuery = (PrefixQuery) wrapper.getWrappedQuery();
-                assertThat(prefixQuery.getField(), equalTo("prefix_field"));
-                assertThat(prefixQuery.getPrefix().text(), equalTo("foo"));
-            }
+            assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
+            FieldMaskingSpanQuery fieldQuery = (FieldMaskingSpanQuery) query;
+            assertThat(fieldQuery.getMaskedQuery(), instanceOf(SpanTermQuery.class));
+            assertThat(fieldQuery.getField(), equalTo("prefix_field"));
+            SpanTermQuery termQuery = (SpanTermQuery) fieldQuery.getMaskedQuery();
+            assertThat(termQuery.getTerm().field(), equalTo("prefix_field._index_prefix"));
+            assertThat(termQuery.getTerm().text(), equalTo("foo"));
         }
 
         {
@@ -274,7 +264,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                         QueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(
                             QueryBuilders.prefixQuery("body", "bar")
                         );
-                        Query query = queryBuilder.toQuery(createShardContext(reader));
+                        Query query = queryBuilder.toQuery(createShardContext(new IndexSearcher(reader)));
                         RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(reader));
                         assertThat(exc.getMessage(), containsString("maxClauseCount"));
                     } finally {

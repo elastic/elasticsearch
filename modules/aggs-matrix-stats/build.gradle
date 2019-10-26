@@ -20,5 +20,4 @@
 esplugin {
     description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
     classname 'org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin'
-    hasClientJar = true
 }

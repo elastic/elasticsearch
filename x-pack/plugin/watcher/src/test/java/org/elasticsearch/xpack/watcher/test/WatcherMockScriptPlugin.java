@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.condition.WatcherConditionScript;
 import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,35 +27,31 @@ import java.util.stream.Collectors;
 public abstract class WatcherMockScriptPlugin extends MockScriptPlugin {
     public static final Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> CONTEXT_COMPILERS;
     static {
-        Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> compilers = new HashMap<>();
-        compilers.put(WatcherConditionScript.CONTEXT, (script, options) ->
-            (WatcherConditionScript.Factory) (params, watcherContext) ->
-                new WatcherConditionScript(params, watcherContext) {
-                    @Override
-                    public boolean execute() {
-                        Map<String, Object> vars = new HashMap<>();
-                        vars.put("params", getParams());
-                        vars.put("ctx", getCtx());
-                        return (boolean) script.apply(vars);
-                    }
-                });
-        compilers.put(WatcherTransformScript.CONTEXT, (script, options) ->
-            (WatcherTransformScript.Factory) (params, watcherContext, payload) ->
-                new WatcherTransformScript(params, watcherContext, payload) {
-                    @Override
-                    public Object execute() {
-                        Map<String, Object> vars = new HashMap<>();
-                        vars.put("params", getParams());
-                        vars.put("ctx", getCtx());
-                        return script.apply(vars);
-                    }
-                });
-        CONTEXT_COMPILERS = Collections.unmodifiableMap(compilers);
+        CONTEXT_COMPILERS = Map.of(WatcherConditionScript.CONTEXT, (script, options) ->
+                (WatcherConditionScript.Factory) (params, watcherContext) ->
+                        new WatcherConditionScript(params, watcherContext) {
+                            @Override
+                            public boolean execute() {
+                                Map<String, Object> vars = new HashMap<>();
+                                vars.put("params", getParams());
+                                vars.put("ctx", getCtx());
+                                return (boolean) script.apply(vars);
+                            }
+                        }, WatcherTransformScript.CONTEXT, (script, options) ->
+                (WatcherTransformScript.Factory) (params, watcherContext, payload) ->
+                        new WatcherTransformScript(params, watcherContext, payload) {
+                            @Override
+                            public Object execute() {
+                                Map<String, Object> vars = new HashMap<>();
+                                vars.put("params", getParams());
+                                vars.put("ctx", getCtx());
+                                return script.apply(vars);
+                            }
+                        });
     }
 
-    public static final List<ScriptContext<?>> CONTEXTS = Collections.unmodifiableList(Arrays.asList(
-        WatcherConditionScript.CONTEXT, WatcherTransformScript.CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT
-    ));
+    public static final List<ScriptContext<?>> CONTEXTS =
+            List.of(WatcherConditionScript.CONTEXT, WatcherTransformScript.CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
 
     @Override
     protected Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> pluginContextCompilers() {

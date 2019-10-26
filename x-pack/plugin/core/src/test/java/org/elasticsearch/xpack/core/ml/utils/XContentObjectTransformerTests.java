@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -37,12 +39,19 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class XContentObjectTransformerTests extends ESTestCase {
 
+    @Override
+    public NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
     public void testFromMap() throws IOException {
         Map<String, Object> aggMap = Collections.singletonMap("fieldName",
             Collections.singletonMap("max",
                 Collections.singletonMap("field", "fieldName")));
 
-        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer = XContentObjectTransformer.aggregatorTransformer();
+        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer =
+            XContentObjectTransformer.aggregatorTransformer(xContentRegistry());
         assertXContentAreEqual(aggTransformer.fromMap(aggMap), aggMap);
         assertXContentAreEqual(aggTransformer.fromMap(aggMap), aggTransformer.toMap(aggTransformer.fromMap(aggMap)));
 
@@ -60,7 +69,8 @@ public class XContentObjectTransformerTests extends ESTestCase {
                 put("boost",1.0);
             }}));
 
-        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = XContentObjectTransformer.queryBuilderTransformer();
+        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer =
+            XContentObjectTransformer.queryBuilderTransformer(xContentRegistry());
         assertXContentAreEqual(queryBuilderTransformer.fromMap(queryMap), queryMap);
         assertXContentAreEqual(queryBuilderTransformer.fromMap(queryMap),
             queryBuilderTransformer.toMap(queryBuilderTransformer.fromMap(queryMap)));
@@ -73,7 +83,8 @@ public class XContentObjectTransformerTests extends ESTestCase {
                 put("type", "phrase"); //phrase stopped being supported for match in 6.x
             }}));
 
-        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = XContentObjectTransformer.queryBuilderTransformer();
+        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer =
+            XContentObjectTransformer.queryBuilderTransformer(xContentRegistry());
         ParsingException exception = expectThrows(ParsingException.class,
             () -> queryBuilderTransformer.fromMap(queryMap));
 
@@ -85,14 +96,17 @@ public class XContentObjectTransformerTests extends ESTestCase {
                 put("field", "myField");
             }}));
 
-        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer = XContentObjectTransformer.aggregatorTransformer();
+        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer =
+            XContentObjectTransformer.aggregatorTransformer(xContentRegistry());
         XContentParseException xContentParseException = expectThrows(XContentParseException.class, () -> aggTransformer.fromMap(aggMap));
         assertThat(xContentParseException.getMessage(), containsString("[terms] failed to parse field [size]"));
     }
 
     public void testToMap() throws IOException {
-        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer = XContentObjectTransformer.aggregatorTransformer();
-        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = XContentObjectTransformer.queryBuilderTransformer();
+        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer =
+            XContentObjectTransformer.aggregatorTransformer(xContentRegistry());
+        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer =
+            XContentObjectTransformer.queryBuilderTransformer(xContentRegistry());
 
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         long aggHistogramInterval = randomNonNegativeLong();

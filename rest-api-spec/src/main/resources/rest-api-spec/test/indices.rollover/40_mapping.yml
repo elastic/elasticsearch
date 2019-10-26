@@ -1,0 +1,64 @@
+---
+"Typeless mapping":
+  - do:
+      indices.create:
+        index: logs-1
+        body:
+          aliases:
+            logs_search: {}
+
+  # index first document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # index second document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        id:    "2"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform alias rollover with new typeless mapping
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        body:
+          conditions:
+            max_docs: 2
+          mappings:
+            properties:
+              foo2:
+                type: keyword
+
+  - match: { conditions: { "[max_docs: 2]": true } }
+  - match: { rolled_over: true }
+
+---
+"Mappings with explicit _doc type":
+  - do:
+      indices.create:
+        index: logs-1
+        body:
+          aliases:
+            logs_search: {}
+
+  - do:
+      catch: bad_request
+      indices.rollover:
+        alias: "logs_search"
+        body:
+          conditions:
+            max_docs: 2
+          mappings:
+            _doc:
+              properties:
+                field:
+                  type: keyword
+
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "The mapping definition cannot be nested under a type [_doc] unless include_type_name is set to true." }

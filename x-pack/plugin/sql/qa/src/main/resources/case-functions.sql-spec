@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.sql-spec
+
 // Next 4 SELECTs in this file are related to https://github.com/elastic/elasticsearch/issues/32589
 // H2 is Locale sensitive, while ES-SQL is not (so far)
 selectInsertWithLcaseAndLengthWithOrderBy
@@ -17,3 +19,9 @@ SELECT UCASE('ElAsTiC') upper;
 
 ucaseInline3
 SELECT UCASE(' elastic ') upper;
+
+multipleGroupingsAndOrderingByGroupsWithFunctions_1
+SELECT first_name f, last_name l, gender g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp GROUP BY gender, l, f, c ORDER BY c DESC, first_name, l ASC, g;
+
+multipleGroupingsAndOrderingByGroupsWithFunctions_2
+SELECT first_name f, last_name l, LCASE(gender) g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp GROUP BY f, LCASE(gender), l, c ORDER BY c DESC, first_name, l ASC, g;

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,6 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -74,25 +74,18 @@ public final class InternalBinaryRange
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            String key = in.getVersion().onOrAfter(Version.V_6_4_0)
-                ? in.readString()
-                : in.readOptionalString();
-
+            String key = in.readString();
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
             long docCount = in.readLong();
-            InternalAggregations aggregations = InternalAggregations.readAggregations(in);
+            InternalAggregations aggregations = new InternalAggregations(in);
 
             return new Bucket(format, keyed, key, from, to, docCount, aggregations);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeString(key);
-            } else {
-                out.writeOptionalString(key);
-            }
+            out.writeString(key);
             out.writeBoolean(from != null);
             if (from != null) {
                 out.writeBytesRef(from);
@@ -265,6 +258,14 @@ public final class InternalBinaryRange
     }
 
     @Override
+    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).collect(Collectors.toList());
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        return createBucket(aggs, buckets.get(0));
+    }
+
+    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder,
             Params params) throws IOException {
         if (keyed) {
@@ -283,16 +284,20 @@ public final class InternalBinaryRange
         return builder;
     }
 
+
     @Override
-    public boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalBinaryRange that = (InternalBinaryRange) obj;
         return Objects.equals(buckets, that.buckets)
             && Objects.equals(format, that.format)
             && Objects.equals(keyed, that.keyed);
     }
 
-    @Override
-    public int doHashCode() {
-        return Objects.hash(buckets, format, keyed);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, format, keyed);
     }
 }

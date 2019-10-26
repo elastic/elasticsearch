@@ -97,13 +97,18 @@ public abstract class Predicates {
         return common.isEmpty() ? emptyList() : common;
     }
 
-    public static List<Expression> subtract(List<Expression> from, List<Expression> r) {
-        List<Expression> diff = new ArrayList<>(Math.min(from.size(), r.size()));
-        for (Expression lExp : from) {
-            for (Expression rExp : r) {
-                if (!lExp.semanticEquals(rExp)) {
-                    diff.add(lExp);
+    public static List<Expression> subtract(List<Expression> from, List<Expression> list) {
+        List<Expression> diff = new ArrayList<>(Math.min(from.size(), list.size()));
+        for (Expression f : from) {
+            boolean found = false;
+            for (Expression l : list) {
+                if (f.semanticEquals(l)) {
+                    found = true;
+                    break;
                 }
+            }
+            if (found == false) {
+                diff.add(f);
             }
         }
         return diff.isEmpty() ? emptyList() : diff;

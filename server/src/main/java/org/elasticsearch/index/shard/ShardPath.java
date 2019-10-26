@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";
@@ -118,9 +119,8 @@ public final class ShardPath {
     public static ShardPath loadShardPath(Logger logger, NodeEnvironment env,
                                                 ShardId shardId, IndexSettings indexSettings) throws IOException {
         final Path[] paths = env.availableShardPaths(shardId);
-        final int nodeLockId = env.getNodeLockId();
         final Path sharedDataPath = env.sharedDataPath();
-        return loadShardPath(logger, shardId, indexSettings, paths, nodeLockId, sharedDataPath);
+        return loadShardPath(logger, shardId, indexSettings, paths, sharedDataPath);
     }
 
     /**
@@ -129,7 +129,7 @@ public final class ShardPath {
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
     public static ShardPath loadShardPath(Logger logger, ShardId shardId, IndexSettings indexSettings, Path[] availableShardPaths,
-                                           int nodeLockId, Path sharedDataPath) throws IOException {
+                                          Path sharedDataPath) throws IOException {
         final String indexUUID = indexSettings.getUUID();
         Path loadedPath = null;
         for (Path path : availableShardPaths) {
@@ -157,7 +157,7 @@ public final class ShardPath {
             final Path dataPath;
             final Path statePath = loadedPath;
             if (indexSettings.hasCustomDataPath()) {
-                dataPath = NodeEnvironment.resolveCustomLocation(indexSettings, shardId, sharedDataPath, nodeLockId);
+                dataPath = NodeEnvironment.resolveCustomLocation(indexSettings, shardId, sharedDataPath);
             } else {
                 dataPath = statePath;
             }
@@ -284,10 +284,10 @@ public final class ShardPath {
             return false;
         }
         final ShardPath shardPath = (ShardPath) o;
-        if (shardId != null ? !shardId.equals(shardPath.shardId) : shardPath.shardId != null) {
+        if (Objects.equals(shardId, shardPath.shardId) == false) {
             return false;
         }
-        if (path != null ? !path.equals(shardPath.path) : shardPath.path != null) {
+        if (Objects.equals(path, shardPath.path) == false) {
             return false;
         }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -57,23 +58,25 @@ public class TransportBulkShardOperationsAction
                 indexNameExpressionResolver,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE);
+                ThreadPool.Names.WRITE, false);
     }
 
     @Override
-    protected WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
-            final BulkShardOperationsRequest request, final IndexShard primary) throws Exception {
-        return shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(), request.getOperations(),
-            request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
+    protected void shardOperationOnPrimary(BulkShardOperationsRequest request, IndexShard primary,
+            ActionListener<PrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse>> listener) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
+        }
+        ActionListener.completeWith(listener, () -> shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(),
+            request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger));
     }
 
-    static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
+    public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
         final Translog.Operation operationWithPrimaryTerm;
         switch (operation.opType()) {
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;
                 operationWithPrimaryTerm = new Translog.Index(
-                    index.type(),
                     index.id(),
                     index.seqNo(),
                     primaryTerm,
@@ -85,7 +88,6 @@ public class TransportBulkShardOperationsAction
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
                 operationWithPrimaryTerm = new Translog.Delete(
-                    delete.type(),
                     delete.id(),
                     delete.uid(),
                     delete.seqNo(),
@@ -134,13 +136,18 @@ public class TransportBulkShardOperationsAction
                     // replicated to replicas but with the existing primary term (not the current primary term) in order
                     // to guarantee the consistency between the primary and replicas, and between translog and Lucene index.
                     final AlreadyProcessedFollowingEngineException failure = (AlreadyProcessedFollowingEngineException) result.getFailure();
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("operation [{}] was processed before on following primary shard {} with existing term {}",
+                            targetOp, primary.routingEntry(), failure.getExistingPrimaryTerm());
+                    }
                     assert failure.getSeqNo() == targetOp.seqNo() : targetOp.seqNo() + " != " + failure.getSeqNo();
                     if (failure.getExistingPrimaryTerm().isPresent()) {
                         appliedOperations.add(rewriteOperationWithPrimaryTerm(sourceOp, failure.getExistingPrimaryTerm().getAsLong()));
-                    } else if (targetOp.seqNo() > primary.getGlobalCheckpoint()) {
-                        assert false : "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getGlobalCheckpoint();
+                    } else if (targetOp.seqNo() > primary.getLastKnownGlobalCheckpoint()) {
+                        assert false :
+                            "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getLastKnownGlobalCheckpoint();
                         throw new IllegalStateException("can't find primary_term for existing op=" + targetOp +
-                            " global_checkpoint=" + primary.getGlobalCheckpoint(), failure);
+                            " global_checkpoint=" + primary.getLastKnownGlobalCheckpoint(), failure);
                     }
                 } else {
                     assert false : "Only already-processed error should happen; op=[" + targetOp + "] error=[" + result.getFailure() + "]";
@@ -156,6 +163,9 @@ public class TransportBulkShardOperationsAction
     @Override
     protected WriteReplicaResult<BulkShardOperationsRequest> shardOperationOnReplica(
             final BulkShardOperationsRequest request, final IndexShard replica) throws Exception {
+        if (logger.isTraceEnabled()) {
+            logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
+        }
         return shardOperationOnReplica(request, replica, logger);
     }
 
@@ -179,8 +189,8 @@ public class TransportBulkShardOperationsAction
     }
 
     @Override
-    protected BulkShardOperationsResponse newResponseInstance() {
-        return new BulkShardOperationsResponse();
+    protected BulkShardOperationsResponse newResponseInstance(StreamInput in) throws IOException {
+        return new BulkShardOperationsResponse(in);
     }
 
     /**

@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.repositories.RepositoriesService.VerifyResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -64,11 +63,11 @@ public class VerifyNodeRepositoryAction {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SNAPSHOT,
+        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SNAPSHOT, VerifyNodeRepositoryRequest::new,
             new VerifyNodeRepositoryRequestHandler());
     }
 
-    public void verify(String repository, String verificationToken, final ActionListener<VerifyResponse> listener) {
+    public void verify(String repository, String verificationToken, final ActionListener<List<DiscoveryNode>> listener) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
         final DiscoveryNode localNode = discoNodes.getLocalNode();
 
@@ -89,7 +88,7 @@ public class VerifyNodeRepositoryAction {
                     errors.add(new VerificationFailure(node.getId(), e));
                 }
                 if (counter.decrementAndGet() == 0) {
-                    finishVerification(listener, nodes, errors);
+                    finishVerification(repository, listener, nodes, errors);
                 }
             } else {
                 transportService.sendRequest(node, ACTION_NAME, new VerifyNodeRepositoryRequest(repository, verificationToken),
@@ -97,7 +96,7 @@ public class VerifyNodeRepositoryAction {
                         @Override
                         public void handleResponse(TransportResponse.Empty response) {
                             if (counter.decrementAndGet() == 0) {
-                                finishVerification(listener, nodes, errors);
+                                finishVerification(repository, listener, nodes, errors);
                             }
                         }
 
@@ -105,7 +104,7 @@ public class VerifyNodeRepositoryAction {
                         public void handleException(TransportException exp) {
                             errors.add(new VerificationFailure(node.getId(), exp));
                             if (counter.decrementAndGet() == 0) {
-                                finishVerification(listener, nodes, errors);
+                                finishVerification(repository, listener, nodes, errors);
                             }
                         }
                     });
@@ -113,10 +112,17 @@ public class VerifyNodeRepositoryAction {
         }
     }
 
-    public void finishVerification(ActionListener<VerifyResponse> listener, List<DiscoveryNode> nodes,
+    private static void finishVerification(String repositoryName, ActionListener<List<DiscoveryNode>> listener, List<DiscoveryNode> nodes,
                                    CopyOnWriteArrayList<VerificationFailure> errors) {
-        listener.onResponse(new RepositoriesService.VerifyResponse(nodes.toArray(new DiscoveryNode[nodes.size()]),
-            errors.toArray(new VerificationFailure[errors.size()])));
+        if (errors.isEmpty() == false) {
+            RepositoryVerificationException e = new RepositoryVerificationException(repositoryName, errors.toString());
+            for (VerificationFailure error : errors) {
+                e.addSuppressed(error.getCause());
+            }
+            listener.onFailure(e);
+        } else {
+            listener.onResponse(nodes);
+        }
     }
 
     private void doVerify(String repositoryName, String verificationToken, DiscoveryNode localNode) {
@@ -129,19 +135,15 @@ public class VerifyNodeRepositoryAction {
         private String repository;
         private String verificationToken;
 
-        public VerifyNodeRepositoryRequest() {
+        public VerifyNodeRepositoryRequest(StreamInput in) throws IOException {
+            super(in);
+            repository = in.readString();
+            verificationToken = in.readString();
         }
 
         VerifyNodeRepositoryRequest(String repository, String verificationToken) {
             this.repository = repository;
             this.verificationToken = verificationToken;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            repository = in.readString();
-            verificationToken = in.readString();
         }
 
         @Override

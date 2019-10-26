@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.util.DateUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URLEncodedUtils;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
@@ -34,8 +36,12 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -45,10 +51,14 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class AmazonEC2Fixture extends AbstractHttpFixture {
 
     private final Path nodes;
+    private final boolean instanceProfile;
+    private final boolean containerCredentials;
 
-    private AmazonEC2Fixture(final String workingDir, final String nodesUriPath) {
+    private AmazonEC2Fixture(final String workingDir, final String nodesUriPath, boolean instanceProfile, boolean containerCredentials) {
         super(workingDir);
         this.nodes = toPath(Objects.requireNonNull(nodesUriPath));
+        this.instanceProfile = instanceProfile;
+        this.containerCredentials = containerCredentials;
     }
 
     public static void main(String[] args) throws Exception {
@@ -56,7 +66,10 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
             throw new IllegalArgumentException("AmazonEC2Fixture <working directory> <nodes transport uri file>");
         }
 
-        final AmazonEC2Fixture fixture = new AmazonEC2Fixture(args[0], args[1]);
+        boolean instanceProfile = Booleans.parseBoolean(System.getenv("ACTIVATE_INSTANCE_PROFILE"), false);
+        boolean containerCredentials = Booleans.parseBoolean(System.getenv("ACTIVATE_CONTAINER_CREDENTIALS"), false);
+
+        final AmazonEC2Fixture fixture = new AmazonEC2Fixture(args[0], args[1], instanceProfile, containerCredentials);
         fixture.listen();
     }
 
@@ -65,6 +78,12 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
         if ("/".equals(request.getPath()) && (HttpPost.METHOD_NAME.equals(request.getMethod()))) {
             final String userAgent = request.getHeader("User-Agent");
             if (userAgent != null && userAgent.startsWith("aws-sdk-java")) {
+
+                final String auth = request.getHeader("Authorization");
+                if (auth == null || auth.contains("ec2_integration_test_access_key") == false) {
+                    throw new IllegalArgumentException("wrong access key: " + auth);
+                }
+
                 // Simulate an EC2 DescribeInstancesResponse
                 byte[] responseBody = EMPTY_BYTE;
                 for (NameValuePair parse : URLEncodedUtils.parse(new String(request.getBody(), UTF_8), UTF_8)) {
@@ -79,6 +98,32 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
         if ("/latest/meta-data/local-ipv4".equals(request.getPath()) && (HttpGet.METHOD_NAME.equals(request.getMethod()))) {
             return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, "127.0.0.1".getBytes(UTF_8));
         }
+
+        if (instanceProfile &&
+            "/latest/meta-data/iam/security-credentials/".equals(request.getPath()) &&
+            HttpGet.METHOD_NAME.equals(request.getMethod())) {
+            final Map<String, String> headers = new HashMap<>(contentType("text/plain"));
+            return new Response(RestStatus.OK.getStatus(), headers, "my_iam_profile".getBytes(UTF_8));
+        }
+
+        if ((containerCredentials &&
+            "/ecs_credentials_endpoint".equals(request.getPath()) &&
+            HttpGet.METHOD_NAME.equals(request.getMethod())) ||
+            ("/latest/meta-data/iam/security-credentials/my_iam_profile".equals(request.getPath()) &&
+            HttpGet.METHOD_NAME.equals(request.getMethod()))) {
+            final Date expiration = new Date(new Date().getTime() + TimeUnit.DAYS.toMillis(1));
+            final String response = "{"
+                + "\"AccessKeyId\": \"" + "ec2_integration_test_access_key" + "\","
+                + "\"Expiration\": \"" + DateUtils.formatISO8601Date(expiration) + "\","
+                + "\"RoleArn\": \"" + "test" + "\","
+                + "\"SecretAccessKey\": \"" + "test" + "\","
+                + "\"Token\": \"" + "test" + "\""
+                + "}";
+
+            final Map<String, String> headers = new HashMap<>(contentType("application/json"));
+            return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
+        }
+
         return null;
     }
 

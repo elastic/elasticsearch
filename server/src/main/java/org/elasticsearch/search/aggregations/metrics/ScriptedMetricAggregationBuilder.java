@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -193,8 +192,8 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected ScriptedMetricAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent,
-            Builder subfactoriesBuilder) throws IOException {
+    protected ScriptedMetricAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                      Builder subfactoriesBuilder) throws IOException {
 
         if (combineScript == null) {
             throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
@@ -203,8 +202,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         if(reduceScript == null) {
             throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
         }
-
-        QueryShardContext queryShardContext = context.getQueryShardContext();
 
         // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have
         // access to them for the scripts it's given precompiled.
@@ -233,7 +230,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
 
         return new ScriptedMetricAggregatorFactory(name, compiledMapScript, mapScriptParams, compiledInitScript,
                 initScriptParams, compiledCombineScript, combineScriptParams, reduceScript,
-                params, queryShardContext.lookup(), context, parent, subfactoriesBuilder, metaData);
+                params, queryShardContext.lookup(), queryShardContext, parent, subfactoriesBuilder, metaData);
     }
 
 
@@ -325,18 +322,21 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(initScript, mapScript, combineScript, reduceScript, params);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), initScript, mapScript, combineScript, reduceScript, params);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ScriptedMetricAggregationBuilder other = (ScriptedMetricAggregationBuilder) obj;
         return Objects.equals(initScript, other.initScript)
-                && Objects.equals(mapScript, other.mapScript)
-                && Objects.equals(combineScript, other.combineScript)
-                && Objects.equals(reduceScript, other.reduceScript)
-                && Objects.equals(params, other.params);
+            && Objects.equals(mapScript, other.mapScript)
+            && Objects.equals(combineScript, other.combineScript)
+            && Objects.equals(reduceScript, other.reduceScript)
+            && Objects.equals(params, other.params);
     }
 
 }

@@ -1,0 +1,55 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+    testCompile project(':x-pack:plugin:ccr:qa')
+}
+
+task 'leader-cluster'(type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+    runner {
+        systemProperty 'tests.target_cluster', 'leader'
+    }
+}
+testClusters.'leader-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'trial'
+}
+
+task 'follow-cluster'(type: RestIntegTestTask) {
+    dependsOn 'leader-cluster'
+    runner {
+        useCluster testClusters.'leader-cluster'
+        systemProperty 'tests.target_cluster', 'follow'
+        nonInputProperties.systemProperty 'tests.leader_host',
+                "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
+    }
+}
+testClusters.'follow-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.monitoring.collection.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'cluster.remote.leader_cluster.seeds',
+            { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}\"" }
+    nameCustomization = { 'follow'  }
+}
+
+task followClusterRestartTest(type: RestTestRunnerTask) {
+    dependsOn tasks.'follow-cluster'
+    useCluster testClusters.'leader-cluster'
+    useCluster testClusters.'follow-cluster'
+
+    systemProperty 'tests.rest.load_packaged', 'false'
+    systemProperty 'tests.target_cluster', 'follow-restart'
+    doFirst {
+        testClusters.'follow-cluster'.restart()
+        nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
+        nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.'follow-cluster'.getAllHttpSocketURI().join(",")}"
+    }
+}
+
+check.dependsOn followClusterRestartTest
+test.enabled = false

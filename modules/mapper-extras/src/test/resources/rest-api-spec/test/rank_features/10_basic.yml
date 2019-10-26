@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      version: " - 6.99.99"
-      reason: "The rank_features field was introduced in 7.0.0"
-
   - do:
       indices.create:
           index: test
@@ -10,15 +6,13 @@ setup:
             settings:
               number_of_replicas: 0
             mappings:
-              _doc:
-                properties:
-                  tags:
-                     type: rank_features
+              properties:
+                tags:
+                   type: rank_features
 
   - do:
       index:
         index: test
-        type: _doc
         id: 1
         body:
           tags:
@@ -28,9 +22,8 @@ setup:
   - do:
       index:
         index: test
-        type: _doc
         id: 2
-        body: 
+        body:
           tags:
             bar: 6
             quux: 10

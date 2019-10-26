@@ -45,8 +45,8 @@ public class KeyedLockTests extends ESTestCase {
         for (int i = 0; i < names.length; i++) {
             names[i] = randomRealisticUnicodeOfLengthBetween(10, 20);
         }
-        CountDownLatch startLatch = new CountDownLatch(1);
         int numThreads = randomIntBetween(3, 10);
+        final CountDownLatch startLatch = new CountDownLatch(1 + numThreads);
         AcquireAndReleaseThread[] threads = new AcquireAndReleaseThread[numThreads];
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new AcquireAndReleaseThread(startLatch, connectionLock, names, counter, safeCounter);
@@ -157,6 +157,7 @@ public class KeyedLockTests extends ESTestCase {
 
         @Override
         public void run() {
+            startLatch.countDown();
             try {
                 startLatch.await();
             } catch (InterruptedException e) {

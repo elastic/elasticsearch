@@ -10,11 +10,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.hamcrest.Matchers.is;
@@ -32,6 +32,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     private ExecutorService executorService;
     private ClusterService clusterService;
     private Client client;
+    private MlAssignmentNotifier mlAssignmentNotifier;
 
     @Before
     public void setUpMocks() {
@@ -39,6 +40,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         executorService = mock(ExecutorService.class);
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
+        mlAssignmentNotifier = mock(MlAssignmentNotifier.class);
 
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
@@ -46,26 +48,29 @@ public class MlInitializationServiceTests extends ESTestCase {
         }).when(executorService).execute(any(Runnable.class));
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
 
-        ScheduledFuture scheduledFuture = mock(ScheduledFuture.class);
-        when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledFuture);
+        Scheduler.ScheduledCancellable scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
+        when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledCancellable);
 
         when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
     }
 
     public void testInitialize() {
-        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
+        MlInitializationService initializationService =
+            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
         initializationService.onMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
     }
 
     public void testInitialize_noMasterNode() {
-        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
+        MlInitializationService initializationService =
+            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
         initializationService.offMaster();
         assertThat(initializationService.getDailyMaintenanceService(), is(nullValue()));
     }
 
     public void testInitialize_alreadyInitialized() {
-        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
+        MlInitializationService initializationService =
+            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
         initializationService.onMaster();
@@ -74,7 +79,8 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testNodeGoesFromMasterToNonMasterAndBack() {
-        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
+        MlInitializationService initializationService =
+            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
 

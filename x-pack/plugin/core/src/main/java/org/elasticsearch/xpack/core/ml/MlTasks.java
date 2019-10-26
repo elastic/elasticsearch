@@ -11,6 +11,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
@@ -23,9 +25,15 @@ public final class MlTasks {
 
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
+    public static final String DATA_FRAME_ANALYTICS_TASK_NAME = "xpack/ml/data_frame/analytics";
 
-    private static final String JOB_TASK_ID_PREFIX = "job-";
-    private static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
+    public static final String JOB_TASK_ID_PREFIX = "job-";
+    public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
+    public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
+
+    public static final PersistentTasksCustomMetaData.Assignment AWAITING_UPGRADE =
+        new PersistentTasksCustomMetaData.Assignment(null,
+            "persistent task cannot be assigned while upgrade mode is enabled.");
 
     private MlTasks() {
     }
@@ -46,6 +54,17 @@ public final class MlTasks {
         return DATAFEED_TASK_ID_PREFIX + datafeedId;
     }
 
+    /**
+     * Namespaces the task ids for data frame analytics.
+     */
+    public static String dataFrameAnalyticsTaskId(String id) {
+        return DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + id;
+    }
+
+    public static String dataFrameAnalyticsIdFromTaskId(String taskId) {
+        return taskId.replaceFirst(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX, "");
+    }
+
     @Nullable
     public static PersistentTasksCustomMetaData.PersistentTask<?> getJobTask(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
         return tasks == null ? null : tasks.getTask(jobTaskId(jobId));
@@ -55,6 +74,12 @@ public final class MlTasks {
     public static PersistentTasksCustomMetaData.PersistentTask<?> getDatafeedTask(String datafeedId,
                                                                                   @Nullable PersistentTasksCustomMetaData tasks) {
         return tasks == null ? null : tasks.getTask(datafeedTaskId(datafeedId));
+    }
+
+    @Nullable
+    public static PersistentTasksCustomMetaData.PersistentTask<?> getDataFrameAnalyticsTask(String analyticsId,
+                                                                                            @Nullable PersistentTasksCustomMetaData tasks) {
+        return tasks == null ? null : tasks.getTask(dataFrameAnalyticsTaskId(analyticsId));
     }
 
     /**
@@ -116,6 +141,18 @@ public final class MlTasks {
         }
     }
 
+    public static DataFrameAnalyticsState getDataFrameAnalyticsState(String analyticsId, @Nullable PersistentTasksCustomMetaData tasks) {
+        PersistentTasksCustomMetaData.PersistentTask<?> task = getDataFrameAnalyticsTask(analyticsId, tasks);
+        if (task != null) {
+            DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) task.getState();
+            if (taskState == null) {
+                return DataFrameAnalyticsState.STARTING;
+            }
+            return taskState.getState();
+        }
+        return DataFrameAnalyticsState.STOPPED;
+    }
+
     /**
      * The job Ids of anomaly detector job tasks.
      * All anomaly detector jobs are returned regardless of the status of the
@@ -143,32 +180,29 @@ public final class MlTasks {
      * @param nodes The cluster nodes
      * @return The job Ids of tasks to do not have an assignment.
      */
-    public static Set<String> unallocatedJobIds(@Nullable PersistentTasksCustomMetaData tasks,
-                                                DiscoveryNodes nodes) {
-        return unallocatedJobTasks(tasks, nodes).stream()
+    public static Set<String> unassignedJobIds(@Nullable PersistentTasksCustomMetaData tasks,
+                                               DiscoveryNodes nodes) {
+        return unassignedJobTasks(tasks, nodes).stream()
                 .map(task -> task.getId().substring(JOB_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
     }
 
     /**
-     * The job tasks that do not have an allocation as determined by
+     * The job tasks that do not have an assignment as determined by
      * {@link PersistentTasksClusterService#needsReassignment(PersistentTasksCustomMetaData.Assignment, DiscoveryNodes)}
      *
      * @param tasks Persistent tasks. If null an empty set is returned.
      * @param nodes The cluster nodes
-     * @return Unallocated job tasks
+     * @return Unassigned job tasks
      */
-    public static Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks(
+    public static Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unassignedJobTasks(
             @Nullable PersistentTasksCustomMetaData tasks,
             DiscoveryNodes nodes) {
         if (tasks == null) {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(JOB_TASK_NAME, task -> true)
-                .stream()
-                .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
-                .collect(Collectors.toList());
+        return tasks.findTasks(JOB_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
     }
 
     /**
@@ -196,32 +230,29 @@ public final class MlTasks {
      * @param nodes The cluster nodes
      * @return The job Ids of tasks to do not have an assignment.
      */
-    public static Set<String> unallocatedDatafeedIds(@Nullable PersistentTasksCustomMetaData tasks,
-                                                DiscoveryNodes nodes) {
+    public static Set<String> unassignedDatafeedIds(@Nullable PersistentTasksCustomMetaData tasks,
+                                                    DiscoveryNodes nodes) {
 
-        return unallocatedDatafeedTasks(tasks, nodes).stream()
+        return unassignedDatafeedTasks(tasks, nodes).stream()
                 .map(task -> task.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
     }
 
     /**
-     * The datafeed tasks that do not have an allocation as determined by
+     * The datafeed tasks that do not have an assignment as determined by
      * {@link PersistentTasksClusterService#needsReassignment(PersistentTasksCustomMetaData.Assignment, DiscoveryNodes)}
      *
      * @param tasks Persistent tasks. If null an empty set is returned.
      * @param nodes The cluster nodes
-     * @return Unallocated datafeed tasks
+     * @return Unassigned datafeed tasks
      */
-    public static Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedDatafeedTasks(
+    public static Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unassignedDatafeedTasks(
             @Nullable PersistentTasksCustomMetaData tasks,
             DiscoveryNodes nodes) {
         if (tasks == null) {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(DATAFEED_TASK_NAME, task -> true)
-                .stream()
-                .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
-                .collect(Collectors.toList());
+        return tasks.findTasks(DATAFEED_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
     }
 }

@@ -194,9 +194,13 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
             // of replicas was decreased while shards were unassigned.
             int maxActiveShards = oldIndexMetaData.getNumberOfReplicas() + 1; // +1 for the primary
             IndexShardRoutingTable newShardRoutingTable = newRoutingTable.shardRoutingTable(shardId);
+            assert newShardRoutingTable.assignedShards().stream()
+                .filter(ShardRouting::isRelocationTarget).map(s -> s.allocationId().getId()).noneMatch(inSyncAllocationIds::contains)
+                : newShardRoutingTable.assignedShards() + " vs " + inSyncAllocationIds;
             if (inSyncAllocationIds.size() > oldInSyncAllocationIds.size() && inSyncAllocationIds.size() > maxActiveShards) {
                 // trim entries that have no corresponding shard routing in the cluster state (i.e. trim unavailable copies)
-                List<ShardRouting> assignedShards = newShardRoutingTable.assignedShards();
+                List<ShardRouting> assignedShards = newShardRoutingTable.assignedShards()
+                    .stream().filter(s -> s.isRelocationTarget() == false).collect(Collectors.toList());
                 assert assignedShards.size() <= maxActiveShards :
                     "cannot have more assigned shards " + assignedShards + " than maximum possible active shards " + maxActiveShards;
                 Set<String> assignedAllocations = assignedShards.stream().map(s -> s.allocationId().getId()).collect(Collectors.toSet());

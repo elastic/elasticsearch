@@ -1,0 +1,16 @@
+[[release-highlights-8.0.0]]
+== 8.0.0 release highlights
+++++
+<titleabbrev>8.0.0</titleabbrev>
+++++
+
+coming[8.0.0]
+
+See also <<breaking-changes-8.0,Breaking changes>> and <<release-notes-8.0.0-alpha1,Release notes>>.
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+
+// end::notable-highlights[]

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,8 +24,6 @@ import java.util.Objects;
 import java.util.Set;
 
 public class DetectionRule implements ToXContentObject, Writeable {
-
-    public static final Version VERSION_INTRODUCED = Version.V_6_4_0;
 
     public static final ParseField DETECTION_RULE_FIELD = new ParseField("detection_rule");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");

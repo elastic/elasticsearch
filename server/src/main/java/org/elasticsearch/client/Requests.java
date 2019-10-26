@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -45,7 +46,6 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheReque
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -84,8 +84,7 @@ public class Requests {
     }
 
     /**
-     * Create an index request against a specific index. Note the {@link IndexRequest#type(String)} must be
-     * set as well and optionally the {@link IndexRequest#id(String)}.
+     * Create an index request against a specific index.
      *
      * @param index The index name to index the request against
      * @return The index request
@@ -96,7 +95,7 @@ public class Requests {
     }
 
     /**
-     * Creates a delete request against a specific index. Note the {@link DeleteRequest#type(String)} and
+     * Creates a delete request against a specific index. Note the
      * {@link DeleteRequest#id(String)} must be set.
      *
      * @param index The index name to delete from
@@ -116,7 +115,7 @@ public class Requests {
 
     /**
      * Creates a get request to get the JSON source from an index based on a type and id. Note, the
-     * {@link GetRequest#type(String)} and {@link GetRequest#id(String)} must be set.
+     * {@link GetRequest#id(String)} must be set.
      *
      * @param index The index to get the JSON source from
      * @return The get request
@@ -161,16 +160,6 @@ public class Requests {
      */
     public static IndicesShardStoresRequest indicesShardStoresRequest(String... indices) {
         return new IndicesShardStoresRequest(indices);
-    }
-    /**
-     * Creates an indices exists request.
-     *
-     * @param indices The indices to check if they exists or not.
-     * @return The indices exists request
-     * @see org.elasticsearch.client.IndicesAdminClient#exists(org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest)
-     */
-    public static IndicesExistsRequest indicesExistsRequest(String... indices) {
-        return new IndicesExistsRequest(indices);
     }
 
     /**
@@ -472,6 +461,16 @@ public class Requests {
     }
 
     /**
+     * Cleanup repository
+     *
+     * @param name repository name
+     * @return cleanup repository request
+     */
+    public static CleanupRepositoryRequest cleanupRepositoryRequest(String name) {
+        return new CleanupRepositoryRequest(name);
+    }
+
+    /**
      * Verifies snapshot repository
      *
      * @param name repository name
@@ -494,13 +493,13 @@ public class Requests {
     }
 
     /**
-     * Gets snapshots from repository
+     * Gets snapshots from repositories
      *
-     * @param repository repository name
+     * @param repositories repository names
      * @return get snapshot  request
      */
-    public static GetSnapshotsRequest getSnapshotsRequest(String repository) {
-        return new GetSnapshotsRequest(repository);
+    public static GetSnapshotsRequest getSnapshotsRequest(String... repositories) {
+        return new GetSnapshotsRequest(repositories);
     }
 
     /**
@@ -534,5 +533,4 @@ public class Requests {
     public static SnapshotsStatusRequest snapshotsStatusRequest(String repository) {
         return new SnapshotsStatusRequest(repository);
     }
-
 }

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.ingest.useragent;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.useragent.UserAgentParser.Details;
-import org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -39,6 +40,8 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(UserAgentProcessor.class));
 
     public static final String TYPE = "user_agent";
 
@@ -63,7 +66,7 @@ public class UserAgentProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) {
         String userAgent = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
 
         if (userAgent == null && ignoreMissing) {
@@ -75,107 +78,74 @@ public class UserAgentProcessor extends AbstractProcessor {
         Details uaClient = parser.parse(userAgent);
 
         Map<String, Object> uaDetails = new HashMap<>();
+
+        // Parse the user agent in the ECS (Elastic Common Schema) format
         for (Property property : this.properties) {
             switch (property) {
+                case ORIGINAL:
+                    uaDetails.put("original", userAgent);
+                    break;
                 case NAME:
                     if (uaClient.userAgent != null && uaClient.userAgent.name != null) {
                         uaDetails.put("name", uaClient.userAgent.name);
-                    }
-                    else {
+                    } else {
                         uaDetails.put("name", "Other");
                     }
                     break;
-                case MAJOR:
+                case VERSION:
+                    StringBuilder version = new StringBuilder();
                     if (uaClient.userAgent != null && uaClient.userAgent.major != null) {
-                        uaDetails.put("major", uaClient.userAgent.major);
-                    }
-                    break;
-                case MINOR:
-                    if (uaClient.userAgent != null && uaClient.userAgent.minor != null) {
-                        uaDetails.put("minor", uaClient.userAgent.minor);
-                    }
-                    break;
-                case PATCH:
-                    if (uaClient.userAgent != null && uaClient.userAgent.patch != null) {
-                        uaDetails.put("patch", uaClient.userAgent.patch);
-                    }
-                    break;
-                case BUILD:
-                    if (uaClient.userAgent != null && uaClient.userAgent.build != null) {
-                        uaDetails.put("build", uaClient.userAgent.build);
+                        version.append(uaClient.userAgent.major);
+                        if (uaClient.userAgent.minor != null) {
+                            version.append(".").append(uaClient.userAgent.minor);
+                            if (uaClient.userAgent.patch != null) {
+                                version.append(".").append(uaClient.userAgent.patch);
+                                if (uaClient.userAgent.build != null) {
+                                    version.append(".").append(uaClient.userAgent.build);
+                                }
+                            }
+                        }
+                        uaDetails.put("version", version.toString());
                     }
                     break;
                 case OS:
                     if (uaClient.operatingSystem != null) {
-                        uaDetails.put("os", buildFullOSName(uaClient.operatingSystem));
-                    }
-                    else {
-                        uaDetails.put("os", "Other");
-                    }
-
-                    break;
-                case OS_NAME:
-                    if (uaClient.operatingSystem != null && uaClient.operatingSystem.name != null) {
-                        uaDetails.put("os_name", uaClient.operatingSystem.name);
-                    }
-                    else {
-                        uaDetails.put("os_name", "Other");
-                    }
-                    break;
-                case OS_MAJOR:
-                    if (uaClient.operatingSystem != null && uaClient.operatingSystem.major != null) {
-                        uaDetails.put("os_major", uaClient.operatingSystem.major);
-                    }
-                    break;
-                case OS_MINOR:
-                    if (uaClient.operatingSystem != null && uaClient.operatingSystem.minor != null) {
-                        uaDetails.put("os_minor", uaClient.operatingSystem.minor);
+                        Map<String, String> osDetails = new HashMap<>(3);
+                        if (uaClient.operatingSystem.name != null) {
+                            osDetails.put("name", uaClient.operatingSystem.name);
+                            StringBuilder sb = new StringBuilder();
+                            if (uaClient.operatingSystem.major != null) {
+                                sb.append(uaClient.operatingSystem.major);
+                                if (uaClient.operatingSystem.minor != null) {
+                                    sb.append(".").append(uaClient.operatingSystem.minor);
+                                    if (uaClient.operatingSystem.patch != null) {
+                                        sb.append(".").append(uaClient.operatingSystem.patch);
+                                        if (uaClient.operatingSystem.build != null) {
+                                            sb.append(".").append(uaClient.operatingSystem.build);
+                                        }
+                                    }
+                                }
+                                osDetails.put("version", sb.toString());
+                                osDetails.put("full", uaClient.operatingSystem.name + " " + sb.toString());
+                            }
+                            uaDetails.put("os", osDetails);
+                        }
                     }
                     break;
                 case DEVICE:
+                    Map<String, String> deviceDetails = new HashMap<>(1);
                     if (uaClient.device != null && uaClient.device.name != null) {
-                        uaDetails.put("device", uaClient.device.name);
+                        deviceDetails.put("name", uaClient.device.name);
+                    } else {
+                        deviceDetails.put("name", "Other");
                     }
-                    else {
-                        uaDetails.put("device", "Other");
-                    }
+                    uaDetails.put("device", deviceDetails);
                     break;
             }
         }
 
         ingestDocument.setFieldValue(targetField, uaDetails);
         return ingestDocument;
-    }
-
-    /** To maintain compatibility with logstash-filter-useragent */
-    private String buildFullOSName(VersionedName operatingSystem) {
-        if (operatingSystem == null || operatingSystem.name == null) {
-            return null;
-        }
-
-        StringBuilder sb = new StringBuilder(operatingSystem.name);
-
-        if (operatingSystem.major != null) {
-            sb.append(" ");
-            sb.append(operatingSystem.major);
-
-            if (operatingSystem.minor != null) {
-                sb.append(".");
-                sb.append(operatingSystem.minor);
-
-                if (operatingSystem.patch != null) {
-                    sb.append(".");
-                    sb.append(operatingSystem.patch);
-
-                    if (operatingSystem.build != null) {
-                        sb.append(".");
-                        sb.append(operatingSystem.build);
-                    }
-                }
-            }
-        }
-
-        return sb.toString();
     }
 
     @Override
@@ -215,6 +185,10 @@ public class UserAgentProcessor extends AbstractProcessor {
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            Object ecsValue = config.remove("ecs");
+            if (ecsValue != null) {
+                deprecationLogger.deprecated("setting [ecs] is deprecated as ECS format is the default and only option");
+            }
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {
@@ -242,13 +216,16 @@ public class UserAgentProcessor extends AbstractProcessor {
 
     enum Property {
 
-        NAME, MAJOR, MINOR, PATCH, OS, OS_NAME, OS_MAJOR, OS_MINOR, DEVICE, BUILD;
+        NAME,
+        OS,
+        DEVICE,
+        ORIGINAL,
+        VERSION;
 
         public static Property parseProperty(String propertyName) {
             try {
                 return valueOf(propertyName.toUpperCase(Locale.ROOT));
-            }
-            catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("illegal property value [" + propertyName + "]. valid values are " +
                         Arrays.toString(EnumSet.allOf(Property.class).toArray()));
             }

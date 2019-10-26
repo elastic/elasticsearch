@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -76,7 +77,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ShardStats readShardResult(StreamInput in) throws IOException {
-        return ShardStats.readShardStats(in);
+        return new ShardStats(in);
     }
 
     @Override
@@ -89,9 +90,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected IndicesStatsRequest readRequestFrom(StreamInput in) throws IOException {
-        IndicesStatsRequest request = new IndicesStatsRequest();
-        request.readFrom(in);
-        return request;
+        return new IndicesStatsRequest(in);
     }
 
     @Override
@@ -106,15 +105,23 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         CommonStats commonStats = new CommonStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
         CommitStats commitStats;
         SeqNoStats seqNoStats;
+        RetentionLeaseStats retentionLeaseStats;
         try {
             commitStats = indexShard.commitStats();
             seqNoStats = indexShard.seqNoStats();
-        } catch (AlreadyClosedException e) {
+            retentionLeaseStats = indexShard.getRetentionLeaseStats();
+        } catch (final AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
             seqNoStats = null;
+            retentionLeaseStats = null;
         }
-        return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), commonStats,
-            commitStats, seqNoStats);
+        return new ShardStats(
+                indexShard.routingEntry(),
+                indexShard.shardPath(),
+                commonStats,
+                commitStats,
+                seqNoStats,
+                retentionLeaseStats);
     }
 }

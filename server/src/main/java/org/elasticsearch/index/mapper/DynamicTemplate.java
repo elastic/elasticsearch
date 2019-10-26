@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,8 +32,6 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class DynamicTemplate implements ToXContentObject {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DynamicTemplate.class));
 
     public enum MatchType {
         SIMPLE {
@@ -160,8 +155,7 @@ public class DynamicTemplate implements ToXContentObject {
         public abstract String defaultMappingType();
     }
 
-    public static DynamicTemplate parse(String name, Map<String, Object> conf,
-            Version indexVersionCreated) throws MapperParsingException {
+    public static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
         String match = null;
         String pathMatch = null;
         String unmatch = null;
@@ -202,35 +196,21 @@ public class DynamicTemplate implements ToXContentObject {
 
         XContentFieldType xcontentFieldType = null;
         if (matchMappingType != null && matchMappingType.equals("*") == false) {
-            try {
-                xcontentFieldType = XContentFieldType.fromString(matchMappingType);
-            } catch (IllegalArgumentException e) {
-                if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1)) {
-                    throw e;
-                } else {
-                    deprecationLogger.deprecated("match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
-                            + e.getMessage());
-                    // this template is on an unknown type so it will never match anything
-                    // null indicates that the template should be ignored
-                    return null;
-                }
-            }
+            xcontentFieldType = XContentFieldType.fromString(matchMappingType);
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);
 
-        if (indexVersionCreated.onOrAfter(Version.V_6_3_0)) {
-            // Validate that the pattern
-            for (String regex : new String[] { pathMatch, match, pathUnmatch, unmatch }) {
-                if (regex == null) {
-                    continue;
-                }
-                try {
-                    matchType.matches(regex, "");
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Pattern [" + regex + "] of type [" + matchType
-                        + "] is invalid. Cannot create dynamic template [" + name + "].", e);
-                }
+        // Validate that the pattern
+        for (String regex : new String[] { pathMatch, match, pathUnmatch, unmatch }) {
+            if (regex == null) {
+                continue;
+            }
+            try {
+                matchType.matches(regex, "");
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Pattern [" + regex + "] of type [" + matchType
+                    + "] is invalid. Cannot create dynamic template [" + name + "].", e);
             }
         }
 

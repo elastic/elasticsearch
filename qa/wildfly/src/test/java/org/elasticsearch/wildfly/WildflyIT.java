@@ -27,7 +27,8 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleLimitSysouts;
 import org.elasticsearch.cluster.ClusterModule;
@@ -53,9 +54,10 @@ import static org.hamcrest.Matchers.instanceOf;
 @TestRuleLimitSysouts.Limit(bytes = 14000)
 public class WildflyIT extends LuceneTestCase {
 
-    Logger logger = Logger.getLogger(WildflyIT.class);
+    private Logger logger = LogManager.getLogger(WildflyIT.class);
 
-    public void testTransportClient() throws URISyntaxException, IOException {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45625")
+    public void testRestClient() throws URISyntaxException, IOException {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
             final String str = String.format(
                 Locale.ROOT,

@@ -37,15 +37,14 @@ public final class BulkShardOperationsResponse extends ReplicationResponse imple
     public BulkShardOperationsResponse() {
     }
 
-    @Override
-    public void setForcedRefresh(final boolean forcedRefresh) {
+    public BulkShardOperationsResponse(StreamInput in) throws IOException {
+        super(in);
+        globalCheckpoint = in.readZLong();
+        maxSeqNo = in.readZLong();
     }
 
     @Override
-    public void readFrom(final StreamInput in) throws IOException {
-        super.readFrom(in);
-        globalCheckpoint = in.readZLong();
-        maxSeqNo = in.readZLong();
+    public void setForcedRefresh(final boolean forcedRefresh) {
     }
 
     @Override

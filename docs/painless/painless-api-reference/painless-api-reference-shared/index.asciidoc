@@ -1,0 +1,436 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-shared]]
+=== Shared API
+
+The following API is available in all contexts.
+
+==== Classes By Package
+The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
+
+
+==== java.lang
+<<painless-api-reference-shared-java-lang, Expand details for java.lang>>
+
+* <<painless-api-reference-shared-Appendable, Appendable>>
+* <<painless-api-reference-shared-ArithmeticException, ArithmeticException>>
+* <<painless-api-reference-shared-ArrayIndexOutOfBoundsException, ArrayIndexOutOfBoundsException>>
+* <<painless-api-reference-shared-ArrayStoreException, ArrayStoreException>>
+* <<painless-api-reference-shared-Boolean, Boolean>>
+* <<painless-api-reference-shared-Byte, Byte>>
+* <<painless-api-reference-shared-CharSequence, CharSequence>>
+* <<painless-api-reference-shared-Character, Character>>
+* <<painless-api-reference-shared-Character-Subset, Character.Subset>>
+* <<painless-api-reference-shared-Character-UnicodeBlock, Character.UnicodeBlock>>
+* <<painless-api-reference-shared-Character-UnicodeScript, Character.UnicodeScript>>
+* <<painless-api-reference-shared-ClassCastException, ClassCastException>>
+* <<painless-api-reference-shared-ClassNotFoundException, ClassNotFoundException>>
+* <<painless-api-reference-shared-CloneNotSupportedException, CloneNotSupportedException>>
+* <<painless-api-reference-shared-Comparable, Comparable>>
+* <<painless-api-reference-shared-Double, Double>>
+* <<painless-api-reference-shared-Enum, Enum>>
+* <<painless-api-reference-shared-EnumConstantNotPresentException, EnumConstantNotPresentException>>
+* <<painless-api-reference-shared-Exception, Exception>>
+* <<painless-api-reference-shared-Float, Float>>
+* <<painless-api-reference-shared-IllegalAccessException, IllegalAccessException>>
+* <<painless-api-reference-shared-IllegalArgumentException, IllegalArgumentException>>
+* <<painless-api-reference-shared-IllegalMonitorStateException, IllegalMonitorStateException>>
+* <<painless-api-reference-shared-IllegalStateException, IllegalStateException>>
+* <<painless-api-reference-shared-IllegalThreadStateException, IllegalThreadStateException>>
+* <<painless-api-reference-shared-IndexOutOfBoundsException, IndexOutOfBoundsException>>
+* <<painless-api-reference-shared-InstantiationException, InstantiationException>>
+* <<painless-api-reference-shared-Integer, Integer>>
+* <<painless-api-reference-shared-InterruptedException, InterruptedException>>
+* <<painless-api-reference-shared-Iterable, Iterable>>
+* <<painless-api-reference-shared-Long, Long>>
+* <<painless-api-reference-shared-Math, Math>>
+* <<painless-api-reference-shared-NegativeArraySizeException, NegativeArraySizeException>>
+* <<painless-api-reference-shared-NoSuchFieldException, NoSuchFieldException>>
+* <<painless-api-reference-shared-NoSuchMethodException, NoSuchMethodException>>
+* <<painless-api-reference-shared-NullPointerException, NullPointerException>>
+* <<painless-api-reference-shared-Number, Number>>
+* <<painless-api-reference-shared-NumberFormatException, NumberFormatException>>
+* <<painless-api-reference-shared-Object, Object>>
+* <<painless-api-reference-shared-ReflectiveOperationException, ReflectiveOperationException>>
+* <<painless-api-reference-shared-RuntimeException, RuntimeException>>
+* <<painless-api-reference-shared-SecurityException, SecurityException>>
+* <<painless-api-reference-shared-Short, Short>>
+* <<painless-api-reference-shared-StackTraceElement, StackTraceElement>>
+* <<painless-api-reference-shared-StrictMath, StrictMath>>
+* <<painless-api-reference-shared-String, String>>
+* <<painless-api-reference-shared-StringBuffer, StringBuffer>>
+* <<painless-api-reference-shared-StringBuilder, StringBuilder>>
+* <<painless-api-reference-shared-StringIndexOutOfBoundsException, StringIndexOutOfBoundsException>>
+* <<painless-api-reference-shared-System, System>>
+* <<painless-api-reference-shared-TypeNotPresentException, TypeNotPresentException>>
+* <<painless-api-reference-shared-UnsupportedOperationException, UnsupportedOperationException>>
+* <<painless-api-reference-shared-Void, Void>>
+
+==== java.math
+<<painless-api-reference-shared-java-math, Expand details for java.math>>
+
+* <<painless-api-reference-shared-BigDecimal, BigDecimal>>
+* <<painless-api-reference-shared-BigInteger, BigInteger>>
+* <<painless-api-reference-shared-MathContext, MathContext>>
+* <<painless-api-reference-shared-RoundingMode, RoundingMode>>
+
+==== java.text
+<<painless-api-reference-shared-java-text, Expand details for java.text>>
+
+* <<painless-api-reference-shared-Annotation, Annotation>>
+* <<painless-api-reference-shared-AttributedCharacterIterator, AttributedCharacterIterator>>
+* <<painless-api-reference-shared-AttributedCharacterIterator-Attribute, AttributedCharacterIterator.Attribute>>
+* <<painless-api-reference-shared-AttributedString, AttributedString>>
+* <<painless-api-reference-shared-Bidi, Bidi>>
+* <<painless-api-reference-shared-BreakIterator, BreakIterator>>
+* <<painless-api-reference-shared-CharacterIterator, CharacterIterator>>
+* <<painless-api-reference-shared-ChoiceFormat, ChoiceFormat>>
+* <<painless-api-reference-shared-CollationElementIterator, CollationElementIterator>>
+* <<painless-api-reference-shared-CollationKey, CollationKey>>
+* <<painless-api-reference-shared-Collator, Collator>>
+* <<painless-api-reference-shared-DateFormat, DateFormat>>
+* <<painless-api-reference-shared-DateFormat-Field, DateFormat.Field>>
+* <<painless-api-reference-shared-DateFormatSymbols, DateFormatSymbols>>
+* <<painless-api-reference-shared-DecimalFormat, DecimalFormat>>
+* <<painless-api-reference-shared-DecimalFormatSymbols, DecimalFormatSymbols>>
+* <<painless-api-reference-shared-FieldPosition, FieldPosition>>
+* <<painless-api-reference-shared-Format, Format>>
+* <<painless-api-reference-shared-Format-Field, Format.Field>>
+* <<painless-api-reference-shared-MessageFormat, MessageFormat>>
+* <<painless-api-reference-shared-MessageFormat-Field, MessageFormat.Field>>
+* <<painless-api-reference-shared-Normalizer, Normalizer>>
+* <<painless-api-reference-shared-Normalizer-Form, Normalizer.Form>>
+* <<painless-api-reference-shared-NumberFormat, NumberFormat>>
+* <<painless-api-reference-shared-NumberFormat-Field, NumberFormat.Field>>
+* <<painless-api-reference-shared-ParseException, ParseException>>
+* <<painless-api-reference-shared-ParsePosition, ParsePosition>>
+* <<painless-api-reference-shared-RuleBasedCollator, RuleBasedCollator>>
+* <<painless-api-reference-shared-SimpleDateFormat, SimpleDateFormat>>
+* <<painless-api-reference-shared-StringCharacterIterator, StringCharacterIterator>>
+
+==== java.time
+<<painless-api-reference-shared-java-time, Expand details for java.time>>
+
+* <<painless-api-reference-shared-Clock, Clock>>
+* <<painless-api-reference-shared-DateTimeException, DateTimeException>>
+* <<painless-api-reference-shared-DayOfWeek, DayOfWeek>>
+* <<painless-api-reference-shared-Duration, Duration>>
+* <<painless-api-reference-shared-Instant, Instant>>
+* <<painless-api-reference-shared-LocalDate, LocalDate>>
+* <<painless-api-reference-shared-LocalDateTime, LocalDateTime>>
+* <<painless-api-reference-shared-LocalTime, LocalTime>>
+* <<painless-api-reference-shared-Month, Month>>
+* <<painless-api-reference-shared-MonthDay, MonthDay>>
+* <<painless-api-reference-shared-OffsetDateTime, OffsetDateTime>>
+* <<painless-api-reference-shared-OffsetTime, OffsetTime>>
+* <<painless-api-reference-shared-Period, Period>>
+* <<painless-api-reference-shared-Year, Year>>
+* <<painless-api-reference-shared-YearMonth, YearMonth>>
+* <<painless-api-reference-shared-ZoneId, ZoneId>>
+* <<painless-api-reference-shared-ZoneOffset, ZoneOffset>>
+* <<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>>
+
+==== java.time.chrono
+<<painless-api-reference-shared-java-time-chrono, Expand details for java.time.chrono>>
+
+* <<painless-api-reference-shared-AbstractChronology, AbstractChronology>>
+* <<painless-api-reference-shared-ChronoLocalDate, ChronoLocalDate>>
+* <<painless-api-reference-shared-ChronoLocalDateTime, ChronoLocalDateTime>>
+* <<painless-api-reference-shared-ChronoPeriod, ChronoPeriod>>
+* <<painless-api-reference-shared-ChronoZonedDateTime, ChronoZonedDateTime>>
+* <<painless-api-reference-shared-Chronology, Chronology>>
+* <<painless-api-reference-shared-Era, Era>>
+* <<painless-api-reference-shared-HijrahChronology, HijrahChronology>>
+* <<painless-api-reference-shared-HijrahDate, HijrahDate>>
+* <<painless-api-reference-shared-HijrahEra, HijrahEra>>
+* <<painless-api-reference-shared-IsoChronology, IsoChronology>>
+* <<painless-api-reference-shared-IsoEra, IsoEra>>
+* <<painless-api-reference-shared-JapaneseChronology, JapaneseChronology>>
+* <<painless-api-reference-shared-JapaneseDate, JapaneseDate>>
+* <<painless-api-reference-shared-JapaneseEra, JapaneseEra>>
+* <<painless-api-reference-shared-MinguoChronology, MinguoChronology>>
+* <<painless-api-reference-shared-MinguoDate, MinguoDate>>
+* <<painless-api-reference-shared-MinguoEra, MinguoEra>>
+* <<painless-api-reference-shared-ThaiBuddhistChronology, ThaiBuddhistChronology>>
+* <<painless-api-reference-shared-ThaiBuddhistDate, ThaiBuddhistDate>>
+* <<painless-api-reference-shared-ThaiBuddhistEra, ThaiBuddhistEra>>
+
+==== java.time.format
+<<painless-api-reference-shared-java-time-format, Expand details for java.time.format>>
+
+* <<painless-api-reference-shared-DateTimeFormatter, DateTimeFormatter>>
+* <<painless-api-reference-shared-DateTimeFormatterBuilder, DateTimeFormatterBuilder>>
+* <<painless-api-reference-shared-DateTimeParseException, DateTimeParseException>>
+* <<painless-api-reference-shared-DecimalStyle, DecimalStyle>>
+* <<painless-api-reference-shared-FormatStyle, FormatStyle>>
+* <<painless-api-reference-shared-ResolverStyle, ResolverStyle>>
+* <<painless-api-reference-shared-SignStyle, SignStyle>>
+* <<painless-api-reference-shared-TextStyle, TextStyle>>
+
+==== java.time.temporal
+<<painless-api-reference-shared-java-time-temporal, Expand details for java.time.temporal>>
+
+* <<painless-api-reference-shared-ChronoField, ChronoField>>
+* <<painless-api-reference-shared-ChronoUnit, ChronoUnit>>
+* <<painless-api-reference-shared-IsoFields, IsoFields>>
+* <<painless-api-reference-shared-JulianFields, JulianFields>>
+* <<painless-api-reference-shared-Temporal, Temporal>>
+* <<painless-api-reference-shared-TemporalAccessor, TemporalAccessor>>
+* <<painless-api-reference-shared-TemporalAdjuster, TemporalAdjuster>>
+* <<painless-api-reference-shared-TemporalAdjusters, TemporalAdjusters>>
+* <<painless-api-reference-shared-TemporalAmount, TemporalAmount>>
+* <<painless-api-reference-shared-TemporalField, TemporalField>>
+* <<painless-api-reference-shared-TemporalQueries, TemporalQueries>>
+* <<painless-api-reference-shared-TemporalQuery, TemporalQuery>>
+* <<painless-api-reference-shared-TemporalUnit, TemporalUnit>>
+* <<painless-api-reference-shared-UnsupportedTemporalTypeException, UnsupportedTemporalTypeException>>
+* <<painless-api-reference-shared-ValueRange, ValueRange>>
+* <<painless-api-reference-shared-WeekFields, WeekFields>>
+
+==== java.time.zone
+<<painless-api-reference-shared-java-time-zone, Expand details for java.time.zone>>
+
+* <<painless-api-reference-shared-ZoneOffsetTransition, ZoneOffsetTransition>>
+* <<painless-api-reference-shared-ZoneOffsetTransitionRule, ZoneOffsetTransitionRule>>
+* <<painless-api-reference-shared-ZoneOffsetTransitionRule-TimeDefinition, ZoneOffsetTransitionRule.TimeDefinition>>
+* <<painless-api-reference-shared-ZoneRules, ZoneRules>>
+* <<painless-api-reference-shared-ZoneRulesException, ZoneRulesException>>
+* <<painless-api-reference-shared-ZoneRulesProvider, ZoneRulesProvider>>
+
+==== java.util
+<<painless-api-reference-shared-java-util, Expand details for java.util>>
+
+* <<painless-api-reference-shared-AbstractCollection, AbstractCollection>>
+* <<painless-api-reference-shared-AbstractList, AbstractList>>
+* <<painless-api-reference-shared-AbstractMap, AbstractMap>>
+* <<painless-api-reference-shared-AbstractMap-SimpleEntry, AbstractMap.SimpleEntry>>
+* <<painless-api-reference-shared-AbstractMap-SimpleImmutableEntry, AbstractMap.SimpleImmutableEntry>>
+* <<painless-api-reference-shared-AbstractQueue, AbstractQueue>>
+* <<painless-api-reference-shared-AbstractSequentialList, AbstractSequentialList>>
+* <<painless-api-reference-shared-AbstractSet, AbstractSet>>
+* <<painless-api-reference-shared-ArrayDeque, ArrayDeque>>
+* <<painless-api-reference-shared-ArrayList, ArrayList>>
+* <<painless-api-reference-shared-Arrays, Arrays>>
+* <<painless-api-reference-shared-Base64, Base64>>
+* <<painless-api-reference-shared-Base64-Decoder, Base64.Decoder>>
+* <<painless-api-reference-shared-Base64-Encoder, Base64.Encoder>>
+* <<painless-api-reference-shared-BitSet, BitSet>>
+* <<painless-api-reference-shared-Calendar, Calendar>>
+* <<painless-api-reference-shared-Calendar-Builder, Calendar.Builder>>
+* <<painless-api-reference-shared-Collection, Collection>>
+* <<painless-api-reference-shared-Collections, Collections>>
+* <<painless-api-reference-shared-Comparator, Comparator>>
+* <<painless-api-reference-shared-ConcurrentModificationException, ConcurrentModificationException>>
+* <<painless-api-reference-shared-Currency, Currency>>
+* <<painless-api-reference-shared-Date, Date>>
+* <<painless-api-reference-shared-Deque, Deque>>
+* <<painless-api-reference-shared-Dictionary, Dictionary>>
+* <<painless-api-reference-shared-DoubleSummaryStatistics, DoubleSummaryStatistics>>
+* <<painless-api-reference-shared-DuplicateFormatFlagsException, DuplicateFormatFlagsException>>
+* <<painless-api-reference-shared-EmptyStackException, EmptyStackException>>
+* <<painless-api-reference-shared-Enumeration, Enumeration>>
+* <<painless-api-reference-shared-EventListener, EventListener>>
+* <<painless-api-reference-shared-EventListenerProxy, EventListenerProxy>>
+* <<painless-api-reference-shared-EventObject, EventObject>>
+* <<painless-api-reference-shared-FormatFlagsConversionMismatchException, FormatFlagsConversionMismatchException>>
+* <<painless-api-reference-shared-Formattable, Formattable>>
+* <<painless-api-reference-shared-FormattableFlags, FormattableFlags>>
+* <<painless-api-reference-shared-Formatter, Formatter>>
+* <<painless-api-reference-shared-Formatter-BigDecimalLayoutForm, Formatter.BigDecimalLayoutForm>>
+* <<painless-api-reference-shared-FormatterClosedException, FormatterClosedException>>
+* <<painless-api-reference-shared-GregorianCalendar, GregorianCalendar>>
+* <<painless-api-reference-shared-HashMap, HashMap>>
+* <<painless-api-reference-shared-HashSet, HashSet>>
+* <<painless-api-reference-shared-Hashtable, Hashtable>>
+* <<painless-api-reference-shared-IdentityHashMap, IdentityHashMap>>
+* <<painless-api-reference-shared-IllegalFormatCodePointException, IllegalFormatCodePointException>>
+* <<painless-api-reference-shared-IllegalFormatConversionException, IllegalFormatConversionException>>
+* <<painless-api-reference-shared-IllegalFormatException, IllegalFormatException>>
+* <<painless-api-reference-shared-IllegalFormatFlagsException, IllegalFormatFlagsException>>
+* <<painless-api-reference-shared-IllegalFormatPrecisionException, IllegalFormatPrecisionException>>
+* <<painless-api-reference-shared-IllegalFormatWidthException, IllegalFormatWidthException>>
+* <<painless-api-reference-shared-IllformedLocaleException, IllformedLocaleException>>
+* <<painless-api-reference-shared-InputMismatchException, InputMismatchException>>
+* <<painless-api-reference-shared-IntSummaryStatistics, IntSummaryStatistics>>
+* <<painless-api-reference-shared-Iterator, Iterator>>
+* <<painless-api-reference-shared-LinkedHashMap, LinkedHashMap>>
+* <<painless-api-reference-shared-LinkedHashSet, LinkedHashSet>>
+* <<painless-api-reference-shared-LinkedList, LinkedList>>
+* <<painless-api-reference-shared-List, List>>
+* <<painless-api-reference-shared-ListIterator, ListIterator>>
+* <<painless-api-reference-shared-Locale, Locale>>
+* <<painless-api-reference-shared-Locale-Builder, Locale.Builder>>
+* <<painless-api-reference-shared-Locale-Category, Locale.Category>>
+* <<painless-api-reference-shared-Locale-FilteringMode, Locale.FilteringMode>>
+* <<painless-api-reference-shared-Locale-LanguageRange, Locale.LanguageRange>>
+* <<painless-api-reference-shared-LongSummaryStatistics, LongSummaryStatistics>>
+* <<painless-api-reference-shared-Map, Map>>
+* <<painless-api-reference-shared-Map-Entry, Map.Entry>>
+* <<painless-api-reference-shared-MissingFormatArgumentException, MissingFormatArgumentException>>
+* <<painless-api-reference-shared-MissingFormatWidthException, MissingFormatWidthException>>
+* <<painless-api-reference-shared-MissingResourceException, MissingResourceException>>
+* <<painless-api-reference-shared-NavigableMap, NavigableMap>>
+* <<painless-api-reference-shared-NavigableSet, NavigableSet>>
+* <<painless-api-reference-shared-NoSuchElementException, NoSuchElementException>>
+* <<painless-api-reference-shared-Objects, Objects>>
+* <<painless-api-reference-shared-Observable, Observable>>
+* <<painless-api-reference-shared-Observer, Observer>>
+* <<painless-api-reference-shared-Optional, Optional>>
+* <<painless-api-reference-shared-OptionalDouble, OptionalDouble>>
+* <<painless-api-reference-shared-OptionalInt, OptionalInt>>
+* <<painless-api-reference-shared-OptionalLong, OptionalLong>>
+* <<painless-api-reference-shared-PrimitiveIterator, PrimitiveIterator>>
+* <<painless-api-reference-shared-PrimitiveIterator-OfDouble, PrimitiveIterator.OfDouble>>
+* <<painless-api-reference-shared-PrimitiveIterator-OfInt, PrimitiveIterator.OfInt>>
+* <<painless-api-reference-shared-PrimitiveIterator-OfLong, PrimitiveIterator.OfLong>>
+* <<painless-api-reference-shared-PriorityQueue, PriorityQueue>>
+* <<painless-api-reference-shared-Queue, Queue>>
+* <<painless-api-reference-shared-Random, Random>>
+* <<painless-api-reference-shared-RandomAccess, RandomAccess>>
+* <<painless-api-reference-shared-Set, Set>>
+* <<painless-api-reference-shared-SimpleTimeZone, SimpleTimeZone>>
+* <<painless-api-reference-shared-SortedMap, SortedMap>>
+* <<painless-api-reference-shared-SortedSet, SortedSet>>
+* <<painless-api-reference-shared-Spliterator, Spliterator>>
+* <<painless-api-reference-shared-Spliterator-OfDouble, Spliterator.OfDouble>>
+* <<painless-api-reference-shared-Spliterator-OfInt, Spliterator.OfInt>>
+* <<painless-api-reference-shared-Spliterator-OfLong, Spliterator.OfLong>>
+* <<painless-api-reference-shared-Spliterator-OfPrimitive, Spliterator.OfPrimitive>>
+* <<painless-api-reference-shared-Spliterators, Spliterators>>
+* <<painless-api-reference-shared-Stack, Stack>>
+* <<painless-api-reference-shared-StringJoiner, StringJoiner>>
+* <<painless-api-reference-shared-StringTokenizer, StringTokenizer>>
+* <<painless-api-reference-shared-TimeZone, TimeZone>>
+* <<painless-api-reference-shared-TooManyListenersException, TooManyListenersException>>
+* <<painless-api-reference-shared-TreeMap, TreeMap>>
+* <<painless-api-reference-shared-TreeSet, TreeSet>>
+* <<painless-api-reference-shared-UUID, UUID>>
+* <<painless-api-reference-shared-UnknownFormatConversionException, UnknownFormatConversionException>>
+* <<painless-api-reference-shared-UnknownFormatFlagsException, UnknownFormatFlagsException>>
+* <<painless-api-reference-shared-Vector, Vector>>
+
+==== java.util.function
+<<painless-api-reference-shared-java-util-function, Expand details for java.util.function>>
+
+* <<painless-api-reference-shared-BiConsumer, BiConsumer>>
+* <<painless-api-reference-shared-BiFunction, BiFunction>>
+* <<painless-api-reference-shared-BiPredicate, BiPredicate>>
+* <<painless-api-reference-shared-BinaryOperator, BinaryOperator>>
+* <<painless-api-reference-shared-BooleanSupplier, BooleanSupplier>>
+* <<painless-api-reference-shared-Consumer, Consumer>>
+* <<painless-api-reference-shared-DoubleBinaryOperator, DoubleBinaryOperator>>
+* <<painless-api-reference-shared-DoubleConsumer, DoubleConsumer>>
+* <<painless-api-reference-shared-DoubleFunction, DoubleFunction>>
+* <<painless-api-reference-shared-DoublePredicate, DoublePredicate>>
+* <<painless-api-reference-shared-DoubleSupplier, DoubleSupplier>>
+* <<painless-api-reference-shared-DoubleToIntFunction, DoubleToIntFunction>>
+* <<painless-api-reference-shared-DoubleToLongFunction, DoubleToLongFunction>>
+* <<painless-api-reference-shared-DoubleUnaryOperator, DoubleUnaryOperator>>
+* <<painless-api-reference-shared-Function, Function>>
+* <<painless-api-reference-shared-IntBinaryOperator, IntBinaryOperator>>
+* <<painless-api-reference-shared-IntConsumer, IntConsumer>>
+* <<painless-api-reference-shared-IntFunction, IntFunction>>
+* <<painless-api-reference-shared-IntPredicate, IntPredicate>>
+* <<painless-api-reference-shared-IntSupplier, IntSupplier>>
+* <<painless-api-reference-shared-IntToDoubleFunction, IntToDoubleFunction>>
+* <<painless-api-reference-shared-IntToLongFunction, IntToLongFunction>>
+* <<painless-api-reference-shared-IntUnaryOperator, IntUnaryOperator>>
+* <<painless-api-reference-shared-LongBinaryOperator, LongBinaryOperator>>
+* <<painless-api-reference-shared-LongConsumer, LongConsumer>>
+* <<painless-api-reference-shared-LongFunction, LongFunction>>
+* <<painless-api-reference-shared-LongPredicate, LongPredicate>>
+* <<painless-api-reference-shared-LongSupplier, LongSupplier>>
+* <<painless-api-reference-shared-LongToDoubleFunction, LongToDoubleFunction>>
+* <<painless-api-reference-shared-LongToIntFunction, LongToIntFunction>>
+* <<painless-api-reference-shared-LongUnaryOperator, LongUnaryOperator>>
+* <<painless-api-reference-shared-ObjDoubleConsumer, ObjDoubleConsumer>>
+* <<painless-api-reference-shared-ObjIntConsumer, ObjIntConsumer>>
+* <<painless-api-reference-shared-ObjLongConsumer, ObjLongConsumer>>
+* <<painless-api-reference-shared-Predicate, Predicate>>
+* <<painless-api-reference-shared-Supplier, Supplier>>
+* <<painless-api-reference-shared-ToDoubleBiFunction, ToDoubleBiFunction>>
+* <<painless-api-reference-shared-ToDoubleFunction, ToDoubleFunction>>
+* <<painless-api-reference-shared-ToIntBiFunction, ToIntBiFunction>>
+* <<painless-api-reference-shared-ToIntFunction, ToIntFunction>>
+* <<painless-api-reference-shared-ToLongBiFunction, ToLongBiFunction>>
+* <<painless-api-reference-shared-ToLongFunction, ToLongFunction>>
+* <<painless-api-reference-shared-UnaryOperator, UnaryOperator>>
+
+==== java.util.regex
+<<painless-api-reference-shared-java-util-regex, Expand details for java.util.regex>>
+
+* <<painless-api-reference-shared-Matcher, Matcher>>
+* <<painless-api-reference-shared-Pattern, Pattern>>
+
+==== java.util.stream
+<<painless-api-reference-shared-java-util-stream, Expand details for java.util.stream>>
+
+* <<painless-api-reference-shared-BaseStream, BaseStream>>
+* <<painless-api-reference-shared-Collector, Collector>>
+* <<painless-api-reference-shared-Collector-Characteristics, Collector.Characteristics>>
+* <<painless-api-reference-shared-Collectors, Collectors>>
+* <<painless-api-reference-shared-DoubleStream, DoubleStream>>
+* <<painless-api-reference-shared-DoubleStream-Builder, DoubleStream.Builder>>
+* <<painless-api-reference-shared-IntStream, IntStream>>
+* <<painless-api-reference-shared-IntStream-Builder, IntStream.Builder>>
+* <<painless-api-reference-shared-LongStream, LongStream>>
+* <<painless-api-reference-shared-LongStream-Builder, LongStream.Builder>>
+* <<painless-api-reference-shared-Stream, Stream>>
+* <<painless-api-reference-shared-Stream-Builder, Stream.Builder>>
+
+==== org.apache.lucene.util
+<<painless-api-reference-shared-org-apache-lucene-util, Expand details for org.apache.lucene.util>>
+
+* <<painless-api-reference-shared-BytesRef, BytesRef>>
+
+==== org.elasticsearch.common.geo
+<<painless-api-reference-shared-org-elasticsearch-common-geo, Expand details for org.elasticsearch.common.geo>>
+
+* <<painless-api-reference-shared-GeoPoint, GeoPoint>>
+
+==== org.elasticsearch.index.fielddata
+<<painless-api-reference-shared-org-elasticsearch-index-fielddata, Expand details for org.elasticsearch.index.fielddata>>
+
+* <<painless-api-reference-shared-ScriptDocValues-Booleans, ScriptDocValues.Booleans>>
+* <<painless-api-reference-shared-ScriptDocValues-BytesRefs, ScriptDocValues.BytesRefs>>
+* <<painless-api-reference-shared-ScriptDocValues-Dates, ScriptDocValues.Dates>>
+* <<painless-api-reference-shared-ScriptDocValues-Doubles, ScriptDocValues.Doubles>>
+* <<painless-api-reference-shared-ScriptDocValues-GeoPoints, ScriptDocValues.GeoPoints>>
+* <<painless-api-reference-shared-ScriptDocValues-Longs, ScriptDocValues.Longs>>
+* <<painless-api-reference-shared-ScriptDocValues-Strings, ScriptDocValues.Strings>>
+
+==== org.elasticsearch.index.mapper
+<<painless-api-reference-shared-org-elasticsearch-index-mapper, Expand details for org.elasticsearch.index.mapper>>
+
+* <<painless-api-reference-shared-IpFieldMapper-IpFieldType-IpScriptDocValues, IpFieldMapper.IpFieldType.IpScriptDocValues>>
+
+==== org.elasticsearch.index.query
+<<painless-api-reference-shared-org-elasticsearch-index-query, Expand details for org.elasticsearch.index.query>>
+
+* <<painless-api-reference-shared-IntervalFilterScript-Interval, IntervalFilterScript.Interval>>
+
+==== org.elasticsearch.index.similarity
+<<painless-api-reference-shared-org-elasticsearch-index-similarity, Expand details for org.elasticsearch.index.similarity>>
+
+* <<painless-api-reference-shared-ScriptedSimilarity-Doc, ScriptedSimilarity.Doc>>
+* <<painless-api-reference-shared-ScriptedSimilarity-Field, ScriptedSimilarity.Field>>
+* <<painless-api-reference-shared-ScriptedSimilarity-Query, ScriptedSimilarity.Query>>
+* <<painless-api-reference-shared-ScriptedSimilarity-Term, ScriptedSimilarity.Term>>
+
+==== org.elasticsearch.painless.api
+<<painless-api-reference-shared-org-elasticsearch-painless-api, Expand details for org.elasticsearch.painless.api>>
+
+* <<painless-api-reference-shared-Debug, Debug>>
+
+==== org.elasticsearch.script
+<<painless-api-reference-shared-org-elasticsearch-script, Expand details for org.elasticsearch.script>>
+
+* <<painless-api-reference-shared-JodaCompatibleZonedDateTime, JodaCompatibleZonedDateTime>>
+
+==== org.elasticsearch.search.lookup
+<<painless-api-reference-shared-org-elasticsearch-search-lookup, Expand details for org.elasticsearch.search.lookup>>
+
+* <<painless-api-reference-shared-FieldLookup, FieldLookup>>
+
+include::packages.asciidoc[]
+

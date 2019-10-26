@@ -103,8 +103,21 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
             new ParseField(Fields.DOCUMENTS));
     }
 
-    public SimulatePipelineResponse() {
-
+    public SimulatePipelineResponse(StreamInput in) throws IOException {
+        super(in);
+        this.pipelineId = in.readOptionalString();
+        boolean verbose = in.readBoolean();
+        int responsesLength = in.readVInt();
+        results = new ArrayList<>();
+        for (int i = 0; i < responsesLength; i++) {
+            SimulateDocumentResult simulateDocumentResult;
+            if (verbose) {
+                simulateDocumentResult = new SimulateDocumentVerboseResult(in);
+            } else {
+                simulateDocumentResult = new SimulateDocumentBaseResult(in);
+            }
+            results.add(simulateDocumentResult);
+        }
     }
 
     public SimulatePipelineResponse(String pipelineId, boolean verbose, List<SimulateDocumentResult> responses) {
@@ -127,30 +140,11 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeOptionalString(pipelineId);
         out.writeBoolean(verbose);
         out.writeVInt(results.size());
         for (SimulateDocumentResult response : results) {
             response.writeTo(out);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.pipelineId = in.readOptionalString();
-        boolean verbose = in.readBoolean();
-        int responsesLength = in.readVInt();
-        results = new ArrayList<>();
-        for (int i = 0; i < responsesLength; i++) {
-            SimulateDocumentResult simulateDocumentResult;
-            if (verbose) {
-                simulateDocumentResult = new SimulateDocumentVerboseResult(in);
-            } else {
-                simulateDocumentResult = new SimulateDocumentBaseResult(in);
-            }
-            results.add(simulateDocumentResult);
         }
     }
 

@@ -1,0 +1,80 @@
+---
+"Test forget follower":
+  - do:
+      cluster.state: {}
+
+  - set: {master_node: master}
+
+  - do:
+      nodes.info: {}
+
+  - set: {nodes.$master.transport_address: local_ip}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.remote.remote_cluster.seeds: $local_ip
+        flat_settings: true
+
+  - match: {transient: {cluster.remote.remote_cluster.seeds: $local_ip}}
+
+  - do:
+      indices.create:
+        index: leader_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              soft_deletes:
+                enabled: true
+  - is_true: acknowledged
+
+  - do:
+      ccr.follow:
+        index: follower_index
+        wait_for_active_shards: 1
+        body:
+          remote_cluster: remote_cluster
+          leader_index: leader_index
+  - is_true: follow_index_created
+  - is_true: follow_index_shards_acked
+  - is_true: index_following_started
+
+  - do:
+      info: {}
+
+  - set: {cluster_name: cluster_name}
+
+  - do:
+      indices.stats: {index: follower_index}
+
+  - set: {indices.follower_index.uuid: follower_index_uuid}
+
+  - do:
+      ccr.forget_follower:
+        index: leader_index
+        body:
+          follower_cluster: $cluster_name
+          follower_index: follower_index
+          follower_index_uuid: $follower_index_uuid
+          leader_remote_cluster: remote_cluster
+  - match: { _shards.total: 1 }
+  - match: { _shards.successful: 1}
+  - match: { _shards.failed: 0}
+  - is_false: _shards.failure
+
+  - do:
+      ccr.pause_follow:
+        index: follower_index
+  - is_true: acknowledged
+
+  - do:
+      indices.close:
+        index: follower_index
+  - is_true: acknowledged
+
+  - do:
+      ccr.unfollow:
+        index: follower_index
+  - is_true: acknowledged

@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -299,6 +300,17 @@ final class CompositeAggregator extends BucketsAggregator {
                 reverseMul
             );
 
+        } else if (config.valuesSource() instanceof CellIdSource) {
+            final CellIdSource cis = (CellIdSource) config.valuesSource();
+            return new GeoTileValuesSource(
+                bigArrays,
+                config.fieldType(),
+                cis::longValues,
+                LongUnaryOperator.identity(),
+                config.format(),
+                config.missingBucket(),
+                size,
+                reverseMul);
         } else if (config.valuesSource() instanceof ValuesSource.Numeric) {
             final ValuesSource.Numeric vs = (ValuesSource.Numeric) config.valuesSource();
             if (vs.isFloatingPoint()) {

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.smoketest;
 
-import org.apache.http.HttpHost;
-import org.apache.lucene.util.BytesRef;
-
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import org.apache.http.HttpHost;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.ParseField;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
@@ -40,6 +42,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,12 +51,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+//The default 20 minutes timeout isn't always enough, please do not increase further than 30 before analyzing what makes this suite so slow
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -95,8 +99,25 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
+    @After
+    public void cleanup() throws Exception {
+        if (isMachineLearningTest() || isTransformTest()) {
+            ESRestTestCase.waitForPendingTasks(adminClient());
+        }
+    }
+
+    protected boolean isMachineLearningTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/ml/") || testName.contains("\\ml\\"));
+    }
+
+    protected boolean isTransformTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/transform/") || testName.contains("\\transform\\"));
+    }
+
     /**
-     * Compares the the results of running two analyzers against many random
+     * Compares the results of running two analyzers against many random
      * strings. The goal is to figure out if two anlayzers are "the same" by
      * comparing their results. This is far from perfect but should be fairly
      * accurate, especially for gross things like missing {@code decimal_digit}

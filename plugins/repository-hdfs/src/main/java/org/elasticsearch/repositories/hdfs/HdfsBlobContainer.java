@@ -25,8 +25,10 @@ import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
@@ -58,15 +60,6 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
-        try {
-            return store.execute(fileContext -> fileContext.util().exists(new Path(path, blobName)));
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    @Override
     public void deleteBlob(String blobName) throws IOException {
         try {
             if (store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true)) == false) {
@@ -75,6 +68,15 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + blobName + "] blob not found");
         }
+    }
+
+    // TODO: See if we can get precise result reporting.
+    private static final DeleteResult DELETE_RESULT = new DeleteResult(1L, 0L);
+
+    @Override
+    public DeleteResult delete() throws IOException {
+        store.execute(fileContext -> fileContext.delete(path, true));
+        return DELETE_RESULT;
     }
 
     @Override
@@ -137,11 +139,13 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
-        FileStatus[] files = store.execute(fileContext -> (fileContext.util().listStatus(path,
-            path -> prefix == null || path.getName().startsWith(prefix))));
-        Map<String, BlobMetaData> map = new LinkedHashMap<String, BlobMetaData>();
+        FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path,
+            path -> prefix == null || path.getName().startsWith(prefix)));
+        Map<String, BlobMetaData> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
-            map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            if (file.isFile()) {
+                map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            }
         }
         return Collections.unmodifiableMap(map);
     }
@@ -149,6 +153,19 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
+    }
+
+    @Override
+    public Map<String, BlobContainer> children() throws IOException {
+        FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path));
+        Map<String, BlobContainer> map = new LinkedHashMap<>();
+        for (FileStatus file : files) {
+            if (file.isDirectory()) {
+                final String name = file.getPath().getName();
+                map.put(name, new HdfsBlobContainer(path().add(name), store, new Path(path, name), bufferSize, securityContext));
+            }
+        }
+        return Collections.unmodifiableMap(map);
     }
 
     /**

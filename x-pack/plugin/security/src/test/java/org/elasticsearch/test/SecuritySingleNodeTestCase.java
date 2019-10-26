@@ -179,12 +179,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return builder.build();
     }
 
-    protected Settings transportClientSettings() {
-        return Settings.builder()
-                .put(customSecuritySettingsSource.transportClientSettings())
-                .build();
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return customSecuritySettingsSource.nodePlugins();

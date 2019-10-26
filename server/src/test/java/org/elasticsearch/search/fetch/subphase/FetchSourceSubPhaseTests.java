@@ -25,8 +25,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -119,6 +119,17 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
                 "for index [index]", exception.getMessage());
     }
 
+    public void testNestedSourceWithSourceDisabled() {
+        FetchSubPhase.HitContext hitContext = hitExecute(null, true, null, null,
+            new SearchHit.NestedIdentity("nested1", 0, null));
+        assertNull(hitContext.hit().getSourceAsMap());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> hitExecute(null, true, "field1", null, new SearchHit.NestedIdentity("nested1", 0, null)));
+        assertEquals("unable to fetch fields from _source field: _source is disabled in the mappings " +
+            "for index [index]", e.getMessage());
+    }
+
     private FetchSubPhase.HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude) {
         return hitExecute(source, fetchSource, include, exclude, null);
     }
@@ -141,7 +152,7 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
         SearchContext searchContext = new FetchSourceSubPhaseTestSearchContext(fetchSourceContext,
                 source == null ? null : BytesReference.bytes(source));
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-        final SearchHit searchHit = new SearchHit(1, null, null, nestedIdentity, null);
+        final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null);
         hitContext.reset(searchHit, null, 1, null);
         FetchSourceSubPhase phase = new FetchSourceSubPhase();
         phase.hitExecute(searchContext, hitContext);
@@ -173,7 +184,7 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
 
         @Override
         public SearchLookup lookup() {
-            SearchLookup lookup = new SearchLookup(this.mapperService(), this::getForField, null);
+            SearchLookup lookup = new SearchLookup(this.mapperService(), this::getForField);
             lookup.source().setSource(source);
             return lookup;
         }

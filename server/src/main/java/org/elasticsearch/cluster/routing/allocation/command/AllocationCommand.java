@@ -24,9 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.Optional;
 
 /**
@@ -35,15 +33,6 @@ import java.util.Optional;
  * Commands are registered in {@link NetworkModule}.
  */
 public interface AllocationCommand extends NamedWriteable, ToXContentObject {
-    interface Parser<T extends AllocationCommand> {
-        /**
-         * Reads an {@link AllocationCommand} of type <code>T</code> from a {@link XContentParser}.
-         * @param parser {@link XContentParser} to use
-         * @return {@link AllocationCommand} read
-         * @throws IOException if something happens during reading
-         */
-        T fromXContent(XContentParser parser) throws IOException;
-    }
 
     /**
      * Get the name of the command

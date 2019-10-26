@@ -17,6 +17,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -37,10 +38,10 @@ public class WatcherJiraYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void startWatcher() throws Exception {
-        final List<String> watcherTemplates = Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES);
+        final List<String> watcherTemplates = Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES_NO_ILM);
         assertBusy(() -> {
             try {
-                getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());
 
                 for (String template : watcherTemplates) {
                     ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi("indices.exists_template",
@@ -49,7 +50,7 @@ public class WatcherJiraYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 }
 
                 ClientYamlTestResponse response =
-                        getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                        getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
                 String state = (String) response.evaluate("stats.0.watcher_state");
                 assertThat(state, is("started"));
             } catch (IOException e) {
@@ -62,14 +63,14 @@ public class WatcherJiraYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public void stopWatcher() throws Exception {
         assertBusy(() -> {
             try {
-                getAdminExecutionContext().callApi("xpack.watcher.stop", emptyMap(), emptyList(), emptyMap());
+                getAdminExecutionContext().callApi("watcher.stop", emptyMap(), emptyList(), emptyMap());
                 ClientYamlTestResponse response =
-                        getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                        getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
                 String state = (String) response.evaluate("stats.0.watcher_state");
                 assertThat(state, is("stopped"));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 }

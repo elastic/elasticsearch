@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -37,7 +38,7 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -102,8 +103,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
 
     private void startInitializingShards(String index) {
         logger.info("start primary shards for index {}", index);
-        this.clusterState = ALLOCATION_SERVICE.applyStartedShards(this.clusterState,
-            this.clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(ALLOCATION_SERVICE, clusterState, index);
     }
 
     private IndexMetaData.Builder createIndexMetaData(String indexName) {
@@ -371,6 +371,36 @@ public class RoutingTableTests extends ESAllocationTestCase {
         assertFalse(IndexShardRoutingTable.Builder.distinctNodes(Arrays.asList(routing1, routing2, routing3)));
         assertTrue(IndexShardRoutingTable.Builder.distinctNodes(Arrays.asList(routing1, routing4)));
         assertFalse(IndexShardRoutingTable.Builder.distinctNodes(Arrays.asList(routing2, routing4)));
+    }
+
+    public void testAddAsRecovery() {
+        {
+            final IndexMetaData indexMetaData = createIndexMetaData(TEST_INDEX_1).state(IndexMetaData.State.OPEN).build();
+            final RoutingTable routingTable = new RoutingTable.Builder().addAsRecovery(indexMetaData).build();
+            assertThat(routingTable.hasIndex(TEST_INDEX_1), is(true));
+            assertThat(routingTable.allShards(TEST_INDEX_1).size(), is(this.shardsPerIndex));
+            assertThat(routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size(), is(this.shardsPerIndex));
+        }
+        {
+            final IndexMetaData indexMetaData = createIndexMetaData(TEST_INDEX_1).state(IndexMetaData.State.CLOSE).build();
+            final RoutingTable routingTable = new RoutingTable.Builder().addAsRecovery(indexMetaData).build();
+            assertThat(routingTable.hasIndex(TEST_INDEX_1), is(false));
+            expectThrows(IndexNotFoundException.class, () -> routingTable.allShards(TEST_INDEX_1));
+        }
+        {
+            final IndexMetaData indexMetaData = createIndexMetaData(TEST_INDEX_1).build();
+            final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData)
+                .state(IndexMetaData.State.CLOSE)
+                .settings(Settings.builder()
+                    .put(indexMetaData.getSettings())
+                    .put(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
+                    .build())
+                .settingsVersion(indexMetaData.getSettingsVersion() + 1);
+            final RoutingTable routingTable = new RoutingTable.Builder().addAsRecovery(indexMetaDataBuilder.build()).build();
+            assertThat(routingTable.hasIndex(TEST_INDEX_1), is(true));
+            assertThat(routingTable.allShards(TEST_INDEX_1).size(), is(this.shardsPerIndex));
+            assertThat(routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size(), is(this.shardsPerIndex));
+        }
     }
 
     /** reverse engineer the in sync aid based on the given indexRoutingTable **/

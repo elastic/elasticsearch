@@ -41,8 +41,6 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -75,13 +73,6 @@ public interface SearchPlugin {
      * {@link SignificantTerms} aggregation to pick which terms are significant for a given query.
      */
     default List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
-        return emptyList();
-    }
-    /**
-     * The new {@link MovAvgModel}s defined by this plugin. {@linkplain MovAvgModel}s are used by the {@link MovAvgPipelineAggregator} to
-     * model trends in data.
-     */
-    default List<SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser>> getMovingAverageModels() {
         return emptyList();
     }
     /**
@@ -400,7 +391,7 @@ public interface SearchPlugin {
     }
 
     /**
-     * Specification of search time behavior extension like a custom {@link MovAvgModel} or {@link ScoreFunction}.
+     * Specification of search time behavior extension like a custom {@link ScoreFunction}.
      *
      * @param <W> the type of the main {@link NamedWriteable} for this spec. All specs have this but it isn't always *for* the same thing
      *        though, usually it is some sort of builder sent from the coordinating node to the data nodes executing the behavior

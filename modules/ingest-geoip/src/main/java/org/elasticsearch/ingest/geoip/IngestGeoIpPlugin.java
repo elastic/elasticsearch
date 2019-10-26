@@ -171,14 +171,14 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
      * reduction of CPU usage.
      */
     static class GeoIpCache {
-        private final Cache<CacheKey, AbstractResponse> cache;
+        private final Cache<CacheKey<?>, AbstractResponse> cache;
 
         //package private for testing
         GeoIpCache(long maxSize) {
             if (maxSize < 0) {
                 throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
             }
-            this.cache = CacheBuilder.<CacheKey, AbstractResponse>builder().setMaximumWeight(maxSize).build();
+            this.cache = CacheBuilder.<CacheKey<?>, AbstractResponse>builder().setMaximumWeight(maxSize).build();
         }
 
         <T extends AbstractResponse> T putIfAbsent(InetAddress ip, Class<T> responseType,

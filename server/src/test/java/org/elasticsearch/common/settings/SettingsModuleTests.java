@@ -21,11 +21,17 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 
 public class SettingsModuleTests extends ModuleTestCase {
 
@@ -83,6 +89,40 @@ public class SettingsModuleTests extends ModuleTestCase {
                 assertEquals("Failed to parse value [false] for setting [some.custom.setting]", ex.getMessage());
             }
         }
+    }
+
+    public void testRegisterConsistentSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("some.custom.secure.consistent.setting", "secure_value");
+        final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        final Setting<?> concreteConsistentSetting = SecureSetting.secureString("some.custom.secure.consistent.setting", null,
+                Setting.Property.Consistent);
+        SettingsModule module = new SettingsModule(settings, concreteConsistentSetting);
+        assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+        assertThat(module.getConsistentSettings(), Matchers.containsInAnyOrder(concreteConsistentSetting));
+
+        final Setting<?> concreteUnsecureConsistentSetting = Setting.simpleString("some.custom.UNSECURE.consistent.setting",
+                Property.Consistent, Property.NodeScope);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new SettingsModule(Settings.builder().build(), concreteUnsecureConsistentSetting));
+        assertThat(e.getMessage(), is("Invalid consistent secure setting [some.custom.UNSECURE.consistent.setting]"));
+
+        secureSettings = new MockSecureSettings();
+        secureSettings.setString("some.custom.secure.consistent.afix.wow.setting", "secure_value");
+        final Settings settings2 = Settings.builder().setSecureSettings(secureSettings).build();
+        final Setting<?> afixConcreteConsistentSetting = Setting.affixKeySetting(
+                "some.custom.secure.consistent.afix.", "setting",
+                key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
+        module = new SettingsModule(settings2,afixConcreteConsistentSetting);
+        assertInstanceBinding(module, Settings.class, (s) -> s == settings2);
+        assertThat(module.getConsistentSettings(), Matchers.containsInAnyOrder(afixConcreteConsistentSetting));
+
+        final Setting<?> concreteUnsecureConsistentAfixSetting = Setting.affixKeySetting(
+                "some.custom.secure.consistent.afix.", "setting",
+                key -> Setting.simpleString(key, Setting.Property.Consistent, Property.NodeScope));
+        e = expectThrows(IllegalArgumentException.class,
+                () -> new SettingsModule(Settings.builder().build(), concreteUnsecureConsistentAfixSetting));
+        assertThat(e.getMessage(), is("Invalid consistent secure setting [some.custom.secure.consistent.afix.*.setting]"));
     }
 
     public void testLoggerSettings() {
@@ -150,11 +190,30 @@ public class SettingsModuleTests extends ModuleTestCase {
         }
     }
 
-    public void testOldMaxClauseCountSetting() {
-            Settings settings = Settings.builder().put("index.query.bool.max_clause_count", 1024).build();
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> new SettingsModule(settings));
-            assertEquals("unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?",
-                ex.getMessage());
+    public void testPluginSettingWithoutNamespace() {
+        final String key = randomAlphaOfLength(8);
+        final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
+        runSettingWithoutNamespaceTest(
+            key, () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of()));
     }
+
+    public void testClusterSettingWithoutNamespace() {
+        final String key = randomAlphaOfLength(8);
+        final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
+        runSettingWithoutNamespaceTest(
+            key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of()));
+    }
+
+    public void testIndexSettingWithoutNamespace() {
+        final String key = randomAlphaOfLength(8);
+        final Setting<String> setting = Setting.simpleString(key, Property.IndexScope);
+        runSettingWithoutNamespaceTest(
+            key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting)));
+    }
+
+    private void runSettingWithoutNamespaceTest(final String key, final Supplier<SettingsModule> supplier) {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, supplier::get);
+        assertThat(e, hasToString(containsString("setting [" + key + "] is not in any namespace, its name must contain a dot")));
+    }
+
 }

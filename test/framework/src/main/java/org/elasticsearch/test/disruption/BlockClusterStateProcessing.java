@@ -30,12 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class BlockClusterStateProcessing extends SingleNodeDisruption {
 
-    AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
-
-
-    public BlockClusterStateProcessing(Random random) {
-        this(null, random);
-    }
+    private final AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
 
     public BlockClusterStateProcessing(String disruptedNode, Random random) {
         super(random);

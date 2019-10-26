@@ -359,6 +359,13 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
 
         /**
+         * Initializes a new empty index, as as a result of closing an opened index.
+         */
+        public Builder initializeAsFromOpenToClose(IndexMetaData indexMetaData) {
+            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null));
+        }
+
+        /**
          * Initializes a new empty index, to be restored from a snapshot
          */
         public Builder initializeAsNewRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {

@@ -60,7 +60,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     protected InternalSingleBucketAggregation(StreamInput in) throws IOException {
         super(in);
         docCount = in.readVLong();
-        aggregations = InternalAggregations.readAggregations(in);
+        aggregations = new InternalAggregations(in);
     }
 
     @Override
@@ -137,14 +137,18 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalSingleBucketAggregation other = (InternalSingleBucketAggregation) obj;
         return Objects.equals(docCount, other.docCount) &&
                 Objects.equals(aggregations, other.aggregations);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(docCount, aggregations);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), docCount, aggregations);
     }
 }

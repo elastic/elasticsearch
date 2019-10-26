@@ -1,6 +1,8 @@
 ---
 "Help":
-
+  - skip:
+      version: " - 7.1.99"
+      reason:  external refresh stats were added in 7.2.0
   - do:
       cat.shards:
         help: true
@@ -52,6 +54,8 @@
                     merges.total_time                .+   \n
                     refresh.total                    .+   \n
                     refresh.time                     .+   \n
+                    refresh.external_total           .+   \n
+                    refresh.external_time            .+   \n
                     refresh.listeners                .+   \n
                     search.fetch_current             .+   \n
                     search.fetch_time                .+   \n
@@ -235,7 +239,6 @@
   - do:
       index:
         index: bar
-        type: type
         body: { test: bar }
         refresh: true
 

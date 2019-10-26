@@ -27,7 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -43,11 +43,18 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     /**
      * A search template response item, holding the actual search template response, or an error message if it failed.
      */
-    public static class Item implements Streamable {
-        private SearchTemplateResponse response;
-        private Exception exception;
+    public static class Item implements Writeable {
+        private final SearchTemplateResponse response;
+        private final Exception exception;
 
-        Item() {
+        private Item(StreamInput in) throws IOException {
+            if (in.readBoolean()) {
+                this.response = new SearchTemplateResponse(in);
+                this.exception = null;
+            } else {
+                exception = in.readException();
+                this.response = null;
+            }
         }
 
         public Item(SearchTemplateResponse response, Exception exception) {
@@ -78,22 +85,6 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
             return this.response;
         }
 
-        public static Item readItem(StreamInput in) throws IOException {
-            Item item = new Item();
-            item.readFrom(in);
-            return item;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            if (in.readBoolean()) {
-                this.response = new SearchTemplateResponse();
-                response.readFrom(in);
-            } else {
-                exception = in.readException();
-            }
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (response != null) {
@@ -113,17 +104,25 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         public String toString() {
             return "Item [response=" + response + ", exception=" + exception + "]";
         }
-        
-        
     }
 
-    private Item[] items;
-    private long tookInMillis; 
+    private final Item[] items;
+    private final long tookInMillis;
     
-    MultiSearchTemplateResponse() {
+    MultiSearchTemplateResponse(StreamInput in) throws IOException {
+        super(in);
+        items = new Item[in.readVInt()];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = new Item(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            tookInMillis = in.readVLong();
+        } else {
+            tookInMillis = -1L;
+        }
     }
 
-    public MultiSearchTemplateResponse(Item[] items, long tookInMillis) {
+    MultiSearchTemplateResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;
     }    
@@ -148,20 +147,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        items = new Item[in.readVInt()];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = Item.readItem(in);
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            tookInMillis = in.readVLong();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(items.length);
         for (Item item : items) {
             item.writeTo(out);

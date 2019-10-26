@@ -34,58 +34,14 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     // TODO: Simplify cursor handling
     private String cursor;
     private Mode mode;
+    private boolean columnar;
     private List<ColumnInfo> columns;
     // TODO investigate reusing Page here - it probably is much more efficient
     private List<List<Object>> rows;
     private static final String INTERVAL_CLASS_NAME = "Interval";
 
-    public SqlQueryResponse() {
-    }
-
-    public SqlQueryResponse(String cursor, Mode mode, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
-        this.cursor = cursor;
-        this.mode = mode;
-        this.columns = columns;
-        this.rows = rows;
-    }
-
-    /**
-     * The key that must be sent back to SQL to access the next page of
-     * results. If equal to "" then there is no next page.
-     */
-    public String cursor() {
-        return cursor;
-    }
-
-    public long size() {
-        return rows.size();
-    }
-
-    public List<ColumnInfo> columns() {
-        return columns;
-    }
-
-    public List<List<Object>> rows() {
-        return rows;
-    }
-
-    public SqlQueryResponse cursor(String cursor) {
-        this.cursor = cursor;
-        return this;
-    }
-
-    public SqlQueryResponse columns(List<ColumnInfo> columns) {
-        this.columns = columns;
-        return this;
-    }
-
-    public SqlQueryResponse rows(List<List<Object>> rows) {
-        this.rows = rows;
-        return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public SqlQueryResponse(StreamInput in) throws IOException {
+        super(in);
         cursor = in.readString();
         if (in.readBoolean()) {
             // We might have rows without columns and we might have columns without rows
@@ -112,6 +68,57 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         this.rows = unmodifiableList(rows);
+    }
+
+    public SqlQueryResponse(String cursor, Mode mode, boolean columnar, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
+        this.cursor = cursor;
+        this.mode = mode;
+        this.columnar = columnar;
+        this.columns = columns;
+        this.rows = rows;
+    }
+
+    /**
+     * The key that must be sent back to SQL to access the next page of
+     * results. If equal to "" then there is no next page.
+     */
+    public String cursor() {
+        return cursor;
+    }
+
+    public boolean hasCursor() {
+        return StringUtils.EMPTY.equals(cursor) == false;
+    }
+
+    public long size() {
+        return rows.size();
+    }
+
+    public List<ColumnInfo> columns() {
+        return columns;
+    }
+    
+    public boolean columnar() {
+        return columnar;
+    }
+
+    public List<List<Object>> rows() {
+        return rows;
+    }
+
+    public SqlQueryResponse cursor(String cursor) {
+        this.cursor = cursor;
+        return this;
+    }
+
+    public SqlQueryResponse columns(List<ColumnInfo> columns) {
+        this.columns = columns;
+        return this;
+    }
+
+    public SqlQueryResponse rows(List<List<Object>> rows) {
+        this.rows = rows;
+        return this;
     }
 
     @Override
@@ -150,15 +157,35 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 }
                 builder.endArray();
             }
-            builder.startArray("rows");
-            for (List<Object> row : rows()) {
-                builder.startArray();
-                for (Object value : row) {
-                    value(builder, mode, value);
+            
+            if (columnar) {
+                // columns can be specified (for the first REST request for example), or not (on a paginated/cursor based request)
+                // if the columns are missing, we take the first rows' size as the number of columns
+                long columnsCount = columns != null ? columns.size() : 0;
+                if (size() > 0) {
+                    columnsCount = rows().get(0).size();
+                }
+
+                builder.startArray("values");
+                for (int index = 0; index < columnsCount; index++) {
+                    builder.startArray();
+                    for (List<Object> row : rows()) {
+                        value(builder, mode, row.get(index));
+                    }
+                    builder.endArray();
+                }
+                builder.endArray();
+            } else {
+                builder.startArray("rows");
+                for (List<Object> row : rows()) {
+                    builder.startArray();
+                    for (Object value : row) {
+                        value(builder, mode, value);
+                    }
+                    builder.endArray();
                 }
                 builder.endArray();
             }
-            builder.endArray();
 
             if (cursor.equals("") == false) {
                 builder.field(CURSOR.getPreferredName(), cursor);

@@ -70,7 +70,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public void testMissingIndexThrowsMissingIndex() throws Exception {
-        TermVectorsRequestBuilder requestBuilder = client().prepareTermVectors("testX", "typeX", Integer.toString(1));
+        TermVectorsRequestBuilder requestBuilder = client().prepareTermVectors("testX", Integer.toString(1));
         MultiTermVectorsRequestBuilder mtvBuilder = client().prepareMultiTermVectors();
         mtvBuilder.add(requestBuilder.request());
         MultiTermVectorsResponse response = mtvBuilder.execute().actionGet();
@@ -84,19 +84,19 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
-        MultiTermVectorsResponse response = client().prepareMultiTermVectors().add(indexOrAlias(), "type1", "1").get();
+        MultiTermVectorsResponse response = client().prepareMultiTermVectors().add(indexOrAlias(), "1").get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(Versions.MATCH_ANY))
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(1))
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(2))
+                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(Versions.MATCH_ANY))
+                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(1))
+                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(2))
                 .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
@@ -118,10 +118,10 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         //Version from Lucene index
         refresh();
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field")
+                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field")
                     .version(Versions.MATCH_ANY).realtime(false))
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(1).realtime(false))
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(2).realtime(false))
+                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(1).realtime(false))
+                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(2).realtime(false))
                 .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
@@ -140,14 +140,14 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
 
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(Versions.MATCH_ANY))
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(1))
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(2))
+                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(Versions.MATCH_ANY))
+                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(1))
+                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(2))
                 .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
@@ -171,9 +171,9 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         //Version from Lucene index
         refresh();
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(Versions.MATCH_ANY))
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(1))
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(2))
+                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(Versions.MATCH_ANY))
+                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(1))
+                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(2))
                 .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default

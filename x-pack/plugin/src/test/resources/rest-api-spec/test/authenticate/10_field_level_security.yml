@@ -85,12 +85,11 @@ teardown:
           aliases:
             the_alias : {}
           mappings:
-            doc:
-              properties:
-                location:
-                  properties:
-                    city:
-                      type: "keyword"
+            properties:
+              location:
+                properties:
+                  city:
+                    type: "keyword"
           settings:
             index:
               number_of_shards: 1
@@ -100,9 +99,9 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "test_index", "_type": "doc"}}'
+            - '{"index": {"_index": "test_index"}}'
             - '{"marker": "test_1", "location.city": "bos"}'
-            - '{"index": {"_index": "test_index", "_type": "doc"}}'
+            - '{"index": {"_index": "test_index"}}'
             - '{"marker": "test_2", "location.city": "ams"}'
 
   - do:

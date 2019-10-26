@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 
 public class BasicFormatterTests extends ESTestCase {
     private final FormatOption format = randomFrom(FormatOption.values());
-    private final SqlQueryResponse firstResponse = new SqlQueryResponse("", format == CLI ? Mode.CLI : Mode.PLAIN,
+    private final SqlQueryResponse firstResponse = new SqlQueryResponse("", format == CLI ? Mode.CLI : Mode.PLAIN, false,
             Arrays.asList(
                     new ColumnInfo("", "foo", "string", 0),
                     new ColumnInfo("", "bar", "long", 15),

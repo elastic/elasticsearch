@@ -1,11 +1,12 @@
 ---
 "Test execute watch api":
+
   - do:
       cluster.health:
           wait_for_status: green
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_exe_watch"
         body:  >
           {
@@ -80,7 +81,7 @@
   - match: { _id: "my_exe_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_exe_watch"
 
   - match: { _id: "my_exe_watch" }
@@ -88,7 +89,7 @@
   - match: { watch.input.chain.inputs.1.second.transform.script.source: "return [ 'hits' : [ 'total' : ctx.payload.first.hits.total ]]" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_exe_watch"
         body: >
           {
@@ -123,16 +124,13 @@
 
 ---
 "Test execute watch api with rest_total_hits_as_int":
-  - skip:
-      version: " - 6.99.99"
-      reason: "rest_total_hits_as_int support was added in 7.0"
 
   - do:
       cluster.health:
         wait_for_status: green
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_exe_watch"
         body:  >
           {
@@ -207,7 +205,7 @@
   - match: { _id: "my_exe_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_exe_watch"
 
   - match: { _id: "my_exe_watch" }
@@ -215,7 +213,7 @@
   - match: { watch.input.chain.inputs.1.second.transform.script.source: "return [ 'hits' : [ 'total' : ctx.payload.first.hits.total ]]" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_exe_watch"
         body: >
           {

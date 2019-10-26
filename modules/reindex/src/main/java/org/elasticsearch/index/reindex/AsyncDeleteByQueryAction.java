@@ -23,27 +23,18 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * Implementation of delete-by-query using scrolling and bulk.
  */
-public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest> {
+public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
+
     public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService,
-                                    ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
-        super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
-    }
-
-    @Override
-    protected boolean needsSourceDocumentVersions() {
-        /*
-         * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
-         * changed.
-         */
-        return true;
+                                    ActionListener<BulkByScrollResponse> listener) {
+        super(task, false, true, logger, client, threadPool, request, listener, scriptService, null);
     }
 
     @Override
@@ -57,9 +48,9 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
     protected RequestWrapper<DeleteRequest> buildRequest(ScrollableHitSource.Hit doc) {
         DeleteRequest delete = new DeleteRequest();
         delete.index(doc.getIndex());
-        delete.type(doc.getType());
         delete.id(doc.getId());
-        delete.version(doc.getVersion());
+        delete.setIfSeqNo(doc.getSeqNo());
+        delete.setIfPrimaryTerm(doc.getPrimaryTerm());
         return wrap(delete);
     }
 

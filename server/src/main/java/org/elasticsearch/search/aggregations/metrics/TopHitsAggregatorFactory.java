@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -38,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactory> {
+class TopHitsAggregatorFactory extends AggregatorFactory {
 
     private final int from;
     private final int size;
@@ -53,12 +54,24 @@ class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactor
     private final List<ScriptFieldsContext.ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
-    TopHitsAggregatorFactory(String name, int from, int size, boolean explain, boolean version, boolean seqNoAndPrimaryTerm,
-            boolean trackScores, Optional<SortAndFormats> sort, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
-            List<FieldAndFormat> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, Map<String, Object> metaData)
-            throws IOException {
-        super(name, context, parent, subFactories, metaData);
+    TopHitsAggregatorFactory(String name,
+                                int from,
+                                int size,
+                                boolean explain,
+                                boolean version,
+                                boolean seqNoAndPrimaryTerm,
+                                boolean trackScores,
+                                Optional<SortAndFormats> sort,
+                                HighlightBuilder highlightBuilder,
+                                StoredFieldsContext storedFieldsContext,
+                                List<FieldAndFormat> docValueFields,
+                                List<ScriptFieldsContext.ScriptField> scriptFields,
+                                FetchSourceContext fetchSourceContext,
+                                QueryShardContext queryShardContext,
+                                AggregatorFactory parent,
+                                AggregatorFactories.Builder subFactories,
+                                Map<String, Object> metaData) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metaData);
         this.from = from;
         this.size = size;
         this.explain = explain;
@@ -74,10 +87,13 @@ class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactor
     }
 
     @Override
-    public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-        SubSearchContext subSearchContext = new SubSearchContext(context);
-        subSearchContext.parsedQuery(context.parsedQuery());
+    public Aggregator createInternal(SearchContext searchContext,
+                                        Aggregator parent,
+                                        boolean collectsFromSingleBucket,
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
+        SubSearchContext subSearchContext = new SubSearchContext(searchContext);
+        subSearchContext.parsedQuery(searchContext.parsedQuery());
         subSearchContext.explain(explain);
         subSearchContext.version(version);
         subSearchContext.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
@@ -100,9 +116,9 @@ class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactor
             subSearchContext.fetchSourceContext(fetchSourceContext);
         }
         if (highlightBuilder != null) {
-            subSearchContext.highlight(highlightBuilder.build(context.getQueryShardContext()));
+            subSearchContext.highlight(highlightBuilder.build(searchContext.getQueryShardContext()));
         }
-        return new TopHitsAggregator(context.fetchPhase(), subSearchContext, name, context, parent,
+        return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent,
                 pipelineAggregators, metaData);
     }
 

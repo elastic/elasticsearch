@@ -29,32 +29,28 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
             Arrays.asList(generateRandomStringArray(20, 15, false)),
             Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
-                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))),
-            randomIntBetween(0, 5));
+                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))));
         InvalidateTokenResponse response = new InvalidateTokenResponse(result);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                InvalidateTokenResponse serialized = new InvalidateTokenResponse();
-                serialized.readFrom(input);
+                InvalidateTokenResponse serialized = new InvalidateTokenResponse(input);
                 assertThat(serialized.getResult().getInvalidatedTokens(), equalTo(response.getResult().getInvalidatedTokens()));
                 assertThat(serialized.getResult().getPreviouslyInvalidatedTokens(),
                     equalTo(response.getResult().getPreviouslyInvalidatedTokens()));
                 assertThat(serialized.getResult().getErrors().size(), equalTo(response.getResult().getErrors().size()));
-                assertThat(serialized.getResult().getErrors().get(0).toString(), containsString("this is an error message"));
-                assertThat(serialized.getResult().getErrors().get(1).toString(), containsString("this is an error message2"));
+                assertThat(serialized.getResult().getErrors().get(0).getCause().getMessage(), containsString("this is an error message"));
+                assertThat(serialized.getResult().getErrors().get(1).getCause().getMessage(), containsString("this is an error message2"));
             }
         }
 
         result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
-            Arrays.asList(generateRandomStringArray(20, 15, false)),
-            Collections.emptyList(), randomIntBetween(0, 5));
+            Arrays.asList(generateRandomStringArray(20, 15, false)), Collections.emptyList());
         response = new InvalidateTokenResponse(result);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                InvalidateTokenResponse serialized = new InvalidateTokenResponse();
-                serialized.readFrom(input);
+                InvalidateTokenResponse serialized = new InvalidateTokenResponse(input);
                 assertThat(serialized.getResult().getInvalidatedTokens(), equalTo(response.getResult().getInvalidatedTokens()));
                 assertThat(serialized.getResult().getPreviouslyInvalidatedTokens(),
                     equalTo(response.getResult().getPreviouslyInvalidatedTokens()));
@@ -68,8 +64,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         List previouslyInvalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
         TokensInvalidationResult result = new TokensInvalidationResult(invalidatedTokens, previouslyInvalidatedTokens,
             Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
-                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))),
-            randomIntBetween(0, 5));
+                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))));
         InvalidateTokenResponse response = new InvalidateTokenResponse(result);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -32,9 +33,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
@@ -43,7 +46,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -52,14 +54,13 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverRequestTests extends ESTestCase {
-
     private NamedWriteableRegistry writeableRegistry;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        writeableRegistry = new NamedWriteableRegistry(new IndicesModule(Collections.emptyList()).getNamedWriteables());
+        writeableRegistry = new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
     }
 
     public void testConditionsParsing() throws Exception {
@@ -72,7 +73,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .field("max_size", "45gb")
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
+        request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(3));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
@@ -108,12 +109,41 @@ public class RolloverRequestTests extends ESTestCase {
                     .startObject("alias1").endObject()
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
+        request.fromXContent(true, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));
         assertThat(request.getCreateIndexRequest().aliases().size(), equalTo(1));
         assertThat(request.getCreateIndexRequest().settings().getAsInt("number_of_shards", 0), equalTo(10));
+    }
+
+    public void testTypelessMappingParsing() throws Exception {
+        final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("mappings")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+
+        boolean includeTypeName = false;
+        request.fromXContent(includeTypeName, createParser(builder));
+
+        CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
+        String mapping = createIndexRequest.mappings().get(MapperService.SINGLE_MAPPING_NAME);
+        assertNotNull(mapping);
+
+        Map<String, Object> parsedMapping = XContentHelper.convertToMap(
+            new BytesArray(mapping), false, XContentType.JSON).v2();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) parsedMapping.get(MapperService.SINGLE_MAPPING_NAME);
+        assertNotNull(properties);
+        assertFalse(properties.isEmpty());
     }
 
     public void testSerialize() throws Exception {
@@ -125,8 +155,7 @@ public class RolloverRequestTests extends ESTestCase {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
             try (StreamInput in = new NamedWriteableAwareStreamInput(bytes.streamInput(), writeableRegistry)) {
-                RolloverRequest cloneRequest = new RolloverRequest();
-                cloneRequest.readFrom(in);
+                RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getAlias(), equalTo(originalRequest.getAlias()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
@@ -147,7 +176,7 @@ public class RolloverRequestTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(rolloverRequest, xContentType, EMPTY_PARAMS, humanReadable);
 
         RolloverRequest parsedRolloverRequest = new RolloverRequest();
-        parsedRolloverRequest.fromXContent(createParser(xContentType.xContent(), originalBytes));
+        parsedRolloverRequest.fromXContent(true, createParser(xContentType.xContent(), originalBytes));
 
         CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
         CreateIndexRequest parsedCreateIndexRequest = parsedRolloverRequest.getCreateIndexRequest();
@@ -172,7 +201,7 @@ public class RolloverRequestTests extends ESTestCase {
         }
         builder.endObject();
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
-        expectThrows(XContentParseException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
+        expectThrows(XContentParseException.class, () -> request.fromXContent(false, createParser(xContentType.xContent(), mutated)));
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {

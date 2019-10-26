@@ -100,12 +100,16 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hashCode(sum);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sum);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalSum that = (InternalSum) obj;
         return Objects.equals(sum, that.sum);
     }

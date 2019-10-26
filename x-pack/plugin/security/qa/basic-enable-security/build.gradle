@@ -1,0 +1,60 @@
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+integTest {
+    description = "Run tests against a cluster that doesn't have security"
+    runner {
+        systemProperty 'tests.has_security', 'false'
+    }
+}
+
+testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    numberOfNodes = 2
+    setting 'xpack.ilm.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'basic'
+    setting 'xpack.security.enabled', 'false'
+}
+
+task integTestSecurity(type: RestTestRunnerTask) {
+    description = "Run tests against a cluster that has security"
+    useCluster testClusters.integTest
+    dependsOn integTest
+    systemProperty 'tests.has_security', 'true'
+
+    doFirst {
+        testClusters.integTest {
+            // Reconfigure cluster to enable security
+            setting 'xpack.security.enabled', 'true'
+            setting 'xpack.security.authc.anonymous.roles', 'anonymous'
+            setting 'xpack.security.transport.ssl.enabled', 'true'
+            setting 'xpack.security.transport.ssl.certificate', 'transport.crt'
+            setting 'xpack.security.transport.ssl.key', 'transport.key'
+            setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
+            setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
+
+            extraConfigFile 'transport.key', file('src/test/resources/ssl/transport.key')
+            extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
+            extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
+            extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+
+            user username: "admin_user", password: "admin-password"
+            user username: "security_test_user", password: "security-test-password", role: "security_test_role"
+
+            restart()
+        }
+        nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.integTest.getAllHttpSocketURI().join(",")}"
+    }
+}
+check.dependsOn(integTestSecurity)
+

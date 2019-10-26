@@ -30,8 +30,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class TransportUnfollowActionTests extends ESTestCase {
 
     public void testUnfollow() {
+        final long settingsVersion = randomNonNegativeLong();
         IndexMetaData.Builder followerIndex = IndexMetaData.builder("follow_index")
             .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settingsVersion(settingsVersion)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetaData.State.CLOSE)
@@ -47,6 +49,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
         IndexMetaData resultIMD = result.metaData().index("follow_index");
         assertThat(resultIMD.getSettings().get(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey()), nullValue());
         assertThat(resultIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY), nullValue());
+        assertThat(resultIMD.getSettingsVersion(), equalTo(settingsVersion + 1));
     }
 
     public void testUnfollowIndexOpen() {
@@ -80,11 +83,11 @@ public class TransportUnfollowActionTests extends ESTestCase {
             new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0),
             1024,
-            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
-            1,
             1024,
-            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             1,
+            1,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             10240,
             new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),

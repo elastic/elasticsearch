@@ -1,0 +1,62 @@
+---
+setup:
+  - do:
+      indices.create:
+          index: test
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+
+---
+"Translog stats on frozen indices":
+  - skip:
+      version: " - 7.9.99"
+      reason:  "start ignoring translog retention policy with soft-deletes enabled in 8.0"
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  { "foo": "bar" }
+
+  - do:
+      index:
+        index: test
+        id:    2
+        body:  { "foo": "bar" }
+
+  - do:
+      index:
+        index: test
+        id:    3
+        body:  { "foo": "bar" }
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
+  - match: { indices.test.primaries.translog.operations: 3 }
+  - match: { indices.test.primaries.translog.uncommitted_operations: 3 }
+
+  # freeze index
+  - do:
+      indices.freeze:
+        index: test
+  - is_true: acknowledged
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
+  - match: { indices.test.primaries.translog.operations: 0 }
+  - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
+
+  # unfreeze index
+  - do:
+      indices.unfreeze:
+        index: test
+  - is_true: acknowledged
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
+  - match: { indices.test.primaries.translog.operations: 0 }
+  - match: { indices.test.primaries.translog.uncommitted_operations: 0 }

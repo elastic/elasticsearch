@@ -1,6 +1,23 @@
+// To mute tests follow example in file: example.sql-spec
+
 //
-// Null expressions
+// Null conditionals
 //
+
+coalesceFirstNotNull
+SELECT COALESCE(123) AS c;
+
+coalesceWithFirstNullOfString
+SELECT COALESCE(null, 'first') AS c;
+
+coalesceWithFirstNullOfNumber
+SELECT COALESCE(null, 123) AS c;
+
+coalesceMixedWithAlias
+SELECT COALESCE(null, 123, null, 321) AS c;
+
+coalesceScalar
+SELECT COALESCE(null, ABS(123) + 1) AS c;
 
 coalesceField
 SELECT COALESCE(null, ABS(emp_no) + 1) AS c FROM test_emp ORDER BY emp_no LIMIT 5;

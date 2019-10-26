@@ -22,31 +22,14 @@ set -e
 # KDC installation steps and considerations based on https://web.mit.edu/kerberos/krb5-latest/doc/admin/install_kdc.html
 # and helpful input from https://help.ubuntu.com/community/Kerberos
 
-VDIR=/vagrant
+VDIR=/fixture
 RESOURCES=$VDIR/src/main/resources
 PROV_DIR=$RESOURCES/provision
 ENVPROP_FILE=$RESOURCES/env.properties
-BUILD_DIR=$VDIR/build
-CONF_DIR=$BUILD_DIR/conf
-KEYTAB_DIR=$BUILD_DIR/keytabs
 LOCALSTATEDIR=/etc
 LOGDIR=/var/log/krb5
 
 MARKER_FILE=/etc/marker
-
-# Output location for our rendered configuration files and keytabs
-mkdir -p $BUILD_DIR
-rm -rf $BUILD_DIR/*
-mkdir -p $CONF_DIR
-mkdir -p $KEYTAB_DIR
-
-if [ -f $MARKER_FILE ]; then
-  echo "Already provisioned..."
-  echo "Recopying configuration files..."
-  cp $LOCALSTATEDIR/krb5.conf $CONF_DIR/krb5.conf
-  cp $LOCALSTATEDIR/krb5kdc/kdc.conf $CONF_DIR/kdc.conf
-  exit 0;
-fi
 
 # Pull environment information
 REALM_NAME=$(cat $ENVPROP_FILE | grep realm= | cut -d '=' -f 2)
@@ -60,7 +43,7 @@ sed -i 's/${REALM_NAME}/'$REALM_NAME'/g' $LOCALSTATEDIR/krb5.conf
 sed -i 's/${KDC_NAME}/'$KDC_NAME'/g' $LOCALSTATEDIR/krb5.conf
 sed -i 's/${BUILD_ZONE}/'$BUILD_ZONE'/g' $LOCALSTATEDIR/krb5.conf
 sed -i 's/${ELASTIC_ZONE}/'$ELASTIC_ZONE'/g' $LOCALSTATEDIR/krb5.conf
-cp $LOCALSTATEDIR/krb5.conf $CONF_DIR/krb5.conf
+
 
 # Transfer and interpolate the kdc.conf
 mkdir -p $LOCALSTATEDIR/krb5kdc
@@ -69,7 +52,6 @@ sed -i 's/${REALM_NAME}/'$REALM_NAME'/g' $LOCALSTATEDIR/krb5kdc/kdc.conf
 sed -i 's/${KDC_NAME}/'$KDC_NAME'/g' $LOCALSTATEDIR/krb5kdc/kdc.conf
 sed -i 's/${BUILD_ZONE}/'$BUILD_ZONE'/g' $LOCALSTATEDIR/krb5kdc/kdc.conf
 sed -i 's/${ELASTIC_ZONE}/'$ELASTIC_ZONE'/g' $LOCALSTATEDIR/krb5.conf
-cp $LOCALSTATEDIR/krb5kdc/kdc.conf $CONF_DIR/kdc.conf
 
 # Touch logging locations
 mkdir -p $LOGDIR
@@ -112,9 +94,5 @@ EOF
 kadmin.local -q "addprinc -pw elastic admin/admin@$REALM_NAME"
 kadmin.local -q "ktadd -k /etc/admin.keytab admin/admin@$REALM_NAME"
 
-# Start Kerberos Services
-krb5kdc
-kadmind
-
-# Mark that the vm is already provisioned
-touch $MARKER_FILE
+# Create a link so addprinc.sh is on path
+ln -s $PROV_DIR/addprinc.sh /usr/bin/

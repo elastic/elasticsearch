@@ -19,23 +19,29 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
 
 public class TransportPendingClusterTasksAction
         extends TransportMasterNodeReadAction<PendingClusterTasksRequest, PendingClusterTasksResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPendingClusterTasksAction.class);
 
     private final ClusterService clusterService;
 
@@ -44,7 +50,7 @@ public class TransportPendingClusterTasksAction
                                               ThreadPool threadPool, ActionFilters actionFilters,
                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              PendingClusterTasksRequest::new, indexNameExpressionResolver);
+            PendingClusterTasksRequest::new, indexNameExpressionResolver);
         this.clusterService = clusterService;
     }
 
@@ -55,17 +61,17 @@ public class TransportPendingClusterTasksAction
     }
 
     @Override
+    protected PendingClusterTasksResponse read(StreamInput in) throws IOException {
+        return new PendingClusterTasksResponse(in);
+    }
+
+    @Override
     protected ClusterBlockException checkBlock(PendingClusterTasksRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return null;
     }
 
     @Override
-    protected PendingClusterTasksResponse newResponse() {
-        return new PendingClusterTasksResponse();
-    }
-
-    @Override
-    protected void masterOperation(PendingClusterTasksRequest request, ClusterState state,
+    protected void masterOperation(Task task, PendingClusterTasksRequest request, ClusterState state,
                                    ActionListener<PendingClusterTasksResponse> listener) {
         logger.trace("fetching pending tasks from cluster service");
         final List<PendingClusterTask> pendingTasks = clusterService.getMasterService().pendingTasks();

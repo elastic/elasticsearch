@@ -22,6 +22,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.test.WatchExecutionContextMockBuilder;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -57,7 +59,8 @@ public class TransportPutWatchActionTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
 
         WatchParser parser = mock(WatchParser.class);
-        when(parser.parseWithSecrets(eq("_id"), eq(false), anyObject(), anyObject(), anyObject(), anyBoolean())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq("_id"), eq(false), anyObject(), anyObject(), anyObject(), anyBoolean(), anyLong(), anyLong()))
+            .thenReturn(watch);
 
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -67,13 +70,13 @@ public class TransportPutWatchActionTests extends ESTestCase {
             ActionListener<IndexResponse> listener = (ActionListener) invocation.getArguments()[2];
 
             ShardId shardId = new ShardId(new Index(Watch.INDEX, "uuid"), 0);
-            listener.onResponse(new IndexResponse(shardId, request.type(), request.id(), 1, 1, 1, true));
+            listener.onResponse(new IndexResponse(shardId, request.id(), 1, 1, 1, true));
 
             return null;
         }).when(client).execute(any(), any(), any());
 
         action = new TransportPutWatchAction(transportService, threadPool, new ActionFilters(Collections.emptySet()),
-            new ClockMock(), new XPackLicenseState(Settings.EMPTY), parser, client);
+            new ClockHolder(new ClockMock()), new XPackLicenseState(Settings.EMPTY), parser, client);
     }
 
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {

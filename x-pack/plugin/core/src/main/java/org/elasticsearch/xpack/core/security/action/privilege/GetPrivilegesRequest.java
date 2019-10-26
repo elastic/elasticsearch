@@ -27,6 +27,12 @@ public final class GetPrivilegesRequest extends ActionRequest implements Applica
     private String application;
     private String[] privileges;
 
+    public GetPrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        application = in.readOptionalString();
+        privileges = in.readStringArray();
+    }
+
     public GetPrivilegesRequest() {
         privileges = Strings.EMPTY_ARRAY;
     }
@@ -62,17 +68,9 @@ public final class GetPrivilegesRequest extends ActionRequest implements Applica
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        application = in.readOptionalString();
-        privileges = in.readStringArray();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(application);
         out.writeStringArray(privileges);
     }
-
 }

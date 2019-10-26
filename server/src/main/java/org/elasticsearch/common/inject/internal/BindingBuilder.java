@@ -27,13 +27,11 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.lang.annotation.Annotation;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Bind a non-constant key.
@@ -92,7 +90,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
                 for (Message message : e.getErrorMessages()) {
                     binder.addError(message);
                 }
-                injectionPoints = unmodifiableSet(new HashSet<InjectionPoint>(e.getPartialValue()));
+                injectionPoints = Set.copyOf(e.getPartialValue());
             }
         } else {
             binder.addError(BINDING_TO_NULL);
@@ -117,7 +115,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
             for (Message message : e.getErrorMessages()) {
                 binder.addError(message);
             }
-            injectionPoints = unmodifiableSet(new HashSet<InjectionPoint>(e.getPartialValue()));
+            injectionPoints = Set.copyOf(e.getPartialValue());
         }
 
         BindingImpl<T> base = getBinding();

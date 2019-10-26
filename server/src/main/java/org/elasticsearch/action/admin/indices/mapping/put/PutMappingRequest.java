@@ -20,9 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -77,6 +75,16 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     private String origin = "";
 
     private Index concreteIndex;
+
+    public PutMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        type = in.readOptionalString();
+        source = in.readString();
+        concreteIndex = in.readOptionalWriteable(Index::new);
+        origin = in.readOptionalString();
+    }
 
     public PutMappingRequest() {
     }
@@ -302,37 +310,14 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        type = in.readOptionalString();
-        source = in.readString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readBoolean(); // updateAllTypes
-        }
-        concreteIndex = in.readOptionalWriteable(Index::new);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeBoolean(true); // updateAllTypes
-        }
         out.writeOptionalWriteable(concreteIndex);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeOptionalString(origin);
-        }
+        out.writeOptionalString(origin);
     }
 
     @Override

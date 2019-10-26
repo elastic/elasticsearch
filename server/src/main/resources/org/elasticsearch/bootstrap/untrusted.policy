@@ -22,16 +22,6 @@
  * This is what is needed for basic functionality to work.
  */
 grant {
-  
-  // groovy IndyInterface bootstrap requires this property for indy logging
-  permission java.util.PropertyPermission "groovy.indy.logging", "read";
-  // groovy requires this to enable workaround for certain JVMs (https://github.com/apache/groovy/pull/137)
-  permission java.util.PropertyPermission "java.vm.name", "read";
-  permission java.util.PropertyPermission "groovy.use.classvalue", "read";
-  
-  // needed by Rhino engine exception handling
-  permission java.util.PropertyPermission "rhino.stack.style", "read";
-
   // needed IndyInterface selectMethod (setCallSiteTarget)
   // TODO: clean this up / only give it to engines that really must have it
   permission java.lang.RuntimePermission "getClassLoader";

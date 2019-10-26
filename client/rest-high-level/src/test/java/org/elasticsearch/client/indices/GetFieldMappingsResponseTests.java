@@ -44,14 +44,14 @@ public class GetFieldMappingsResponseTests extends ESTestCase {
             .test();
     }
 
-    Predicate<String> getRandomFieldsExcludeFilter() {
+    private Predicate<String> getRandomFieldsExcludeFilter() {
         // allow random fields at the level of `index` and `index.mappings.field`
         // otherwise random field could be evaluated as index name or type name
         return s -> false == (s.matches("(?<index>[^.]+)")
             || s.matches("(?<index>[^.]+)\\.mappings\\.(?<field>[^.]+)"));
     }
 
-    static GetFieldMappingsResponse createTestInstance() {
+    private static GetFieldMappingsResponse createTestInstance() {
         Map<String, Map<String, FieldMappingMetaData>> mappings = new HashMap<>();
         // if mappings is empty, means that fields are not found
         if (randomBoolean()) {
@@ -72,12 +72,11 @@ public class GetFieldMappingsResponseTests extends ESTestCase {
     }
 
     // As the client class GetFieldMappingsResponse doesn't have toXContent method, adding this method here only for the test
-    static void toXContent(GetFieldMappingsResponse response, XContentBuilder builder) throws IOException {
+    private static void toXContent(GetFieldMappingsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         for (Map.Entry<String, Map<String, FieldMappingMetaData>> indexEntry : response.mappings().entrySet()) {
             builder.startObject(indexEntry.getKey());
             builder.startObject("mappings");
-            Map<String, FieldMappingMetaData> mappings = null;
             for (Map.Entry<String, FieldMappingMetaData> fieldEntry : indexEntry.getValue().entrySet()) {
                 builder.startObject(fieldEntry.getKey());
                 builder.field("full_name", fieldEntry.getValue().fullName());

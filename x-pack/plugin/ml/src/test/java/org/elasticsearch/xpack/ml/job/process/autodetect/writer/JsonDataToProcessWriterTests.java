@@ -124,7 +124,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         try (CategorizationAnalyzer categorizationAnalyzer =
-                     new CategorizationAnalyzer(analysisRegistry, environment, analysisConfig.getCategorizationAnalyzerConfig())) {
+                     new CategorizationAnalyzer(analysisRegistry, analysisConfig.getCategorizationAnalyzerConfig())) {
             writer.write(inputStream, categorizationAnalyzer, XContentType.JSON, (r, e) -> {});
         }
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();

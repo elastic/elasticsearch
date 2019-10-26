@@ -20,7 +20,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
@@ -54,14 +53,16 @@ public class ClusterFormationFailureHelper {
     private final Supplier<ClusterFormationState> clusterFormationStateSupplier;
     private final ThreadPool threadPool;
     private final TimeValue clusterFormationWarningTimeout;
+    private final Runnable logLastFailedJoinAttempt;
     @Nullable // if no warning is scheduled
     private volatile WarningScheduler warningScheduler;
 
     public ClusterFormationFailureHelper(Settings settings, Supplier<ClusterFormationState> clusterFormationStateSupplier,
-                                         ThreadPool threadPool) {
+                                         ThreadPool threadPool, Runnable logLastFailedJoinAttempt) {
         this.clusterFormationStateSupplier = clusterFormationStateSupplier;
         this.threadPool = threadPool;
         this.clusterFormationWarningTimeout = DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(settings);
+        this.logLastFailedJoinAttempt = logLastFailedJoinAttempt;
     }
 
     public boolean isRunning() {
@@ -94,6 +95,7 @@ public class ClusterFormationFailureHelper {
                 @Override
                 protected void doRun() {
                     if (isActive()) {
+                        logLastFailedJoinAttempt.run();
                         logger.warn(clusterFormationStateSupplier.get().getDescription());
                     }
                 }
@@ -119,19 +121,21 @@ public class ClusterFormationFailureHelper {
         private final List<TransportAddress> resolvedAddresses;
         private final List<DiscoveryNode> foundPeers;
         private final long currentTerm;
+        private final ElectionStrategy electionStrategy;
 
         ClusterFormationState(Settings settings, ClusterState clusterState, List<TransportAddress> resolvedAddresses,
-                              List<DiscoveryNode> foundPeers, long currentTerm) {
+                              List<DiscoveryNode> foundPeers, long currentTerm, ElectionStrategy electionStrategy) {
             this.settings = settings;
             this.clusterState = clusterState;
             this.resolvedAddresses = resolvedAddresses;
             this.foundPeers = foundPeers;
             this.currentTerm = currentTerm;
+            this.electionStrategy = electionStrategy;
         }
 
         String getDescription() {
-            final List<String> clusterStateNodes
-                = StreamSupport.stream(clusterState.nodes().spliterator(), false).map(DiscoveryNode::toString).collect(Collectors.toList());
+            final List<String> clusterStateNodes = StreamSupport.stream(clusterState.nodes().getMasterNodes().values().spliterator(), false)
+                .map(n -> n.value.toString()).collect(Collectors.toList());
 
             final String discoveryWillContinueDescription = String.format(Locale.ROOT,
                 "discovery will continue using %s from hosts providers and %s from last-known cluster state; " +
@@ -147,8 +151,6 @@ public class ClusterFormationFailureHelper {
 
             if (clusterState.getLastAcceptedConfiguration().isEmpty()) {
 
-                // TODO handle the case that there is a 6.x node around here, when rolling upgrades are supported
-
                 final String bootstrappingDescription;
 
                 if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
@@ -161,11 +163,17 @@ public class ClusterFormationFailureHelper {
                 }
 
                 return String.format(Locale.ROOT,
-                    "master not discovered yet, this node has not previously joined a bootstrapped (v%d+) cluster, and %s: %s",
-                    Version.V_6_6_0.major + 1, bootstrappingDescription, discoveryStateIgnoringQuorum);
+                    "master not discovered yet, this node has not previously joined a bootstrapped cluster, and %s: %s",
+                    bootstrappingDescription, discoveryStateIgnoringQuorum);
             }
 
             assert clusterState.getLastCommittedConfiguration().isEmpty() == false;
+
+            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
+                return String.format(Locale.ROOT,
+                        "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
+                        foundPeers, discoveryWillContinueDescription);
+            }
 
             final String quorumDescription;
             if (clusterState.getLastAcceptedConfiguration().equals(clusterState.getLastCommittedConfiguration())) {
@@ -179,7 +187,9 @@ public class ClusterFormationFailureHelper {
             final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
             final String isQuorumOrNot
-                = CoordinationState.isElectionQuorum(voteCollection, clusterState) ? "is a quorum" : "is not a quorum";
+                = electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), currentTerm, clusterState.term(),
+                    clusterState.version(), clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(),
+                    voteCollection) ? "is a quorum" : "is not a quorum";
 
             return String.format(Locale.ROOT,
                 "master not discovered or elected yet, an election requires %s, have discovered %s which %s; %s",

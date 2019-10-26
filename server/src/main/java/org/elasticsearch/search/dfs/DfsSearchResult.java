@@ -25,7 +25,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,11 +42,22 @@ public class DfsSearchResult extends SearchPhaseResult {
     private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
     private int maxDoc;
 
-    public DfsSearchResult() {
-    }
-
     public DfsSearchResult(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        requestId = in.readLong();
+        int termsSize = in.readVInt();
+        if (termsSize == 0) {
+            terms = EMPTY_TERMS;
+        } else {
+            terms = new Term[termsSize];
+            for (int i = 0; i < terms.length; i++) {
+                terms[i] = new Term(in.readString(), in.readBytesRef());
+            }
+        }
+        this.termStatistics = readTermStats(in, terms);
+        fieldStatistics = readFieldStats(in);
+
+        maxDoc = in.readVInt();
     }
 
     public DfsSearchResult(long id, SearchShardTarget shardTarget) {
@@ -87,29 +97,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         return fieldStatistics;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        requestId = in.readLong();
-        int termsSize = in.readVInt();
-        if (termsSize == 0) {
-            terms = EMPTY_TERMS;
-        } else {
-            terms = new Term[termsSize];
-            for (int i = 0; i < terms.length; i++) {
-                terms[i] = new Term(in.readString(), in.readBytesRef());
-            }
-        }
-        this.termStatistics = readTermStats(in, terms);
-        readFieldStats(in, fieldStatistics);
-
-
-        maxDoc = in.readVInt();
-    }
-
   @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeLong(requestId);
         out.writeVInt(terms.length);
         for (Term term : terms) {
@@ -130,16 +119,10 @@ public class DfsSearchResult extends SearchPhaseResult {
             CollectionStatistics statistics = c.value;
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                // stats are always positive numbers
-                out.writeVLong(statistics.docCount());
-                out.writeVLong(statistics.sumTotalTermFreq());
-                out.writeVLong(statistics.sumDocFreq());
-            } else {
-                out.writeVLong(addOne(statistics.docCount()));
-                out.writeVLong(addOne(statistics.sumTotalTermFreq()));
-                out.writeVLong(addOne(statistics.sumDocFreq()));
-            }
+            // stats are always positive numbers
+            out.writeVLong(statistics.docCount());
+            out.writeVLong(statistics.sumTotalTermFreq());
+            out.writeVLong(statistics.sumDocFreq());
         }
     }
 
@@ -161,40 +144,24 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
-        return readFieldStats(in, null);
-    }
-
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in,
-            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         final int numFieldStatistics = in.readVInt();
-        if (fieldStatistics == null) {
-            fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
-        }
+        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;
             final long maxDoc = in.readVLong();
-            final long docCount;
-            final long sumTotalTermFreq;
-            final long sumDocFreq;
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                // stats are always positive numbers
-                docCount = in.readVLong();
-                sumTotalTermFreq = in.readVLong();
-                sumDocFreq = in.readVLong();
-            } else {
-                docCount = subOne(in.readVLong());
-                sumTotalTermFreq = subOne(in.readVLong());
-                sumDocFreq = subOne(in.readVLong());
-            }
+            // stats are always positive numbers
+            final long docCount = in.readVLong();
+            final long sumTotalTermFreq = in.readVLong();
+            final long sumDocFreq = in.readVLong();
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
         }
         return fieldStatistics;
     }
 
-    public static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {
+    static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {
         int termsStatsSize = in.readVInt();
         final TermStatistics[] termStatistics;
         if (termsStatsSize == 0) {
@@ -216,7 +183,6 @@ public class DfsSearchResult extends SearchPhaseResult {
         return termStatistics;
     }
 
-
     /*
      * optional statistics are set to -1 in lucene by default.
      * Since we are using var longs to encode values we add one to each value
@@ -227,7 +193,6 @@ public class DfsSearchResult extends SearchPhaseResult {
         return value + 1;
     }
 
-
     /*
      * See #addOne this just subtracting one and asserts that the actual value
      * is positive.
@@ -236,5 +201,4 @@ public class DfsSearchResult extends SearchPhaseResult {
         assert value >= 0;
         return value - 1;
     }
-
 }

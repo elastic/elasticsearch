@@ -1,0 +1,22 @@
+// This file is auto-generated. Do not edit.
+
+
+[role="exclude",id="painless-api-reference-analysis-org-elasticsearch-analysis-common"]
+=== Analysis API for package org.elasticsearch.analysis.common
+See the <<painless-api-reference-analysis, Analysis API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-analysis-AnalysisPredicateScript-Token]]
+==== AnalysisPredicateScript.Token
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int getEndOffset()
+* int getPosition()
+* int getPositionIncrement()
+* int getPositionLength()
+* int getStartOffset()
+* CharSequence getTerm()
+* String getType()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean isKeyword()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

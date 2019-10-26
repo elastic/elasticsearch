@@ -1,0 +1,65 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-syntax-show-tables]]
+=== SHOW TABLES
+
+.Synopsis
+[source, sql]
+----
+SHOW TABLES
+    [INCLUDE FROZEN]?   <1>
+    [table identifier | <2>
+    [LIKE pattern ]]?   <3>
+----
+
+<1> Whether or not to include frozen indices
+<2> single table identifier or double quoted es multi index
+<3> SQL LIKE pattern
+
+See <<sql-index-patterns, index patterns>> for more information about
+patterns.
+
+
+.Description
+
+List the tables available to the current user and their type.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTables]
+----
+
+Match multiple indices by using {es} <<multi-index,multi index syntax>>
+notation:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesEsMultiIndex]
+----
+
+One can also use the `LIKE` clause to restrict the list of names to the given pattern.
+
+The pattern can be an exact match:
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeExact]
+----
+
+Multiple chars:
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeWildcard]
+----
+
+A single char:
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeOneChar]
+----
+
+
+Or a mixture of single and multiple chars:
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeMixed]
+----

@@ -99,6 +99,34 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    /**
+     * Testcase for https://github.com/elastic/elasticsearch/issues/37303
+     */
+    public void testVarianceNonNegative() throws IOException {
+        MappedFieldType ft =
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+        ft.setName("field");
+        final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
+        testCase(ft,
+            iw -> {
+                int numDocs = 3;
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    double value = 49.95d;
+                    long valueAsLong = NumericUtils.doubleToSortableLong(value);
+                    doc.add(new SortedNumericDocValuesField("field", valueAsLong));
+                    expected.add(value);
+                    iw.addDocument(doc);
+                }
+            },
+            stats -> {
+                //since the value(49.95) is a constant, variance should be 0
+                assertEquals(0.0d, stats.getVariance(), TOLERANCE);
+                assertEquals(0.0d, stats.getStdDeviation(), TOLERANCE);
+            }
+        );
+    }
+
     public void testRandomLongs() throws IOException {
         MappedFieldType ft =
             new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
@@ -236,7 +264,8 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         }
 
         double variance() {
-            return (sumOfSqrs - ((sum * sum) / count)) / count;
+            double variance = (sumOfSqrs - ((sum * sum) / count)) / count;
+            return variance < 0  ? 0 : variance;
         }
     }
 }

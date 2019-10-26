@@ -1,0 +1,17 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-field]]
+=== Field API
+
+The following specialized API is available in the Field context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== Static Methods
+The following methods are directly callable without a class/instance qualifier. Note parameters denoted by a (*) are treated as read-only values.
+
+* List domainSplit(String)
+* List domainSplit(String, Map)
+
+include::packages.asciidoc[]
+

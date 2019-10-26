@@ -1,9 +1,0 @@
-[[java-query-dsl-query-string-query]]
-==== Query String Query
-
-See {ref}/query-dsl-query-string-query.html[Query String Query]
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{query-dsl-test}[query_string]
---------------------------------------------------

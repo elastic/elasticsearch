@@ -2,7 +2,7 @@
 === Field context
 
 Use a Painless script to create a
-{ref}/search-request-script-fields.html[script field] to return
+{ref}/search-request-body.html#request-body-search-script-fields[script field] to return
 a customized value for each document in the results of a query.
 
 *Variables*
@@ -25,7 +25,8 @@ a customized value for each document in the results of a query.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+Both the standard <<painless-api-reference-shared, Painless API>> and
+<<painless-api-reference-field, Specialized Field API>> are available.
 
 
 *Example*
@@ -59,7 +60,7 @@ params['_source']['actors'].length;                        <1>
 
 Submit the following request:
 
-[source,js]
+[source,console]
 ----
 GET seats/_search
 {
@@ -80,5 +81,4 @@ GET seats/_search
     }
 }
 ----
-// CONSOLE
 // TEST[skip: requires setup from other pages]

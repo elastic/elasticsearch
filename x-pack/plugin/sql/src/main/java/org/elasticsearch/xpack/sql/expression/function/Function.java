@@ -49,11 +49,6 @@ public abstract class Function extends NamedExpression {
         return Expressions.nullable(children());
     }
 
-    @Override
-    public String toString() {
-        return sourceText() + "#" + id();
-    }
-
     public String functionName() {
         return functionName;
     }

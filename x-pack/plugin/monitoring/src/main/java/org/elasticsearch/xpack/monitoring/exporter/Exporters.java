@@ -179,6 +179,14 @@ public class Exporters extends AbstractLifecycleComponent {
         }
 
         final Map<String, Exporter> exporterMap = exporters.get();
+
+        // if no exporters are defined (which is only possible if all are defined explicitly disabled),
+        // then ignore the request immediately
+        if (exporterMap.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+
         final AtomicArray<ExportBulk> accumulatedBulks = new AtomicArray<>(exporterMap.size());
         final CountDown countDown = new CountDown(exporterMap.size());
 
@@ -225,7 +233,7 @@ public class Exporters extends AbstractLifecycleComponent {
         } catch (ExportException e) {
             exceptionRef.set(e);
         } finally {
-            bulk.close(lifecycleState() == Lifecycle.State.STARTED, ActionListener.wrap(r -> {
+            bulk.flush(ActionListener.wrap(r -> {
                 if (exceptionRef.get() == null) {
                     listener.onResponse(null);
                 } else {

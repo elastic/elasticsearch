@@ -38,7 +38,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
         boolean reached(int runs) {
             if (runs >= this.runs) {
-                throw new RuleExecutionException("Rule execution limit %d reached", runs);
+                throw new RuleExecutionException("Rule execution limit [{}] reached", runs);
             }
             return false;
         }
@@ -139,7 +139,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
         for (Batch batch : batches) {
             int batchRuns = 0;
-            List<Transformation> tfs = new ArrayList<Transformation>();
+            List<Transformation> tfs = new ArrayList<>();
             transformations.put(batch, tfs);
 
             boolean hasChanged = false;

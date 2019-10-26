@@ -125,6 +125,10 @@ public final class Numbers {
         }
     }
 
+    // weak bounds on the BigDecimal representation to allow for coercion
+    private static BigDecimal BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE = BigDecimal.valueOf(Long.MAX_VALUE).add(BigDecimal.ONE);
+    private static BigDecimal BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE).subtract(BigDecimal.ONE);
+
     /** Return the long that {@code stringValue} stores or throws an exception if the
      *  stored value cannot be converted to a long that stores the exact same
      *  value and {@code coerce} is false. */
@@ -138,6 +142,10 @@ public final class Numbers {
         final BigInteger bigIntegerValue;
         try {
             BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0 ||
+                bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
+                throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
+            }
             bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");

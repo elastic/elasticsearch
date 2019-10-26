@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -45,8 +44,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     public TransportDeleteFilterAction(TransportService transportService,
                                        ActionFilters actionFilters, Client client,
                                        JobConfigProvider jobConfigProvider) {
-        super(DeleteFilterAction.NAME, transportService, actionFilters,
-            (Supplier<DeleteFilterAction.Request>) DeleteFilterAction.Request::new);
+        super(DeleteFilterAction.NAME, transportService, actionFilters, DeleteFilterAction.Request::new);
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
     }
@@ -84,8 +82,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     }
 
     private void deleteFilter(String filterId, ActionListener<AcknowledgedResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE,
-            MlFilter.documentId(filterId));
+        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId));
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         bulkRequestBuilder.add(deleteRequest);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

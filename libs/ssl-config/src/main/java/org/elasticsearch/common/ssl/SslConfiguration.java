@@ -24,11 +24,13 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
@@ -39,6 +41,25 @@ import java.util.Set;
  * from files (see {@link #getDependentFiles()}, and the content of those files may change.
  */
 public class SslConfiguration {
+
+    /**
+     * An ordered map of protocol algorithms to SSLContext algorithms. The map is ordered from most
+     * secure to least secure. The names in this map are taken from the
+     * <a href="https://docs.oracle.com/en/java/javase/11/docs/specs/security/standard-names.html#sslcontext-algorithms">
+     * Java Security Standard Algorithm Names Documentation for Java 11</a>.
+     */
+    static final Map<String, String> ORDERED_PROTOCOL_ALGORITHM_MAP;
+    static {
+        LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
+        protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
+        protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
+        protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
+        protocolAlgorithmMap.put("TLSv1", "TLSv1");
+        protocolAlgorithmMap.put("SSLv3", "SSLv3");
+        protocolAlgorithmMap.put("SSLv2", "SSL");
+        protocolAlgorithmMap.put("SSLv2Hello", "SSL");
+        ORDERED_PROTOCOL_ALGORITHM_MAP = Collections.unmodifiableMap(protocolAlgorithmMap);
+    }
 
     private final SslTrustConfig trustConfig;
     private final SslKeyConfig keyConfig;
@@ -124,12 +145,13 @@ public class SslConfiguration {
         if (supportedProtocols.isEmpty()) {
             throw new SslConfigException("no SSL/TLS protocols have been configured");
         }
-        for (String tryProtocol : Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1", "SSLv3")) {
-            if (supportedProtocols.contains(tryProtocol)) {
-                return tryProtocol;
+        for (Entry<String, String> entry : ORDERED_PROTOCOL_ALGORITHM_MAP.entrySet()) {
+            if (supportedProtocols.contains(entry.getKey())) {
+                return entry.getValue();
             }
         }
-        return "SSL";
+        throw new SslConfigException("no supported SSL/TLS protocol was found in the configured supported protocols: "
+            + supportedProtocols);
     }
 
     @Override

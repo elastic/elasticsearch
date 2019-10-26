@@ -186,7 +186,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-state
-        type: doc
         id: index-layout-job2_categorizer_state#1
         body:
           key: value
@@ -196,7 +195,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-state
-        type: doc
         id: index-layout-job2_categorizer_state#2
         body:
           key: value
@@ -299,7 +297,6 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        type: doc
         index: .ml-state
   - match: {count: 0}
 
@@ -307,7 +304,6 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        type: doc
         index: .ml-state
   - match: {count: 0}
 
@@ -315,7 +311,6 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        type: doc
         index: .ml-state
   - match: {count: 0}
 
@@ -387,7 +382,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foo
-        type: doc
         body:
           key: value
 
@@ -396,7 +390,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-anomalies-foo
-        type: doc
         body:
           key: value
 
@@ -405,7 +398,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-anomalies-foo
-        type: doc
         body:
           key: value
           job_id: foo
@@ -512,7 +504,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-state
-        type: doc
         id: index-layout-quantiles-job_quantiles
         body:
           state: quantile-state
@@ -563,7 +554,6 @@ setup:
 
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "index-layout-state-job_model_snapshot_123"
         body: >
           {
@@ -579,7 +569,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-state
-        type: doc
         id: index-layout-state-job_model_state_123#1
         body:
           state: new-model-state
@@ -589,7 +578,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-state
-        type: doc
         id: index-layout-state-job_model_state_123#2
         body:
           state: more-new-model-state
@@ -599,7 +587,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-state
-        type: doc
         id: index-layout-state-job_categorizer_state#1
         body:
           state: new-categorizer-state
@@ -609,7 +596,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-state
-        type: doc
         id: index-layout-state-job_categorizer_state#2
         body:
           state: more-new-categorizer-state

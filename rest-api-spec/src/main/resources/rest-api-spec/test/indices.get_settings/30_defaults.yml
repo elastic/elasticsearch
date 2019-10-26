@@ -10,9 +10,6 @@ setup:
         index: test-index
 ---
 Test retrieval of default settings:
-  - skip:
-      version: " - 6.3.99"
-      reason: include_defaults will not work in mixed-mode clusters containing nodes pre-6.4
   - do:
       indices.get_settings:
         flat_settings: true

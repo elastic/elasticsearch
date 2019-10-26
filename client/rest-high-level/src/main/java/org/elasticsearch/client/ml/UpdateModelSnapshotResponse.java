@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -33,7 +32,7 @@ import java.util.Objects;
 /**
  * A response acknowledging the update of information for an existing model snapshot for a given job
  */
-public class UpdateModelSnapshotResponse extends ActionResponse implements ToXContentObject {
+public class UpdateModelSnapshotResponse implements ToXContentObject {
 
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
     private static final ParseField MODEL = new ParseField("model");

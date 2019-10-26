@@ -1,10 +1,13 @@
 [[query-dsl-span-term-query]]
-=== Span Term Query
+=== Span term query
+++++
+<titleabbrev>Span term</titleabbrev>
+++++
 
 Matches spans containing a term. The span term query maps to Lucene
 `SpanTermQuery`. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -13,11 +16,10 @@ GET /_search
     }
 }    
 --------------------------------------------------
-// CONSOLE
 
 A boost can also be associated with the query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -26,11 +28,10 @@ GET /_search
     }
 }    
 --------------------------------------------------
-// CONSOLE
 
 Or :
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -39,4 +40,3 @@ GET /_search
     }
 }    
 --------------------------------------------------
-// CONSOLE

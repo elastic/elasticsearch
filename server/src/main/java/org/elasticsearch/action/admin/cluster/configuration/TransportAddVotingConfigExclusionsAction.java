@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -40,6 +42,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
@@ -51,6 +54,8 @@ import java.util.stream.Collectors;
 
 public class TransportAddVotingConfigExclusionsAction extends TransportMasterNodeAction<AddVotingConfigExclusionsRequest,
     AddVotingConfigExclusionsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportAddVotingConfigExclusionsAction.class);
 
     public static final Setting<Integer> MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING
         = Setting.intSetting("cluster.max_voting_config_exclusions", 10, 1, Property.Dynamic, Property.NodeScope);
@@ -68,17 +73,12 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     }
 
     @Override
-    protected AddVotingConfigExclusionsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
         return new AddVotingConfigExclusionsResponse(in);
     }
 
     @Override
-    protected void masterOperation(AddVotingConfigExclusionsRequest request, ClusterState state,
+    protected void masterOperation(Task task, AddVotingConfigExclusionsRequest request, ClusterState state,
                                    ActionListener<AddVotingConfigExclusionsResponse> listener) throws Exception {
 
         resolveVotingConfigExclusionsAndCheckMaximum(request, state); // throws IAE if no nodes matched or maximum exceeded

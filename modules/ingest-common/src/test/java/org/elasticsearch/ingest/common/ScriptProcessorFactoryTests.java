@@ -41,13 +41,9 @@ import static org.mockito.Mockito.when;
 public class ScriptProcessorFactoryTests extends ESTestCase {
 
     private ScriptProcessor.Factory factory;
-    private static final Map<String, String> ingestScriptParamToType;
-    static {
-        Map<String, String> map = new HashMap<>();
-        map.put("id", "stored");
-        map.put("source", "inline");
-        ingestScriptParamToType = Collections.unmodifiableMap(map);
-    }
+    private static final Map<String, String> INGEST_SCRIPT_PARAM_TO_TYPE = Map.of(
+            "id", "stored",
+            "source", "inline");
 
     @Before
     public void init() {
@@ -60,7 +56,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put(randomType, "foo");
         ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), configMap);
         assertThat(processor.getScript().getLang(), equalTo(randomType.equals("id") ? null : Script.DEFAULT_SCRIPT_LANG));
-        assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
+        assertThat(processor.getScript().getType().toString(), equalTo(INGEST_SCRIPT_PARAM_TO_TYPE.get(randomType)));
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
     }
 
@@ -72,7 +68,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("params", randomParams);
         ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), configMap);
         assertThat(processor.getScript().getLang(), equalTo(randomType.equals("id") ? null : Script.DEFAULT_SCRIPT_LANG));
-        assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
+        assertThat(processor.getScript().getType().toString(), equalTo(INGEST_SCRIPT_PARAM_TO_TYPE.get(randomType)));
         assertThat(processor.getScript().getParams(), equalTo(randomParams));
     }
 

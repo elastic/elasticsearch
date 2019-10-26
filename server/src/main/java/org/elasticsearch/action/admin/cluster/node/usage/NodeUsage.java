@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -36,13 +35,11 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
     private long sinceTime;
     private Map<String, Long> restUsage;
 
-    NodeUsage() {
-    }
-
-    public static NodeUsage readNodeStats(StreamInput in) throws IOException {
-        NodeUsage nodeInfo = new NodeUsage();
-        nodeInfo.readFrom(in);
-        return nodeInfo;
+    public NodeUsage(StreamInput in) throws IOException {
+        super(in);
+        timestamp = in.readLong();
+        sinceTime = in.readLong();
+        restUsage = (Map<String, Long>) in.readGenericValue();
     }
 
     /**
@@ -94,15 +91,6 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
             builder.map(restUsage);
         }
         return builder;
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        timestamp = in.readLong();
-        sinceTime = in.readLong();
-        restUsage = (Map<String, Long>) in.readGenericValue();
     }
 
     @Override

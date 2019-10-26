@@ -41,15 +41,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -227,66 +222,6 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardRouting1, sameInstance(shardRouting3));
     }
 
-    public void testAttributePreferenceRouting() {
-        Settings.Builder settings = Settings.builder()
-            .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always");
-        if (randomBoolean()) {
-            settings.put("cluster.routing.allocation.awareness.attributes", " rack_id, zone  ");
-        } else {
-            settings.putList("cluster.routing.allocation.awareness.attributes", "rack_id", "zone");
-        }
-
-        AllocationService strategy = createAllocationService(settings.build());
-
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
-
-        RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
-                .build();
-
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
-
-        Map<String, String> node1Attributes = new HashMap<>();
-        node1Attributes.put("rack_id", "rack_1");
-        node1Attributes.put("zone", "zone1");
-        Map<String, String> node2Attributes = new HashMap<>();
-        node2Attributes.put("rack_id", "rack_2");
-        node2Attributes.put("zone", "zone2");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .add(newNode("node1", unmodifiableMap(node1Attributes)))
-                .add(newNode("node2", unmodifiableMap(node2Attributes)))
-                .localNodeId("node1")
-        ).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
-
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-
-        // after all are started, check routing iteration
-        ShardIterator shardIterator = clusterState.routingTable().index("test").shard(0)
-            .preferAttributesActiveInitializingShardsIt(Arrays.asList("rack_id"), clusterState.nodes());
-        ShardRouting shardRouting = shardIterator.nextOrNull();
-        assertThat(shardRouting, notNullValue());
-        assertThat(shardRouting.currentNodeId(), equalTo("node1"));
-        shardRouting = shardIterator.nextOrNull();
-        assertThat(shardRouting, notNullValue());
-        assertThat(shardRouting.currentNodeId(), equalTo("node2"));
-
-        shardIterator = clusterState.routingTable().index("test").shard(0)
-            .preferAttributesActiveInitializingShardsIt(Arrays.asList("rack_id"), clusterState.nodes());
-        shardRouting = shardIterator.nextOrNull();
-        assertThat(shardRouting, notNullValue());
-        assertThat(shardRouting.currentNodeId(), equalTo("node1"));
-        shardRouting = shardIterator.nextOrNull();
-        assertThat(shardRouting, notNullValue());
-        assertThat(shardRouting.currentNodeId(), equalTo("node2"));
-    }
-
     public void testNodeSelectorRouting(){
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -312,7 +247,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         ShardsIterator shardsIterator = clusterState.routingTable().index("test")
             .shard(0).onlyNodeSelectorActiveInitializingShardsIt("disk:ebs",clusterState.nodes());
@@ -390,9 +325,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));

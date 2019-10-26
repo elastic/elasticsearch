@@ -22,13 +22,12 @@ package org.elasticsearch.discovery.ec2;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
-import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -97,11 +96,11 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     static AWSCredentialsProvider buildCredentials(Logger logger, Ec2ClientSettings clientSettings) {
         final AWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
-            logger.debug("Using either environment variables, system properties or instance profile credentials");
-            return new DefaultAWSCredentialsProviderChain();
+            logger.debug("Using default provider chain");
+            return DefaultAWSCredentialsProviderChain.getInstance();
         } else {
             logger.debug("Using basic key/secret credentials");
-            return new StaticCredentialsProvider(credentials);
+            return new AWSStaticCredentialsProvider(credentials);
         }
     }
 

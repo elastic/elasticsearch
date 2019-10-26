@@ -36,18 +36,18 @@ public final class TransportLogger {
     private static final Logger logger = LogManager.getLogger(TransportLogger.class);
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
-    static void logInboundMessage(TcpChannel channel, AggregatedMessage message) {
+    static void logInboundMessage(TcpChannel channel, BytesReference message) {
         if (logger.isTraceEnabled()) {
             try {
-                String logMessage = format(channel, null, "READ");
-                logger.trace("");
+                String logMessage = format(channel, message, "READ");
+                logger.trace(logMessage);
             } catch (IOException e) {
                 logger.trace("an exception occurred formatting a READ trace message", e);
             }
         }
     }
 
-    static void logInboundMessage(TcpChannel channel, BytesReference message) {
+    static void logInboundMessage(TcpChannel channel, AggregatedMessage message) {
         if (logger.isTraceEnabled()) {
             try {
                 String logMessage = format(channel, message, "READ");
@@ -105,6 +105,52 @@ public final class TransportLogger {
                         streamInput = compressor.streamInput(streamInput);
                     }
 
+                    try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
+                        context.readHeaders(streamInput);
+                    }
+                    if (streamInput.getVersion().before(Version.V_8_0_0)) {
+                        // discard the features
+                        streamInput.readStringArray();
+                    }
+                    sb.append(", action: ").append(streamInput.readString());
+                }
+                sb.append(']');
+                sb.append(' ').append(event).append(": ").append(messageLengthWithHeader).append('B');
+                success = true;
+            } finally {
+                if (success) {
+                    IOUtils.close(streamInput);
+                } else {
+                    IOUtils.closeWhileHandlingException(streamInput);
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String format(TcpChannel channel, AggregatedMessage message, String event) throws IOException {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(channel);
+
+        if (message.isPing()) {
+            sb.append(" [ping]").append(' ').append(event).append(": ").append(6).append('B');
+        } else {
+            boolean success = false;
+            Header header = message.getHeader();
+            int networkMessageSize = header.getNetworkMessageSize();
+            int messageLengthWithHeader = HEADER_SIZE + networkMessageSize;
+            StreamInput streamInput = message.getContent().streamInput();
+            try {
+                final long requestId = header.getRequestId();
+                final boolean isRequest = header.isRequest();
+                final String type = isRequest ? "request" : "response";
+                final String version = header.getVersion().toString();
+                sb.append(" [length: ").append(messageLengthWithHeader);
+                sb.append(", request id: ").append(requestId);
+                sb.append(", type: ").append(type);
+                sb.append(", version: ").append(version);
+
+                if (isRequest) {
                     try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
                         context.readHeaders(streamInput);
                     }

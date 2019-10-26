@@ -58,12 +58,9 @@ public class InboundAggregator implements Releasable {
         if (currentHeader == null) {
             content.close();
             throw new IllegalStateException("Received content without header");
-        } else if (content.length() != 0) {
+        } else if (content != InboundDecoder.END_CONTENT) {
             contentAggregation.add(content);
         } else {
-            // Do not release END_CONTENT marker
-            assert content == InboundDecoder.END_CONTENT;
-
             CompositeBytesReference aggregatedContent = new CompositeBytesReference(contentAggregation.toArray(new BytesReference[0]));
             try {
                 messageConsumer.accept(channel, new AggregatedMessage(currentHeader, aggregatedContent, false));

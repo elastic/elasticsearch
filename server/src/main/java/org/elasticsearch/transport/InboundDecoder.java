@@ -85,10 +85,10 @@ public class InboundDecoder implements Releasable {
                     decompress(retainedContent);
                     ReleasableBytesReference decompressed;
                     while ((decompressed = decompressor.pollDecompressedPage()) != null) {
-                        aggregator.contentReceived(channel, decompressed);
+                        forwardNonEmptyContent(channel, decompressed);
                     }
                 } else {
-                    aggregator.contentReceived(channel, retainedContent);
+                    forwardNonEmptyContent(channel, retainedContent);
                 }
                 if (isDone()) {
                     decompressor = null;
@@ -108,6 +108,15 @@ public class InboundDecoder implements Releasable {
         decompressor = null;
         networkMessageSize = -1;
         bytesConsumed = 0;
+    }
+
+    private void forwardNonEmptyContent(TcpChannel channel, ReleasableBytesReference content) {
+        // Do not bother forwarding empty content
+        if (content.length() == 0) {
+            content.close();
+        } else {
+            aggregator.contentReceived(channel, content);
+        }
     }
 
     private void decompress(ReleasableBytesReference content) throws IOException {

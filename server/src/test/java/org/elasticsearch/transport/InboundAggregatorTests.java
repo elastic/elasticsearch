@@ -98,7 +98,7 @@ public class InboundAggregatorTests extends ESTestCase {
         assertThat(message.get(), nullValue());
 
         // Signal EOS
-        aggregator.contentReceived(mock(TcpChannel.class), new ReleasableBytesReference(BytesArray.EMPTY, () -> {}));
+        aggregator.contentReceived(mock(TcpChannel.class), InboundDecoder.END_CONTENT);
 
         assertThat(message.get(), notNullValue());
         assertFalse(message.get().isPing());

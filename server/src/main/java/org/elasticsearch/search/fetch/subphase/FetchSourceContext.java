@@ -105,11 +105,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             }
         }
 
+        // TODO this query param currently not supported in msearch query body. Should it be supported?
         String sIncludes = request.param("_source_includes");
         if (sIncludes != null) {
             sourceIncludes = Strings.splitStringByCommaToArray(sIncludes);
         }
 
+        // TODO this query param currently not supported in msearch query body. Should it be supported?
         String sExcludes = request.param("_source_excludes");
         if (sExcludes != null) {
             sourceExcludes = Strings.splitStringByCommaToArray(sExcludes);

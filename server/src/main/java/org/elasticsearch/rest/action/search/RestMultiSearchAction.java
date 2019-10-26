@@ -104,6 +104,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+
+            // Since in RestSearchAction, rest request params may override values specified in query body,
+            // having the following parsing after SearchSourceBuilder.fromXContent will stay consistent with that behavior
+            CommonSearchRestRequestParamsParser.parse(searchRequest.source(), restRequest, size -> searchRequest.source().size(size));
+
             RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
             multiRequest.add(searchRequest);
         });

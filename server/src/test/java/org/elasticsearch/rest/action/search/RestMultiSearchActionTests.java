@@ -19,12 +19,13 @@
 
 package org.elasticsearch.rest.action.search;
 
+
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -39,19 +40,19 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 
-public class RestSearchActionTests extends RestActionTestCase {
+public class RestMultiSearchActionTests extends RestActionTestCase {
     public void testRestRequestQueryParamsParsing() throws IOException {
-        String body = "{\"query\": {\"match_all\" : {}}}\n";
-
-        SearchRequest searchRequest = new SearchRequest();
+        String body = "{\"index\":\"book-index\"}\n" +
+                        "{\"query\": {\"match_all\" : {}}}\n" +
+                        "{\"index\":\"other-index\"}\n" +
+                        "{\"query\": {\"match_all\" : {}}}\n";
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
-            .withPath("/_search")
+            .withPath("/_msearch")
             .withParams(new HashMap<>() {{
                 put("explain", "true");
                 put("stored_fields", "author,title");
@@ -70,29 +71,31 @@ public class RestSearchActionTests extends RestActionTestCase {
             }})
             .withContent(new BytesArray(body), XContentType.JSON)
             .build();
-        IntConsumer setSize = size -> searchRequest.source().size(size);
 
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), body)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, setSize);
+        MultiSearchRequest multiSearchRequest = RestMultiSearchAction.parseRequest(restRequest, true);
+
+        assertEquals(2, multiSearchRequest.requests().size());
+
+        // Query param settings will be applied to each individual searchRequest
+        for(SearchRequest searchRequest : multiSearchRequest.requests()) {
+            assertTrue(searchRequest.source().explain());
+            assertEquals(List.of("author", "title"), searchRequest.source().storedFields().fieldNames());
+            assertEquals(List.of("author", "title"), searchRequest.source().docValueFields()
+                .stream().map(f -> f.field).collect(Collectors.toList()));
+            assertEquals(0, searchRequest.source().from());
+            assertEquals(5, searchRequest.source().size());
+            assertEquals(List.of(SortBuilders.fieldSort("author").order(SortOrder.ASC),
+                SortBuilders.fieldSort("title").order(SortOrder.DESC)),
+                searchRequest.source().sorts());
+            assertTrue(searchRequest.source().fetchSource().fetchSource());
+            assertEquals(1, searchRequest.source().terminateAfter());
+            assertEquals(List.of("merge", "refresh"), searchRequest.source().stats());
+            assertEquals(new TimeValue(10, TimeUnit.SECONDS), searchRequest.source().timeout());
+            assertTrue(searchRequest.source().trackScores());
+            assertEquals(SearchContext.TRACK_TOTAL_HITS_ACCURATE, searchRequest.source().trackTotalHitsUpTo().intValue());
+            assertTrue(searchRequest.source().version());
+            assertTrue(searchRequest.source().seqNoAndPrimaryTerm());
         }
-
-        assertTrue(searchRequest.source().explain());
-        assertEquals(List.of("author", "title"), searchRequest.source().storedFields().fieldNames());
-        assertEquals(List.of("author", "title"), searchRequest.source().docValueFields()
-                                                                        .stream().map(f -> f.field).collect(Collectors.toList()));
-        assertEquals(0, searchRequest.source().from());
-        assertEquals(5, searchRequest.source().size());
-        assertEquals(List.of(SortBuilders.fieldSort("author").order(SortOrder.ASC),
-                                SortBuilders.fieldSort("title").order(SortOrder.DESC)),
-                        searchRequest.source().sorts());
-        assertTrue(searchRequest.source().fetchSource().fetchSource());
-        assertEquals(1, searchRequest.source().terminateAfter());
-        assertEquals(List.of("merge", "refresh"), searchRequest.source().stats());
-        assertEquals(new TimeValue(10, TimeUnit.SECONDS), searchRequest.source().timeout());
-        assertTrue(searchRequest.source().trackScores());
-        assertEquals(SearchContext.TRACK_TOTAL_HITS_ACCURATE, searchRequest.source().trackTotalHitsUpTo().intValue());
-        assertTrue(searchRequest.source().version());
-        assertTrue(searchRequest.source().seqNoAndPrimaryTerm());
     }
 
     @Override

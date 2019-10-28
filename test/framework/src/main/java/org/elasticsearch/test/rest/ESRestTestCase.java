@@ -494,7 +494,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             waitForPendingRollupTasks();
         }
 
-        if(preserveSLMPoliciesUponCompletion() == false) {
+        if (preserveSLMPoliciesUponCompletion() == false) {
             // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
             deleteAllSLMPolicies();
         }

@@ -36,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.PluginInfo;
@@ -51,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterStatsNodes implements ToXContentFragment {
@@ -699,7 +701,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     static class IngestStats implements ToXContentFragment {
 
         final int pipelineCount;
-        final Map<String, long[]> stats;
+        final SortedMap<String, long[]> stats;
 
         IngestStats(final List<NodeStats> nodeStats) {
             Set<String> pipelineIds = new HashSet<>();
@@ -712,14 +714,19 @@ public class ClusterStatsNodes implements ToXContentFragment {
                         pipelineIds.add(processorStats.getKey());
                         for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
                             stats.compute(stat.getType(), (k, v) -> {
+                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
                                 if (v == null) {
                                     return new long[] {
-                                        stat.getStats().getIngestCount(),
-                                        stat.getStats().getIngestFailedCount(),
+                                        nodeIngestStats.getIngestCount(),
+                                        nodeIngestStats.getIngestFailedCount(),
+                                        nodeIngestStats.getIngestCurrent(),
+                                        nodeIngestStats.getIngestTimeInMillis()
                                     };
                                 } else {
-                                    v[0] += stat.getStats().getIngestCount();
-                                    v[1] += stat.getStats().getIngestFailedCount();
+                                    v[0] += nodeIngestStats.getIngestCount();
+                                    v[1] += nodeIngestStats.getIngestFailedCount();
+                                    v[2] += nodeIngestStats.getIngestCurrent();
+                                    v[3] += nodeIngestStats.getIngestTimeInMillis();
                                     return v;
                                 }
                             });
@@ -728,7 +735,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 }
             }
             this.pipelineCount = pipelineIds.size();
-            this.stats = Map.copyOf(stats);
+            this.stats = Collections.unmodifiableSortedMap(stats);
         }
 
         @Override
@@ -738,9 +745,13 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 builder.field("number_of_pipelines", pipelineCount);
                 builder.startObject("processor_stats");
                 for (Map.Entry<String, long[]> stat : stats.entrySet()) {
+                    long[] statValues = stat.getValue();
                     builder.startObject(stat.getKey());
-                    builder.field("count", stat.getValue()[0]);
-                    builder.field("fail_count", stat.getValue()[1]);
+                    builder.field("count", statValues[0]);
+                    builder.field("failed", statValues[1]);
+                    builder.field("current", statValues[2]);
+                    builder.humanReadableField("time_in_millis", "time",
+                        new TimeValue(statValues[3], TimeUnit.MILLISECONDS));
                     builder.endObject();
                 }
                 builder.endObject();

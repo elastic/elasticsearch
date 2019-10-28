@@ -72,22 +72,30 @@ public class ClusterStatsNodesTests extends ESTestCase {
 
         SortedMap<String, long[]> processorStats = new TreeMap<>();
         nodeStats.getIngestStats().getProcessorStats().values().forEach(l -> l.forEach(s -> processorStats.put(s.getType(),
-            new long[] { s.getStats().getIngestCount(), s.getStats().getIngestFailedCount() })));
+            new long[] { s.getStats().getIngestCount(), s.getStats().getIngestFailedCount(),
+                s.getStats().getIngestCurrent(), s.getStats().getIngestTimeInMillis()})));
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(Collections.singletonList(nodeStats));
         assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
         String processorStatsString = "{";
         Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
         while (iter.hasNext()) {
             Map.Entry<String, long[]> entry = iter.next();
-            long count = entry.getValue()[0];
-            long failedCount = entry.getValue()[1];
-            processorStatsString += "\"" + entry.getKey() + "\":{\"count\":" + count + ",\"fail_count\":" + failedCount + "}";
+            long[] statValues = entry.getValue();
+            long count = statValues[0];
+            long failedCount = statValues[1];
+            long current = statValues[2];
+            long timeInMillis = statValues[3];
+            processorStatsString += "\"" + entry.getKey() + "\":{\"count\":" + count
+                + ",\"failed\":" + failedCount
+                + ",\"current\":" + current
+                + ",\"time_in_millis\":" + timeInMillis
+                + "}";
             if (iter.hasNext()) {
                 processorStatsString += ",";
             }
         }
         processorStatsString += "}";
-        assertThat(toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString(), equalTo(
+        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo(
             "{\"ingest\":{"
                 + "\"number_of_pipelines\":" + stats.pipelineCount + ","
                 + "\"processor_stats\":" + processorStatsString

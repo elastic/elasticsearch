@@ -68,9 +68,14 @@ endif::[]
 The following Docker compose file brings up a three-node {es} cluster. 
 Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
 
-The https://docs.docker.com/engine/tutorials/dockervolumes[Docker named volumes] 
-`esdata01`, `esdata02`, and `esdata03` store the node data directories so the data persists across restarts. 
+The  https://docs.docker.com/storage/volumes[Docker named volumes] 
+`esdata01`, `esdata02`, and `esdata03` store the node data directories so 
+the data persists across restarts. 
 If they don't already exist, `docker-compose` creates them when you bring up the cluster.
+
+IMPORTANT: Make sure Docker Engine is allotted at least 4GiB of memory. 
+In Docker Desktop, you configure resource usage on the Advanced tab in Preference (macOS)
+or Settings (Windows).
 
 ifeval::["{release-state}"=="unreleased"]
 
@@ -107,9 +112,9 @@ services:
     container_name: es01
     environment:
       - node.name=es01
+      - cluster.name=es-docker-cluster
       - discovery.seed_hosts=es02,es03
       - cluster.initial_master_nodes=es01,es02,es03
-      - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ulimits:
@@ -117,19 +122,19 @@ services:
         soft: -1
         hard: -1
     volumes:
-      - esdata01:/usr/share/elasticsearch/data
+      - data01:/usr/share/elasticsearch/data
     ports:
       - 9200:9200
     networks:
-      - esnet
+      - elastic
   es02:
     image: {docker-image}
     container_name: es02
     environment:
       - node.name=es02
+      - cluster.name=es-docker-cluster
       - discovery.seed_hosts=es01,es03
       - cluster.initial_master_nodes=es01,es02,es03
-      - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ulimits:
@@ -137,17 +142,17 @@ services:
         soft: -1
         hard: -1
     volumes:
-      - esdata02:/usr/share/elasticsearch/data
+      - data02:/usr/share/elasticsearch/data
     networks:
-      - esnet
+      - elastic
   es03:
     image: {docker-image}
     container_name: es03
     environment:
       - node.name=es03
+      - cluster.name=es-docker-cluster
       - discovery.seed_hosts=es01,es02
       - cluster.initial_master_nodes=es01,es02,es03
-      - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ulimits:
@@ -155,20 +160,21 @@ services:
         soft: -1
         hard: -1
     volumes:
-      - esdata03:/usr/share/elasticsearch/data    
+      - data03:/usr/share/elasticsearch/data    
     networks:
-      - esnet
+      - elastic
 
 volumes:
-  esdata01:
+  data01:
     driver: local
-  esdata02:
+  data02:
     driver: local
-  esdata03:
+  data03:
     driver: local    
 
 networks:
-  esnet:
+  elastic:
+    driver: bridge
 --------------------------------------------
 endif::[]
 
@@ -200,7 +206,7 @@ vm.max_map_count=262144
 To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
 --
 
-* macOS with https://docs.docker.com/engine/installation/mac/#/docker-for-mac[Docker for Mac]
+* macOS with  https://docs.docker.com/docker-for-mac[Docker for Mac]
 +
 --
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
@@ -220,7 +226,7 @@ sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
 
-* Windows and macOS with https://www.docker.com/products/docker-toolbox[Docker Toolbox]
+* Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]
 +
 --
 The `vm.max_map_count` setting must be set via docker-machine:

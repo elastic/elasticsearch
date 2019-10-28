@@ -1,8 +1,5 @@
 ---
 "Test put batch data frame transforms on old cluster":
-  - skip:
-      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
-      version: all
   - do:
       indices.create:
         index: transform-airline-data
@@ -139,9 +136,6 @@
 
 ---
 "Test put continuous data frame transform on old cluster":
-  - skip:
-      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
-      version: all
   - do:
       indices.create:
         index: transform-airline-data-cont

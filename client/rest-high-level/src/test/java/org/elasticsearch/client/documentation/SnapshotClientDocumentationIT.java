@@ -307,7 +307,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
 
         // tag::restore-snapshot-request-indices
-        request.indices("test_index");
+        request.indices("test_index"); // <1>
         // end::restore-snapshot-request-indices
 
         String restoredIndexName = "restored_index";

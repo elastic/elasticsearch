@@ -29,10 +29,10 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -105,8 +105,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
         this.progress = transformProgress;
-        this.lastCheckpoint = lastCheckpoint;
-        this.nextCheckpoint = nextCheckpoint;
+        this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
+        this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         // give runState a default
         this.runState = RunState.FULL_RUN;
     }

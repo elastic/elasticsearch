@@ -96,7 +96,6 @@ class ClientTransformIndexer extends TransformIndexer {
             nextCheckpoint);
         this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
-
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
         this.failureCount = new AtomicInteger(0);

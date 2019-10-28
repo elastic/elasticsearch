@@ -18,9 +18,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
@@ -74,7 +74,7 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint,
             final ActionListener<TransformCheckpoint> listener) {
         final long timestamp = getTime();
-        final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
+        final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
         // for time based synchronization
         long timeUpperBound = timestamp - timeSyncConfig.getDelay().millis();

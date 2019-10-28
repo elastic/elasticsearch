@@ -56,8 +56,8 @@ class ClientTransformIndexerBuilder {
             transformConfig,
             fieldMappings,
             progress,
-            lastCheckpoint,
-            nextCheckpoint,
+            TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? TransformCheckpoint.EMPTY : lastCheckpoint,
+            TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
             seqNoPrimaryTermAndIndex,
             context);
     }

@@ -129,10 +129,10 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
     public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint,
                               final ActionListener<TransformCheckpoint> listener) {
         final long timestamp = System.currentTimeMillis();
-        final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
+        final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
         getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
-            reportSourceIndexChanges(lastCheckpoint != null ? lastCheckpoint.getIndicesCheckpoints().keySet() : Collections.emptySet(),
+            reportSourceIndexChanges(TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? Collections.emptySet() : lastCheckpoint.getIndicesCheckpoints().keySet(),
                                      checkpointsByIndex.keySet());
 
             listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));

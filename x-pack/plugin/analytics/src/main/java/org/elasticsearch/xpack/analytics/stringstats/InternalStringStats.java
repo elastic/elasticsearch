@@ -24,7 +24,32 @@ import java.util.stream.Collectors;
 public class InternalStringStats extends InternalAggregation {
 
     enum Metrics {
-        count, min_length, max_length, avg_length, entropy;
+        count {
+            Object getFieldValue(InternalStringStats stats) {
+                return stats.getCount();
+            }
+        },
+        min_length {
+            Object getFieldValue(InternalStringStats stats) {
+                return stats.getMinLength();
+            }
+        }, max_length {
+            Object getFieldValue(InternalStringStats stats) {
+                return stats.getMaxLength();
+            }
+        },
+        avg_length {
+            Object getFieldValue(InternalStringStats stats) {
+                return stats.getAvgLength();
+            }
+        },
+        entropy {
+            Object getFieldValue(InternalStringStats stats) {
+                return stats.getEntropy();
+            }
+        };
+
+        abstract Object getFieldValue(InternalStringStats stats);
     }
 
     private final DocValueFormat format;
@@ -155,15 +180,10 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     public Object value(String name) {
-        Metrics metrics = Metrics.valueOf(name);
-        switch (metrics) {
-            case count: return this.count;
-            case min_length: return this.minLength;
-            case max_length: return this.maxLength;
-            case avg_length: return this.getAvgLength();
-            case entropy: return this.getEntropy();
-            default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in string stats aggregation");
+        try {
+            return Metrics.valueOf(name).getFieldValue(this);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown value [" + name + "] in string stats aggregation");
         }
     }
 

@@ -163,6 +163,45 @@ public abstract class Terminal {
         }
     }
 
+    /**
+     * Read from the reader until we find a newline. If that newline
+     * character is immediately preceded by a carriage return, we have
+     * a Windows-style newline, so we discard the carriage return as well
+     * as the newline.
+     */
+    public static char[] readLineToCharArray(Reader reader, int maxLength) {
+        char[] buf = new char[maxLength + 2];
+        try {
+            int len = 0;
+            int next;
+            while ((next = reader.read()) != -1) {
+                char nextChar = (char) next;
+                if (nextChar == '\n') {
+                    break;
+                }
+                if (len < buf.length) {
+                    buf[len] = nextChar;
+                }
+                len++;
+            }
+
+            if (len > 0 && len < buf.length && buf[len-1] == '\r') {
+                len--;
+            }
+
+            if (len > maxLength) {
+                Arrays.fill(buf, '\0');
+                throw new RuntimeException("Input exceeded maximum length of " + maxLength);
+            }
+
+            char[] shortResult = Arrays.copyOf(buf, len);
+            Arrays.fill(buf, '\0');
+            return shortResult;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static class ConsoleTerminal extends Terminal {
 
         private static final Console CONSOLE = System.console();
@@ -243,47 +282,6 @@ public abstract class Terminal {
         public char[] readSecret(String text, int maxLength) {
             getErrorWriter().println(text);
             return readLineToCharArray(getReader(), maxLength);
-        }
-
-        /**
-         * Read from the reader until we find a newline. If that newline
-         * character is immediately preceded by a carriage return, we have
-         * a Windows-style newline, so we discard the carriage return as well
-         * as the newline.
-         *
-         * Visible for testing.
-         */
-        static char[] readLineToCharArray(Reader reader, int maxLength) {
-            char[] buf = new char[maxLength + 2];
-            try {
-                int len = 0;
-                int next;
-                while ((next = reader.read()) != -1) {
-                    char nextChar = (char) next;
-                    if (nextChar == '\n') {
-                        break;
-                    }
-                    if (len < buf.length) {
-                        buf[len] = nextChar;
-                    }
-                    len++;
-                }
-
-                if (len > 0 && len < buf.length && buf[len-1] == '\r') {
-                    len--;
-                }
-
-                if (len > maxLength) {
-                    Arrays.fill(buf, '\0');
-                    throw new RuntimeException("Input exceeded maximum length of " + maxLength);
-                }
-
-                char[] shortResult = Arrays.copyOf(buf, len);
-                Arrays.fill(buf, '\0');
-                return shortResult;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
         }
     }
 }

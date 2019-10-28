@@ -105,8 +105,8 @@ public class BootstrapTests extends ESTestCase {
 
     private void assertPassphraseRead(String source, String expected) {
         try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8))) {
-            char[] result = Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
-            assertThat(result, equalTo(expected.toCharArray()));
+            SecureString result = Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
+            assertThat(result, equalTo(expected));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

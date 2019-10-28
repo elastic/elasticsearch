@@ -27,6 +27,7 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
@@ -51,6 +52,7 @@ import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -240,18 +242,18 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
-        char[] passChars;
+        SecureString password;
         try {
             if (keystore != null && keystore.hasPassword()) {
-                passChars = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
+                password = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
             } else {
-                passChars = new char[0];
+                password = new SecureString(new char[0]);
             }
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
 
-        try (SecureString password = new SecureString(passChars)) {
+        try (password) {
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
@@ -269,43 +271,26 @@ final class Bootstrap {
     // visible for tests
     /**
      * Read from an InputStream up to the first carriage return or newline,
-     * returning no more than maxLength characters. This method discards characters
-     * beyond the newline, making it unsuitable for repeated readings from the stream.
+     * returning no more than maxLength characters.
      */
-    static char[] readPassphrase(InputStream stream, int maxLength) throws IOException {
-        char[] buf = new char[maxLength + 2]; // potentially two terminating characters
+    static SecureString readPassphrase(InputStream stream, int maxLength) throws IOException {
+        SecureString passphrase;
 
         try(InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-            int len = 0;
-            int next;
-            while ((next = reader.read()) != -1) {
-                char nextChar = (char) next;
-                if (nextChar == '\n') {
-                    break;
-                }
-                if (len < buf.length) {
-                    buf[len] = nextChar;
-                }
-                len++;
+            passphrase = new SecureString(Terminal.readLineToCharArray(reader, maxLength));
+        } catch (RuntimeException e) {
+            if (e.getMessage().startsWith("Input exceeded maximum length")) {
+                throw new IllegalStateException("Password exceeded maximum length of " + maxLength, e);
             }
-
-            if (len > 0 && len < buf.length && buf[len-1] == '\r') {
-                len--;
-            }
-
-            if (len == 0) {
-                throw new IllegalStateException("Keystore passphrase required but none provided.");
-            }
-
-            if (len > maxLength) {
-                Arrays.fill(buf, '\0');
-                throw new IllegalStateException("Password exceeded maximum length of " + maxLength);
-            }
-
-            char[] shortResult = Arrays.copyOf(buf, len);
-            Arrays.fill(buf, '\0');
-            return shortResult;
+            throw e;
         }
+
+        if (passphrase.length() == 0) {
+            passphrase.close();
+            throw new IllegalStateException("Keystore passphrase required but none provided.");
+        }
+
+        return passphrase;
     }
 
     private static Environment createEnvironment(

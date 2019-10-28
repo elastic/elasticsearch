@@ -24,7 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.BufferedReader;
 import java.io.StringReader;
 
-import static org.elasticsearch.cli.Terminal.SystemTerminal.readLineToCharArray;
+import static org.elasticsearch.cli.Terminal.readLineToCharArray;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TerminalTests extends ESTestCase {

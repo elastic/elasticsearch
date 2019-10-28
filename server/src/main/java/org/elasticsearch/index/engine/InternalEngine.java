@@ -1563,14 +1563,12 @@ public class InternalEngine extends Engine {
     }
 
     final boolean refresh(String source, SearcherScope scope, boolean block) throws EngineException {
-        // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
-        // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed;
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
+        try {
+            // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
             if (store.tryIncRef()) {
                 // increment the ref just to ensure nobody closes the store during a refresh
                 try {
@@ -2452,10 +2450,10 @@ public class InternalEngine extends Engine {
     }
 
     final void ensureCanFlush() {
-        // translog recover happens after the engine is fully constructed
-        // if we are in this stage we have to prevent flushes from this
+        // translog recovery happens after the engine is fully constructed.
+        // If we are in this stage we have to prevent flushes from this
         // engine otherwise we might loose documents if the flush succeeds
-        // and the translog recover fails we we "commit" the translog on flush.
+        // and the translog recovery fails when we "commit" the translog on flush.
         if (pendingTranslogRecovery.get()) {
             throw new IllegalStateException(shardId.toString() + " flushes are disabled - pending translog recovery");
         }

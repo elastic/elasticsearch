@@ -16,7 +16,7 @@ Infra/Circuit Breakers::
 * Emit log message when parent circuit breaker trips {pull}47000[#47000]
 
 Machine Learning::
-* Throttle the delete-by-query of expired results {pull}47177[#47177] (issues: {issue}47003[#47003], {issue}47103[#47103])
+* Throttle the delete-by-query of expired results {pull}47177[#47177] (issues: {issue}47003[#47003])
 * The {ml} native processes are now arranged in a `.app` directory structure on
   macOS, to allow for notarization on macOS Catalina. {ml-pull}593[#593]
 

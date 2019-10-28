@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 
@@ -40,20 +39,15 @@ import java.util.function.IntConsumer;
  */
 public class MultiBucketConsumerService {
     public static final int DEFAULT_MAX_BUCKETS = 10000;
-    public static final int DEFAULT_CHECK_BUCKETS_STEP_SIZE = 1000;
     public static final Setting<Integer> MAX_BUCKET_SETTING =
         Setting.intSetting("search.max_buckets", DEFAULT_MAX_BUCKETS, 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    public static final Setting<Integer> CHECK_BUCKETS_STEP_SIZE_SETTING =
-        Setting.intSetting("search.check_buckets_step_size", DEFAULT_CHECK_BUCKETS_STEP_SIZE,
-            -1, Setting.Property.NodeScope, Setting.Property.Dynamic);
-
-    private final CircuitBreakerService circuitBreakerService;
+    private final CircuitBreaker breaker;
 
     private volatile int maxBucket;
 
-    public MultiBucketConsumerService(ClusterService clusterService, Settings settings, CircuitBreakerService circuitBreakerService) {
-        this.circuitBreakerService = circuitBreakerService;
+    public MultiBucketConsumerService(ClusterService clusterService, Settings settings, CircuitBreaker breaker) {
+        this.breaker = breaker;
         this.maxBucket = MAX_BUCKET_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBucket);
     }
@@ -123,6 +117,7 @@ public class MultiBucketConsumerService {
                     MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
             }
 
+            // check parent circuit breaker every 1024 buckets
             if (value > 0 && (count & 0x3FF) == 0) {
                 breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
             }
@@ -142,6 +137,6 @@ public class MultiBucketConsumerService {
     }
 
     public MultiBucketConsumer create() {
-        return new MultiBucketConsumer(maxBucket, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        return new MultiBucketConsumer(maxBucket, breaker);
     }
 }

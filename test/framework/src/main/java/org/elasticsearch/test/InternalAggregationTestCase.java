@@ -160,7 +160,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
     public static final int DEFAULT_MAX_BUCKETS = 100000;
-    public static final int DEFAULT_CHECK_BUCKETS_STEP_SIZE = 100000;
     protected static final double TOLERANCE = 1e-10;
 
     private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {

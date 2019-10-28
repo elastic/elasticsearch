@@ -91,7 +91,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
-import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_CHECK_BUCKETS_STEP_SIZE;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -197,7 +196,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.numberOfShards()).thenReturn(1);
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
         when(searchContext.fetchPhase())
-            .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));
+                .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));
         when(searchContext.bitsetFilterCache()).thenReturn(new BitsetFilterCache(indexSettings, mock(Listener.class)));
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         IndexShard indexShard = mock(IndexShard.class);
@@ -355,13 +354,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
             final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
             final int size = compCTX.leaves().size();
             subSearchers = new ShardSearcher[size];
-            for (int searcherIDX = 0; searcherIDX < subSearchers.length; searcherIDX++) {
+            for(int searcherIDX=0;searcherIDX<subSearchers.length;searcherIDX++) {
                 final LeafReaderContext leave = compCTX.leaves().get(searcherIDX);
                 subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
             }
         }
 
-        List<InternalAggregation> aggs = new ArrayList<>();
+        List<InternalAggregation> aggs = new ArrayList<> ();
         Query rewritten = searcher.rewrite(query);
         Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket,

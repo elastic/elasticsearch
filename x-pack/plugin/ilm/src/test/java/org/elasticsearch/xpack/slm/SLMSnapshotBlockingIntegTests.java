@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -48,7 +49,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
@@ -82,7 +82,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final String policyName = "test-policy";
         int docCount = 20;
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", i + "", Collections.singletonMap("foo", "bar"));
+            index(indexName, i + "", Collections.singletonMap("foo", "bar"));
         }
 
         // Create a snapshot repo
@@ -124,12 +124,13 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48441")
     public void testRetentionWhileSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyId = "slm-policy";
         int docCount = 20;
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", null, Collections.singletonMap("foo", "bar"));
+            index(indexName, null, Collections.singletonMap("foo", "bar"));
         }
 
         initializeRepo(REPO);
@@ -164,7 +165,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
         logger.info("--> indexing more docs to force new segment files");
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", null, Collections.singletonMap("foo", "bar"));
+            index(indexName, null, Collections.singletonMap("foo", "bar"));
         }
         refresh(indexName);
 
@@ -215,6 +216,10 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                     SnapshotsStatusResponse s =
                         client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(completedSnapshotName).get();
                     assertNull("expected no snapshot but one was returned", s.getSnapshots().get(0));
+                } catch (RepositoryException e) {
+                    // Concurrent status calls and write operations may lead to failures in determining the current repository generation
+                    // TODO: Remove this hack once tracking the current repository generation has been made consistent
+                    throw new AssertionError(e);
                 } catch (SnapshotMissingException e) {
                     // Great, we wanted it to be deleted!
                 }
@@ -387,7 +392,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final int numdocs = randomIntBetween(50, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, SINGLE_MAPPING_NAME, Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

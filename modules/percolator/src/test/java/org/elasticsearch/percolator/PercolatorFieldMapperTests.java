@@ -515,7 +515,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testQueryWithRewrite() throws Exception {
         addQueryFieldMappings();
-        client().prepareIndex("remote", "doc", "1").setSource("field", "value").get();
+        client().prepareIndex("remote").setId("1").setSource("field", "value").get();
         QueryBuilder queryBuilder = termsLookupQuery("field", new TermsLookup("remote", "1", "field"));
         ParsedDocument doc = mapperService.documentMapper("doc").parse(new SourceToParse("test", "1",
                         BytesReference.bytes(XContentFactory

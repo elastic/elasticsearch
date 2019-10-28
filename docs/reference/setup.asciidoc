@@ -78,3 +78,5 @@ include::setup/starting.asciidoc[]
 include::setup/stopping.asciidoc[]
 
 include::setup/add-nodes.asciidoc[]
+
+include::setup/restart-cluster.asciidoc[]

@@ -1010,7 +1010,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .setType("_doc").setSource("test_field", "type=text,analyzer=test_analyzer").get();
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "_doc", "u" + i)
+            client().prepareIndex("test").setId("u" + i)
                 .setSource(singletonMap("test_field", Integer.toString(i)), XContentType.JSON).get();
         }
         Semaphore recoveryBlocked = new Semaphore(1);

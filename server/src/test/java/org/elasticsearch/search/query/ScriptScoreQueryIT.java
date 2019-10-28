@@ -56,7 +56,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("doc['field2'].value * param1", vars -> {   
+            scripts.put("doc['field2'].value * param1", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles field2Values = (ScriptDocValues.Doubles) doc.get("field2");
                 Double param1 = (Double) vars.get("param1");
@@ -76,7 +76,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         );
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
-            client().prepareIndex("test-index", "_doc", "" + i)
+            client().prepareIndex("test-index").setId("" + i)
                 .setSource("field1", "text" + (i % 2), "field2", i )
                 .get();
         }
@@ -111,9 +111,9 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .addMapping("_doc", "field1", "type=date", "field2", "type=double")
         );
-        client().prepareIndex("test-index2", "_doc", "1").setSource("field1", "2019-09-01", "field2", 1).get();
-        client().prepareIndex("test-index2", "_doc", "2").setSource("field1", "2019-10-01", "field2", 2).get();
-        client().prepareIndex("test-index2", "_doc", "3").setSource("field1", "2019-11-01", "field2", 3).get();
+        client().prepareIndex("test-index2").setId("1").setSource("field1", "2019-09-01", "field2", 1).get();
+        client().prepareIndex("test-index2").setId("2").setSource("field1", "2019-10-01", "field2", 2).get();
+        client().prepareIndex("test-index2").setId("3").setSource("field1", "2019-11-01", "field2", 3).get();
         refresh();
 
         RangeQueryBuilder rangeQB = new RangeQueryBuilder("field1").from("2019-01-01"); // the query should be rewritten to from:null

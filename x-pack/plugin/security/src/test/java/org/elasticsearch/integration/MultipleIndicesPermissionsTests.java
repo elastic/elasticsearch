@@ -116,14 +116,14 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testSingleRole() throws Exception {
-        IndexResponse indexResponse = index("test", "type", jsonBuilder()
+        IndexResponse indexResponse = index("test", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
 
-        indexResponse = index("test1", "type", jsonBuilder()
+        indexResponse = index("test1", jsonBuilder()
                 .startObject()
                 .field("name", "value1")
                 .endObject());
@@ -174,19 +174,19 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     public void testMonitorRestrictedWildcards() throws Exception {
 
-        IndexResponse indexResponse = index("foo", "type", jsonBuilder()
+        IndexResponse indexResponse = index("foo", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = index("foobar", "type", jsonBuilder()
+        indexResponse = index("foobar", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = index("foobarfoo", "type", jsonBuilder()
+        indexResponse = index("foobarfoo", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
@@ -227,7 +227,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertThat(indicesRecoveryResponse.shardRecoveryStates().size(), is(3));
         assertThat(indicesRecoveryResponse.shardRecoveryStates().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
 
-        // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)  
+        // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue("user_monitor", USERS_PASSWD));
         RequestOptions options = optionsBuilder.build();
@@ -238,13 +238,13 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testMultipleRoles() throws Exception {
-        IndexResponse indexResponse = index("a", "type", jsonBuilder()
+        IndexResponse indexResponse = index("a", jsonBuilder()
                 .startObject()
                 .field("name", "value_a")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = index("b", "type", jsonBuilder()
+        indexResponse = index("b", jsonBuilder()
                 .startObject()
                 .field("name", "value_b")
                 .endObject());

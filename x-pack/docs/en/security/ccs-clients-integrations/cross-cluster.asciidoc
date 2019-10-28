@@ -39,6 +39,11 @@ For more information about the `xpack.security.enabled` setting, see
   ** Adding the CA certificate from the local cluster as a trusted CA in
     each remote cluster (see <<transport-tls-ssl-settings>>).
 
+
+* On the local cluster, ensure that users are assigned to (at least) one role
+  that exists on the remote clusters.  On the remote clusters, use that role
+  to define which indices the user may access.  (See <<authorization>>).
+
 * Configure the local cluster to connect to remote clusters as described
   in <<configuring-remote-clusters>>.
   For example, the following configuration adds two remote clusters
@@ -65,9 +70,7 @@ PUT _cluster/settings
 -----------------------------------------------------------
 --
 
-* On the local cluster, ensure that users are assigned to (at least) one role
-  that exists on the remote clusters.  On the remote clusters, use that role
-  to define which indices the user may access.  (See <<authorization>>).
+
 
 [[cross-cluster-configuring-example]]
 ==== Example configuration of cross cluster search

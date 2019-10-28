@@ -6,7 +6,7 @@ All {transform} endpoints have the following base:
 
 [source,js]
 ----
-/_data_frame/transforms/
+_transform/
 ----
 // NOTCONSOLE
 

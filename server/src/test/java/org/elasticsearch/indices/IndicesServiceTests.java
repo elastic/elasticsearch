@@ -243,7 +243,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
 
         test = createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test").get(), 1);
         IndexMetaData secondMetaData = clusterService.state().metaData().index("test");
@@ -572,7 +572,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testOverShardLimit() {
-        int nodesInCluster = randomIntBetween(1,100);
+        int nodesInCluster = randomIntBetween(1,90);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
 
         Settings clusterSettings = Settings.builder()
@@ -594,7 +594,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUnderShardLimit() {
-        int nodesInCluster = randomIntBetween(2,100);
+        int nodesInCluster = randomIntBetween(2,90);
         // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
 

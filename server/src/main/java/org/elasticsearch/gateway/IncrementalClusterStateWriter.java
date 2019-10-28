@@ -18,12 +18,18 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
@@ -33,11 +39,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.LongSupplier;
 
 /**
  * Tracks the metadata written to disk, allowing updated metadata to be written incrementally (i.e. only writing out the changed metadata).
  */
-class IncrementalClusterStateWriter {
+public class IncrementalClusterStateWriter {
+
+    private static final Logger logger = LogManager.getLogger(IncrementalClusterStateWriter.class);
+
+    public static final Setting<TimeValue> SLOW_WRITE_LOGGING_THRESHOLD = Setting.timeSetting("gateway.slow_write_logging_threshold",
+        TimeValue.timeValueSeconds(10), TimeValue.ZERO, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     private final MetaStateService metaStateService;
 
@@ -46,13 +58,24 @@ class IncrementalClusterStateWriter {
     // no need to synchronize access to these fields.
     private Manifest previousManifest;
     private ClusterState previousClusterState;
+    private final LongSupplier relativeTimeMillisSupplier;
     private boolean incrementalWrite;
 
-    IncrementalClusterStateWriter(MetaStateService metaStateService, Manifest manifest, ClusterState clusterState) {
+    private volatile TimeValue slowWriteLoggingThreshold;
+
+    IncrementalClusterStateWriter(Settings settings, ClusterSettings clusterSettings, MetaStateService metaStateService, Manifest manifest,
+                                  ClusterState clusterState, LongSupplier relativeTimeMillisSupplier) {
         this.metaStateService = metaStateService;
         this.previousManifest = manifest;
         this.previousClusterState = clusterState;
+        this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
         this.incrementalWrite = false;
+        this.slowWriteLoggingThreshold = SLOW_WRITE_LOGGING_THRESHOLD.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
+    }
+
+    private void setSlowWriteLoggingThreshold(TimeValue slowWriteLoggingThreshold) {
+        this.slowWriteLoggingThreshold = slowWriteLoggingThreshold;
     }
 
     void setCurrentTerm(long currentTerm) throws WriteStateException {
@@ -78,21 +101,32 @@ class IncrementalClusterStateWriter {
      * Updates manifest and meta data on disk.
      *
      * @param newState new {@link ClusterState}
-     * @param previousState previous {@link ClusterState}
      *
      * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.
      */
-    void updateClusterState(ClusterState newState, ClusterState previousState) throws WriteStateException {
+    void updateClusterState(ClusterState newState) throws WriteStateException {
         MetaData newMetaData = newState.metaData();
+
+        final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
 
         final AtomicClusterStateWriter writer = new AtomicClusterStateWriter(metaStateService, previousManifest);
         long globalStateGeneration = writeGlobalState(writer, newMetaData);
-        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, newState, previousState);
+        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, newState);
         Manifest manifest = new Manifest(previousManifest.getCurrentTerm(), newState.version(), globalStateGeneration, indexGenerations);
         writeManifest(writer, manifest);
-
         previousManifest = manifest;
         previousClusterState = newState;
+
+        final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
+        final TimeValue finalSlowWriteLoggingThreshold = this.slowWriteLoggingThreshold;
+        if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
+            logger.warn("writing cluster state took [{}ms] which is above the warn threshold of [{}]; " +
+                    "wrote metadata for [{}] indices and skipped [{}] unchanged indices",
+                durationMillis, finalSlowWriteLoggingThreshold, writer.getIndicesWritten(), writer.getIndicesSkipped());
+        } else {
+            logger.debug("writing cluster state took [{}ms]; wrote metadata for [{}] indices and skipped [{}] unchanged indices",
+                durationMillis, writer.getIndicesWritten(), writer.getIndicesSkipped());
+        }
     }
 
     private void writeManifest(AtomicClusterStateWriter writer, Manifest manifest) throws WriteStateException {
@@ -101,14 +135,14 @@ class IncrementalClusterStateWriter {
         }
     }
 
-    private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer, ClusterState newState, ClusterState previousState)
+    private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer, ClusterState newState)
         throws WriteStateException {
         Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
-        Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());
+        Set<Index> relevantIndices = getRelevantIndices(newState);
 
         Map<Index, Long> newIndices = new HashMap<>();
 
-        MetaData previousMetaData = incrementalWrite ? previousState.metaData() : null;
+        MetaData previousMetaData = incrementalWrite ? previousClusterState.metaData() : null;
         Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previouslyWrittenIndices, relevantIndices, previousMetaData,
             newState.metaData());
 
@@ -172,8 +206,7 @@ class IncrementalClusterStateWriter {
         return actions;
     }
 
-    private static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state, ClusterState previousState, Set<Index>
-        previouslyWrittenIndices) {
+    private static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state) {
         RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
@@ -181,20 +214,6 @@ class IncrementalClusterStateWriter {
         Set<Index> indices = new HashSet<>();
         for (ShardRouting routing : newRoutingNode) {
             indices.add(routing.index());
-        }
-        // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if
-        // we have it written on disk previously
-        for (IndexMetaData indexMetaData : state.metaData()) {
-            boolean isOrWasClosed = indexMetaData.getState().equals(IndexMetaData.State.CLOSE);
-            // if the index is open we might still have to write the state if it just transitioned from closed to open
-            // so we have to check for that as well.
-            IndexMetaData previousMetaData = previousState.metaData().index(indexMetaData.getIndex());
-            if (previousMetaData != null) {
-                isOrWasClosed = isOrWasClosed || previousMetaData.getState().equals(IndexMetaData.State.CLOSE);
-            }
-            if (previouslyWrittenIndices.contains(indexMetaData.getIndex()) && isOrWasClosed) {
-                indices.add(indexMetaData.getIndex());
-            }
         }
         return indices;
     }
@@ -209,20 +228,14 @@ class IncrementalClusterStateWriter {
     }
 
     // exposed for tests
-    static Set<Index> getRelevantIndices(ClusterState state, ClusterState previousState, Set<Index> previouslyWrittenIndices) {
-        Set<Index> relevantIndices;
-        if (isDataOnlyNode(state)) {
-            relevantIndices = getRelevantIndicesOnDataOnlyNode(state, previousState, previouslyWrittenIndices);
-        } else if (state.nodes().getLocalNode().isMasterNode()) {
-            relevantIndices = getRelevantIndicesForMasterEligibleNode(state);
+    static Set<Index> getRelevantIndices(ClusterState state) {
+        if (state.nodes().getLocalNode().isMasterNode()) {
+            return getRelevantIndicesForMasterEligibleNode(state);
+        } else if (state.nodes().getLocalNode().isDataNode()) {
+            return getRelevantIndicesOnDataOnlyNode(state);
         } else {
-            relevantIndices = Collections.emptySet();
+            return Collections.emptySet();
         }
-        return relevantIndices;
-    }
-
-    private static boolean isDataOnlyNode(ClusterState state) {
-        return state.nodes().getLocalNode().isMasterNode() == false && state.nodes().getLocalNode().isDataNode();
     }
 
     /**
@@ -255,6 +268,9 @@ class IncrementalClusterStateWriter {
         private final Manifest previousManifest;
         private final MetaStateService metaStateService;
         private boolean finished;
+
+        private int indicesWritten;
+        private int indicesSkipped;
 
         AtomicClusterStateWriter(MetaStateService metaStateService, Manifest previousManifest) {
             this.metaStateService = metaStateService;
@@ -320,6 +336,22 @@ class IncrementalClusterStateWriter {
             rollbackCleanupActions.forEach(Runnable::run);
             finished = true;
         }
+
+        void incrementIndicesWritten() {
+            indicesWritten++;
+        }
+
+        void incrementIndicesSkipped() {
+            indicesSkipped++;
+        }
+
+        int getIndicesWritten() {
+            return indicesWritten;
+        }
+
+        int getIndicesSkipped() {
+            return indicesSkipped;
+        }
     }
 
     static class KeepPreviousGeneration implements IndexMetaDataAction {
@@ -338,6 +370,7 @@ class IncrementalClusterStateWriter {
 
         @Override
         public long execute(AtomicClusterStateWriter writer) {
+            writer.incrementIndicesSkipped();
             return generation;
         }
     }
@@ -356,6 +389,7 @@ class IncrementalClusterStateWriter {
 
         @Override
         public long execute(AtomicClusterStateWriter writer) throws WriteStateException {
+            writer.incrementIndicesWritten();
             return writer.writeIndex("freshly created", indexMetaData);
         }
     }
@@ -376,6 +410,7 @@ class IncrementalClusterStateWriter {
 
         @Override
         public long execute(AtomicClusterStateWriter writer) throws WriteStateException {
+            writer.incrementIndicesWritten();
             return writer.writeIndex(
                     "version changed from [" + oldIndexMetaData.getVersion() + "] to [" + newIndexMetaData.getVersion() + "]",
                     newIndexMetaData);

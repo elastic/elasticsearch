@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
@@ -92,8 +93,10 @@ public class GatewayMetaState {
         }
 
         final IncrementalClusterStateWriter incrementalClusterStateWriter
-            = new IncrementalClusterStateWriter(metaStateService, manifestClusterStateTuple.v1(),
-                prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()));
+            = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,
+                manifestClusterStateTuple.v1(),
+                prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()),
+                transportService.getThreadPool()::relativeTimeInMillis);
         if (DiscoveryNode.isMasterNode(settings) == false) {
             if (DiscoveryNode.isDataNode(settings)) {
                 // Master-eligible nodes persist index metadata for all indices regardless of whether they hold any shards or not. It's
@@ -204,7 +207,6 @@ public class GatewayMetaState {
      * Elasticsearch 2.0 removed several deprecated features and as well as support for Lucene 3.x. This method calls
      * {@link MetaDataIndexUpgradeService} to makes sure that indices are compatible with the current version. The
      * MetaDataIndexUpgradeService might also update obsolete settings if needed.
-     * Allows upgrading global custom meta data via {@link MetaDataUpgrader#customMetaDataUpgraders}
      *
      * @return input <code>metaData</code> if no upgrade is needed or an upgraded metaData
      */
@@ -220,11 +222,6 @@ public class GatewayMetaState {
             changed |= indexMetaData != newMetaData;
             upgradedMetaData.put(newMetaData, false);
         }
-        // upgrade global custom meta data
-        if (applyPluginUpgraders(metaData.getCustoms(), metaDataUpgrader.customMetaDataUpgraders,
-                upgradedMetaData::removeCustom, upgradedMetaData::putCustom)) {
-            changed = true;
-        }
         // upgrade current templates
         if (applyPluginUpgraders(metaData.getTemplates(), metaDataUpgrader.indexTemplateMetaDataUpgraders,
                 upgradedMetaData::removeTemplate, (s, indexTemplateMetaData) -> upgradedMetaData.put(indexTemplateMetaData))) {
@@ -233,21 +230,21 @@ public class GatewayMetaState {
         return changed ? upgradedMetaData.build() : metaData;
     }
 
-    private static <Data> boolean applyPluginUpgraders(ImmutableOpenMap<String, Data> existingData,
-                                                       UnaryOperator<Map<String, Data>> upgrader,
-                                                       Consumer<String> removeData,
-                                                       BiConsumer<String, Data> putData) {
+    private static boolean applyPluginUpgraders(ImmutableOpenMap<String, IndexTemplateMetaData> existingData,
+                                                UnaryOperator<Map<String, IndexTemplateMetaData>> upgrader,
+                                                Consumer<String> removeData,
+                                                BiConsumer<String, IndexTemplateMetaData> putData) {
         // collect current data
-        Map<String, Data> existingMap = new HashMap<>();
-        for (ObjectObjectCursor<String, Data> customCursor : existingData) {
+        Map<String, IndexTemplateMetaData> existingMap = new HashMap<>();
+        for (ObjectObjectCursor<String, IndexTemplateMetaData> customCursor : existingData) {
             existingMap.put(customCursor.key, customCursor.value);
         }
         // upgrade global custom meta data
-        Map<String, Data> upgradedCustoms = upgrader.apply(existingMap);
+        Map<String, IndexTemplateMetaData> upgradedCustoms = upgrader.apply(existingMap);
         if (upgradedCustoms.equals(existingMap) == false) {
             // remove all data first so a plugin can remove custom metadata or templates if needed
             existingMap.keySet().forEach(removeData);
-            for (Map.Entry<String, Data> upgradedCustomEntry : upgradedCustoms.entrySet()) {
+            for (Map.Entry<String, IndexTemplateMetaData> upgradedCustomEntry : upgradedCustoms.entrySet()) {
                 putData.accept(upgradedCustomEntry.getKey(), upgradedCustomEntry.getValue());
             }
             return true;
@@ -279,7 +276,7 @@ public class GatewayMetaState {
                     incrementalClusterStateWriter.setCurrentTerm(event.state().term());
                 }
 
-                incrementalClusterStateWriter.updateClusterState(event.state(), event.previousState());
+                incrementalClusterStateWriter.updateClusterState(event.state());
                 incrementalClusterStateWriter.setIncrementalWrite(true);
             } catch (WriteStateException e) {
                 logger.warn("Exception occurred when storing new meta data", e);
@@ -321,9 +318,9 @@ public class GatewayMetaState {
         @Override
         public void setLastAcceptedState(ClusterState clusterState) {
             try {
-                final ClusterState previousClusterState = incrementalClusterStateWriter.getPreviousClusterState();
-                incrementalClusterStateWriter.setIncrementalWrite(previousClusterState.term() == clusterState.term());
-                incrementalClusterStateWriter.updateClusterState(clusterState, previousClusterState);
+                incrementalClusterStateWriter.setIncrementalWrite(
+                    incrementalClusterStateWriter.getPreviousClusterState().term() == clusterState.term());
+                incrementalClusterStateWriter.updateClusterState(clusterState);
             } catch (WriteStateException e) {
                 logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
                 e.rethrowAsErrorOrUncheckedException();

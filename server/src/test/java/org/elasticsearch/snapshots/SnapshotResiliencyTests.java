@@ -1062,9 +1062,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new MetaDataIndexUpgradeService(
                         settings, namedXContentRegistry,
                         mapperRegistry,
-                        indexScopedSettings,
-                        Collections.emptyList()
-                    ),
+                        indexScopedSettings),
                     clusterSettings
                 );
                 actions.put(PutMappingAction.INSTANCE,
@@ -1174,6 +1172,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 snapshotsService.start();
                 snapshotShardsService.start();
+                repositoriesService.start();
                 final CoordinationState.PersistedState persistedState =
                     new InMemoryPersistedState(initialState.term(), stateForNode(initialState, node));
                 coordinator = new Coordinator(node.getName(), clusterService.getSettings(),

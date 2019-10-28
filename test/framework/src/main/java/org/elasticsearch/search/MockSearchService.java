@@ -75,8 +75,8 @@ public class MockSearchService extends SearchService {
 
     @Override
     protected void putContext(SearchContext context) {
-        super.putContext(context);
         addActiveContext(context);
+        super.putContext(context);
     }
 
     @Override

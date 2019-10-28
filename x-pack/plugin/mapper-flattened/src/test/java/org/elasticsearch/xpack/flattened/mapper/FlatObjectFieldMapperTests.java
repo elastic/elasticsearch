@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
@@ -51,7 +51,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FlattenedMapperPlugin.class, XPackPlugin.class);
+        return pluginList(FlattenedMapperPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     public void testDefaults() throws Exception {
@@ -74,7 +74,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
 
         // Check the root fields.
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
@@ -130,7 +130,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
 
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -162,7 +162,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject());
 
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
 
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -243,7 +243,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .nullField("field")
         .endObject());
 
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
     }
@@ -267,11 +267,11 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
         .endObject());
 
         expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test", "type", "1", doc1, XContentType.JSON)));
+            new SourceToParse("test", "1", doc1, XContentType.JSON)));
 
         BytesReference doc2 = new BytesArray("{ \"field\": { \"key\": \"value\" ");
         expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test", "type", "1", doc2, XContentType.JSON)));
+            new SourceToParse("test", "1", doc2, XContentType.JSON)));
     }
 
     public void testFieldMultiplicity() throws Exception {
@@ -300,7 +300,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endArray()
         .endObject());
 
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
 
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(6, fields.length);
@@ -341,7 +341,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
         .endObject());
 
         expectThrows(MapperParsingException.class, () ->
-            mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON)));
+            mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON)));
     }
 
     public void testEagerGlobalOrdinals() throws IOException {
@@ -384,7 +384,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endArray()
         .endObject());
 
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
     }
@@ -415,7 +415,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
                 .nullField("key")
             .endObject()
         .endObject());
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
 
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, fields.length);

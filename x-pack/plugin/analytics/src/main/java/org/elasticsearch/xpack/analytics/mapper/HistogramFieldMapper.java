@@ -214,10 +214,6 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new IndexFieldData.Builder() {
-                @Override
-                public int hashCode() {
-                    return super.hashCode();
-                }
 
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {

@@ -89,20 +89,18 @@ public class HistogramAggregationTests extends ESSingleNodeTestCase {
                 client().bulk(bulkRequest);
                 bulkRequest = new BulkRequest();
                 List<Double> values = new ArrayList<>();
-                List<Long> counts = new ArrayList<>();
+                List<Integer> counts = new ArrayList<>();
                 Iterator<DoubleHistogramIterationValue> iterator = histogram.recordedValues().iterator();
                 while (iterator.hasNext()) {
                     DoubleHistogramIterationValue histValue = iterator.next();
-                    double d = histValue.getValueIteratedTo();
-                    values.add(d);
-                    long count = histValue.getCountAtValueIteratedTo();
-                    counts.add(count);
+                    values.add(histValue.getValueIteratedTo());
+                    counts.add(Math.toIntExact(histValue.getCountAtValueIteratedTo()));
                 }
                 XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
                     .startObject()
                       .startObject("data")
                         .field("values", values.toArray(new Double[values.size()]))
-                        .field("counts", counts.toArray(new Long[counts.size()]))
+                        .field("counts", counts.toArray(new Integer[counts.size()]))
                       .endObject()
                     .endObject();
                 client().prepareIndex("pre_agg").setSource(preAggDoc).get();
@@ -184,19 +182,17 @@ public class HistogramAggregationTests extends ESSingleNodeTestCase {
                 client().bulk(bulkRequest);
                 bulkRequest = new BulkRequest();
                 List<Double> values = new ArrayList<>();
-                List<Long> counts = new ArrayList<>();
+                List<Integer> counts = new ArrayList<>();
                 Collection<Centroid> centroids = histogram.centroids();
                 for (Centroid centroid : centroids) {
-                    double d =centroid.mean();
-                    values.add(d);
-                    long count = centroid.count();
-                    counts.add(count);
+                    values.add(centroid.mean());
+                    counts.add(centroid.count());
                 }
                 XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
                     .startObject()
                       .startObject("data")
                         .field("values", values.toArray(new Double[values.size()]))
-                        .field("counts", counts.toArray(new Long[counts.size()]))
+                        .field("counts", counts.toArray(new Integer[counts.size()]))
                       .endObject()
                     .endObject();
                 client().prepareIndex("pre_agg").setSource(preAggDoc).get();

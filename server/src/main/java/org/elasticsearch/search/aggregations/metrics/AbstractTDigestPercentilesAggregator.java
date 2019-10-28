@@ -87,7 +87,8 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
 
     }
 
-    private LeafBucketCollector collectNumeric(final SortedNumericDoubleValues values, final BigArrays bigArrays, final LeafBucketCollector sub) {
+    private LeafBucketCollector collectNumeric(final SortedNumericDoubleValues values,
+                                               final BigArrays bigArrays, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -109,7 +110,8 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         };
     }
 
-    private LeafBucketCollector collectHistogramValues(final HistogramValues values, final BigArrays bigArrays, final LeafBucketCollector sub) {
+    private LeafBucketCollector collectHistogramValues(final HistogramValues values,
+                                                       final BigArrays bigArrays, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

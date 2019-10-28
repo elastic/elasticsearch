@@ -270,7 +270,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testGeoPoint() throws IOException {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
             "geo_point", "type=geo_point");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index")
             .setSource("geo_point", "-10.0,10.0")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -294,7 +294,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testEmptyGeoPoint() throws IOException {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
             "geo_point", "type=geo_point");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index")
             .setSource()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -324,7 +324,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
     public void testUnmappedGeoPoint() throws IOException {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index")
             .setSource()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -353,7 +353,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testGeoShape() throws IOException {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
             "geo_shape", "type=geo_shape");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index")
             .setSource("geo_shape", "POINT (-10 10)")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -378,7 +378,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testEmptyGeoShape() throws IOException {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
             "geo_shape", "type=geo_shape");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index")
             .setSource()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -414,7 +414,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
     public void testUnmappedGeoShape() throws IOException {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index")
             .setSource()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();

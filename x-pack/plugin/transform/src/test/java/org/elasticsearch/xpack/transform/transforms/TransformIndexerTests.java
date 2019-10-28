@@ -82,21 +82,35 @@ public class TransformIndexerTests extends ESTestCase {
         private CountDownLatch latch;
 
         MockedTransformIndexer(
-                Executor executor,
-                TransformConfigManager transformsConfigManager,
-                CheckpointProvider checkpointProvider,
-                TransformConfig transformConfig,
-                Map<String, String> fieldMappings,
-                TransformAuditor auditor,
-                AtomicReference<IndexerState> initialState,
-                TransformIndexerPosition initialPosition,
-                TransformIndexerStats jobStats,
-                TransformContext context,
-                Function<SearchRequest, SearchResponse> searchFunction,
-                Function<BulkRequest, BulkResponse> bulkFunction,
-                Consumer<Exception> failureConsumer) {
-            super(executor, transformsConfigManager, checkpointProvider, auditor, transformConfig, fieldMappings, initialState, initialPosition, jobStats,
-                    /* TransformProgress */ null, TransformCheckpoint.EMPTY, TransformCheckpoint.EMPTY, context);
+            Executor executor,
+            TransformConfigManager transformsConfigManager,
+            CheckpointProvider checkpointProvider,
+            TransformConfig transformConfig,
+            Map<String, String> fieldMappings,
+            TransformAuditor auditor,
+            AtomicReference<IndexerState> initialState,
+            TransformIndexerPosition initialPosition,
+            TransformIndexerStats jobStats,
+            TransformContext context,
+            Function<SearchRequest, SearchResponse> searchFunction,
+            Function<BulkRequest, BulkResponse> bulkFunction,
+            Consumer<Exception> failureConsumer
+        ) {
+            super(
+                executor,
+                transformsConfigManager,
+                checkpointProvider,
+                auditor,
+                transformConfig,
+                fieldMappings,
+                initialState,
+                initialPosition,
+                jobStats,
+                /* TransformProgress */ null,
+                TransformCheckpoint.EMPTY,
+                TransformCheckpoint.EMPTY,
+                context
+            );
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -198,19 +212,25 @@ public class TransformIndexerTests extends ESTestCase {
 
     public void testPageSizeAdapt() throws Exception {
         Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
-        TransformConfig config = new TransformConfig(randomAlphaOfLength(10),
+        TransformConfig config = new TransformConfig(
+            randomAlphaOfLength(10),
             randomSourceConfig(),
             randomDestConfig(),
             null,
             null,
             null,
             new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+        );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final long initialPageSize = pageSize == null ? Pivot.DEFAULT_INITIAL_PAGE_SIZE : pageSize;
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
-            throw new SearchPhaseExecutionException("query", "Partial shards failure", new ShardSearchFailure[] {
-                    new ShardSearchFailure(new CircuitBreakingException("to much memory", 110, 100, Durability.TRANSIENT)) });
+            throw new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] {
+                    new ShardSearchFailure(new CircuitBreakingException("to much memory", 110, 100, Durability.TRANSIENT)) }
+            );
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
@@ -227,9 +247,21 @@ public class TransformIndexerTests extends ESTestCase {
             TransformAuditor auditor = new TransformAuditor(client, "node_1");
             TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
-            MockedTransformIndexer indexer = new MockedTransformIndexer(executor, mock(TransformConfigManager.class),
-                    mock(CheckpointProvider.class), config, Collections.emptyMap(), auditor, state, null,
-                    new TransformIndexerStats(), context, searchFunction, bulkFunction, failureConsumer);
+            MockedTransformIndexer indexer = new MockedTransformIndexer(
+                executor,
+                mock(TransformConfigManager.class),
+                mock(CheckpointProvider.class),
+                config,
+                Collections.emptyMap(),
+                auditor,
+                state,
+                null,
+                new TransformIndexerStats(),
+                context,
+                searchFunction,
+                bulkFunction,
+                failureConsumer
+            );
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -240,7 +272,7 @@ public class TransformIndexerTests extends ESTestCase {
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
             long pageSizeAfterFirstReduction = indexer.getPageSize();
             assertThat(initialPageSize, greaterThan(pageSizeAfterFirstReduction));
-            assertThat(pageSizeAfterFirstReduction, greaterThan((long)TransformIndexer.MINIMUM_PAGE_SIZE));
+            assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
 
             // run indexer a 2nd time
             final CountDownLatch secondRunLatch = indexer.newLatch(1);
@@ -254,8 +286,8 @@ public class TransformIndexerTests extends ESTestCase {
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
 
             // assert that page size has been reduced again
-            assertThat(pageSizeAfterFirstReduction, greaterThan((long)indexer.getPageSize()));
-            assertThat(pageSizeAfterFirstReduction, greaterThan((long)TransformIndexer.MINIMUM_PAGE_SIZE));
+            assertThat(pageSizeAfterFirstReduction, greaterThan((long) indexer.getPageSize()));
+            assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
 
         } finally {
             executor.shutdownNow();
@@ -264,22 +296,39 @@ public class TransformIndexerTests extends ESTestCase {
 
     public void testDoProcessAggNullCheck() {
         Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
-        TransformConfig config = new TransformConfig(randomAlphaOfLength(10),
+        TransformConfig config = new TransformConfig(
+            randomAlphaOfLength(10),
             randomSourceConfig(),
             randomDestConfig(),
             null,
             null,
             null,
             new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
-        SearchResponse searchResponse = new SearchResponse(new InternalSearchResponse(
-            new SearchHits(
-                new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-            // Simulate completely null aggs
-            null,
-            new Suggest(Collections.emptyList()),
-            new SearchProfileShardResults(Collections.emptyMap()), false, false, 1),
-            "", 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+        );
+        SearchResponse searchResponse = new SearchResponse(
+            new InternalSearchResponse(
+                new SearchHits(
+                    new SearchHit[0],
+                    new TotalHits(0L, TotalHits.Relation.EQUAL_TO),
+                    0.0f
+                ),
+                // Simulate completely null aggs
+                null,
+                new Suggest(Collections.emptyList()),
+                new SearchProfileShardResults(Collections.emptyMap()),
+                false,
+                false,
+                1
+            ),
+            "",
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
@@ -296,9 +345,21 @@ public class TransformIndexerTests extends ESTestCase {
             TransformAuditor auditor = mock(TransformAuditor.class);
             TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
-            MockedTransformIndexer indexer = new MockedTransformIndexer(executor, mock(TransformConfigManager.class),
-                    mock(CheckpointProvider.class), config, Collections.emptyMap(), auditor, state, null,
-                new TransformIndexerStats(), context, searchFunction, bulkFunction, failureConsumer);
+            MockedTransformIndexer indexer = new MockedTransformIndexer(
+                executor,
+                mock(TransformConfigManager.class),
+                mock(CheckpointProvider.class),
+                config,
+                Collections.emptyMap(),
+                auditor,
+                state,
+                null,
+                new TransformIndexerStats(),
+                context,
+                searchFunction,
+                bulkFunction,
+                failureConsumer
+            );
 
             IterationResult<TransformIndexerPosition> newPosition = indexer.doProcess(searchResponse);
             assertThat(newPosition.getToIndex(), is(empty()));

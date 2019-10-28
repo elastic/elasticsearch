@@ -91,7 +91,7 @@ class TransformContext {
         return numFailureRetries;
     }
 
-    int getAndIncrementFailureCount () {
+    int getAndIncrementFailureCount() {
         return failureCount.getAndIncrement();
     }
 
@@ -100,11 +100,16 @@ class TransformContext {
     }
 
     void markAsFailed(String failureMessage) {
-        taskListener.fail(failureMessage, ActionListener.wrap(r -> {
-            // Successfully marked as failed, reset counter so that task can be restarted
-            failureCount.set(0);
-        }, e -> {
-        }));
+        taskListener.fail(
+            failureMessage,
+            ActionListener.wrap(
+                r -> {
+                    // Successfully marked as failed, reset counter so that task can be restarted
+                    failureCount.set(0);
+                },
+                e -> {}
+            )
+        );
     }
 
 }

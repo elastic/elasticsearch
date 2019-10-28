@@ -122,7 +122,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 context.getStateReason(),
                 null,
                 null,
-                false);
+                false
+            );
         } else {
             return new TransformState(
                 context.getTaskState(),
@@ -132,7 +133,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 context.getStateReason(),
                 getIndexer().getProgress(),
                 null,
-                getIndexer().shouldStopAtCheckpoint());
+                getIndexer().shouldStopAtCheckpoint()
+            );
         }
     }
 
@@ -242,7 +244,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             null,
             getIndexer().getProgress(),
             null,
-            getIndexer().shouldStopAtCheckpoint());
+            getIndexer().shouldStopAtCheckpoint()
+        );
 
         logger.info("[{}] updating state for transform to [{}].", transform.getId(), state.toString());
         // Even though the indexer information is persisted to an index, we still need TransformTaskState in the clusterstate
@@ -291,12 +294,16 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
      * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
      */
-    public synchronized void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint,
-                                                       ActionListener<Void> shouldStopAtCheckpointListener) {
-        logger.debug("[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
+    public synchronized void setShouldStopAtCheckpoint(
+        boolean shouldStopAtCheckpoint,
+        ActionListener<Void> shouldStopAtCheckpointListener
+    ) {
+        logger.debug(
+            "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
             getTransformId(),
             shouldStopAtCheckpoint,
-            getState());
+            getState()
+        );
         if (context.getTaskState() != TransformTaskState.STARTED || getIndexer() == null) {
             shouldStopAtCheckpointListener.onResponse(null);
             return;
@@ -305,11 +312,13 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {
-        logger.debug("[{}] stop called with force [{}], shouldStopAtCheckpoint [{}], state [{}]",
+        logger.debug(
+            "[{}] stop called with force [{}], shouldStopAtCheckpoint [{}], state [{}]",
             getTransformId(),
             force,
             shouldStopAtCheckpoint,
-            getState());
+            getState()
+        );
         if (getIndexer() == null) {
             // If there is no indexer the task has not been triggered
             // but it still needs to be stopped and removed
@@ -339,7 +348,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after).
         // if it is false, stop immediately
         if (shouldStopAtCheckpoint == false ||
-            // If state was in a failed state, we should stop immediately as we will never reach the next checkpoint
+        // If state was in a failed state, we should stop immediately as we will never reach the next checkpoint
             wasFailed ||
             // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
             // or has yet to even start one.

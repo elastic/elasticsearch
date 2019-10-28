@@ -62,7 +62,8 @@ class ClientTransformIndexerBuilder {
             TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
             seqNoPrimaryTermAndIndex,
             context,
-            shouldStopAtCheckpoint);
+            shouldStopAtCheckpoint
+        );
     }
 
     ClientTransformIndexerBuilder setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {

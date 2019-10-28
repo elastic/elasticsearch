@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -174,8 +175,13 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             stepTime = in.readOptionalLong();
             stepInfo = in.readOptionalBytesReference();
             phaseExecutionInfo = in.readOptionalWriteable(PhaseExecutionInfo::new);
-            isTransitiveError = in.readOptionalBoolean();
-            failedStepRetryCount = in.readOptionalVInt();
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                isTransitiveError = in.readOptionalBoolean();
+                failedStepRetryCount = in.readOptionalVInt();
+            } else {
+                isTransitiveError = null;
+                failedStepRetryCount = null;
+            }
         } else {
             policyName = null;
             lifecycleDate = null;
@@ -209,8 +215,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalLong(stepTime);
             out.writeOptionalBytesReference(stepInfo);
             out.writeOptionalWriteable(phaseExecutionInfo);
-            out.writeOptionalBoolean(isTransitiveError);
-            out.writeOptionalVInt(failedStepRetryCount);
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                out.writeOptionalBoolean(isTransitiveError);
+                out.writeOptionalVInt(failedStepRetryCount);
+            }
         }
     }
 

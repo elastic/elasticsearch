@@ -20,8 +20,6 @@
 package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.BufferedReader;
 import java.io.StringReader;
@@ -30,9 +28,6 @@ import static org.elasticsearch.cli.Terminal.SystemTerminal.readLineToCharArray;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TerminalTests extends ESTestCase {
-
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
 
     public void testVerbosity() throws Exception {
         MockTerminal terminal = new MockTerminal();
@@ -112,10 +107,8 @@ public class TerminalTests extends ESTestCase {
         String secret = "A very long secret, too long in fact for our purposes.";
         terminal.addSecretInput(secret);
 
-        expectedException.expect(IllegalStateException.class);
-        expectedException.expectMessage("Secret exceeded maximum length of " + (secret.length() - 1));
-
-        terminal.readSecret("Secret? ", secret.length() - 1);
+        expectThrows(IllegalStateException.class, "Secret exceeded maximum length of ",
+            () -> terminal.readSecret("Secret? ", secret.length() - 1));
     }
 
     public void testTerminalReusesBufferedReaders() throws Exception {
@@ -171,11 +164,9 @@ public class TerminalTests extends ESTestCase {
     }
 
     public void testSystemTerminalLineExceedsMaxCharacters() throws Exception {
-        expectedException.expect(RuntimeException.class);
-        expectedException.expectMessage("Input exceeded maximum length of 10");
-        // read from an input stream to a character array
         try (StringReader reader = new StringReader("hellohellohello!\n")) {
-            readLineToCharArray(reader, 10);
+            expectThrows(RuntimeException.class, "Input exceeded maximum length of 10",
+                () -> readLineToCharArray(reader, 10));
         }
     }
 

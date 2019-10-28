@@ -28,8 +28,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -48,9 +46,6 @@ public class BootstrapTests extends ESTestCase {
     List<FileSystem> fileSystems = new ArrayList<>();
 
     private static final int MAX_PASSPHRASE_LENGTH = 10;
-
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
 
     @After
     public void closeMockFileSystems() throws IOException {
@@ -93,22 +88,18 @@ public class BootstrapTests extends ESTestCase {
     }
 
     public void testPassphraseTooLong() throws Exception {
-        expectedException.expect(RuntimeException.class);
-        expectedException.expectMessage("Password exceeded maximum length of 10");
-        // read from an input stream to a character array
         byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(source)) {
-            Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
+            expectThrows(RuntimeException.class, "Password exceeded maximum length of 10",
+                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH));
         }
     }
 
     public void testNoPassPhraseProvided() throws Exception {
-        expectedException.expect(RuntimeException.class);
-        expectedException.expectMessage("Keystore passphrase required but none provided.");
-        // read from an input stream to a character array
         byte[] source = "\r\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(source)) {
-            Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
+            expectThrows(RuntimeException.class, "Keystore passphrase required but none provided.",
+                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH));
         }
     }
 

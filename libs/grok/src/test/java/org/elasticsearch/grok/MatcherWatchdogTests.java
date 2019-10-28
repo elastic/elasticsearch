@@ -62,7 +62,7 @@ public class MatcherWatchdogTests extends ESTestCase {
         Thread thread = new Thread(() -> {
             Matcher matcher = mock(Matcher.class);
             watchdog.register(matcher);
-            verify(matcher, timeout(9999).times(1)).interrupt();
+            verify(matcher, timeout(9999).atLeastOnce()).interrupt();
             interrupted.set(true);
             while (run.get()) {} // wait here so that the size of the registry can be asserted
             watchdog.unregister(matcher);

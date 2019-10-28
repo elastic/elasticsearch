@@ -276,7 +276,8 @@ public class RepositoryDataTests extends ESTestCase {
             for (IndexId someIndex : someIndices) {
                 final int shardCount = randomIntBetween(1, 10);
                 for (int j = 0; j < shardCount; ++j) {
-                    builder.put(someIndex, 0, UUIDs.randomBase64UUID(random()));
+                    final String uuid = randomBoolean() ? null : UUIDs.randomBase64UUID(random());
+                    builder.put(someIndex, j, uuid);
                 }
             }
             repositoryData = repositoryData.addSnapshot(snapshotId, randomFrom(SnapshotState.values()), builder.build());

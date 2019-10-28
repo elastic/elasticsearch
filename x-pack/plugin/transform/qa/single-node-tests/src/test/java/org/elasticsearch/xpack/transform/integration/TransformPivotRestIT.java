@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
@@ -861,6 +862,61 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         Map<String, Object> stats = getAsMap(getTransformEndpoint() + transformId + "/_stats");
         assertEquals(101, ((List<?>)XContentMapValues.extractValue("transforms.stats.pages_processed", stats)).get(0));
+    }
+
+    public void testContinuousStopWaitForCheckpoint() throws Exception {
+        Request updateLoggingLevels = new Request("PUT", "/_cluster/settings");
+        updateLoggingLevels.setJsonEntity(
+            "{\"transient\": {" +
+                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
+                "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}");
+        client().performRequest(updateLoggingLevels);
+        String indexName = "continuous_reviews_wait_for_checkpoint";
+        createReviewsIndex(indexName);
+        String transformId = "simple_continuous_pivot_wait_for_checkpoint";
+        String dataFrameIndex = "pivot_reviews_continuous_wait_for_checkpoint";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, dataFrameIndex);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        String config = "{"
+            + " \"source\": {\"index\":\"" + indexName + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
+            + " \"frequency\": \"1s\","
+            + " \"sync\": {\"time\": {\"field\": \"timestamp\", \"delay\": \"1s\"}},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForContinuousTransform(transformId, dataFrameIndex, null);
+        assertTrue(indexExists(dataFrameIndex));
+        assertBusy(() -> {
+            try {
+                stopTransform(transformId,false, true);
+            } catch (ResponseException e) {
+                // We get a conflict sometimes depending on WHEN we try to write the state, should eventually pass though
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(200));
+            }
+        });
+
+        // get and check some users
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
+        deleteIndex(indexName);
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

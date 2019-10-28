@@ -67,7 +67,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 2L,
                 Collections.emptyMap(),
                 Instant.now().toEpochMilli()),
-            parentTask);
+            parentTask,
+            false);
 
         List<Boolean> shouldAudit = IntStream.range(0, 100_000).boxed().map(indexer::shouldAuditOnFinish).collect(Collectors.toList());
 

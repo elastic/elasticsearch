@@ -14,6 +14,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.xpack.vectors.mapper.SparseVectorFieldMapper;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
+import org.elasticsearch.xpack.vectors.query.VectorScriptDocValues.DenseVectorScriptDocValues;
+import org.elasticsearch.xpack.vectors.query.VectorScriptDocValues.SparseVectorScriptDocValues;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -22,6 +24,10 @@ import java.util.Map;
 import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder.sortSparseDimsFloatValues;
 
 public class ScoreScriptUtils {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScoreScriptUtils.class));
+    static final String DEPRECATION_MESSAGE = "The vector functions of the form function(query, doc['field']) are deprecated, and " +
+        "the form function(query, 'field')` should be used instead. For example, cosineSimilarity(query, doc['field'] is replaced by " +
+        "cosineSimilarity(query, 'field').";
 
     //**************FUNCTIONS FOR DENSE VECTORS
     // Functions are implemented as classes to accept a hidden parameter scoreScript that contains some index settings.
@@ -64,7 +70,20 @@ public class ScoreScriptUtils {
             }
         }
 
-        public void validateDocVector(BytesRef vector) {
+        BytesRef getEncodedVector(Object arg) {
+            DenseVectorScriptDocValues docValues;
+            if (arg instanceof DenseVectorScriptDocValues) {
+                docValues = (DenseVectorScriptDocValues) arg;
+                deprecationLogger.deprecatedAndMaybeLog("vector_function_signature", DEPRECATION_MESSAGE);
+            } else {
+                String field = (String) arg;
+                docValues = (DenseVectorScriptDocValues) scoreScript.getDoc().get(field);
+            }
+
+            return docValues.getEncodedValue();
+        }
+
+        void validateDocVector(BytesRef vector) {
             if (vector == null) {
                 throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
             }
@@ -84,10 +103,11 @@ public class ScoreScriptUtils {
             super(scoreScript, queryVector);
         }
 
-        public double l1norm(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
-            BytesRef vector = dvs.getEncodedValue();
+        public double l1norm(Object arg) {
+            BytesRef vector = getEncodedVector(arg);
             validateDocVector(vector);
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
+
             double l1norm = 0;
 
             for (float queryValue : queryVector) {
@@ -104,8 +124,8 @@ public class ScoreScriptUtils {
             super(scoreScript, queryVector);
         }
 
-        public double l2norm(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
-            BytesRef vector = dvs.getEncodedValue();
+        public double l2norm(Object arg) {
+            BytesRef vector = getEncodedVector(arg);
             validateDocVector(vector);
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
@@ -125,8 +145,8 @@ public class ScoreScriptUtils {
             super(scoreScript, queryVector);
         }
 
-        public double dotProduct(VectorScriptDocValues.DenseVectorScriptDocValues dvs){
-            BytesRef vector = dvs.getEncodedValue();
+        public double dotProduct(Object arg) {
+            BytesRef vector = getEncodedVector(arg);
             validateDocVector(vector);
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
@@ -145,10 +165,9 @@ public class ScoreScriptUtils {
             super(scoreScript, queryVector, true);
         }
 
-        public double cosineSimilarity(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
-            BytesRef vector = dvs.getEncodedValue();
+        public double cosineSimilarity(Object arg) {
+            BytesRef vector = getEncodedVector(arg);
             validateDocVector(vector);
-
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double dotProduct = 0.0;
@@ -176,8 +195,6 @@ public class ScoreScriptUtils {
     // per script execution for all documents.
 
     public static class SparseVectorFunction {
-        static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SparseVectorFunction.class));
-
         final ScoreScript scoreScript;
         final float[] queryValues;
         final int[] queryDims;
@@ -206,6 +223,19 @@ public class ScoreScriptUtils {
             deprecationLogger.deprecatedAndMaybeLog("sparse_vector_function", SparseVectorFieldMapper.DEPRECATION_MESSAGE);
         }
 
+        BytesRef getEncodedVector(Object arg) {
+            SparseVectorScriptDocValues docValues;
+            if (arg instanceof SparseVectorScriptDocValues) {
+                docValues = (SparseVectorScriptDocValues) arg;
+                deprecationLogger.deprecatedAndMaybeLog("vector_function_signature", DEPRECATION_MESSAGE);
+            } else {
+                String field = (String) arg;
+                docValues = (SparseVectorScriptDocValues) scoreScript.getDoc().get(field);
+            }
+
+            return docValues.getEncodedValue();
+        }
+
         public void validateDocVector(BytesRef vector) {
             if (vector == null) {
                 throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
@@ -219,8 +249,8 @@ public class ScoreScriptUtils {
             super(scoreScript, queryVector);
         }
 
-        public double l1normSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
-            BytesRef vector = dvs.getEncodedValue();
+        public double l1normSparse(Object arg) {
+            BytesRef vector = getEncodedVector(arg);
             validateDocVector(vector);
 
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
@@ -259,8 +289,8 @@ public class ScoreScriptUtils {
            super(scoreScript, queryVector);
         }
 
-        public double l2normSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
-            BytesRef vector = dvs.getEncodedValue();
+        public double l2normSparse(Object arg) {
+            BytesRef vector = getEncodedVector(arg);
             validateDocVector(vector);
 
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
@@ -302,8 +332,8 @@ public class ScoreScriptUtils {
            super(scoreScript, queryVector);
         }
 
-        public double dotProductSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
-            BytesRef vector = dvs.getEncodedValue();
+        public double dotProductSparse(Object arg) {
+            BytesRef vector = getEncodedVector(arg);
             validateDocVector(vector);
 
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
@@ -325,8 +355,8 @@ public class ScoreScriptUtils {
             this.queryVectorMagnitude = Math.sqrt(dotProduct);
         }
 
-        public double cosineSimilaritySparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
-            BytesRef vector = dvs.getEncodedValue();
+        public double cosineSimilaritySparse(Object arg) {
+            BytesRef vector = getEncodedVector(arg);
             validateDocVector(vector);
 
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);

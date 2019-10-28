@@ -51,7 +51,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final LongSupplier globalCheckpointSupplier;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
-    private volatile IndexCommit nextSafeCommit;
+    private volatile long maxSeqNoOfNextSafeCommit;
     private volatile IndexCommit lastCommit; // the most recent commit point
     private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
 
@@ -84,7 +84,11 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             this.safeCommitInfo = SafeCommitInfo.EMPTY;
             this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = commits.get(keptPosition);
-            this.nextSafeCommit = keptPosition == commits.size() - 1 ? null : commits.get(keptPosition + 1);
+            if (keptPosition == commits.size() - 1) {
+                this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
+            } else {
+                this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            }
             for (int i = 0; i < keptPosition; i++) {
                 if (snapshottedCommits.containsKey(commits.get(i)) == false) {
                     deleteCommit(commits.get(i));
@@ -221,10 +225,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * Checks if the deletion policy can delete some index commits with the latest global checkpoint.
      */
-    boolean hasUnreferencedCommits() throws IOException {
-        final IndexCommit nextSafeCommit = this.nextSafeCommit;
-        return nextSafeCommit != null
-            && Long.parseLong(nextSafeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)) <= globalCheckpointSupplier.getAsLong();
+    boolean hasUnreferencedCommits() {
+        return maxSeqNoOfNextSafeCommit <= globalCheckpointSupplier.getAsLong();
     }
 
     /**

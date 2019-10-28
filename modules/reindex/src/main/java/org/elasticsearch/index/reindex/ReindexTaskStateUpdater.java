@@ -44,7 +44,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private final String persistentTaskId;
     private final long allocationId;
     private final ActionListener<ReindexTaskStateDoc> finishedListener;
-    private final Runnable onCancel;
+    private final Runnable onCheckpointAssignmentConflict;
     private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
 
     private int assignmentAttempts = 0;
@@ -52,13 +52,13 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private AtomicBoolean isDone = new AtomicBoolean();
 
     public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String persistentTaskId, long allocationId,
-                                   ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCancel) {
+                                   ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCheckpointAssignmentConflict) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
         this.persistentTaskId = persistentTaskId;
         this.allocationId = allocationId;
         this.finishedListener = finishedListener;
-        this.onCancel = onCancel;
+        this.onCheckpointAssignmentConflict = onCheckpointAssignmentConflict;
     }
 
     public void assign(ActionListener<ReindexTaskStateDoc> listener) {
@@ -146,7 +146,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 if (e instanceof VersionConflictEngineException) {
                     // TODO: Need to ensure that the allocation has changed
                     if (isDone.compareAndSet(false, true)) {
-                        onCancel.run();
+                        onCheckpointAssignmentConflict.run();
                     }
                 }
                 whenDone.run();

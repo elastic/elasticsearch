@@ -57,6 +57,7 @@ public class ReindexTask extends AllocatedPersistentTask {
     private final BulkByScrollTask childTask;
     private volatile BulkByScrollTask.Status transientStatus;
     private volatile String description;
+    private volatile boolean assignmentConflictDetected;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
@@ -110,7 +111,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
             @Override
             public boolean isCancelled() {
-                return ReindexTask.this.isCancelled();
+                return ReindexTask.this.isCancelled() || assignmentConflictDetected;
             }
         };
         this.transientStatus = childTask.getStatus();
@@ -153,7 +154,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                 logger.info("Reindex task failed", e);
                 updateClusterStateToFailed(reindexJob.shouldStoreResult(), ReindexJobState.Status.DONE, e);
             }
-        }, () -> childTask.cancel("ASSIGNMENT_CONFLICT"));
+        }, this::handleCheckpointAssignmentConflict);
 
         taskUpdater.assign(new ActionListener<>() {
             @Override
@@ -180,6 +181,17 @@ public class ReindexTask extends AllocatedPersistentTask {
                 updateClusterStateToFailed(reindexJob.shouldStoreResult(), ReindexJobState.Status.ASSIGNMENT_FAILED, ex);
             }
         });
+    }
+
+    private void handleCheckpointAssignmentConflict() {
+        assert childTask.isWorker() : "checkpoints disabled when slicing";
+        assignmentConflictDetected = true;
+        onCancelled();
+    }
+
+    @Override
+    protected void onCancelled() {
+        childTask.onCancelled();
     }
 
     private void reindexDone(ReindexTaskStateDoc stateDoc, boolean shouldStoreResult) {

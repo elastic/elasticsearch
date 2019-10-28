@@ -1,9 +1,9 @@
 [[restart-cluster]]
 == Restarting a cluster
  
-There might be situations when you need to perform a full-cluster restart which 
-means you need to shut down and restart all the nodes in the cluster. The 
-following description guides you through the process step by step.
+There might be situations when you want to perform a full-cluster restart which 
+means you shut down and restart all the nodes in the cluster. The following 
+description guides you through the process step by step.
 
 . *Disable shard allocation.*
 +

@@ -27,6 +27,7 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
     private final Property<File> sourceDir;
     private final Property<File> destinationDir;
     private final Property<String> superClass;
+    private Saver classSaver = this::saveClass;
 
     public YmlCompileTask() {
         final JavaPluginConvention javaPlugin = getProject().getConvention().getPlugin(JavaPluginConvention.class);
@@ -58,7 +59,7 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
 
     @Input
     public String getSuperClass() {
-        return superClass.getOrNull();
+        return superClass.getOrNull().replace('.', '/');
     }
 
     public void setSuperClass(String superClass) {
@@ -68,8 +69,6 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
 
     @TaskAction
     public void compile() throws IOException {
-        System.out.println(getSourceDir());
-        System.out.println(getDestinationDir());
         for (File f : getProject().fileTree(getSourceDir()).getFiles()) {
             if (f.isFile() && f.getName().endsWith(".yml")) {
                 compile(f);
@@ -77,7 +76,7 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
         }
     }
 
-    private void compile(File file) throws IOException {
+    void compile(File file) throws IOException {
         String path = getSourceDir().toPath().relativize(file.toPath()).toString();
         String className = path.replace(".yml", "_IT");
 
@@ -87,7 +86,7 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
         cw.visit(V11, ACC_PUBLIC + ACC_SUPER, className, null, getSuperClass(), null);
         cw.visitSource(file.getName(), null);
 
-        compileInnerClasses(file, className, cw);
+        int parts = compileInnerClasses(file, className, cw);
 
         {
             mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, new String[]{"java/io/IOException"});
@@ -96,6 +95,27 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
             mv.visitMethodInsn(INVOKESPECIAL, getSuperClass(), "<init>", "()V", false);
             mv.visitInsn(RETURN);
             mv.visitMaxs(1, 1);
+            mv.visitEnd();
+        }
+
+        {
+            mv = cw.visitMethod(ACC_PUBLIC, "getYaml", "()Ljava/lang/String;", null, null);
+            mv.visitCode();
+            mv.visitTypeInsn(NEW, "java/lang/StringBuilder");
+            mv.visitInsn(DUP);
+            mv.visitMethodInsn(INVOKESPECIAL, "java/lang/StringBuilder", "<init>", "()V", false);
+            mv.visitVarInsn(ASTORE, 1);
+            for (int i = 1; i <= parts; i++) {
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitMethodInsn(INVOKESTATIC, className + "$BodyPart" + i, "getYaml", "()Ljava/lang/String;", false);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;",
+                    false);
+                mv.visitInsn(POP);
+            }
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false);
+            mv.visitInsn(ARETURN);
+            mv.visitMaxs(2, 2);
             mv.visitEnd();
         }
 
@@ -110,11 +130,11 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
 
         cw.visitEnd();
 
-        saveClass(className, cw);
+        classSaver.save(className, cw);
     }
 
     //This method stores entire yml file content inside inner classes to avoid hitting hard limit of 65k bytes for class
-    private void compileInnerClasses(File file, String className, ClassWriter cw) throws IOException {
+    private int compileInnerClasses(File file, String className, ClassWriter cw) throws IOException {
         String body = Files.readString(file.toPath(), StandardCharsets.UTF_8);
 
         int partNumber = 0;
@@ -128,11 +148,13 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
 
             compileInnerClass(simpleBodyPartName, className, bodyPart);
         }
+
+        return partNumber;
     }
 
     private void compileInnerClass(String simpleBodyPartName, String className, String bodyPart) throws IOException {
         ClassWriter cw = new ClassWriter(0);
-        MethodVisitor methodVisitor;
+        MethodVisitor mv;
 
         String name = className + "$" + simpleBodyPartName;
         cw.visit(V11, ACC_PUBLIC | ACC_FINAL | ACC_SUPER, name, null, "java/lang/Object", null);
@@ -141,25 +163,25 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
         cw.visitInnerClass(name, className, simpleBodyPartName, ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
 
         {
-            methodVisitor = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
-            methodVisitor.visitCode();
-            methodVisitor.visitVarInsn(ALOAD, 0);
-            methodVisitor.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
-            methodVisitor.visitInsn(RETURN);
-            methodVisitor.visitMaxs(1, 1);
-            methodVisitor.visitEnd();
+            mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
+            mv.visitCode();
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+            mv.visitInsn(RETURN);
+            mv.visitMaxs(1, 1);
+            mv.visitEnd();
         }
         {
-            methodVisitor = cw.visitMethod(ACC_PUBLIC | ACC_STATIC, "getYaml", "()Ljava/lang/String;", null, null);
-            methodVisitor.visitCode();
-            methodVisitor.visitLdcInsn(bodyPart);
-            methodVisitor.visitInsn(ARETURN);
-            methodVisitor.visitMaxs(1, 1);
-            methodVisitor.visitEnd();
+            mv = cw.visitMethod(ACC_PUBLIC | ACC_STATIC, "getYaml", "()Ljava/lang/String;", null, null);
+            mv.visitCode();
+            mv.visitLdcInsn(bodyPart);
+            mv.visitInsn(ARETURN);
+            mv.visitMaxs(1, 1);
+            mv.visitEnd();
         }
         cw.visitEnd();
 
-        saveClass(name, cw);
+        classSaver.save(name, cw);
 
     }
 
@@ -185,5 +207,12 @@ public class YmlCompileTask extends ConventionTask implements Opcodes {
         Files.write(resolve, cw.toByteArray());
     }
 
+    void setClassSaver(Saver classSaver) {
+        this.classSaver = classSaver;
+    }
+
+    public interface Saver {
+        void save(String name, ClassWriter cw) throws IOException;
+    }
 }
 

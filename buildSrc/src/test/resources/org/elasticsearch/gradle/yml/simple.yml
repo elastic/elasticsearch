@@ -1,0 +1,5 @@
+---
+"simple test":
+  - do:
+      cat.aliases:
+        help: true

@@ -1,0 +1,11 @@
+---
+"multiTest1":
+  - do:
+      cat.aliases:
+        help: true
+
+---
+"multiTest2":
+  - do:
+      cat.aliases:
+        help: true

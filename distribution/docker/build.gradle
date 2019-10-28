@@ -162,7 +162,7 @@ void addBuildDockerImage(final boolean oss) {
       ]
     }
     executable 'docker'
-    final List<String> dockerArgs = ['build', files(oss), '--network=host', '--pull', '--no-cache']
+    final List<String> dockerArgs = ['build', files(oss), '--pull', '--no-cache']
     for (final String tag : tags) {
       dockerArgs.add('--tag')
       dockerArgs.add(tag)

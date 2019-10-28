@@ -136,6 +136,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 
 import java.io.Closeable;
@@ -5761,7 +5762,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertMaxSeqNoInCommitUserData(engine);
     }
 
-    public void testRefreshAndFailEngineConcurrently() throws Exception {
+    public void testRefreshAndCloseEngineConcurrently() throws Exception {
         AtomicBoolean stopped = new AtomicBoolean();
         Semaphore indexedDocs = new Semaphore(0);
         Thread indexer = new Thread(() -> {
@@ -5791,7 +5792,11 @@ public class InternalEngineTests extends EngineTestCase {
         refresher.start();
         indexedDocs.acquire(randomIntBetween(1, 100));
         try {
-            engine.failEngine("test", new IOException("simulated error"));
+            if (randomBoolean()) {
+                engine.failEngine("test", new IOException("simulated error"));
+            } else {
+                engine.close();
+            }
         } finally {
             stopped.set(true);
             indexer.join();
@@ -6130,6 +6135,43 @@ public class InternalEngineTests extends EngineTestCase {
                     getter.join();
                 }
                 assertThat(refreshCount.get(), lessThanOrEqualTo(refreshCountBeforeGet + 1));
+            }
+        }
+    }
+
+    public void testRefreshDoesNotBlockClosing() throws Exception {
+        final CountDownLatch refreshStarted = new CountDownLatch(1);
+        final CountDownLatch engineClosed = new CountDownLatch(1);
+        final ReferenceManager.RefreshListener refreshListener = new ReferenceManager.RefreshListener() {
+
+            @Override
+            public void beforeRefresh() {
+                refreshStarted.countDown();
+                try {
+                    engineClosed.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                assertFalse(didRefresh);
+            }
+        };
+        try (Store store = createStore()) {
+            final EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null,
+                refreshListener, null, null, engine.config().getCircuitBreakerService());
+            try (InternalEngine engine = createEngine(config)) {
+                if (randomBoolean()) {
+                    engine.index(indexForDoc(createParsedDoc("id", null)));
+                }
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(() ->
+                    expectThrows(AlreadyClosedException.class,
+                        () -> engine.refresh("test", randomFrom(Engine.SearcherScope.values()), true)));
+                refreshStarted.await();
+                engine.close();
+                engineClosed.countDown();
             }
         }
     }

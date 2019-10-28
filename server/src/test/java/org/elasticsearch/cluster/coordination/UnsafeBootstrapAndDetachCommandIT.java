@@ -374,7 +374,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         ensureStableCluster(2);
 
         logger.info("--> index 1 doc and ensure index is green");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen("test");
 
         logger.info("--> verify 1 doc in the index");

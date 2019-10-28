@@ -141,7 +141,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         }
         for (int i = 0; i < numDocs; i++) {
             try {
-                client().prepareIndex("test", "type", "" + i)
+                client().prepareIndex("test").setId("" + i)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i)
                     .get();

@@ -39,7 +39,6 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class MatcherWatchdogTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48519")
     public void testInterrupt() throws Exception {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
         MatcherWatchdog watchdog = MatcherWatchdog.newInstance(10, 100, System::currentTimeMillis, (delay, command) -> {
@@ -63,7 +62,7 @@ public class MatcherWatchdogTests extends ESTestCase {
         Thread thread = new Thread(() -> {
             Matcher matcher = mock(Matcher.class);
             watchdog.register(matcher);
-            verify(matcher, timeout(9999).times(1)).interrupt();
+            verify(matcher, timeout(9999).atLeastOnce()).interrupt();
             interrupted.set(true);
             while (run.get()) {} // wait here so that the size of the registry can be asserted
             watchdog.unregister(matcher);

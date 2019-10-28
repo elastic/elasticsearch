@@ -197,8 +197,9 @@ public class HttpExporter extends Exporter {
                                 if (Strings.isNullOrEmpty(username) == false) {
                                     if (Strings.isNullOrEmpty(password)) {
                                         throw new SettingsException(
-                                            "[" + AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] without [" +
-                                                AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "]");
+                                            "[" + AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] is set " +
+                                            "but [" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] is " +
+                                            "missing");
                                     }
                                 }
                             }

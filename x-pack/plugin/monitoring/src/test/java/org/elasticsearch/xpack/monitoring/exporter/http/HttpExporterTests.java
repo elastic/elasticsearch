@@ -240,7 +240,7 @@ public class HttpExporterTests extends ESTestCase {
 
     public void testExporterWithUsernameButNoPassword() {
         final String expected =
-            "[xpack.monitoring.exporters._http.auth.username] without [xpack.monitoring.exporters._http.auth.password]";
+            "[xpack.monitoring.exporters._http.auth.username] is set but [xpack.monitoring.exporters._http.auth.password] is missing";
         final String prefix = "xpack.monitoring.exporters._http";
         final Settings settings = Settings.builder()
             .put(prefix + ".type", HttpExporter.TYPE)

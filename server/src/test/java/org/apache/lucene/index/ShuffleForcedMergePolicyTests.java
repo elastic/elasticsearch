@@ -37,7 +37,7 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            MergePolicy mp = new ShuflleForcedMergePolicy(newLogMergePolicy());
+            MergePolicy mp = new ShuffleForcedMergePolicy(newLogMergePolicy());
             iwc.setMergePolicy(mp);
             boolean sorted = random().nextBoolean();
             if (sorted) {
@@ -58,14 +58,14 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertThat(reader.leaves().size(), greaterThan(2));
                     assertSegmentReaders(reader, leaf -> {
-                        assertFalse(ShuflleForcedMergePolicy.isInterleavedSegment(leaf));
+                        assertFalse(ShuffleForcedMergePolicy.isInterleavedSegment(leaf));
                     });
                 }
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertThat(reader.leaves().size(), equalTo(1));
                     assertSegmentReaders(reader, leaf -> {
-                        assertTrue(ShuflleForcedMergePolicy.isInterleavedSegment(leaf));
+                        assertTrue(ShuffleForcedMergePolicy.isInterleavedSegment(leaf));
                     });
                 }
             }
@@ -80,7 +80,7 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
 
     @Override
     protected MergePolicy mergePolicy() {
-        return new ShuflleForcedMergePolicy(newLogMergePolicy());
+        return new ShuffleForcedMergePolicy(newLogMergePolicy());
     }
 
     @Override

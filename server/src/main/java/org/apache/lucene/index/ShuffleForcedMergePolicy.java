@@ -34,10 +34,10 @@ import java.util.Map;
  * and {@link MergePolicy#findForcedDeletesMerges}. This allows time-based indices, that usually have the eldest documents
  * first, to be efficient at finding the most recent documents too.
  */
-public class ShuflleForcedMergePolicy extends FilterMergePolicy {
+public class ShuffleForcedMergePolicy extends FilterMergePolicy {
     private static final String SHUFFLE_MERGE_KEY = "es.shuffle_merge";
 
-    public ShuflleForcedMergePolicy(MergePolicy in) {
+    public ShuffleForcedMergePolicy(MergePolicy in) {
         super(in);
     }
 
@@ -68,7 +68,7 @@ public class ShuflleForcedMergePolicy extends FilterMergePolicy {
         }
         MergeSpecification newMergeSpec = new MergeSpecification();
         for (OneMerge toWrap : mergeSpec.merges) {
-            List<SegmentCommitInfo> newInfos = interleaveList(toWrap.segments);
+            List<SegmentCommitInfo> newInfos = interleaveList(new ArrayList<>(toWrap.segments));
             newMergeSpec.add(new OneMerge(newInfos) {
                 @Override
                 public CodecReader wrapForMerge(CodecReader reader) throws IOException {

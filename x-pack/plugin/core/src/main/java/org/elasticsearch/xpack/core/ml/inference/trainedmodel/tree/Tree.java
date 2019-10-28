@@ -126,9 +126,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
         }
 
-        List<Double> features = featureNames.stream().map(f ->
-            fields.get(f) instanceof Number ? ((Number) fields.get(f)).doubleValue() : null
-        ).collect(Collectors.toList());
+        List<Double> features = featureNames.stream().map(f -> InferenceHelpers.toDouble(fields.get(f))).collect(Collectors.toList());
         return infer(features, config);
     }
 

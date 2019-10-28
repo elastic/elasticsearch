@@ -116,7 +116,7 @@ dependencies {
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
-  compile 'com.github.jengelman.gradle.plugins:shadow:4.0.3'
+  compile 'com.github.jengelman.gradle.plugins:shadow:5.1.0'
   compile 'de.thetaphi:forbiddenapis:2.7'
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   testCompile "junit:junit:${props.getProperty('junit')}"

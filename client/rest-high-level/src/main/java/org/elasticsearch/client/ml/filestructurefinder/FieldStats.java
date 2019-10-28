@@ -142,7 +142,7 @@ public class FieldStats implements ToXContentObject {
         if (latestTimestamp != null) {
             builder.field(LATEST.getPreferredName(), latestTimestamp);
         }
-        if (topHits.isEmpty() == false) {
+        if (!topHits.isEmpty()) {
             builder.field(TOP_HITS.getPreferredName(), topHits);
         }
         builder.endObject();

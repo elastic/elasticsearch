@@ -72,7 +72,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
 
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false));
+                .put(settings.filter((s) -> !s.startsWith("xpack.security.transport.ssl.")));
         builder.put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.key", nodeKeyPath)
             .put("xpack.security.transport.ssl.key_passphrase", "testnode")

@@ -67,7 +67,7 @@ public class AzureStorageFixture extends AbstractHttpFixture {
         if (handler != null) {
             final String authorization = request.getHeader("Authorization");
             if (authorization == null
-                || (authorization.length() > 0 && authorization.contains("azure_integration_test_account") == false)) {
+                || (authorization.length() > 0 && !authorization.contains("azure_integration_test_account"))) {
                 return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Access Denied");
             }
             return handler.handle(request);

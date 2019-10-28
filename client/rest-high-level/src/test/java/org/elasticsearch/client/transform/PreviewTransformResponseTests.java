@@ -38,7 +38,7 @@ public class PreviewTransformResponseTests extends ESTestCase {
                 this::toXContent,
                 PreviewTransformResponse::fromXContent)
                 .supportsUnknownFields(true)
-                .randomFieldsExcludeFilter(path -> path.isEmpty() == false)
+                .randomFieldsExcludeFilter(path -> !path.isEmpty())
                 .test();
     }
 

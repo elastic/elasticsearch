@@ -327,8 +327,8 @@ public final class IndexSettings {
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
             final String requiredPipeline = (String) settings.get(IndexSettings.REQUIRED_PIPELINE);
-            if (value.equals(IngestService.NOOP_PIPELINE_NAME) == false
-                && requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
+            if (!value.equals(IngestService.NOOP_PIPELINE_NAME)
+                && !requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME)) {
                 throw new IllegalArgumentException(
                     "index has a default pipeline [" + value + "] and a required pipeline [" + requiredPipeline + "]");
             }
@@ -352,7 +352,7 @@ public final class IndexSettings {
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
             final String defaultPipeline = (String) settings.get(IndexSettings.DEFAULT_PIPELINE);
-            if (value.equals(IngestService.NOOP_PIPELINE_NAME) && defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
+            if (value.equals(IngestService.NOOP_PIPELINE_NAME) && !defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME)) {
                 throw new IllegalArgumentException(
                     "index has a required pipeline [" + value + "] and a default pipeline [" + defaultPipeline + "]");
             }
@@ -741,12 +741,12 @@ public final class IndexSettings {
      */
     public synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
         final Settings newSettings = indexMetaData.getSettings();
-        if (version.equals(Version.indexCreated(newSettings)) == false) {
+        if (!version.equals(Version.indexCreated(newSettings))) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " +
                 Version.indexCreated(newSettings));
         }
         final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
-        if (newUUID.equals(getUUID()) == false) {
+        if (!newUUID.equals(getUUID())) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
         this.indexMetaData = indexMetaData;
@@ -827,7 +827,7 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
-        assert softDeleteEnabled == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
+        assert !softDeleteEnabled || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
         return translogRetentionSize;
     }
 
@@ -836,7 +836,7 @@ public final class IndexSettings {
      * around
      */
     public TimeValue getTranslogRetentionAge() {
-        assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
+        assert !softDeleteEnabled || translogRetentionAge.millis() == -1L : translogRetentionSize;
         return translogRetentionAge;
     }
 

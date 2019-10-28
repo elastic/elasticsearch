@@ -115,7 +115,7 @@ public class SlackMessageTests extends ESTestCase {
                     }
                     builder.endArray();
                 }
-                if (attachment.actions.isEmpty() == false) {
+                if (!attachment.actions.isEmpty()) {
                     builder.startArray("actions");
                     for (Action action : attachment.actions) {
                         action.toXContent(builder, ToXContent.EMPTY_PARAMS);

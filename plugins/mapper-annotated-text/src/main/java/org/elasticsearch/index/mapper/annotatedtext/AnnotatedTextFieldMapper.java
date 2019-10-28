@@ -601,7 +601,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
-        assert fieldType.hasDocValues() == false;
+        assert !fieldType.hasDocValues();
         this.positionIncrementGap = positionIncrementGap;
     }
 

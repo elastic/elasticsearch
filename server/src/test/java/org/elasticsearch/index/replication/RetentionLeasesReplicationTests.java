@@ -51,7 +51,7 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
             int iterations = between(1, 100);
             CountDownLatch latch = new CountDownLatch(iterations);
             for (int i = 0; i < iterations; i++) {
-                if (leases.isEmpty() == false && rarely()) {
+                if (!leases.isEmpty() && rarely()) {
                     RetentionLease leaseToRemove = randomFrom(leases);
                     leases.remove(leaseToRemove);
                     group.removeRetentionLease(leaseToRemove.id(), ActionListener.wrap(latch::countDown));

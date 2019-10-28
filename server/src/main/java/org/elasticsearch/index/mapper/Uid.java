@@ -114,7 +114,7 @@ public final class Uid {
                     (c >= 'A' && c <= 'Z') ||
                     (c >= 'a' && c <= 'z') ||
                     c == '-' || c == '_';
-            if (allowed == false) {
+            if (!allowed) {
                 return false;
             }
         }
@@ -217,7 +217,7 @@ public final class Uid {
         assert Byte.toUnsignedInt(idBytes[offset]) <= BASE64_ESCAPE;
         if (Byte.toUnsignedInt(idBytes[offset]) == BASE64_ESCAPE) {
             idBytes = Arrays.copyOfRange(idBytes, offset + 1, offset + length);
-        } else if ((idBytes.length == length && offset == 0) == false) { // no need to copy if it's not a slice
+        } else if (!(idBytes.length == length && offset == 0)) { // no need to copy if it's not a slice
             idBytes = Arrays.copyOfRange(idBytes, offset, offset + length);
         }
         return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);

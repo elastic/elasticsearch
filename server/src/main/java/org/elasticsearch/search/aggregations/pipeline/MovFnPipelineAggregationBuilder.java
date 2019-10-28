@@ -190,7 +190,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         if (window <= 0) {
             throw new IllegalArgumentException("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
         }
-        
+
         validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
@@ -249,7 +249,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         MovFnPipelineAggregationBuilder other = (MovFnPipelineAggregationBuilder) obj;
         return Objects.equals(bucketsPathString, other.bucketsPathString)
             && Objects.equals(script, other.script)

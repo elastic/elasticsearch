@@ -70,10 +70,10 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             boolean mlAnnotationsIndexExists;
             do {
                 String[] mlIndices = client().admin().indices().prepareGetIndex().addIndices(".ml-*").get().indices();
-                nonAnnotationMlIndices = Arrays.stream(mlIndices).filter(name -> name.startsWith(".ml-annotations") == false)
+                nonAnnotationMlIndices = Arrays.stream(mlIndices).filter(name -> !name.startsWith(".ml-annotations"))
                     .toArray(String[]::new);
                 mlAnnotationsIndexExists = mlIndices.length > nonAnnotationMlIndices.length;
-            } while (nonAnnotationMlIndices.length > 0 && mlAnnotationsIndexExists == false);
+            } while (nonAnnotationMlIndices.length > 0 && !mlAnnotationsIndexExists);
             if (nonAnnotationMlIndices.length > 0) {
                 // Delete the ML indices apart from the annotations index.  The annotations index will be deleted by the
                 // base class cleanup.  We want to delete all the others first so that the annotations index doesn't get

@@ -76,7 +76,7 @@ public final class Validation {
             if (!isValidUserOrRoleName(username)) {
                 return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "User"));
             }
-            if (allowReserved == false && ClientReservedRealm.isReserved(username, settings)) {
+            if (!allowReserved && ClientReservedRealm.isReserved(username, settings)) {
                 return new Error("Username [" + username + "] is reserved and may not be used.");
             }
             return null;
@@ -100,7 +100,7 @@ public final class Validation {
             if (!isValidUserOrRoleName(roleName)) {
                 return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "Role"));
             }
-            if (allowReserved == false && ReservedRolesStore.isReserved(roleName)) {
+            if (!allowReserved && ReservedRolesStore.isReserved(roleName)) {
                 return new Error("Role [" + roleName + "] is reserved and may not be used.");
             }
             return null;

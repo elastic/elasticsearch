@@ -44,11 +44,11 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
     public void testSynonymsUpdateable() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
         Path configDir = node().getEnvironment().configFile();
-        if (Files.exists(configDir) == false) {
+        if (!Files.exists(configDir)) {
             Files.createDirectory(configDir);
         }
         Path synonymsFile = configDir.resolve(synonymsFileName);
-        if (Files.exists(synonymsFile) == false) {
+        if (!Files.exists(synonymsFile)) {
             Files.createFile(synonymsFile);
         }
         try (PrintWriter out = new PrintWriter(
@@ -129,11 +129,11 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
     public void testUpdateableSynonymsRejectedAtIndexTime() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
         Path configDir = node().getEnvironment().configFile();
-        if (Files.exists(configDir) == false) {
+        if (!Files.exists(configDir)) {
             Files.createDirectory(configDir);
         }
         Path synonymsFile = configDir.resolve(synonymsFileName);
-        if (Files.exists(synonymsFile) == false) {
+        if (!Files.exists(synonymsFile)) {
             Files.createFile(synonymsFile);
         }
         try (PrintWriter out = new PrintWriter(

@@ -28,7 +28,7 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
             t -> getProject().getTasks().withType(RestTestRunnerTask.class)
                 .stream()
                 .filter(task -> task != this)
-                .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false)
+                .anyMatch(task -> !Collections.disjoint(task.getClusters(), getClusters()))
         );
     }
 

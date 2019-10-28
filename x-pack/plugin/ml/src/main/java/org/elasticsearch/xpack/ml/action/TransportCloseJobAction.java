@@ -79,7 +79,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     protected void doExecute(Task task, CloseJobAction.Request request, ActionListener<CloseJobAction.Response> listener) {
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();
-        if (request.isLocal() == false && nodes.isLocalNodeElectedMaster() == false) {
+        if (!request.isLocal() && !nodes.isLocalNodeElectedMaster()) {
             // Delegates close job to elected master node, so it becomes the coordinating node.
             // See comment in OpenJobAction.Transport class for more information.
             if (nodes.getMasterNode() == null) {
@@ -196,7 +196,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                         addJobAccordingToState(jobId, tasksMetaData, ids.openJobIds, ids.closingJobIds, failedJobs);
                     }
 
-                    if (forceClose == false && failedJobs.size() > 0) {
+                    if (!forceClose && failedJobs.size() > 0) {
                         if (expandedJobIds.size() == 1) {
                             listener.onFailure(
                                     ExceptionsHelper.conflictStatusException("cannot close job [{}] because it failed, use force close",
@@ -313,10 +313,10 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         // number of resolved jobs should be equal to the number of tasks,
         // otherwise something went wrong
         if (request.getOpenJobIds().length != tasks.size()) {
-            if (taskOperationFailures.isEmpty() == false) {
+            if (!taskOperationFailures.isEmpty()) {
                 throw org.elasticsearch.ExceptionsHelper
                         .convertToElastic(taskOperationFailures.get(0).getCause());
-            } else if (failedNodeExceptions.isEmpty() == false) {
+            } else if (!failedNodeExceptions.isEmpty()) {
                 throw org.elasticsearch.ExceptionsHelper
                         .convertToElastic(failedNodeExceptions.get(0));
             } else {
@@ -353,8 +353,8 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                             @Override
                             public void onFailure(Exception e) {
                                 final int slot = counter.incrementAndGet();
-                                if ((ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException &&
-                                    Strings.isAllOrWildcard(new String[]{request.getJobId()})) == false) {
+                                if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException &&
+                                    Strings.isAllOrWildcard(new String[]{request.getJobId()}))) {
                                     failures.set(slot - 1, e);
                                 }
                                 if (slot == numberOfJobs) {
@@ -394,7 +394,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         WaitForCloseRequest waitForCloseRequest = buildWaitForCloseRequest(openJobIds, closingJobIds, tasks, auditor);
 
         // If there are no open or closing jobs in the request return
-        if (waitForCloseRequest.hasJobsToWaitFor() == false) {
+        if (!waitForCloseRequest.hasJobsToWaitFor()) {
             listener.onResponse(new CloseJobAction.Response(true));
             return;
         }
@@ -419,7 +419,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         List<String> jobsToFinalize = new ArrayList<>();
 
         public boolean hasJobsToWaitFor() {
-            return persistentTaskIds.isEmpty() == false;
+            return !persistentTaskIds.isEmpty();
         }
     }
 

@@ -81,7 +81,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
     private void joinCurrentResults() {
         BulkRequest bulkRequest = new BulkRequest();
-        while (currentResults.isEmpty() == false) {
+        while (!currentResults.isEmpty()) {
             RowResults result = currentResults.pop();
             DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
             checkChecksumsMatch(row, result);

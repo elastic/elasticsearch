@@ -55,11 +55,11 @@ public abstract class ConditionalFunction extends ScalarFunction {
         for (int i = 0; i < children().size(); i++) {
             Expression child = children().get(i);
             if (dt == DataType.NULL) {
-                if (Expressions.isNull(child) == false) {
+                if (!Expressions.isNull(child)) {
                     dt = child.dataType();
                 }
             } else {
-                if (areTypesCompatible(dt, child.dataType()) == false) {
+                if (!areTypesCompatible(dt, child.dataType())) {
                     return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
                         ordinal(i + 1),
                         sourceText(),

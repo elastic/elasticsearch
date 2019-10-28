@@ -191,8 +191,8 @@ public final class DateFieldMapper extends FieldMapper {
             String pattern = this.format.value();
             DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
 
-            boolean hasPatternChanged = Strings.hasLength(pattern) && Objects.equals(pattern, dateTimeFormatter.pattern()) == false;
-            if (hasPatternChanged || Objects.equals(builder.locale, dateTimeFormatter.locale()) == false) {
+            boolean hasPatternChanged = Strings.hasLength(pattern) && !Objects.equals(pattern, dateTimeFormatter.pattern());
+            if (hasPatternChanged || !Objects.equals(builder.locale, dateTimeFormatter.locale())) {
                 fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
             }
 
@@ -293,13 +293,13 @@ public final class DateFieldMapper extends FieldMapper {
         public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
             super.checkCompatibility(fieldType, conflicts);
             DateFieldType other = (DateFieldType) fieldType;
-            if (Objects.equals(dateTimeFormatter.pattern(), other.dateTimeFormatter.pattern()) == false) {
+            if (!Objects.equals(dateTimeFormatter.pattern(), other.dateTimeFormatter.pattern())) {
                 conflicts.add("mapper [" + name() + "] has different [format] values");
             }
-            if (Objects.equals(dateTimeFormatter.locale(), other.dateTimeFormatter.locale()) == false) {
+            if (!Objects.equals(dateTimeFormatter.locale(), other.dateTimeFormatter.locale())) {
                 conflicts.add("mapper [" + name() + "] has different [locale] values");
             }
-            if (Objects.equals(resolution.type(), other.resolution.type()) == false) {
+            if (!Objects.equals(resolution.type(), other.resolution.type())) {
                 conflicts.add("mapper [" + name() + "] cannot change between milliseconds and nanoseconds");
             }
         }
@@ -365,7 +365,7 @@ public final class DateFieldMapper extends FieldMapper {
                 l = Long.MIN_VALUE;
             } else {
                 l = parseToLong(lowerTerm, !includeLower, timeZone, parser, context);
-                if (includeLower == false) {
+                if (!includeLower) {
                     ++l;
                 }
             }
@@ -373,7 +373,7 @@ public final class DateFieldMapper extends FieldMapper {
                 u = Long.MAX_VALUE;
             } else {
                 u = parseToLong(upperTerm, includeUpper, timeZone, parser, context);
-                if (includeUpper == false) {
+                if (!includeUpper) {
                     --u;
                 }
             }
@@ -413,7 +413,7 @@ public final class DateFieldMapper extends FieldMapper {
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
                 fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context);
-                if (includeLower == false) {
+                if (!includeLower) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
                     }
@@ -424,7 +424,7 @@ public final class DateFieldMapper extends FieldMapper {
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
                 toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context);
-                if (includeUpper == false) {
+                if (!includeUpper) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;
                     }
@@ -580,12 +580,12 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         if (includeDefaults
-                || fieldType().dateTimeFormatter().pattern().equals(DEFAULT_DATE_TIME_FORMATTER.pattern()) == false) {
+                || !fieldType().dateTimeFormatter().pattern().equals(DEFAULT_DATE_TIME_FORMATTER.pattern())) {
             builder.field("format", fieldType().dateTimeFormatter().pattern());
         }
 
         if (includeDefaults
-            || fieldType().dateTimeFormatter().locale().equals(DEFAULT_DATE_TIME_FORMATTER.locale()) == false) {
+            || !fieldType().dateTimeFormatter().locale().equals(DEFAULT_DATE_TIME_FORMATTER.locale())) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
     }

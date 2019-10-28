@@ -74,7 +74,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         // We have two sources for the users object, the reservedRealm and the usersStore, we query both at the same time with a
         // GroupedActionListener
         if (realmLookup.isEmpty()) {
-            if (specificUsersRequested == false) {
+            if (!specificUsersRequested) {
                 // we get all users from the realm
                 reservedRealm.users(groupListener);
             } else {

@@ -163,7 +163,7 @@ public final class SearchPhaseController {
              * this allowed to remove a single shared optimization code here since now we don't materialized a dense array of
              * top docs anymore but instead only pass relevant results / top docs to the merge method*/
             QuerySearchResult queryResult = sortedResult.queryResult();
-            if (queryResult.hasConsumedTopDocs() == false) { // already consumed?
+            if (!queryResult.hasConsumedTopDocs()) { // already consumed?
                 final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
                 assert td != null;
                 topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
@@ -174,12 +174,12 @@ public final class SearchPhaseController {
                 }
             }
         }
-        final boolean hasHits = (reducedCompletionSuggestions.isEmpty() && topDocs.isEmpty()) == false;
+        final boolean hasHits = !(reducedCompletionSuggestions.isEmpty() && topDocs.isEmpty());
         if (hasHits) {
             final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
             final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
             ScoreDoc[] scoreDocs = mergedScoreDocs;
-            if (reducedCompletionSuggestions.isEmpty() == false) {
+            if (!reducedCompletionSuggestions.isEmpty()) {
                 int numSuggestDocs = 0;
                 for (CompletionSuggestion completionSuggestion : reducedCompletionSuggestions) {
                     assert completionSuggestion != null;
@@ -202,7 +202,7 @@ public final class SearchPhaseController {
                 TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
                 sortFields = fieldDocs.fields;
                 if (fieldDocs instanceof CollapseTopFieldDocs) {
-                    isSortedByField = (fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
+                    isSortedByField = !(fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE);
                     CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs) fieldDocs;
                     collapseField = collapseTopFieldDocs.field;
                     collapseValues = collapseTopFieldDocs.collapseValues;
@@ -253,7 +253,7 @@ public final class SearchPhaseController {
 
     public ScoreDoc[] getLastEmittedDocPerShard(ReducedQueryPhase reducedQueryPhase, int numShards) {
         final ScoreDoc[] lastEmittedDocPerShard = new ScoreDoc[numShards];
-        if (reducedQueryPhase.isEmptyResult == false) {
+        if (!reducedQueryPhase.isEmptyResult) {
             final ScoreDoc[] sortedScoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
             // from is always zero as when we use scroll, we ignore from
             long size = Math.min(reducedQueryPhase.fetchHits, reducedQueryPhase.size);
@@ -591,7 +591,7 @@ public final class SearchPhaseController {
             if (expectedResultSize <= bufferSize) {
                 throw new IllegalArgumentException("buffer size must be less than the expected result size");
             }
-            if (hasAggs == false && hasTopDocs == false) {
+            if (!hasAggs && !hasTopDocs) {
                 throw new IllegalArgumentException("either aggs or top docs must be present");
             }
             this.controller = controller;
@@ -684,7 +684,7 @@ public final class SearchPhaseController {
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
         final int trackTotalHitsUpTo = resolveTrackTotalHits(request);
-        if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
+        if (!isScrollRequest && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once

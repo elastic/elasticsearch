@@ -58,7 +58,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     @Override
     protected boolean preserveClusterUponCompletion() {
         // If this is the first run (security not yet enabled), then don't clean up afterwards because we want to test restart with data
-        return securityEnabled == false;
+        return !securityEnabled;
     }
 
     public void testSecuritySetup() throws Exception {
@@ -114,7 +114,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
                 assertThat(ObjectPath.evaluate(usage, "security.realms." + realm + ".enabled"), equalTo(true));
             }
             for (String realm : InternalRealms.getConfigurableRealmsTypes()) {
-                if (realm.equals("file") == false && realm.equals("native") == false) {
+                if (!realm.equals("file") && !realm.equals("native")) {
                     assertThat(ObjectPath.evaluate(usage, "security.realms." + realm + ".available"), equalTo(false));
                     assertThat(ObjectPath.evaluate(usage, "security.realms." + realm + ".enabled"), equalTo(false));
                 }

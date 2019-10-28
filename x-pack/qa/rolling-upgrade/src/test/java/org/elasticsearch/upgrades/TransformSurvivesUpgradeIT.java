@@ -108,7 +108,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     protected static void waitForPendingTransformTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TRANSFORM_TASK_NAME) == false);
+        waitForPendingTasks(adminClient(), taskName -> !taskName.startsWith(TRANSFORM_TASK_NAME));
     }
 
     @Override
@@ -144,7 +144,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             case MIXED:
                 client().performRequest(waitForYellow);
                 long lastCheckpoint = 1;
-                if (Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
+                if (!Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
                     lastCheckpoint = 2;
                 }
                 verifyContinuousTransformHandlesData(lastCheckpoint);

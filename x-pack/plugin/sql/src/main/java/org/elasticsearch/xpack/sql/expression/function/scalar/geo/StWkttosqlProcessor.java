@@ -36,7 +36,7 @@ public class StWkttosqlProcessor implements Processor {
             return null;
         }
 
-        if ((input instanceof String) == false) {
+        if (!(input instanceof String)) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", input);
         }
         try {

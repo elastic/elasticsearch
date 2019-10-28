@@ -90,7 +90,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
 
     public PutUserRequestBuilder passwordHash(char[] passwordHash, Hasher configuredHasher) {
         final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHash);
-        if (resolvedHasher.equals(configuredHasher) == false) {
+        if (!resolvedHasher.equals(configuredHasher)) {
             throw new IllegalArgumentException("Provided password hash uses [" + resolvedHasher
                 + "] but the configured hashing algorithm is [" + configuredHasher + "]");
         }
@@ -177,7 +177,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                     }
                 } else if (User.Fields.USERNAME.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == Token.VALUE_STRING) {
-                        if (username.equals(parser.text()) == false) {
+                        if (!username.equals(parser.text())) {
                             throw new IllegalArgumentException("[username] in source does not match the username provided [" +
                                     username + "]");
                         }

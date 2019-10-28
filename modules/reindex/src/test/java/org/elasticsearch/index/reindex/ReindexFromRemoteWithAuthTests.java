@@ -191,7 +191,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action,
                 Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
-            if (false == action.equals(SearchAction.NAME)) {
+            if (!action.equals(SearchAction.NAME)) {
                 chain.proceed(task, action, request, listener);
                 return;
             }
@@ -205,7 +205,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
                 e.addHeader("WWW-Authenticate", "Basic realm=auth-realm");
                 throw e;
             }
-            if (false == REQUIRED_AUTH.equals(auth)) {
+            if (!REQUIRED_AUTH.equals(auth)) {
                 throw new ElasticsearchSecurityException("Bad Authorization", RestStatus.FORBIDDEN);
             }
             chain.proceed(task, action, request, listener);

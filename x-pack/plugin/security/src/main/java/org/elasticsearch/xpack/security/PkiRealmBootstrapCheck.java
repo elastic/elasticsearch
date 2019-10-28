@@ -41,7 +41,7 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
         final boolean pkiRealmEnabledWithoutDelegation = realms.entrySet().stream()
                 .filter(e -> PkiRealmSettings.TYPE.equals(e.getKey().getType()))
                 .map(Map.Entry::getValue)
-                .anyMatch(s -> s.getAsBoolean("enabled", true) && (false == s.getAsBoolean("delegation.enabled", false)));
+                .anyMatch(s -> s.getAsBoolean("enabled", true) && (!s.getAsBoolean("delegation.enabled", false)));
         if (pkiRealmEnabledWithoutDelegation) {
             for (String contextName : getSslContextNames(settings)) {
                 final SSLConfiguration configuration = sslService.getSSLConfiguration(contextName);

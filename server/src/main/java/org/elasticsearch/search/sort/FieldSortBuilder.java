@@ -330,7 +330,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
 
         Nested nested = null;
-        if (isUnmapped == false) {
+        if (!isUnmapped) {
             if (nestedSort != null) {
                 validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
                 nested = resolveNested(context, nestedSort);
@@ -340,13 +340,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
 
         IndexFieldData<?> fieldData = context.getForField(fieldType);
-        if (fieldData instanceof IndexNumericFieldData == false
+        if (!(fieldData instanceof IndexNumericFieldData)
                 && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
         }
         final SortField field;
         if (numericType != null) {
-            if (fieldData instanceof IndexNumericFieldData == false) {
+            if (!(fieldData instanceof IndexNumericFieldData)) {
                 throw new QueryShardException(context,
                     "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
             }
@@ -376,7 +376,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      */
     static void validateMissingNestedPath(QueryShardContext context, String field) {
         ObjectMapper contextMapper = context.nestedScope().getObjectMapper();
-        if (contextMapper != null && contextMapper.nested().isNested() == false) {
+        if (contextMapper != null && !contextMapper.nested().isNested()) {
             // already in nested context
             return;
         }
@@ -388,7 +388,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     // is not required
                     return ;
                 }
-                if (parentMapper.nested().isIncludeInRoot() == false) {
+                if (!parentMapper.nested().isIncludeInRoot()) {
                     throw new QueryShardException(context,
                         "it is mandatory to set the [nested] context on the nested sort field: [" + field + "].");
                 }

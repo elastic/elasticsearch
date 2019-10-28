@@ -64,7 +64,7 @@ public class ActivateWatchRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (watchId == null){
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
-        } else if (WatcherUtils.isValidId(watchId) == false) {
+        } else if (!WatcherUtils.isValidId(watchId)) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
         return validationException;

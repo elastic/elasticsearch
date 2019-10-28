@@ -73,12 +73,12 @@ public class ClientYamlSuiteRestApi {
         }
         Objects.requireNonNull(parts, name + " API: parts must not be null");
         for (String part : parts) {
-            if (path.contains("{" + part + "}") == false) {
+            if (!path.contains("{" + part + "}")) {
                 throw new IllegalArgumentException(name + " API: part [" + part + "] not contained in path [" + path + "]");
             }
         }
         boolean add = this.paths.add(new Path(path, methods, parts));
-        if (add == false) {
+        if (!add) {
             throw new IllegalArgumentException(name + " API: found duplicate path [" + path + "]");
         }
     }

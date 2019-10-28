@@ -221,7 +221,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             indexedDocumentVersion = null;
         }
         documents = in.readList(StreamInput::readBytesReference);
-        if (documents.isEmpty() == false) {
+        if (!documents.isEmpty()) {
             documentXContentType = in.readEnum(XContentType.class);
         } else {
             documentXContentType = null;
@@ -267,7 +267,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         for (BytesReference document : documents) {
             out.writeBytesReference(document);
         }
-        if (documents.isEmpty() == false) {
+        if (!documents.isEmpty()) {
             out.writeEnum(documentXContentType);
         }
     }
@@ -279,7 +279,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (name != null) {
             builder.field(NAME_FIELD.getPreferredName(), name);
         }
-        if (documents.isEmpty() == false) {
+        if (!documents.isEmpty()) {
             builder.startArray(DOCUMENTS_FIELD.getPreferredName());
             for (BytesReference document : documents) {
                 try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
@@ -404,7 +404,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
 
         PercolateQueryBuilder queryBuilder;
-        if (documents.isEmpty() == false) {
+        if (!documents.isEmpty()) {
             queryBuilder = new PercolateQueryBuilder(field, documents, XContentType.JSON);
         } else if (indexedDocumentId != null) {
             queryBuilder = new PercolateQueryBuilder(field, indexedDocumentIndex, indexedDocumentId, indexedDocumentRouting,
@@ -442,7 +442,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) {
-        if (documents.isEmpty() == false) {
+        if (!documents.isEmpty()) {
             return this;
         } else if (documentSupplier != null) {
             final BytesReference source = documentSupplier.get();
@@ -467,7 +467,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         SetOnce<BytesReference> documentSupplier = new SetOnce<>();
         queryShardContext.registerAsyncAction((client, listener) -> {
             client.get(getRequest, ActionListener.wrap(getResponse -> {
-                if (getResponse.isExists() == false) {
+                if (!getResponse.isExists()) {
                     throw new ResourceNotFoundException(
                         "indexed document [{}/{}] couldn't be found", indexedDocumentIndex, indexedDocumentId
                     );

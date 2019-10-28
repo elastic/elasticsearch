@@ -170,7 +170,7 @@ public class XContentFactory {
             if (c == '{') {
                 return XContentType.JSON;
             }
-            if (Character.isWhitespace(c) == false) {
+            if (!Character.isWhitespace(c)) {
                 break;
             }
         }
@@ -235,7 +235,7 @@ public class XContentFactory {
          * underlying input stream. This is why the input stream must support mark/reset and why we repeatedly mark the read position and
          * reset.
          */
-        if (si.markSupported() == false) {
+        if (!si.markSupported()) {
             throw new IllegalArgumentException("Cannot guess the xcontent type without mark/reset support on " + si.getClass());
         }
         si.mark(Integer.MAX_VALUE);
@@ -334,7 +334,7 @@ public class XContentFactory {
             if (b == '{') {
                 return XContentType.JSON;
             }
-            if (Character.isWhitespace(b) == false) {
+            if (!Character.isWhitespace(b)) {
                 break;
             }
         }

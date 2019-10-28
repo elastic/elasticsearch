@@ -102,7 +102,7 @@ public class DatafeedConfigProvider {
      */
     public void putDatafeedConfig(DatafeedConfig config, Map<String, String> headers, ActionListener<IndexResponse> listener) {
 
-        if (headers.isEmpty() == false) {
+        if (!headers.isEmpty()) {
             // Filter any values in headers that aren't security fields
             DatafeedConfig.Builder builder = new DatafeedConfig.Builder(config);
             Map<String, String> securityHeaders = headers.entrySet().stream()
@@ -156,7 +156,7 @@ public class DatafeedConfigProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
+                if (!getResponse.isExists()) {
                     datafeedConfigListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
                     return;
                 }
@@ -261,7 +261,7 @@ public class DatafeedConfigProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
+                if (!getResponse.isExists()) {
                     updatedConfigListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
                     return;
                 }
@@ -467,11 +467,11 @@ public class DatafeedConfigProvider {
             }
         }
 
-        if (terms.isEmpty() == false) {
+        if (!terms.isEmpty()) {
             shouldQueries.should(new TermsQueryBuilder(DatafeedConfig.ID.getPreferredName(), terms));
         }
 
-        if (shouldQueries.should().isEmpty() == false) {
+        if (!shouldQueries.should().isEmpty()) {
             boolQueryBuilder.filter(shouldQueries);
         }
 

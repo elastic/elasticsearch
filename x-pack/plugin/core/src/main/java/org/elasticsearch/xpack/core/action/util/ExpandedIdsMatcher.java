@@ -61,7 +61,7 @@ public final class ExpandedIdsMatcher {
             // of jobs with any id is ok. Therefore no matches
             // are required
 
-            if (allowNoMatchForWildcards == false) {
+            if (!allowNoMatchForWildcards) {
                 // require something, anything to match
                 requiredMatches.add(new WildcardMatcher("*"));
             }
@@ -72,7 +72,7 @@ public final class ExpandedIdsMatcher {
             // matches are not required for wildcards but
             // specific job Ids are
             for (String token : tokens) {
-                if (Regex.isSimpleMatchPattern(token) == false) {
+                if (!Regex.isSimpleMatchPattern(token)) {
                     requiredMatches.add(new EqualsIdMatcher(token));
                 }
             }
@@ -96,7 +96,7 @@ public final class ExpandedIdsMatcher {
     public void filterMatchedIds(Collection<String> ids) {
         for (String id: ids) {
             Iterator<IdMatcher> itr = requiredMatches.iterator();
-            if (itr.hasNext() == false) {
+            if (!itr.hasNext()) {
                 break;
             }
             while (itr.hasNext()) {
@@ -108,7 +108,7 @@ public final class ExpandedIdsMatcher {
     }
 
     public boolean hasUnmatchedIds() {
-        return requiredMatches.isEmpty() == false;
+        return !requiredMatches.isEmpty();
     }
 
     public List<String> unmatchedIds() {

@@ -100,7 +100,7 @@ class IndicesAndAliasesResolver {
         }
 
         // if for some reason we are missing an action... just for safety we'll reject
-        if (request instanceof IndicesRequest == false) {
+        if (!(request instanceof IndicesRequest)) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
         return resolveIndicesAndAliases((IndicesRequest) request, metaData, authorizedIndices);
@@ -193,7 +193,7 @@ class IndicesAndAliasesResolver {
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
             if (indicesReplacedWithNoIndices) {
-                if (indicesRequest instanceof GetAliasesRequest == false) {
+                if (!(indicesRequest instanceof GetAliasesRequest)) {
                     throw new IllegalStateException(GetAliasesRequest.class.getSimpleName() + " is the only known " +
                             "request implementing " + AliasesRequest.class.getSimpleName() + " that may allow no indices. Found [" +
                             indicesRequest.getClass().getName() + "] which ended up with an empty set of indices.");
@@ -352,7 +352,7 @@ class IndicesAndAliasesResolver {
             // we always need to check for date math expressions
             final String dateMathName = nameExpressionResolver.resolveDateMathExpression(aliasOrIndex);
             if (dateMathName != aliasOrIndex) {
-                assert dateMathName.equals(aliasOrIndex) == false;
+                assert !dateMathName.equals(aliasOrIndex);
                 if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
                     aliasOrIndex = dateMathName;
@@ -363,7 +363,7 @@ class IndicesAndAliasesResolver {
                         finalIndices.add(dateMathName);
                     }
                 } else {
-                    if (indicesOptions.ignoreUnavailable() == false) {
+                    if (!indicesOptions.ignoreUnavailable()) {
                         throw new IndexNotFoundException(dateMathName);
                     }
                 }
@@ -379,7 +379,7 @@ class IndicesAndAliasesResolver {
                 }
                 if (resolvedIndices.isEmpty()) {
                     //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
-                    if (indicesOptions.allowNoIndices() == false) {
+                    if (!indicesOptions.allowNoIndices()) {
                         throw new IndexNotFoundException(aliasOrIndex);
                     }
                 } else {
@@ -418,7 +418,7 @@ class IndicesAndAliasesResolver {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             //complicated to support those options with aliases pointing to multiple indices...
             //TODO investigate supporting expandWildcards option for aliases too, like es core does.
-            return indicesOptions.ignoreAliases() == false;
+            return !indicesOptions.ignoreAliases();
         }
         assert aliasOrIndex.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);

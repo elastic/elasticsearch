@@ -40,7 +40,7 @@ class DefaultCursor implements Cursor {
             return true;
         }
         else {
-            if (cursor.isEmpty() == false) {
+            if (!cursor.isEmpty()) {
                 Tuple<String, List<List<Object>>> nextPage = client.nextPage(cursor, meta);
                 cursor = nextPage.v1();
                 rows = nextPage.v2();
@@ -63,7 +63,7 @@ class DefaultCursor implements Cursor {
 
     @Override
     public void close() throws SQLException {
-        if (cursor.isEmpty() == false) {
+        if (!cursor.isEmpty()) {
             client.queryClose(cursor);
         }
     }

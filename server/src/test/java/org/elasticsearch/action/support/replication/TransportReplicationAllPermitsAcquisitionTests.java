@@ -494,7 +494,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         public ClusterBlockLevel indexBlockLevel() {
-            return globalBlock == false ? ClusterBlockLevel.WRITE : super.indexBlockLevel();
+            return !globalBlock ? ClusterBlockLevel.WRITE : super.indexBlockLevel();
         }
 
         @Override

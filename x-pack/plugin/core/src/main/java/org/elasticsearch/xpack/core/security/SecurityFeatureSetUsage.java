@@ -110,7 +110,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field(IP_FILTER_XFIELD, ipFilterUsage);
             builder.field(ANONYMOUS_XFIELD, anonymousUsage);
             builder.field(FIPS_140_XFIELD, fips140Usage);
-        } else if (sslUsage.isEmpty() == false) {
+        } else if (!sslUsage.isEmpty()) {
             // A trial (or basic) license can have SSL without security.
             // This is because security defaults to disabled on that license, but that dynamic-default does not disable SSL.
             builder.field(SSL_XFIELD, sslUsage);

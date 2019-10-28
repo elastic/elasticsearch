@@ -424,7 +424,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected static void waitForPendingDataFrameTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TransformField.TASK_NAME) == false);
+        waitForPendingTasks(adminClient(), taskName -> !taskName.startsWith(TransformField.TASK_NAME));
     }
 
     static int getDataFrameCheckpoint(String transformId) throws IOException {

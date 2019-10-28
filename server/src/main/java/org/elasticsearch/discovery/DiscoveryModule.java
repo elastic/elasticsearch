@@ -112,7 +112,7 @@ public class DiscoveryModule {
 
         List<String> seedProviderNames = DISCOVERY_SEED_PROVIDERS_SETTING.get(settings);
         // for bwc purposes, add settings provider even if not explicitly specified
-        if (seedProviderNames.contains("settings") == false) {
+        if (!seedProviderNames.contains("settings")) {
             List<String> extendedSeedProviderNames = new ArrayList<>();
             extendedSeedProviderNames.add("settings");
             extendedSeedProviderNames.addAll(seedProviderNames);
@@ -121,7 +121,7 @@ public class DiscoveryModule {
 
         final Set<String> missingProviderNames = new HashSet<>(seedProviderNames);
         missingProviderNames.removeAll(hostProviders.keySet());
-        if (missingProviderNames.isEmpty() == false) {
+        if (!missingProviderNames.isEmpty()) {
             throw new IllegalArgumentException("Unknown seed providers " + missingProviderNames);
         }
 

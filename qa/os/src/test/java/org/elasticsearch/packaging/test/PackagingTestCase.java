@@ -121,7 +121,7 @@ public abstract class PackagingTestCase extends Assert {
 
     protected Shell newShell() throws Exception {
         Shell sh = new Shell();
-        if (distribution().hasJdk == false) {
+        if (!distribution().hasJdk) {
             Platforms.onLinux(() -> {
                 sh.getEnv().put("JAVA_HOME", systemJavaHome);
             });

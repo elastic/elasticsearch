@@ -732,14 +732,14 @@ public class InstallPluginCommandTests extends ESTestCase {
             String line = reader.readLine();
 
             // first find the beginning of our list of official plugins
-            while (line.endsWith("may be installed by name:") == false) {
+            while (!line.endsWith("may be installed by name:")) {
                 line = reader.readLine();
             }
 
             // now check each line compares greater than the last, until we reach an empty line
             String prev = reader.readLine();
             line = reader.readLine();
-            while (line != null && line.trim().isEmpty() == false) {
+            while (line != null && !line.trim().isEmpty()) {
                 assertTrue(prev + " < " + line, prev.compareTo(line) < 0);
                 prev = line;
                 line = reader.readLine();

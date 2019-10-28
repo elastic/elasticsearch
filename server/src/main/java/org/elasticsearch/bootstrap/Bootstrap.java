@@ -184,7 +184,7 @@ final class Bootstrap {
                         IOUtils.close(node, spawner);
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
-                        if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
+                        if (node != null && !node.awaitClose(10, TimeUnit.SECONDS)) {
                             throw new IllegalStateException("Node didn't stop within 10 seconds. " +
                                     "Any outstanding requests or tasks might get killed.");
                         }
@@ -275,7 +275,7 @@ final class Bootstrap {
     static void stop() throws IOException {
         try {
             IOUtils.close(INSTANCE.node, INSTANCE.spawner);
-            if (INSTANCE.node != null && INSTANCE.node.awaitClose(10, TimeUnit.SECONDS) == false) {
+            if (INSTANCE.node != null && !INSTANCE.node.awaitClose(10, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed.");
             }
         } catch (InterruptedException e) {
@@ -317,7 +317,7 @@ final class Bootstrap {
             }
         }
 
-        final boolean closeStandardStreams = (foreground == false) || quiet;
+        final boolean closeStandardStreams = (!foreground) || quiet;
         try {
             if (closeStandardStreams) {
                 final Logger rootLogger = LogManager.getRootLogger();
@@ -403,7 +403,7 @@ final class Bootstrap {
     }
 
     private static void checkLucene() {
-        if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (!Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST)) {
             throw new AssertionError("Lucene version mismatch this version of Elasticsearch requires lucene version ["
                 + Version.CURRENT.luceneVersion + "]  but the current lucene version is [" + org.apache.lucene.util.Version.LATEST + "]");
         }

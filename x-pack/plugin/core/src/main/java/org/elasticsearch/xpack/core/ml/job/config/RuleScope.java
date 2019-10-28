@@ -103,7 +103,7 @@ public class RuleScope implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (obj instanceof RuleScope == false) {
+        if (!(obj instanceof RuleScope)) {
             return false;
         }
 

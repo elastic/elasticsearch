@@ -133,7 +133,7 @@ public class AutodetectResultProcessor {
             readResults();
 
             try {
-                if (processKilled == false) {
+                if (!processKilled) {
                     timingStatsReporter.finishReporting();
                     bulkResultsPersister.executeRequest();
                 }
@@ -151,7 +151,7 @@ public class AutodetectResultProcessor {
                 // but we now fully expect jobs to move between nodes without doing
                 // all their graceful close activities.
                 LOGGER.warn("[{}] some results not processed due to the process being killed", jobId);
-            } else if (process.isProcessAliveAfterWaiting() == false) {
+            } else if (!process.isProcessAliveAfterWaiting()) {
                 // Don't log the stack trace to not shadow the root cause.
                 LOGGER.warn("[{}] some results not processed due to the termination of autodetect", jobId);
             } else {
@@ -180,7 +180,7 @@ public class AutodetectResultProcessor {
                     if (processKilled) {
                         throw e;
                     }
-                    if (process.isProcessAliveAfterWaiting() == false) {
+                    if (!process.isProcessAliveAfterWaiting()) {
                         throw e;
                     }
                     LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
@@ -275,7 +275,7 @@ public class AutodetectResultProcessor {
             persister.persistQuantiles(quantiles);
             bulkResultsPersister.executeRequest();
 
-            if (processKilled == false && renormalizer.isEnabled()) {
+            if (!processKilled && renormalizer.isEnabled()) {
                 // We need to make all results written up to these quantiles available for renormalization
                 persister.commitResultWrites(jobId);
                 LOGGER.debug("[{}] Quantiles queued for renormalization", jobId);
@@ -374,8 +374,8 @@ public class AutodetectResultProcessor {
         try {
             // Although the results won't take 30 minutes to finish, the pipe won't be closed
             // until the state is persisted, and that can take a while
-            if (completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(),
-                    TimeUnit.MINUTES) == false) {
+            if (!completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(),
+                TimeUnit.MINUTES)) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }
 

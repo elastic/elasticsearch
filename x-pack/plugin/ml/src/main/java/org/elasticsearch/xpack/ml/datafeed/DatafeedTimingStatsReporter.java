@@ -77,7 +77,7 @@ public class DatafeedTimingStatsReporter {
     /** Finishes reporting of timing stats. Makes timing stats persisted immediately. */
     public void finishReporting() {
         // Don't flush if current timing stats are identical to the persisted ones
-        if (currentTimingStats.equals(persistedTimingStats) == false) {
+        if (!currentTimingStats.equals(persistedTimingStats)) {
             flush(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
     }

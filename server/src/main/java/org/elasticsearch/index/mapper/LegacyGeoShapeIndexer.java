@@ -51,7 +51,7 @@ public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
     @Override
     public List<IndexableField>  indexShape(ParseContext context, Shape shape) {
-        if (fieldType.pointsOnly() == true) {
+        if (fieldType.pointsOnly()) {
             // index configured for pointsOnly
             if (shape instanceof XShapeCollection && XShapeCollection.class.cast(shape).pointsOnly()) {
                 // MULTIPOINT data: index each point separately
@@ -61,7 +61,7 @@ public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                     fields.addAll(Arrays.asList(fieldType.defaultPrefixTreeStrategy().createIndexableFields(s)));
                 }
                 return fields;
-            } else if (shape instanceof Point == false) {
+            } else if (!(shape instanceof Point)) {
                 throw new MapperParsingException("[{" + fieldType.name() + "}] is configured for points only but a "
                     + ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass())
                     + " was found");

@@ -241,7 +241,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return;
         }
 
-        while (hasWriteBudget() && buffer.isEmpty() == false) {
+        while (hasWriteBudget() && !buffer.isEmpty()) {
             long sumEstimatedSize = 0L;
             int length = Math.min(params.getMaxWriteRequestOperationCount(), buffer.size());
             List<Translog.Operation> ops = new ArrayList<>(length);
@@ -373,7 +373,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 "] is larger than the global checkpoint [" + leaderGlobalCheckpoint + "]";
             coordinateWrites();
         }
-        if (newFromSeqNo <= maxRequiredSeqNo && isStopped() == false) {
+        if (newFromSeqNo <= maxRequiredSeqNo && !isStopped()) {
             int newSize = Math.toIntExact(maxRequiredSeqNo - newFromSeqNo + 1);
             LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
                 params.getFollowShardId(), response.getOperations().length, newFromSeqNo, maxRequiredSeqNo);
@@ -500,7 +500,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
         if (shouldRetry(params.getRemoteCluster(), e)) {
-            if (isStopped() == false) {
+            if (!isStopped()) {
                 // Only retry is the shard follow task is not stopped.
                 int currentRetry = retryCounter.incrementAndGet();
                 LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",

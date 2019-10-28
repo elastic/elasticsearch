@@ -155,7 +155,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             }
             // If we get to this point and we haven't added an alias to the request we need to add one
             // or the request will fail so use noAliasAdded to force adding the alias in this case
-            if (aliasAdded == false || randomBoolean()) {
+            if (!aliasAdded || randomBoolean()) {
                 //one alias pointing to all indices
                 for (String index : indices) {
                     request.addAliasAction(AliasActions.add().index(index).alias("alias"));

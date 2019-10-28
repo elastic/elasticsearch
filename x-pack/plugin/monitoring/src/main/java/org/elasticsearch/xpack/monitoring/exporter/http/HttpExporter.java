@@ -111,7 +111,7 @@ public class HttpExporter extends Exporter {
                                 } else {
                                     throw new SettingsException("host list for [" + key + "] is empty but type is [" + type + "]");
                                 }
-                            } else if ("http".equals(type) == false) {
+                            } else if (!"http".equals(type)) {
                                 // the hosts can only be non-empty if the type is "http"
                                 throw new SettingsException("host list for [" + key + "] is set but type is [" + type + "]");
                             }
@@ -200,7 +200,7 @@ public class HttpExporter extends Exporter {
                     (key) -> Setting.simpleString(
                         key,
                         value -> {
-                            if (Strings.isNullOrEmpty(value) == false) {
+                            if (!Strings.isNullOrEmpty(value)) {
                                 try {
                                     RestClientBuilder.cleanPathPrefix(value);
                                 } catch (RuntimeException e) {
@@ -359,7 +359,7 @@ public class HttpExporter extends Exporter {
                     .stream()
                     .map(Setting::getKey)
                     .collect(Collectors.toList());
-                if (secureSettings.isEmpty() == false) {
+                if (!secureSettings.isEmpty()) {
                     throw new IllegalStateException("Cannot dynamically update SSL settings for the exporter [" + namespace
                         + "] as it depends on the secure setting(s) [" + Strings.collectionToCommaDelimitedString(secureSettings) + "]");
                 }
@@ -381,7 +381,7 @@ public class HttpExporter extends Exporter {
         final String proxyBasePath = concreteSetting.get(config.settings());
 
         // allow the user to configure proxies
-        if (Strings.isNullOrEmpty(proxyBasePath) == false) {
+        if (!Strings.isNullOrEmpty(proxyBasePath)) {
             try {
                 builder.setPathPrefix(proxyBasePath);
             } catch (final IllegalArgumentException e) {
@@ -548,7 +548,7 @@ public class HttpExporter extends Exporter {
         final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
         List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         // sending credentials in plaintext!
-        if (credentialsProvider != null && hostList.stream().findFirst().orElse("").startsWith("https") == false) {
+        if (credentialsProvider != null && !hostList.stream().findFirst().orElse("").startsWith("https")) {
             logger.warn("exporter [{}] is not using https, but using user authentication with plaintext " +
                     "username/password!", config.name());
         }
@@ -589,7 +589,7 @@ public class HttpExporter extends Exporter {
 
         // username is required for any auth
         if (Strings.isNullOrEmpty(username)) {
-            if (Strings.isNullOrEmpty(password) == false) {
+            if (!Strings.isNullOrEmpty(password)) {
                 throw new SettingsException(
                         "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "] without [" +
                                 AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "]");
@@ -615,7 +615,7 @@ public class HttpExporter extends Exporter {
 
         final var entries = new ArrayList<Map.Entry<String, String>>(3);
 
-        if (TimeValue.MINUS_ONE.equals(bulkTimeout) == false) {
+        if (!TimeValue.MINUS_ONE.equals(bulkTimeout)) {
             entries.add(entry("timeout", bulkTimeout.toString()));
         }
 

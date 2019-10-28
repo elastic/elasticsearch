@@ -110,7 +110,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
                     }
                 }
             }
-            if (isParsedCorrectly == false) {
+            if (!isParsedCorrectly) {
                 throw new ParsingException(parser.getTokenLocation(), "Invalid token in the inner collapse");
             }
 
@@ -335,7 +335,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
      * Adds a field to load from the docvalue and return.
      */
     public InnerHitBuilder addDocValueField(String field, String format) {
-        if (docValueFields == null || docValueFields.isEmpty() == true) {
+        if (docValueFields == null || docValueFields.isEmpty()) {
             docValueFields = new ArrayList<>();
         }
         docValueFields.add(new FieldAndFormat(field, format));

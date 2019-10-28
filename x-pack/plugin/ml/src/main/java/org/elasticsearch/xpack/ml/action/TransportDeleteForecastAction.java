@@ -92,7 +92,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         BoolQueryBuilder innerBool = QueryBuilders.boolQuery().must(
             QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
 
-        if (MetaData.ALL.equals(request.getForecastId()) == false) {
+        if (!MetaData.ALL.equals(request.getForecastId())) {
             Set<String> forcastIds = new HashSet<>(Arrays.asList(Strings.tokenizeToStringArray(forecastsExpression, ",")));
             innerBool.must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(), forcastIds));
         }
@@ -148,7 +148,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                             response.getDeleted() + " forecast documents from job [" + jobId + "]"));
                     return;
                 }
-                if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                if (!(response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty())) {
                     Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
                     listener.onFailure(
                         new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));

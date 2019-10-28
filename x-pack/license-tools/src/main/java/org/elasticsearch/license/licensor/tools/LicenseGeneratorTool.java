@@ -64,9 +64,9 @@ public class LicenseGeneratorTool extends LoggingAwareCommand {
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
         Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
         Path privateKeyPath = parsePath(privateKeyPathOption.value(options));
-        if (Files.exists(privateKeyPath) == false) {
+        if (!Files.exists(privateKeyPath)) {
             throw new UserException(ExitCodes.USAGE, privateKeyPath + " does not exist");
-        } else if (Files.exists(publicKeyPath) == false) {
+        } else if (!Files.exists(publicKeyPath)) {
             throw new UserException(ExitCodes.USAGE, publicKeyPath + " does not exist");
         }
 
@@ -78,7 +78,7 @@ public class LicenseGeneratorTool extends LoggingAwareCommand {
                     License.fromSource(bytes, XContentType.JSON);
         } else if (options.has(licenseFileOption)) {
             Path licenseSpecPath = parsePath(licenseFileOption.value(options));
-            if (Files.exists(licenseSpecPath) == false) {
+            if (!Files.exists(licenseSpecPath)) {
                 throw new UserException(ExitCodes.USAGE, licenseSpecPath + " does not exist");
             }
             final BytesArray bytes = new BytesArray(Files.readAllBytes(licenseSpecPath));

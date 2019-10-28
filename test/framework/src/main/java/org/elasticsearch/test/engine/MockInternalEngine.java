@@ -69,7 +69,7 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     private void flushAndCloseInternal() throws IOException {
-        if (support().isFlushOnCloseDisabled() == false) {
+        if (!support().isFlushOnCloseDisabled()) {
             super.flushAndClose();
         } else {
             super.close();

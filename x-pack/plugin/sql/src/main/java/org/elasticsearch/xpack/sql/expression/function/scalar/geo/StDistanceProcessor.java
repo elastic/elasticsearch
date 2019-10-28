@@ -51,10 +51,10 @@ public class StDistanceProcessor extends BinaryProcessor {
             return null;
         }
 
-        if (source1 instanceof GeoShape == false) {
+        if (!(source1 instanceof GeoShape)) {
             throw new SqlIllegalArgumentException("A geo_point or geo_shape with type point is required; received [{}]", source1);
         }
-        if (source2 instanceof GeoShape == false) {
+        if (!(source2 instanceof GeoShape)) {
             throw new SqlIllegalArgumentException("A geo_point or geo_shape with type point is required; received [{}]", source2);
         }
         return GeoShape.distance((GeoShape) source1, (GeoShape) source2);

@@ -78,7 +78,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         double compensation = 0;
         for (InternalAggregation aggregation : aggregations) {
             double value = ((InternalSum) aggregation).sum;
-            if (Double.isFinite(value) == false) {
+            if (!Double.isFinite(value)) {
                 sum += value;
             } else if (Double.isFinite(sum)) {
                 double corrected = value - compensation;
@@ -108,7 +108,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalSum that = (InternalSum) obj;
         return Objects.equals(sum, that.sum);

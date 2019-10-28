@@ -130,7 +130,7 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
     }
 
     public static void taskFailuresToXContent(List<TaskOperationFailure> taskFailures, XContentBuilder builder) throws IOException {
-        if (taskFailures != null && taskFailures.isEmpty() == false) {
+        if (taskFailures != null && !taskFailures.isEmpty()) {
             builder.startArray(AcknowledgedTasksResponse.TASK_FAILURES.getPreferredName());
             for (TaskOperationFailure failure : taskFailures) {
                 builder.startObject();
@@ -142,7 +142,7 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
     }
 
     public static void nodeFailuresToXContent(List<ElasticsearchException> nodeFailures, XContentBuilder builder) throws IOException {
-        if (nodeFailures != null && nodeFailures.isEmpty() == false) {
+        if (nodeFailures != null && !nodeFailures.isEmpty()) {
             builder.startArray(AcknowledgedTasksResponse.NODE_FAILURES.getPreferredName());
             for (ElasticsearchException failure : nodeFailures) {
                 builder.startObject();

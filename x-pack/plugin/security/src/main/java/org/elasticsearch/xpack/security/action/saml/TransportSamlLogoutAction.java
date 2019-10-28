@@ -98,7 +98,7 @@ public final class TransportSamlLogoutAction
 
         final SamlRealm realm = findRealm(authentication);
         final String tokenRealm = getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_REALM);
-        if (realm.name().equals(tokenRealm) == false) {
+        if (!realm.name().equals(tokenRealm)) {
             throw SamlUtils.samlException("Authenticating realm [{}] does not match token realm [{}]", realm, tokenRealm);
         }
 

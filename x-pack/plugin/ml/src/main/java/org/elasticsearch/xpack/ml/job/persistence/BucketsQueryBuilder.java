@@ -149,7 +149,7 @@ public final class BucketsQueryBuilder {
         searchSourceBuilder.size(size);
 
         // If not using the default sort field (timestamp) add it as a secondary sort
-        if (Result.TIMESTAMP.getPreferredName().equals(sortField) == false) {
+        if (!Result.TIMESTAMP.getPreferredName().equals(sortField)) {
             searchSourceBuilder.sort(Result.TIMESTAMP.getPreferredName(), sortDescending ? SortOrder.DESC : SortOrder.ASC);
         }
 

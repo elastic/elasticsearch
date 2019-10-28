@@ -1039,7 +1039,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         if (safeStep != null) {
             assert MockAction.NAME.equals(safeStep.getAction()) : "The safe action needs to be MockAction.NAME";
             assert unsafeStep == null
-                    || safeStep.getPhase().equals(unsafeStep.getPhase()) == false : "safe and unsafe actions must be in different phases";
+                    || !safeStep.getPhase().equals(unsafeStep.getPhase()) : "safe and unsafe actions must be in different phases";
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<Step> steps = Collections.singletonList(new MockStep(safeStep, null));
             MockAction safeAction = new MockAction(steps, true);
@@ -1527,7 +1527,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         @Override
         public boolean matches(Object argument) {
-            if (argument == null || argument instanceof SetStepInfoUpdateTask == false) {
+            if (argument == null || !(argument instanceof SetStepInfoUpdateTask)) {
                 return false;
             }
             SetStepInfoUpdateTask task = (SetStepInfoUpdateTask) argument;
@@ -1563,7 +1563,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         @Override
         public boolean matches(Object argument) {
-            if (argument == null || argument instanceof ExecuteStepsUpdateTask == false) {
+            if (argument == null || !(argument instanceof ExecuteStepsUpdateTask)) {
                 return false;
             }
             ExecuteStepsUpdateTask task = (ExecuteStepsUpdateTask) argument;

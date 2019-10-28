@@ -104,12 +104,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         final ShardRouting routingEntry = shard.routingEntry();
 
-        if (routingEntry.primary() == false || routingEntry.active() == false) {
+        if (!routingEntry.primary() || !routingEntry.active()) {
             throw new DelayRecoveryException("source shard [" + routingEntry + "] is not an active primary");
         }
 
-        if (request.isPrimaryRelocation() && (routingEntry.relocating() == false ||
-            routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
+        if (request.isPrimaryRelocation() && (!routingEntry.relocating() ||
+            !routingEntry.relocatingNodeId().equals(request.targetNode().getId()))) {
             logger.debug("delaying recovery of {} as source shard is not marked yet as relocating to {}",
                 request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");

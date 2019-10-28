@@ -304,7 +304,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // validate node A recovery
         final RecoveryState nodeARecoveryState = nodeAResponses.get(0);
         final RecoverySource expectedRecoverySource;
-        if (closedIndex == false) {
+        if (!closedIndex) {
             expectedRecoverySource = RecoverySource.EmptyStoreRecoverySource.INSTANCE;
         } else {
             expectedRecoverySource = RecoverySource.ExistingStoreRecoverySource.INSTANCE;
@@ -904,7 +904,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
             mockTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
-                if ((primaryRelocation && finalized.get()) == false) {
+                if (!(primaryRelocation && finalized.get())) {
                     assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -1092,7 +1092,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ShardId shardId = null;
         for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()) {
             shardId = shardStats.getShardRouting().shardId();
-            if (shardStats.getShardRouting().primary() == false) {
+            if (!shardStats.getShardRouting().primary()) {
                 assertThat(shardStats.getCommitStats().getNumDocs(), equalTo(numDocs));
                 SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                     shardStats.getCommitStats().getUserData().entrySet());
@@ -1246,7 +1246,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         //noinspection OptionalGetWithoutIsPresent because it fails the test if absent
         final RecoveryState recoveryState = client().admin().indices().prepareRecoveries(indexName).get()
-            .shardRecoveryStates().get(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
+            .shardRecoveryStates().get(indexName).stream().filter(rs -> !rs.getPrimary()).findFirst().get();
         assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
     }
 
@@ -1297,7 +1297,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         //noinspection OptionalGetWithoutIsPresent because it fails the test if absent
         final RecoveryState recoveryState = client().admin().indices().prepareRecoveries(indexName).get()
-            .shardRecoveryStates().get(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
+            .shardRecoveryStates().get(indexName).stream().filter(rs -> !rs.getPrimary()).findFirst().get();
         assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
     }
 
@@ -1400,7 +1400,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         //noinspection OptionalGetWithoutIsPresent because it fails the test if absent
         final RecoveryState recoveryState = client().admin().indices().prepareRecoveries(indexName).get()
-            .shardRecoveryStates().get(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
+            .shardRecoveryStates().get(indexName).stream().filter(rs -> !rs.getPrimary()).findFirst().get();
         assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
     }
 
@@ -1435,7 +1435,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         //noinspection OptionalGetWithoutIsPresent because it fails the test if absent
         final RecoveryState recoveryState = client().admin().indices().prepareRecoveries(indexName).get()
-            .shardRecoveryStates().get(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
+            .shardRecoveryStates().get(indexName).stream().filter(rs -> !rs.getPrimary()).findFirst().get();
         assertThat((long)recoveryState.getTranslog().recoveredOperations(),
             lessThanOrEqualTo(maxSeqNoAfterRecovery - maxSeqNoBeforeRecovery));
     }
@@ -1554,7 +1554,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         Thread[] indexers = new Thread[randomIntBetween(1, 8)];
         for (int i = 0; i < indexers.length; i++) {
             indexers[i] = new Thread(() -> {
-                while (stopped.get() == false) {
+                while (!stopped.get()) {
                     try {
                         IndexResponse response = client().prepareIndex(indexName)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON).get();

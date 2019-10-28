@@ -270,7 +270,7 @@ public class ClusterStateObserver {
          * returns true if stored state is older then given state or they are from a different master, meaning they can't be compared
          * */
         public boolean isOlderOrDifferentMaster(ClusterState clusterState) {
-            return version < clusterState.version() || Objects.equals(masterNodeId, clusterState.nodes().getMasterNodeId()) == false;
+            return version < clusterState.version() || !Objects.equals(masterNodeId, clusterState.nodes().getMasterNodeId());
         }
     }
 

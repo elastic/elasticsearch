@@ -49,7 +49,7 @@ public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<Allo
             shardsToAllocate += between(1, 20);
             break;
         case 1:
-            allShardsActive = allShardsActive == false;
+            allShardsActive = !allShardsActive;
             break;
         case 2:
             actualReplicas += between(1, 20);

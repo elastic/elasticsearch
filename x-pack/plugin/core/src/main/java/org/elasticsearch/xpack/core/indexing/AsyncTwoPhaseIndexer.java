@@ -341,7 +341,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private void onSearchResponse(SearchResponse searchResponse) {
         stats.markEndSearch();
         try {
-            if (checkState(getState()) == false) {
+            if (!checkState(getState())) {
                 return;
             }
 
@@ -366,7 +366,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             final List<IndexRequest> docs = iterationResult.getToIndex();
 
             // an iteration result might return an empty set of documents to be indexed
-            if (docs.isEmpty() == false) {
+            if (!docs.isEmpty()) {
                 final BulkRequest bulkRequest = new BulkRequest();
                 docs.forEach(bulkRequest::add);
 
@@ -380,7 +380,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
 
                     // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
-                    if (checkState(getState()) == false) {
+                    if (!checkState(getState())) {
                         return;
                     }
 

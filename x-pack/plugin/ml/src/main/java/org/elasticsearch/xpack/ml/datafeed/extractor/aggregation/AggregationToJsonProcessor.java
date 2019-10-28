@@ -145,7 +145,7 @@ class AggregationToJsonProcessor {
         }
 
         boolean noMoreBucketsToProcess = bucketAggregations.isEmpty();
-        if (noMoreBucketsToProcess == false) {
+        if (!noMoreBucketsToProcess) {
             MultiBucketsAggregation bucketAgg = bucketAggregations.get(0);
             if (bucketAgg instanceof Histogram) {
                 processDateHistogram((Histogram) bucketAgg);
@@ -227,7 +227,7 @@ class AggregationToJsonProcessor {
     }
 
     private void processTimeField(Aggregation agg) {
-        if (agg instanceof Max == false) {
+        if (!(agg instanceof Max)) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD, timeField));
         }
 
@@ -372,7 +372,7 @@ class AggregationToJsonProcessor {
             }
         }
 
-        return docsByBucketTimestamp.isEmpty() == false;
+        return !docsByBucketTimestamp.isEmpty();
     }
 
     private void writeJsonObject(XContentBuilder jsonBuilder, Map<String, Object> record) throws IOException {

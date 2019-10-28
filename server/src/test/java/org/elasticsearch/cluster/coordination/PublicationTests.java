@@ -271,7 +271,7 @@ public class PublicationTests extends ESTestCase {
             if (remainingActions.decrementAndGet() == injectFaultAt) {
                 publication.onFaultyNode(n2);
             }
-            if (e.getKey().equals(n2) == false || randomBoolean()) {
+            if (!e.getKey().equals(n2) || randomBoolean()) {
                 PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
                     publication.publishRequest);
                 e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
@@ -310,7 +310,7 @@ public class PublicationTests extends ESTestCase {
             discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), ackListener, Collections.emptySet());
 
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
-            if (e.getKey().equals(n2) == false || publicationDidNotMakeItToNode2 == false) {
+            if (!e.getKey().equals(n2) || !publicationDidNotMakeItToNode2) {
                 PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
                     publication.publishRequest);
                 e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
@@ -325,7 +325,7 @@ public class PublicationTests extends ESTestCase {
             if (remainingActions.decrementAndGet() == injectFaultAt) {
                 publication.onFaultyNode(n2);
             }
-            if (e.getKey().equals(n2) == false || randomBoolean()) {
+            if (!e.getKey().equals(n2) || randomBoolean()) {
                 nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
                 e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
             }
@@ -398,7 +398,7 @@ public class PublicationTests extends ESTestCase {
 
         List<DiscoveryNode> publicationTargets = new ArrayList<>(publication.pendingPublications.keySet());
         List<DiscoveryNode> sortedPublicationTargets = new ArrayList<>(publicationTargets);
-        Collections.sort(sortedPublicationTargets, Comparator.comparing(n -> n.isMasterNode() == false));
+        Collections.sort(sortedPublicationTargets, Comparator.comparing(n -> !n.isMasterNode()));
         assertEquals(sortedPublicationTargets, publicationTargets);
     }
 
@@ -414,7 +414,7 @@ public class PublicationTests extends ESTestCase {
 
         boolean publishedToN3 = randomBoolean();
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
-            if (e.getKey().equals(n3) == false || publishedToN3) {
+            if (!e.getKey().equals(n3) || publishedToN3) {
                 PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
                     publication.publishRequest);
                 e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
@@ -424,7 +424,7 @@ public class PublicationTests extends ESTestCase {
         assertNotNull(publication.applyCommit);
 
         Set<DiscoveryNode> committingNodes = new HashSet<>(randomSubsetOf(discoNodes));
-        if (publishedToN3 == false) {
+        if (!publishedToN3) {
             committingNodes.remove(n3);
         }
 
@@ -443,7 +443,7 @@ public class PublicationTests extends ESTestCase {
         assertEquals(committingNodes, ackListener.await(0L, TimeUnit.SECONDS));
 
         // check that acking still works after publication completed
-        if (publishedToN3 == false) {
+        if (!publishedToN3) {
             publication.pendingPublications.get(n3).onResponse(
                 new PublishWithJoinResponse(node3.coordinationState.handlePublishRequest(publication.publishRequest), Optional.empty()));
         }

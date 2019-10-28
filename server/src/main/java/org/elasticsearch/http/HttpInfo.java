@@ -66,7 +66,7 @@ public class HttpInfo implements Writeable, ToXContentFragment {
         TransportAddress publishAddress = address.publishAddress();
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
-        if (InetAddresses.isInetAddress(hostString) == false) {
+        if (!InetAddresses.isInetAddress(hostString)) {
             publishAddressString = hostString + '/' + publishAddress.toString();
         }
         builder.field(Fields.PUBLISH_ADDRESS, publishAddressString);

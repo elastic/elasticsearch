@@ -64,7 +64,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * */
     @Override
     public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> options) {
-        if (context.instanceClazz.equals(TemplateScript.class) == false) {
+        if (!context.instanceClazz.equals(TemplateScript.class)) {
             throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
         }
         final MustacheFactory factory = createMustacheFactory(options);
@@ -80,7 +80,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
-        if (options == null || options.isEmpty() || options.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
+        if (options == null || options.isEmpty() || !options.containsKey(Script.CONTENT_TYPE_OPTION)) {
             return new CustomMustacheFactory();
         }
         return new CustomMustacheFactory(options.get(Script.CONTENT_TYPE_OPTION));

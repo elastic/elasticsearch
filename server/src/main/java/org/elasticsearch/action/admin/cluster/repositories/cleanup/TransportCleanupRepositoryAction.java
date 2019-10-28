@@ -91,9 +91,9 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
         clusterService.addStateApplier(event -> {
-            if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false) {
+            if (event.localNodeMaster() && !event.previousState().nodes().isLocalNodeElectedMaster()) {
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = event.state().custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress == null || repositoryCleanupInProgress.cleanupInProgress() == false) {
+                if (repositoryCleanupInProgress == null || !repositoryCleanupInProgress.cleanupInProgress()) {
                     return;
                 }
                 clusterService.submitStateUpdateTask("clean up repository cleanup task after master failover",
@@ -122,7 +122,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         RepositoryCleanupInProgress cleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
         if (cleanupInProgress != null) {
             boolean changed = false;
-            if (cleanupInProgress.cleanupInProgress() == false) {
+            if (!cleanupInProgress.cleanupInProgress()) {
                 cleanupInProgress = new RepositoryCleanupInProgress();
                 changed = true;
             }
@@ -163,7 +163,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
      */
     private void cleanupRepo(String repositoryName, ActionListener<RepositoryCleanupResult> listener) {
         final Repository repository = repositoriesService.repository(repositoryName);
-        if (repository instanceof BlobStoreRepository == false) {
+        if (!(repository instanceof BlobStoreRepository)) {
             listener.onFailure(new IllegalArgumentException("Repository [" + repositoryName + "] does not support repository cleanup"));
             return;
         }
@@ -175,7 +175,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                    if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
+                    if (repositoryCleanupInProgress != null && !repositoryCleanupInProgress.cleanupInProgress()) {
                         throw new IllegalStateException(
                             "Cannot cleanup [" + repositoryName + "] - a repository cleanup is already in-progress");
                     }

@@ -445,7 +445,7 @@ public final class DefBootstrap {
                 if (args.length == 0) {
                     throw new BootstrapMethodError("Invalid number of parameters for method call");
                 }
-                if (args[0] instanceof String == false) {
+                if (!(args[0] instanceof String)) {
                     throw new BootstrapMethodError("Illegal parameter for method call: " + args[0]);
                 }
                 String recipe = (String) args[0];
@@ -471,7 +471,7 @@ public final class DefBootstrap {
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
                 }
-                if (args[0] instanceof String == false) {
+                if (!(args[0] instanceof String)) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
                 return new PIC(painlessLookup, functions, methodHandlesLookup, name, type, initialDepth, flavor, args);
@@ -483,7 +483,7 @@ public final class DefBootstrap {
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for operator call");
                 }
-                if (args[0] instanceof Integer == false) {
+                if (!(args[0] instanceof Integer)) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
                 int flags = (int)args[0];

@@ -213,7 +213,7 @@ public interface Scheduler {
 
         @Override
         public boolean isCancelled() {
-            return run == false;
+            return !run;
         }
 
         @Override

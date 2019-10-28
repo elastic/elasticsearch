@@ -110,7 +110,7 @@ public class SearchResponseTests extends ESTestCase {
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, totalShards);
         InternalSearchResponse internalSearchResponse;
-        if (minimal == false) {
+        if (!minimal) {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
             InternalAggregations aggregations = aggregationsTests.createTestInstance();
             Suggest suggest = SuggestTests.createTestItem();

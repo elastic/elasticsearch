@@ -33,10 +33,10 @@ final class XPackRequestConverters {
 
     static Request info(XPackInfoRequest infoRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
-        if (false == infoRequest.isVerbose()) {
+        if (!infoRequest.isVerbose()) {
             request.addParameter("human", "false");
         }
-        if (false == infoRequest.getCategories().equals(EnumSet.allOf(XPackInfoRequest.Category.class))) {
+        if (!infoRequest.getCategories().equals(EnumSet.allOf(XPackInfoRequest.Category.class))) {
             request.addParameter("categories", infoRequest.getCategories().stream()
                     .map(c -> c.toString().toLowerCase(Locale.ROOT))
                     .collect(Collectors.joining(",")));

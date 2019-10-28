@@ -137,7 +137,7 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
     }
 
     private void assertAllInExpectedStatus(Collection<FullHttpResponse> responses, HttpResponseStatus expectedStatus) {
-        long countUnexpectedStatus = responses.stream().filter(r -> r.status().equals(expectedStatus) == false).count();
+        long countUnexpectedStatus = responses.stream().filter(r -> !r.status().equals(expectedStatus)).count();
         assertThat("Expected all requests with status [" + expectedStatus + "] but [" + countUnexpectedStatus +
             "] requests had a different one", countUnexpectedStatus, equalTo(0L));
     }

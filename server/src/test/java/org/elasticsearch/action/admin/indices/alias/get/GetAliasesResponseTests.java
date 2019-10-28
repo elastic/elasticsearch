@@ -128,7 +128,7 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         builder.indexRouting(alias.indexRouting());
         builder.filter(alias.filter());
 
-        if (false == changeAlias) {
+        if (!changeAlias) {
             if (randomBoolean()) {
                 builder.searchRouting(alias.searchRouting() + randomAlphaOfLengthBetween(1, 3));
             } else {

@@ -119,7 +119,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         LicensingClient licensingClient = new LicensingClient(client());
         GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
 
-        if ("basic".equals(getLicenseResponse.license().type()) == false) {
+        if (!"basic".equals(getLicenseResponse.license().type())) {
             licensingClient.preparePostStartBasic().setAcknowledge(true).get();
         }
 

@@ -88,14 +88,14 @@ public class FailureTrackingResponseListenerTests extends RestClientTestCase {
 
         @Override
         public void onSuccess(Response response) {
-            if (this.response.compareAndSet(null, response) == false) {
+            if (!this.response.compareAndSet(null, response)) {
                 throw new IllegalStateException("onSuccess was called multiple times");
             }
         }
 
         @Override
         public void onFailure(Exception exception) {
-            if (this.exception.compareAndSet(null, exception) == false) {
+            if (!this.exception.compareAndSet(null, exception)) {
                 throw new IllegalStateException("onFailure was called multiple times");
             }
         }

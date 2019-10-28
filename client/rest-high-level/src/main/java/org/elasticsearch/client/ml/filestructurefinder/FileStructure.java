@@ -263,13 +263,13 @@ public class FileStructure implements ToXContentObject {
             builder.field(HAS_BYTE_ORDER_MARKER.getPreferredName(), hasByteOrderMarker.booleanValue());
         }
         builder.field(FORMAT.getPreferredName(), format);
-        if (multilineStartPattern != null && multilineStartPattern.isEmpty() == false) {
+        if (multilineStartPattern != null && !multilineStartPattern.isEmpty()) {
             builder.field(MULTILINE_START_PATTERN.getPreferredName(), multilineStartPattern);
         }
-        if (excludeLinesPattern != null && excludeLinesPattern.isEmpty() == false) {
+        if (excludeLinesPattern != null && !excludeLinesPattern.isEmpty()) {
             builder.field(EXCLUDE_LINES_PATTERN.getPreferredName(), excludeLinesPattern);
         }
-        if (columnNames != null && columnNames.isEmpty() == false) {
+        if (columnNames != null && !columnNames.isEmpty()) {
             builder.field(COLUMN_NAMES.getPreferredName(), columnNames);
         }
         if (hasHeaderRow != null) {
@@ -284,16 +284,16 @@ public class FileStructure implements ToXContentObject {
         if (shouldTrimFields != null) {
             builder.field(SHOULD_TRIM_FIELDS.getPreferredName(), shouldTrimFields.booleanValue());
         }
-        if (grokPattern != null && grokPattern.isEmpty() == false) {
+        if (grokPattern != null && !grokPattern.isEmpty()) {
             builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
         }
-        if (timestampField != null && timestampField.isEmpty() == false) {
+        if (timestampField != null && !timestampField.isEmpty()) {
             builder.field(TIMESTAMP_FIELD.getPreferredName(), timestampField);
         }
-        if (jodaTimestampFormats != null && jodaTimestampFormats.isEmpty() == false) {
+        if (jodaTimestampFormats != null && !jodaTimestampFormats.isEmpty()) {
             builder.field(JODA_TIMESTAMP_FORMATS.getPreferredName(), jodaTimestampFormats);
         }
-        if (javaTimestampFormats != null && javaTimestampFormats.isEmpty() == false) {
+        if (javaTimestampFormats != null && !javaTimestampFormats.isEmpty()) {
             builder.field(JAVA_TIMESTAMP_FORMATS.getPreferredName(), javaTimestampFormats);
         }
         builder.field(NEED_CLIENT_TIMEZONE.getPreferredName(), needClientTimezone);
@@ -301,14 +301,14 @@ public class FileStructure implements ToXContentObject {
         if (ingestPipeline != null) {
             builder.field(INGEST_PIPELINE.getPreferredName(), ingestPipeline);
         }
-        if (fieldStats.isEmpty() == false) {
+        if (!fieldStats.isEmpty()) {
             builder.startObject(FIELD_STATS.getPreferredName());
             for (Map.Entry<String, FieldStats> entry : fieldStats.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
         }
-        if (explanation != null && explanation.isEmpty() == false) {
+        if (explanation != null && !explanation.isEmpty()) {
             builder.field(EXPLANATION.getPreferredName(), explanation);
         }
         builder.endObject();

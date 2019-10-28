@@ -219,7 +219,7 @@ public class RollupRequestTranslator {
             if (source.extendedBounds() != null) {
                 rolledDateHisto.extendedBounds(source.extendedBounds());
             }
-            if (Strings.isNullOrEmpty(source.format()) == false) {
+            if (!Strings.isNullOrEmpty(source.format())) {
                 rolledDateHisto.format(source.format());
             }
             rolledDateHisto.keyed(source.keyed());

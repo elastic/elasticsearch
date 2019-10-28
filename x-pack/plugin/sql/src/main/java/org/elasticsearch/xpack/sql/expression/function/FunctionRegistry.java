@@ -351,7 +351,7 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             java.util.function.Function<Source, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            if (false == children.isEmpty()) {
+            if (!children.isEmpty()) {
                 throw new SqlIllegalArgumentException("expects no arguments");
             }
             if (distinct) {
@@ -371,7 +371,7 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             ConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            if (false == children.isEmpty()) {
+            if (!children.isEmpty()) {
                 throw new SqlIllegalArgumentException("expects no arguments");
             }
             if (distinct) {

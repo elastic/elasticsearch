@@ -195,7 +195,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (IllegalStateException e) {
-                if (e.getMessage().equals("thread was not started") == false) {
+                if (!e.getMessage().equals("thread was not started")) {
                     throw e;
                 }
                 // ignore since the thread was never started
@@ -372,7 +372,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             }
             // If we get to this point and we haven't added an alias to the request we need to add one
             // or the request will fail so use noAliasAdded to force adding the alias in this case
-            if (aliasAdded == false || randomBoolean()) {
+            if (!aliasAdded || randomBoolean()) {
                 //one alias pointing to all indices
                 for (String index : indices) {
                     builder.addAlias(index, "alias");

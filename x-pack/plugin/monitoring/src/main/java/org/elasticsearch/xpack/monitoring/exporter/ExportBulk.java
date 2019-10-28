@@ -48,7 +48,7 @@ public abstract class ExportBulk {
      * Add documents to the exporting bulk
      */
     public void add(Collection<MonitoringDoc> docs) throws ExportException {
-        if (closed.get() == false) {
+        if (!closed.get()) {
             doAdd(docs);
         }
     }

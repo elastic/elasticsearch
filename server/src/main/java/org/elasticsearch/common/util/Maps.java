@@ -47,7 +47,7 @@ public class Maps {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
         assertImmutableMap(map, key, value);
-        assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
+        assert !map.containsKey(key) : "expected entry [" + key + "] to not already be present in map";
         return Stream.concat(map.entrySet().stream(), Stream.of(entry(key, value)))
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
@@ -68,7 +68,7 @@ public class Maps {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
         assertImmutableMap(map, key, value);
-        return Stream.concat(map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false), Stream.of(entry(key, value)))
+        return Stream.concat(map.entrySet().stream().filter(k -> !key.equals(k.getKey())), Stream.of(entry(key, value)))
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 

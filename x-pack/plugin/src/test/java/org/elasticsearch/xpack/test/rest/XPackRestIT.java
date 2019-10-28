@@ -139,7 +139,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             boolean existsWatcherIndex = adminClient()
                     .performRequest(new Request("HEAD", ".watches"))
                     .getStatusLine().getStatusCode() == 200;
-            if (existsWatcherIndex == false) {
+            if (!existsWatcherIndex) {
                 return;
             }
             Request searchWatchesRequest = new Request("GET", ".watches/_search");
@@ -221,7 +221,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
 
                     @SuppressWarnings("unchecked")
                     final Map<String, ?> exporters = (Map<String, ?>) response.evaluate("monitoring.enabled_exporters");
-                    if (exporters.isEmpty() == false) {
+                    if (!exporters.isEmpty()) {
                         fail("Exporters were not found");
                     }
 

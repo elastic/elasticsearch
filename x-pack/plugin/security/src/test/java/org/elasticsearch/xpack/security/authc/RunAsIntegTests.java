@@ -82,7 +82,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
 
-        if (runAsHasSuperUserRole == false) {
+        if (!runAsHasSuperUserRole) {
             try {
                 //the run as user shouldn't have access to the nodes api
                 Request request = new Request("GET", "/_nodes");

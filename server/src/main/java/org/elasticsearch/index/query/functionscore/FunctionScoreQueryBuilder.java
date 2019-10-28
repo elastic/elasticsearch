@@ -313,7 +313,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         // handle cases where only one score function and no filter was provided. In this case we create a FunctionScoreQuery.
         if (filterFunctions.length == 0) {
             return new FunctionScoreQuery(query, minScore, maxBoost);
-        } else if (filterFunctions.length == 1 && filterFunctions[0] instanceof FunctionScoreQuery.FilterScoreFunction == false) {
+        } else if (filterFunctions.length == 1 && !(filterFunctions[0] instanceof FunctionScoreQuery.FilterScoreFunction)) {
             return new FunctionScoreQuery(query, filterFunctions[0], boostMode, minScore, maxBoost);
         }
         // in all other cases we create a FunctionScoreQuery with filters

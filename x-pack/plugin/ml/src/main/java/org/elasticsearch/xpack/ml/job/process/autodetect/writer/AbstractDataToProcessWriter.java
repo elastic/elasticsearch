@@ -252,7 +252,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
         int index = TIME_FIELD_OUT_INDEX + 1;
         for (String field : analysisConfig.analysisFields()) {
-            if (AnalysisConfig.ML_CATEGORY_FIELD.equals(field) == false) {
+            if (!AnalysisConfig.ML_CATEGORY_FIELD.equals(field)) {
                 fieldIndexes.put(field, index++);
             }
         }
@@ -295,7 +295,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         inputOutputMap.add(new InputOutputMap(inIndex, outIndex));
 
         for (String field : analysisConfig.analysisFields()) {
-            if (AnalysisConfig.ML_CATEGORY_FIELD.equals(field) == false) {
+            if (!AnalysisConfig.ML_CATEGORY_FIELD.equals(field)) {
                 ++outIndex;
                 inIndex = inFieldIndexes.get(field);
                 if (inIndex != null) {

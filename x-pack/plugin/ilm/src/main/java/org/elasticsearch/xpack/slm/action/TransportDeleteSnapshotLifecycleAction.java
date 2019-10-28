@@ -75,7 +75,7 @@ public class TransportDeleteSnapshotLifecycleAction extends
                             request.getLifecycleId()));
 
                     Map<String, SnapshotLifecyclePolicyMetadata> newConfigs = snapMeta.getSnapshotConfigurations().entrySet().stream()
-                        .filter(e -> e.getKey().equals(request.getLifecycleId()) == false)
+                        .filter(e -> !e.getKey().equals(request.getLifecycleId()))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
                     MetaData metaData = currentState.metaData();

@@ -157,7 +157,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         }
         assertThat(tracker.processedCheckpoint.get(), equalTo(maxOps - 1L));
         assertThat(tracker.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
-        if (aligned == false) {
+        if (!aligned) {
             assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
         }
         assertThat(tracker.hasProcessed(randomFrom(seqNoList)), equalTo(true));

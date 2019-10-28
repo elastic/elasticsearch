@@ -70,7 +70,7 @@ abstract class GeoJsonParser {
                     if (ShapeParser.FIELD_TYPE.match(fieldName, subParser.getDeprecationHandler())) {
                         subParser.nextToken();
                         final GeoShapeType type = GeoShapeType.forName(subParser.text());
-                        if (shapeType != null && shapeType.equals(type) == false) {
+                        if (shapeType != null && !shapeType.equals(type)) {
                             malformedException = ShapeParser.FIELD_TYPE + " already parsed as ["
                                 + shapeType + "] cannot redefine as [" + type + "]";
                         } else {
@@ -87,7 +87,7 @@ abstract class GeoJsonParser {
                     } else if (ShapeParser.FIELD_GEOMETRIES.match(fieldName, subParser.getDeprecationHandler())) {
                         if (shapeType == null) {
                             shapeType = GeoShapeType.GEOMETRYCOLLECTION;
-                        } else if (shapeType.equals(GeoShapeType.GEOMETRYCOLLECTION) == false) {
+                        } else if (!shapeType.equals(GeoShapeType.GEOMETRYCOLLECTION)) {
                             malformedException = "cannot have [" + ShapeParser.FIELD_GEOMETRIES + "] with type set to ["
                                 + shapeType + "]";
                         }
@@ -96,7 +96,7 @@ abstract class GeoJsonParser {
                     } else if (CircleBuilder.FIELD_RADIUS.match(fieldName, subParser.getDeprecationHandler())) {
                         if (shapeType == null) {
                             shapeType = GeoShapeType.CIRCLE;
-                        } else if (shapeType != null && shapeType.equals(GeoShapeType.CIRCLE) == false) {
+                        } else if (shapeType != null && !shapeType.equals(GeoShapeType.CIRCLE)) {
                             malformedException = "cannot have [" + CircleBuilder.FIELD_RADIUS + "] with type set to ["
                                 + shapeType + "]";
                         }
@@ -104,7 +104,7 @@ abstract class GeoJsonParser {
                         radius = DistanceUnit.Distance.parseDistance(subParser.text());
                     } else if (ShapeParser.FIELD_ORIENTATION.match(fieldName, subParser.getDeprecationHandler())) {
                         if (shapeType != null
-                            && (shapeType.equals(GeoShapeType.POLYGON) || shapeType.equals(GeoShapeType.MULTIPOLYGON)) == false) {
+                            && !(shapeType.equals(GeoShapeType.POLYGON) || shapeType.equals(GeoShapeType.MULTIPOLYGON))) {
                             malformedException = "cannot have [" + ShapeParser.FIELD_ORIENTATION + "] with type set to [" + shapeType + "]";
                         }
                         subParser.nextToken();
@@ -168,7 +168,7 @@ abstract class GeoJsonParser {
         List<CoordinateNode> nodes = new ArrayList<>();
         while (token != XContentParser.Token.END_ARRAY) {
             CoordinateNode node = parseCoordinates(parser, ignoreZValue);
-            if (nodes.isEmpty() == false && nodes.get(0).numDimensions() != node.numDimensions()) {
+            if (!nodes.isEmpty() && nodes.get(0).numDimensions() != node.numDimensions()) {
                 throw new ElasticsearchParseException("Exception parsing coordinates: number of dimensions do not match");
             }
             nodes.add(node);

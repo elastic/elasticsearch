@@ -133,7 +133,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         if (mode.equals(ConnectionStrategy.SNIFF)) {
             List<String> seeds = RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-            return seeds.isEmpty() == false;
+            return !seeds.isEmpty();
         } else {
             return false;
         }
@@ -141,7 +141,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     boolean shouldRebuildConnection(Settings newSettings) {
         ConnectionStrategy newMode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        if (newMode.equals(strategyType()) == false) {
+        if (!newMode.equals(strategyType())) {
             return true;
         } else {
             Boolean compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS
@@ -219,7 +219,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     }
 
     private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
-        return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
-            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
+        return !Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled())
+            || !Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval());
     }
 }

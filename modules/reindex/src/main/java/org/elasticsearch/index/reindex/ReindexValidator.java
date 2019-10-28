@@ -102,7 +102,7 @@ class ReindexValidator {
             return;
         }
         String target = destination.index();
-        if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
+        if (!autoCreateIndex.shouldAutoCreate(target, clusterState)) {
             /*
              * If we're going to autocreate the index we don't need to resolve
              * it. This is the same sort of dance that TransportIndexRequest

@@ -32,7 +32,7 @@ public class VectorsFeatureSetUsageTests extends AbstractWireSerializingTestCase
         int numSparseVectorFields = instance.numSparseVectorFields();
         int avgDenseVectorDims = instance.avgDenseVectorDims();
 
-        if (available == false || enabled == false) {
+        if (!available || !enabled) {
             available = true;
             enabled = true;
         }

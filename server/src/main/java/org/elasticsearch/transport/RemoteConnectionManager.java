@@ -103,7 +103,7 @@ public class RemoteConnectionManager implements Closeable {
         int newSize = this.connections.size() - 1;
         ArrayList<Transport.Connection> newConnections = new ArrayList<>(newSize);
         for (Transport.Connection connection : this.connections) {
-            if (connection.equals(removedConnection) == false) {
+            if (!connection.equals(removedConnection)) {
                 newConnections.add(connection);
             }
         }

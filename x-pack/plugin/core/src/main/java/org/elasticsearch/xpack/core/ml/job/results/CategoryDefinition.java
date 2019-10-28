@@ -173,7 +173,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         if (this == other) {
             return true;
         }
-        if (other instanceof CategoryDefinition == false) {
+        if (!(other instanceof CategoryDefinition)) {
             return false;
         }
         CategoryDefinition that = (CategoryDefinition) other;

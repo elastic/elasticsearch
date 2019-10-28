@@ -158,7 +158,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             Map<String, EvalQueryQuality> responseDetails = new HashMap<>(specifications.length);
             for (Item response : multiSearchResponse.getResponses()) {
                 RatedRequest specification = specifications[responsePosition];
-                if (response.isFailure() == false) {
+                if (!response.isFailure()) {
                     SearchHit[] hits = response.getResponse().getHits().getHits();
                     EvalQueryQuality queryQuality = this.metric.evaluate(specification.getId(), hits, specification.getRatedDocs());
                     responseDetails.put(specification.getId(), queryQuality);

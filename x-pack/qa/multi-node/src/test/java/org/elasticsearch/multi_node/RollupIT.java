@@ -237,7 +237,7 @@ public class RollupIT extends ESRestTestCase {
                 break;
             }
         }
-        if (hasRollupTask == false) {
+        if (!hasRollupTask) {
             fail("Expected persistent task for [" + rollupJob + "] but none found.");
         }
 

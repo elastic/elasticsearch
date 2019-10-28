@@ -84,7 +84,7 @@ public class ClusterBootstrapService {
                     "] is not allowed when [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + "] is set to [" +
                     DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE + "]");
             }
-            if (DiscoveryNode.isMasterNode(settings) == false) {
+            if (!DiscoveryNode.isMasterNode(settings)) {
                 throw new IllegalArgumentException("node with [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + "] set to [" +
                     DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE +  "] must be master-eligible");
             }
@@ -113,8 +113,8 @@ public class ClusterBootstrapService {
 
     void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
-        if (bootstrappingPermitted.get() && transportService.getLocalNode().isMasterNode() && bootstrapRequirements.isEmpty() == false
-            && isBootstrappedSupplier.getAsBoolean() == false) {
+        if (bootstrappingPermitted.get() && transportService.getLocalNode().isMasterNode() && !bootstrapRequirements.isEmpty()
+            && !isBootstrappedSupplier.getAsBoolean()) {
 
             final Tuple<Set<DiscoveryNode>,List<String>> requirementMatchingResult;
             try {
@@ -130,7 +130,7 @@ public class ClusterBootstrapService {
             logger.trace("nodesMatchingRequirements={}, unsatisfiedRequirements={}, bootstrapRequirements={}",
                 nodesMatchingRequirements, unsatisfiedRequirements, bootstrapRequirements);
 
-            if (nodesMatchingRequirements.contains(transportService.getLocalNode()) == false) {
+            if (!nodesMatchingRequirements.contains(transportService.getLocalNode())) {
                 logger.info("skipping cluster bootstrapping as local node does not match bootstrap requirements: {}",
                     bootstrapRequirements);
                 bootstrappingPermitted.set(false);
@@ -148,7 +148,7 @@ public class ClusterBootstrapService {
             return;
         }
 
-        if (transportService.getLocalNode().isMasterNode() == false) {
+        if (!transportService.getLocalNode().isMasterNode()) {
             return;
         }
 
@@ -234,7 +234,7 @@ public class ClusterBootstrapService {
             }
 
             for (final DiscoveryNode matchingNode : matchingNodes) {
-                if (selectedNodes.add(matchingNode) == false) {
+                if (!selectedNodes.add(matchingNode)) {
                     throw new IllegalStateException("node [" + matchingNode + "] matches multiple requirements: " +
                         bootstrapRequirements.stream().filter(r -> matchesRequirement(matchingNode, r)).collect(Collectors.toList()));
                 }

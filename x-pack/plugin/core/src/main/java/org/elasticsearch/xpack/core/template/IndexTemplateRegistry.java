@@ -156,7 +156,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
-                        if (response.isAcknowledged() == false) {
+                        if (!response.isAcknowledged()) {
                             logger.error("error adding index template [{}] for [{}], request was not acknowledged",
                                 templateName, getOrigin());
                         }
@@ -184,9 +184,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(policy.getName(),
                     key -> new AtomicBoolean(false));
                 if (creationCheck.compareAndSet(false, true)) {
-                    final boolean policyNeedsToBeCreated = maybeMeta
+                    final boolean policyNeedsToBeCreated = !maybeMeta
                         .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName())))
-                        .isPresent() == false;
+                        .isPresent();
                     if (policyNeedsToBeCreated) {
                         logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
                         putPolicy(policy, creationCheck);
@@ -210,7 +210,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     @Override
                     public void onResponse(PutLifecycleAction.Response response) {
                         creationCheck.set(false);
-                        if (response.isAcknowledged() == false) {
+                        if (!response.isAcknowledged()) {
                             logger.error("error adding lifecycle policy [{}] for [{}], request was not acknowledged",
                                 policy.getName(), getOrigin());
                         }

@@ -55,7 +55,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         // do not generate a license if any license is present
         if (currentLicensesMetaData == null) {
             String type = LicenseService.SELF_GENERATED_LICENSE_TYPE.get(settings);
-            if (SelfGeneratedLicense.validSelfGeneratedType(type) == false) {
+            if (!SelfGeneratedLicense.validSelfGeneratedType(type)) {
                 throw new IllegalArgumentException("Illegal self generated license type [" + type +
                         "]. Must be trial or basic.");
             }

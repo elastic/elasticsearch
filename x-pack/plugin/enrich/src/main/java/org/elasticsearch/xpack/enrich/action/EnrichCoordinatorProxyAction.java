@@ -115,7 +115,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         }
 
         synchronized void coordinateLookups() {
-            while (queue.isEmpty() == false &&
+            while (!queue.isEmpty() &&
                 remoteRequestsCurrent.get() < maxNumberOfConcurrentRequests) {
 
                 final List<Slot> slots = new ArrayList<>();

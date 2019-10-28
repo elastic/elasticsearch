@@ -209,7 +209,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 final License currentLicense = getLicense();
                 if (currentLicense != null) {
                     Map<String, String[]> acknowledgeMessages = getAckMessages(newLicense, currentLicense);
-                    if (acknowledgeMessages.isEmpty() == false) {
+                    if (!acknowledgeMessages.isEmpty()) {
                         // needs acknowledgement
                         listener.onResponse(new PutLicenseResponse(false, LicensesStatus.VALID, ACKNOWLEDGEMENT_HEADER,
                                 acknowledgeMessages));
@@ -225,7 +225,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 // TODO we should really validate that all nodes have xpack installed and are consistently configured but this
                 // should happen on a different level and not in this code
                 if (XPackLicenseState.isTransportTlsRequired(newLicense, settings)
-                    && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
+                    && !XPackSettings.TRANSPORT_SSL_ENABLED.get(settings)
                     && isProductionMode(settings, clusterService.localNode())) {
                     // security is on but TLS is not configured we gonna fail the entire request and throw an exception
                     throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +
@@ -337,7 +337,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
-        if (VALID_TRIAL_TYPES.contains(request.getType()) == false) {
+        if (!VALID_TRIAL_TYPES.contains(request.getType())) {
             throw new IllegalArgumentException("Cannot start trial of type [" + request.getType() + "]. Valid trial types are "
                     + VALID_TRIAL_TYPES + ".");
         }
@@ -368,7 +368,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         logger.debug("initializing license state");
         if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
             final ClusterState clusterState = clusterService.state();
-            if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false &&
+            if (!clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) &&
                     clusterState.nodes().getMasterNode() != null && XPackPlugin.isReadyForXPackCustomMetadata(clusterState)) {
                 final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
                 boolean noLicense = currentMetaData == null || currentMetaData.getLicense() == null;
@@ -402,7 +402,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final ClusterState previousClusterState = event.previousState();
         final ClusterState currentClusterState = event.state();
         if (!currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            if (XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState) == false) {
+            if (!XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState)) {
                 logger.debug("cannot add license to cluster as the following nodes might not understand the license metadata: {}",
                     () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState));
                 return;
@@ -426,11 +426,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
             License currentLicense = null;
             boolean noLicenseInPrevMetadata = prevLicensesMetaData == null || prevLicensesMetaData.getLicense() == null;
-            if (noLicenseInPrevMetadata == false) {
+            if (!noLicenseInPrevMetadata) {
                 currentLicense = prevLicensesMetaData.getLicense();
             }
             boolean noLicenseInCurrentMetadata = (currentLicensesMetaData == null || currentLicensesMetaData.getLicense() == null);
-            if (noLicenseInCurrentMetadata == false) {
+            if (!noLicenseInCurrentMetadata) {
                 currentLicense = currentLicensesMetaData.getLicense();
             }
 
@@ -495,7 +495,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         // in this case, it is a no-op
         if (license != null) {
             final License previousLicense = currentLicense.get();
-            if (license.equals(previousLicense) == false) {
+            if (!license.equals(previousLicense)) {
                 currentLicense.set(license);
                 license.setOperationModeFileWatcher(operationModeFileWatcher);
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
@@ -557,7 +557,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     private static boolean isProductionMode(Settings settings, DiscoveryNode localNode) {
         final boolean singleNodeDisco = "single-node".equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings));
-        return singleNodeDisco == false && isBoundToLoopback(localNode) == false;
+        return !singleNodeDisco && !isBoundToLoopback(localNode);
     }
 
     private static boolean isBoundToLoopback(DiscoveryNode localNode) {

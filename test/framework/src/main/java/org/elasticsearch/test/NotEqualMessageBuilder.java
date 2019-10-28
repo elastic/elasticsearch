@@ -28,7 +28,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * Builds a message describing how two sets of values are unequal. 
+ * Builds a message describing how two sets of values are unequal.
  */
 public class NotEqualMessageBuilder {
     private final StringBuilder message;
@@ -93,7 +93,7 @@ public class NotEqualMessageBuilder {
                 field(field, "expected map but not found");
                 return;
             }
-            if (false == actual instanceof Map) {
+            if (!(actual instanceof Map)) {
                 field(field, "expected map but found [" + actual + "]");
                 return;
             }
@@ -116,7 +116,7 @@ public class NotEqualMessageBuilder {
                 field(field, "expected list but not found");
                 return;
             }
-            if (false == actual instanceof List) {
+            if (!(actual instanceof List)) {
                 field(field, "expected list but found [" + actual + "]");
                 return;
             }

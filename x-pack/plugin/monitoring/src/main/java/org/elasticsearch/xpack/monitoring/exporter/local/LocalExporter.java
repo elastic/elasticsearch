@@ -138,7 +138,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         // forces the setup to occur if it hasn't already
         final boolean running = resolveBulk(clusterService.state(), false) != null;
 
-        return running && installingSomething.get() == false;
+        return running && !installingSomething.get();
     }
 
     @Override
@@ -179,7 +179,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         // elected master node needs to setup templates; non-master nodes need to wait for it to be setup
         if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
             setup = setupIfElectedMaster(clusterState, templates, clusterStateChange);
-        } else if (setupIfNotElectedMaster(clusterState, templates.keySet()) == false) {
+        } else if (!setupIfNotElectedMaster(clusterState, templates.keySet())) {
             // the first pass will be false so that we don't bother users if the master took one-go to setup
             if (waitedForSetup.getAndSet(true)) {
                 logger.info("waiting for elected master node [{}] to setup local exporter [{}] (does it have x-pack installed?)",
@@ -190,7 +190,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
 
         // any failure/delay to setup the local exporter stops it until the next pass (10s by default)
-        if (setup == false) {
+        if (!setup) {
             return null;
         }
 
@@ -216,7 +216,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private boolean setupIfNotElectedMaster(final ClusterState clusterState, final Set<String> templates) {
         // any required template is not yet installed in the given cluster state, we'll wait.
         for (final String template : templates) {
-            if (hasTemplate(clusterState, template) == false) {
+            if (!hasTemplate(clusterState, template)) {
                 logger.debug("monitoring index template [{}] does not exist, so service cannot start (waiting on master)",
                              template);
                 return false;
@@ -226,7 +226,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         // if we don't have the ingest pipeline, then it's going to fail anyway
         if (useIngest) {
             for (final String pipelineId : PIPELINE_IDS) {
-                if (hasIngestPipeline(clusterState, pipelineId) == false) {
+                if (!hasIngestPipeline(clusterState, pipelineId)) {
                     logger.debug("monitoring ingest pipeline [{}] does not exist, so service cannot start (waiting on master)",
                                  pipelineName(pipelineId));
                     return false;
@@ -258,7 +258,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             return false;
         }
 
-        if (installingSomething.get() == true) {
+        if (installingSomething.get()) {
             logger.trace("already installing something, waiting for install to complete");
             return false;
         }
@@ -270,10 +270,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         // Check that each required template exists, installing it if needed
         final List<Entry<String, String>> missingTemplates = templates.entrySet()
                 .stream()
-                .filter((e) -> hasTemplate(clusterState, e.getKey()) == false)
+                .filter((e) -> !hasTemplate(clusterState, e.getKey()))
                 .collect(Collectors.toList());
 
-        if (missingTemplates.isEmpty() == false) {
+        if (!missingTemplates.isEmpty()) {
             logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found",
                     missingTemplates.stream().map(Map.Entry::getKey).collect(Collectors.toList())));
             for (Entry<String, String> template : missingTemplates) {
@@ -284,11 +284,11 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         if (useIngest) {
             final List<String> missingPipelines = Arrays.stream(PIPELINE_IDS)
-                    .filter(id -> hasIngestPipeline(clusterState, id) == false)
+                    .filter(id -> !hasIngestPipeline(clusterState, id))
                     .collect(Collectors.toList());
 
             // if we don't have the ingest pipeline, then install it
-            if (missingPipelines.isEmpty() == false) {
+            if (!missingPipelines.isEmpty()) {
                 for (final String pipelineId : missingPipelines) {
                     final String pipelineName = pipelineName(pipelineId);
                     logger.debug("pipeline [{}] not found", pipelineName);
@@ -304,12 +304,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         // avoid constantly trying to setup Watcher, which requires a lot of overhead and avoid attempting to setup during a cluster state
         // change
-        if (state.get() == State.RUNNING && clusterStateChange == false && canUseWatcher()) {
+        if (state.get() == State.RUNNING && !clusterStateChange && canUseWatcher()) {
             final IndexRoutingTable watches = clusterState.routingTable().index(Watch.INDEX);
             final boolean indexExists = watches != null && watches.allPrimaryShardsActive();
 
             // we cannot do anything with watches until the index is allocated, so we wait until it's ready
-            if (watches != null && watches.allPrimaryShardsActive() == false) {
+            if (watches != null && !watches.allPrimaryShardsActive()) {
                 logger.trace("cannot manage cluster alerts because [.watches] index is not allocated");
             } else if ((watches == null || indexExists) && watcherSetup.compareAndSet(false, true)) {
                 getClusterAlertsInstallationAsyncActions(indexExists, asyncActions, pendingResponses);
@@ -335,13 +335,13 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     private void responseReceived(final AtomicInteger pendingResponses, final boolean success, final @Nullable AtomicBoolean setup) {
-        if (setup != null && success == false) {
+        if (setup != null && !success) {
             setup.set(false);
         }
 
         if (pendingResponses.decrementAndGet() <= 0) {
             logger.trace("all installation requests returned a response");
-            if (installingSomething.compareAndSet(true, false) == false) {
+            if (!installingSomething.compareAndSet(true, false)) {
                 throw new IllegalStateException("could not reset installing flag to false");
             }
         }
@@ -435,7 +435,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
-            final boolean addWatch = canAddWatches && clusterAlertBlacklist.contains(watchId) == false;
+            final boolean addWatch = canAddWatches && !clusterAlertBlacklist.contains(watchId);
 
             // we aren't sure if no watches exist yet, so add them
             if (indexExists) {
@@ -643,7 +643,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         public void onFailure(Exception e) {
             responseReceived(countDown, false, watcherSetup);
 
-            if ((e instanceof IndexNotFoundException) == false) {
+            if (!(e instanceof IndexNotFoundException)) {
                 logger.error((Supplier<?>) () ->
                              new ParameterizedMessage("failed to get monitoring watch [{}]", uniqueWatchId), e);
             }

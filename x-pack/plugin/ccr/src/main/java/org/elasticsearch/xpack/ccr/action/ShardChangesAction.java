@@ -508,7 +508,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
         final String historyUUID = indexShard.getHistoryUUID();
-        if (historyUUID.equals(expectedHistoryUUID) == false) {
+        if (!historyUUID.equals(expectedHistoryUUID)) {
             throw new IllegalStateException("unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" +
                 historyUUID + "]");
         }

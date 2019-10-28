@@ -76,7 +76,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
             final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
             // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
             final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
-            if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
+            if ((softDeletesDV == null || tombstoneDV == null) && !allDocsDeleted) {
                 throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
                     "_soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
             }
@@ -133,7 +133,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
             docsEnum = termsEnum.postings(docsEnum, 0);
             for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
-                if (liveDocs != null && liveDocs.get(d) == false) {
+                if (liveDocs != null && !liveDocs.get(d)) {
                     continue;
                 }
                 docID = d;
@@ -146,7 +146,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
     private static long readNumericDocValues(LeafReader reader, String field, int docId) throws IOException {
         final NumericDocValues dv = reader.getNumericDocValues(field);
-        if (dv == null || dv.advanceExact(docId) == false) {
+        if (dv == null || !dv.advanceExact(docId)) {
             assert false : "document [" + docId + "] does not have docValues for [" + field + "]";
             throw new IllegalStateException("document [" + docId + "] does not have docValues for [" + field + "]");
         }

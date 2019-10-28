@@ -183,7 +183,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
+        if (!collectsFromSingleBucket) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 
@@ -210,7 +210,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if (executionHint != null) {
                 execution = ExecutionMode.fromString(executionHint, deprecationLogger);
             }
-            if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
+            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
@@ -296,7 +296,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrd = true;
-                if (Aggregator.descendsFromBucketAggregator(parent) == false &&
+                if (!Aggregator.descendsFromBucketAggregator(parent) &&
                         factories == AggregatorFactories.EMPTY &&
                         includeExclude == null) {
                     /**

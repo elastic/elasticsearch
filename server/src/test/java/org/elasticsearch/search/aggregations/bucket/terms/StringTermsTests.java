@@ -53,7 +53,7 @@ public class StringTermsTests extends InternalTermsTestCase {
         final int numBuckets = randomNumberOfBuckets();
         Set<BytesRef> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAlphaOfLength(10)));
+            BytesRef term = randomValueOtherThanMany(b -> !terms.add(b), () -> new BytesRef(randomAlphaOfLength(10)));
             int docCount = randomIntBetween(1, 100);
             buckets.add(new StringTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
         }
@@ -101,7 +101,7 @@ public class StringTermsTests extends InternalTermsTestCase {
                 shardSize += between(1, 100);
                 break;
             case 4:
-                showTermDocCountError = showTermDocCountError == false;
+                showTermDocCountError = !showTermDocCountError;
                 break;
             case 5:
                 otherDocCount += between(1, 100);

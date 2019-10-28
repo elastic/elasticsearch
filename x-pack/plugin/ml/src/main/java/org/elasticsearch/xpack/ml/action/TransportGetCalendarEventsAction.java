@@ -49,7 +49,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                             .from(request.getPageParams().getFrom())
                             .size(request.getPageParams().getSize());
 
-                    if (GetCalendarsAction.Request.ALL.equals(request.getCalendarId()) == false) {
+                    if (!GetCalendarsAction.Request.ALL.equals(request.getCalendarId())) {
                         query.calendarIds(Collections.singletonList(request.getCalendarId()));
                     }
 

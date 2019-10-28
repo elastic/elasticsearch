@@ -99,7 +99,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                 do {
                     line = cli.readLine();
                     adminResult.add(line);
-                } while (false == (line.equals("[0m") || line.equals("")));
+                } while (!(line.equals("[0m") || line.equals("")));
                 adminResult.add(line);
             }
 
@@ -113,7 +113,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                     line = cli.readLine();
                     assertTrue(expected.hasNext());
                     assertEquals(expected.next(), line);
-                } while (false == (line.equals("[0m") || line.equals("")));
+                } while (!(line.equals("[0m") || line.equals("")));
                 assertTrue(expected.hasNext());
                 assertEquals(expected.next(), line);
                 assertFalse(expected.hasNext());

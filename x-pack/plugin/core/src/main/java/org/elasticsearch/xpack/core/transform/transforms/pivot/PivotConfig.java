@@ -107,7 +107,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
         for (Entry<String, SingleGroupSource> groupBy : groups.getGroups().entrySet()) {
             // some group source do not implement change detection or not makes no sense, skip those
-            if (forChangeDetection && groupBy.getValue().supportsIncrementalBucketUpdate() == false) {
+            if (forChangeDetection && !groupBy.getValue().supportsIncrementalBucketUpdate()) {
                 continue;
             }
             builder.startObject();
@@ -168,7 +168,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
     }
 
     public List<String> aggFieldValidation() {
-        if ((aggregationConfig.isValid() && groups.isValid()) == false) {
+        if (!(aggregationConfig.isValid() && groups.isValid())) {
             return Collections.emptyList();
         }
         List<String> usedNames = new ArrayList<>();

@@ -290,7 +290,7 @@ public class CertParsingUtils {
         for (int i = 1; i < chain.size(); i++) {
             X509Certificate cert = chain.get(i - 1);
             X509Certificate issuer = chain.get(i);
-            if (false == cert.getIssuerX500Principal().equals(issuer.getSubjectX500Principal())) {
+            if (!cert.getIssuerX500Principal().equals(issuer.getSubjectX500Principal())) {
                 return false;
             }
         }

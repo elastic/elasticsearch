@@ -59,7 +59,7 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
                 (MockSecureSettings) Settings.builder().put(existingSettings).getSecureSettings();
             mockSecureSettings.setString("xpack.security.authc.realms.oidc.oidc1.rp.client_secret", randomAlphaOfLength(12));
             settings = Settings.builder()
-                .put(existingSettings.filter(s -> s.startsWith("xpack.security.authc.realms.") == false), false)
+                .put(existingSettings.filter(s -> !s.startsWith("xpack.security.authc.realms.")), false)
                 .put("xpack.security.authc.token.enabled", true)
                 .put("xpack.security.authc.realms.file.file1.order", 1)
                 .put("xpack.security.authc.realms.native.native1.order", 2)

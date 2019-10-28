@@ -66,10 +66,10 @@ public class SetupPasswordToolIT extends ESRestTestCase {
         final int port = Integer.valueOf(nodePublishAddress.substring(lastColonIndex + 1));
 
         List<String> lines = Files.readAllLines(configPath.resolve("elasticsearch.yml"));
-        lines = lines.stream().filter(s -> s.startsWith("http.port") == false && s.startsWith("http.publish_port") == false)
+        lines = lines.stream().filter(s -> !s.startsWith("http.port") && !s.startsWith("http.publish_port"))
                 .collect(Collectors.toList());
         lines.add(randomFrom("http.port", "http.publish_port") + ": " + port);
-        if (expectedPublishAddress.equals(actualPublishAddress) == false) {
+        if (!expectedPublishAddress.equals(actualPublishAddress)) {
             lines.add("http.publish_address: " + InetAddresses.toAddrString(actualPublishAddress));
         }
         Files.write(configPath.resolve("elasticsearch.yml"), lines, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);

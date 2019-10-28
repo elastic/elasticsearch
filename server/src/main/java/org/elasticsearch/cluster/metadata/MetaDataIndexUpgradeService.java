@@ -105,7 +105,7 @@ public class MetaDataIndexUpgradeService {
      * before they can be opened here.
      */
     private void checkSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
-        if (isSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion) == false) {
+        if (!isSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion)) {
             throw new IllegalStateException("The index " + indexMetaData.getIndex() + " was created with version ["
                 + indexMetaData.getCreationVersion() + "] but the minimum compatible version is ["
                 + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch "

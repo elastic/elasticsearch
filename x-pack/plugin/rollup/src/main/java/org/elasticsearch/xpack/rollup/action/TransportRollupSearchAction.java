@@ -128,10 +128,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     static MultiSearchRequest createMSearchRequest(SearchRequest request, NamedWriteableRegistry registry, RollupSearchContext context) {
 
-        if (context.hasLiveIndices() == false && context.hasRollupIndices() == false) {
+        if (!context.hasLiveIndices() && !context.hasRollupIndices()) {
             // Don't support _all on everything right now, for code simplicity
             throw new IllegalArgumentException("Must specify at least one rollup index in _rollup_search API");
-        } else if (context.hasLiveIndices() && context.hasRollupIndices() == false) {
+        } else if (context.hasLiveIndices() && !context.hasRollupIndices()) {
             // not best practice, but if the user accidentally only sends "normal" indices we can support that
             logger.debug("Creating msearch with only normal request");
             final SearchRequest originalRequest = new SearchRequest(context.getLiveIndices(), request.source());

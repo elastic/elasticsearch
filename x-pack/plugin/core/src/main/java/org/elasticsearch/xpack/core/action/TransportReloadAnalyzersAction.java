@@ -130,7 +130,7 @@ public class TransportReloadAnalyzersAction
             IndexRoutingTable indexRoutingTable = routingTable.index(index);
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (nodesCovered.contains(shardRouting.currentNodeId()) == false) {
+                    if (!nodesCovered.contains(shardRouting.currentNodeId())) {
                         shards.add(shardRouting);
                         nodesCovered.add(shardRouting.currentNodeId());
                     }

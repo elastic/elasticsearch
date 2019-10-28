@@ -159,7 +159,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     .setAwaitCompletion(awaitCompletion)
                     .setFinish(true)
                     .setReason(reason)
-                    .setShouldFinalizeJob(upgradeInProgress == false)
+                    .setShouldFinalizeJob(!upgradeInProgress)
                     .kill();
         } else {
             // If the process is missing but the task exists this is most likely
@@ -601,7 +601,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         processContext.tryLock();
         try {
-            if (processContext.setDying() == false) {
+            if (!processContext.setDying()) {
                 logger.debug("Cannot close job [{}] as it has been marked as dying", jobId);
                 // The only way we can get here is if 2 close requests are made very close together.
                 // The other close has done the work so it's safe to return here without doing anything.

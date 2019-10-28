@@ -45,11 +45,11 @@ public class OpenIndexResponseTests extends AbstractSerializingTestCase<OpenInde
     @Override
     protected OpenIndexResponse mutateInstance(OpenIndexResponse response) {
         if (randomBoolean()) {
-            boolean acknowledged = response.isAcknowledged() == false;
+            boolean acknowledged = !response.isAcknowledged();
             boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
             return new OpenIndexResponse(acknowledged, shardsAcknowledged);
         } else {
-            boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+            boolean shardsAcknowledged = !response.isShardsAcknowledged();
             boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
             return new OpenIndexResponse(acknowledged, shardsAcknowledged);
         }

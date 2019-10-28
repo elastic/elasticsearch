@@ -179,11 +179,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     private boolean globalBlocked(ClusterBlockLevel level) {
-        return global(level).isEmpty() == false;
+        return !global(level).isEmpty();
     }
 
     public ClusterBlockException globalBlockedException(ClusterBlockLevel level) {
-        if (globalBlocked(level) == false) {
+        if (!globalBlocked(level)) {
             return null;
         }
         return new ClusterBlockException(global(level));
@@ -201,7 +201,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     public boolean indexBlocked(ClusterBlockLevel level, String index) {
-        return globalBlocked(level) || blocksForIndex(level, index).isEmpty() == false;
+        return globalBlocked(level) || !blocksForIndex(level, index).isEmpty();
     }
 
     public ClusterBlockException indicesBlockedException(ClusterBlockLevel level, String[] indices) {
@@ -209,12 +209,12 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
         for (String index : indices) {
             Set<ClusterBlock> indexBlocks = blocksForIndex(level, index);
-            if (indexBlocks.isEmpty() == false || globalLevelBlocks.isEmpty() == false) {
+            if (!indexBlocks.isEmpty() || !globalLevelBlocks.isEmpty()) {
                 indexLevelBlocks.put(index, Sets.union(indexBlocks, globalLevelBlocks));
             }
         }
         if (indexLevelBlocks.isEmpty()) {
-            if(globalLevelBlocks.isEmpty() == false){
+            if(!globalLevelBlocks.isEmpty()){
                 return new ClusterBlockException(globalLevelBlocks);
             }
             return null;
@@ -231,17 +231,17 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     public ClusterBlockException indicesAllowReleaseResources(String[] indices) {
         Set<ClusterBlock> globalBlocks = global(ClusterBlockLevel.METADATA_WRITE).stream()
-            .filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false).collect(toSet());
+            .filter(clusterBlock -> !clusterBlock.isAllowReleaseResources()).collect(toSet());
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
         for (String index : indices) {
             Set<ClusterBlock> blocks = Sets.union(globalBlocks, blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index))
-                .stream().filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false).collect(toSet());
-            if (blocks.isEmpty() == false) {
+                .stream().filter(clusterBlock -> !clusterBlock.isAllowReleaseResources()).collect(toSet());
+            if (!blocks.isEmpty()) {
                 indexLevelBlocks.put(index, Sets.union(globalBlocks, blocks));
             }
         }
         if (indexLevelBlocks.isEmpty()) {
-            if(globalBlocks.isEmpty() == false){
+            if(!globalBlocks.isEmpty()){
                 return new ClusterBlockException(globalBlocks);
             }
             return null;
@@ -256,7 +256,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
         StringBuilder sb = new StringBuilder();
         sb.append("blocks: \n");
-        if (global.isEmpty() == false) {
+        if (!global.isEmpty()) {
             sb.append("   _global_:\n");
             for (ClusterBlock block : global) {
                 sb.append("      ").append(block);

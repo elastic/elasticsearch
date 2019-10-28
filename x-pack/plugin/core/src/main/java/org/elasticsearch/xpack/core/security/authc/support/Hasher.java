@@ -286,7 +286,7 @@ public enum Hasher {
         @Override
         public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
-            if (hashStr.startsWith(SHA1_PREFIX) == false) {
+            if (!hashStr.startsWith(SHA1_PREFIX)) {
                 return false;
             }
             byte[] textBytes = CharArrays.toUtf8Bytes(text.getChars());
@@ -310,7 +310,7 @@ public enum Hasher {
         @Override
         public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
-            if (hashStr.startsWith(MD5_PREFIX) == false) {
+            if (!hashStr.startsWith(MD5_PREFIX)) {
                 return false;
             }
             hashStr = hashStr.substring(MD5_PREFIX.length());
@@ -339,7 +339,7 @@ public enum Hasher {
         @Override
         public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
-            if (hashStr.startsWith(SSHA256_PREFIX) == false) {
+            if (!hashStr.startsWith(SSHA256_PREFIX)) {
                 return false;
             }
             hashStr = hashStr.substring(SSHA256_PREFIX.length());
@@ -525,7 +525,7 @@ public enum Hasher {
         char[] saltChars = null;
         char[] computedPwdHash = null;
         try {
-            if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash) == false) {
+            if (!CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash)) {
                 return false;
             }
             hashChars = Arrays.copyOfRange(hash, hash.length - tokenLength, hash.length);
@@ -555,7 +555,7 @@ public enum Hasher {
 
     private static boolean verifyBcryptHash(SecureString text, char[] hash) {
         String hashStr = new String(hash);
-        if (hashStr.startsWith(BCRYPT_PREFIX) == false) {
+        if (!hashStr.startsWith(BCRYPT_PREFIX)) {
             return false;
         }
         return BCrypt.checkpw(text, hashStr);
@@ -581,7 +581,7 @@ public enum Hasher {
     @SuppressForbidden(reason = "This is the only allowed way to get available values")
     public static List<String> getAvailableAlgoCacheHash() {
         return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
-            .filter(name -> (name.equals("sha256") == false))
+            .filter(name -> (!name.equals("sha256")))
             .collect(Collectors.toList());
     }
 

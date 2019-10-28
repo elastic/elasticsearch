@@ -446,7 +446,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     query = BytesReference.bytes(builder);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     final String text = parser.text();
-                    if (text.isEmpty() == false) {
+                    if (!text.isEmpty()) {
                         query = new BytesArray(text);
                     }
                 } else if (token != XContentParser.Token.VALUE_NULL) {
@@ -562,11 +562,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     "be an array of objects, but found an array element of type [{}]", roleName, parser.currentName(), token);
         }
         final ApplicationResourcePrivileges.Builder builder = ApplicationResourcePrivileges.PARSER.parse(parser, null);
-        if (builder.hasResources() == false) {
+        if (!builder.hasResources()) {
             throw new ElasticsearchParseException("failed to parse application privileges for role [{}]. missing required [{}] field",
                     roleName, Fields.RESOURCES.getPreferredName());
         }
-        if (builder.hasPrivileges() == false) {
+        if (!builder.hasPrivileges()) {
             throw new ElasticsearchParseException("failed to parse application privileges for role [{}]. missing required [{}] field",
                     roleName, Fields.PRIVILEGES.getPreferredName());
         }

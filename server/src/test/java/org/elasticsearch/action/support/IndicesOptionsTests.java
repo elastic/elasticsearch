@@ -204,7 +204,7 @@ public class IndicesOptionsTests extends ESTestCase {
             boolean forbidClosed = opts.forbidClosedIndices();
             boolean ignoreAliases = opts.ignoreAliases();
             boolean ignoreThrottled = opts.ignoreThrottled();
-            while (mutated == false) {
+            while (!mutated) {
                 if (randomBoolean()) {
                     ignoreUnavailable = !ignoreUnavailable;
                     mutated = true;

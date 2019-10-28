@@ -116,7 +116,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
             return;
         }
 
-        if (state.nodes().isLocalNodeElectedMaster() == false) {
+        if (!state.nodes().isLocalNodeElectedMaster()) {
             return;
         }
 
@@ -140,7 +140,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     void upgradeTemplates(Map<String, BytesReference> changes, Set<String> deletions) {
         final AtomicBoolean anyUpgradeFailed = new AtomicBoolean(false);
-        if (threadPool.getThreadContext().isSystemContext() == false) {
+        if (!threadPool.getThreadContext().isSystemContext()) {
             throw new IllegalStateException("template updates from the template upgrade service should always happen in a system context");
         }
 
@@ -151,7 +151,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
             client.admin().indices().putTemplate(request, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
-                    if (response.isAcknowledged() == false) {
+                    if (!response.isAcknowledged()) {
                         anyUpgradeFailed.set(true);
                         logger.warn("Error updating template [{}], request was not acknowledged", change.getKey());
                     }
@@ -173,7 +173,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
             client.admin().indices().deleteTemplate(request, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
-                    if (response.isAcknowledged() == false) {
+                    if (!response.isAcknowledged()) {
                         anyUpgradeFailed.set(true);
                         logger.warn("Error deleting template [{}], request was not acknowledged", template);
                     }
@@ -183,7 +183,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                 @Override
                 public void onFailure(Exception e) {
                     anyUpgradeFailed.set(true);
-                    if (e instanceof IndexTemplateMissingException == false) {
+                    if (!(e instanceof IndexTemplateMissingException)) {
                         // we might attempt to delete the same template from different nodes - so that's ok if template doesn't exist
                         // otherwise we need to warn
                         logger.warn(new ParameterizedMessage("Error deleting template [{}]", template), e);
@@ -229,17 +229,17 @@ public class TemplateUpgradeService implements ClusterStateListener {
         }
         // upgrade global custom meta data
         Map<String, IndexTemplateMetaData> upgradedMap = indexTemplateMetaDataUpgraders.apply(existingMap);
-        if (upgradedMap.equals(existingMap) == false) {
+        if (!upgradedMap.equals(existingMap)) {
             Set<String> deletes = new HashSet<>();
             Map<String, BytesReference> changes = new HashMap<>();
             // remove templates if needed
             existingMap.keySet().forEach(s -> {
-                if (upgradedMap.containsKey(s) == false) {
+                if (!upgradedMap.containsKey(s)) {
                     deletes.add(s);
                 }
             });
             upgradedMap.forEach((key, value) -> {
-                if (value.equals(existingMap.get(key)) == false) {
+                if (!value.equals(existingMap.get(key))) {
                     changes.put(key, toBytesReference(value));
                 }
             });

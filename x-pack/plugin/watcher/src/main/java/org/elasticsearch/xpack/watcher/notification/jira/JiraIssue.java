@@ -95,7 +95,7 @@ public class JiraIssue implements ToXContentObject {
         if (fields != null) {
             builder.field(Field.FIELDS.getPreferredName(), fields);
         }
-        if (successful() == false) {
+        if (!successful()) {
             builder.field(Field.REASON.getPreferredName(), failureReason);
             if (request != null) {
                 builder.field(Field.REQUEST.getPreferredName(), request, params);
@@ -183,7 +183,7 @@ public class JiraIssue implements ToXContentObject {
                 errors.add("Exception when parsing jira response [" + String.valueOf(e) + "]");
             }
 
-            if (errors.isEmpty() == false) {
+            if (!errors.isEmpty()) {
                 message.append(" - ");
                 for (String error : errors) {
                     message.append(error).append('\n');

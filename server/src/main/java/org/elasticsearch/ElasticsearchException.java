@@ -154,7 +154,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public void addMetadata(String key, List<String> values) {
         //we need to enforce this otherwise bw comp doesn't work properly, as "es." was the previous criteria to split headers in two sets
-        if (key.startsWith("es.") == false) {
+        if (!key.startsWith("es.")) {
             throw new IllegalArgumentException("exception metadata must start with [es.], found [" + key + "] instead");
         }
         this.metadata.put(key, values);
@@ -341,7 +341,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             exception.metadataToXContent(builder, params);
         }
 
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
+        if (!params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT)) {
             if (cause != null) {
                 builder.field(CAUSED_BY);
                 builder.startObject();
@@ -350,7 +350,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
         }
 
-        if (headers.isEmpty() == false) {
+        if (!headers.isEmpty()) {
             builder.startObject(HEADER);
             for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
                 headerToXContent(builder, entry.getKey(), entry.getValue());
@@ -358,7 +358,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.endObject();
         }
 
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
+        if (!params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
             builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
         }
 
@@ -375,7 +375,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     private static void headerToXContent(XContentBuilder builder, String key, List<String> values) throws IOException {
-        if (values != null && values.isEmpty() == false) {
+        if (values != null && !values.isEmpty()) {
             if (values.size() == 1) {
                 builder.field(key, values.get(0));
             } else {
@@ -554,7 +554,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
 
         // Render the exception with a simple message
-        if (detailed == false) {
+        if (!detailed) {
             String message = "No ElasticsearchException found";
             Throwable t = e;
             for (int counter = 0; counter < 10 && t != null; counter++) {
@@ -1087,7 +1087,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     public Index getIndex() {
         List<String> index = getMetadata(INDEX_METADATA_KEY);
-        if (index != null && index.isEmpty() == false) {
+        if (index != null && !index.isEmpty()) {
             List<String> index_uuid = getMetadata(INDEX_METADATA_KEY_UUID);
             return new Index(index.get(0), index_uuid.get(0));
         }
@@ -1097,7 +1097,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     public ShardId getShardId() {
         List<String> shard = getMetadata(SHARD_METADATA_KEY);
-        if (shard != null && shard.isEmpty() == false) {
+        if (shard != null && !shard.isEmpty()) {
             return new ShardId(getIndex(), Integer.parseInt(shard.get(0)));
         }
         return null;
@@ -1135,7 +1135,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     public String getResourceType() {
         List<String> header = getMetadata(RESOURCE_METADATA_TYPE_KEY);
-        if (header != null && header.isEmpty() == false) {
+        if (header != null && !header.isEmpty()) {
             assert header.size() == 1;
             return header.get(0);
         }

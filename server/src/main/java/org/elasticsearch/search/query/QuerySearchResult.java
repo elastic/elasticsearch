@@ -278,7 +278,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (in.getVersion().before(Version.V_7_2_0)) {
             List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()
                 .map(a -> (SiblingPipelineAggregator) a).collect(Collectors.toList());
-            if (hasAggs && pipelineAggregators.isEmpty() == false) {
+            if (hasAggs && !pipelineAggregators.isEmpty()) {
                 List<InternalAggregation> internalAggs = aggregations.asList().stream()
                     .map(agg -> (InternalAggregation) agg).collect(Collectors.toList());
                 //Earlier versions serialize sibling pipeline aggs separately as they used to be set to QuerySearchResult directly, while

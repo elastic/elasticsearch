@@ -150,7 +150,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
             FieldDoc fieldDoc = null;
             for (; topDocsIndex < totalHits; topDocsIndex++) {
                 fieldDoc = (FieldDoc) topDocs.scoreDocs[topDocsIndex];
-                if (seen.contains(fieldDoc.fields[collapseIndex]) == false) {
+                if (!seen.contains(fieldDoc.fields[collapseIndex])) {
                     break;
                 }
             }

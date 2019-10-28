@@ -90,14 +90,14 @@ public class MetaDataUpdateSettingsService {
         final Set<String> skippedSettings = new HashSet<>();
 
         indexScopedSettings.validate(
-                normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
+                normalizedSettings.filter(s -> !Regex.isSimpleMatchPattern(s)), // don't validate wildcards
                 false, // don't validate dependencies here we check it below never allow to change the number of shards
                 true); // validate internal or private index settings
         for (String key : normalizedSettings.keySet()) {
             Setting setting = indexScopedSettings.get(key);
             boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
             assert setting != null // we already validated the normalized settings
-                || (isWildcard && normalizedSettings.hasValue(key) == false)
+                || (isWildcard && !normalizedSettings.hasValue(key))
                 : "unknown setting: " + key + " isWildcard: " + isWildcard + " hasValue: " + normalizedSettings.hasValue(key);
             settingsForClosedIndices.copy(key, normalizedSettings);
             if (isWildcard || setting.isDynamic()) {
@@ -147,7 +147,7 @@ public class MetaDataUpdateSettingsService {
                 }
 
                 int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
-                if (updatedNumberOfReplicas != -1 && preserveExisting == false) {
+                if (updatedNumberOfReplicas != -1 && !preserveExisting) {
 
                     // Verify that this won't take us over the cluster shard limit.
                     int totalNewShards = Arrays.stream(request.indices())
@@ -191,7 +191,7 @@ public class MetaDataUpdateSettingsService {
                             }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(
-                                finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                                finalSettings.filter(k -> !indexScopedSettings.isPrivateSetting(k)), true);
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
                         }
                     }
@@ -208,7 +208,7 @@ public class MetaDataUpdateSettingsService {
                             }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(
-                                finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                                finalSettings.filter(k -> !indexScopedSettings.isPrivateSetting(k)), true);
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
                         }
                     }
@@ -216,7 +216,7 @@ public class MetaDataUpdateSettingsService {
 
                 // increment settings versions
                 for (final String index : actualIndices) {
-                    if (same(currentState.metaData().index(index).getSettings(), metaDataBuilder.get(index).getSettings()) == false) {
+                    if (!same(currentState.metaData().index(index).getSettings(), metaDataBuilder.get(index).getSettings())) {
                         final IndexMetaData.Builder builder = IndexMetaData.builder(metaDataBuilder.get(index));
                         builder.settingsVersion(1 + builder.settingsVersion());
                         metaDataBuilder.put(builder);
@@ -295,7 +295,7 @@ public class MetaDataUpdateSettingsService {
                     String index = entry.getKey();
                     IndexMetaData indexMetaData = metaDataBuilder.get(index);
                     if (indexMetaData != null) {
-                        if (Version.CURRENT.equals(indexMetaData.getCreationVersion()) == false) {
+                        if (!Version.CURRENT.equals(indexMetaData.getCreationVersion())) {
                             // no reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(
                                     IndexMetaData

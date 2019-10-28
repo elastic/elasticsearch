@@ -115,14 +115,14 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (BIG_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
-                    if (query instanceof SpanQueryBuilder == false) {
+                    if (!(query instanceof SpanQueryBuilder)) {
                         throw new ParsingException(parser.getTokenLocation(), "span_containing [big] must be of type span query");
                     }
                     big = (SpanQueryBuilder) query;
                     checkNoBoost(NAME, currentFieldName, parser, big);
                 } else if (LITTLE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
-                    if (query instanceof SpanQueryBuilder == false) {
+                    if (!(query instanceof SpanQueryBuilder)) {
                         throw new ParsingException(parser.getTokenLocation(), "span_containing [little] must be of type span query");
                     }
                     little = (SpanQueryBuilder) query;

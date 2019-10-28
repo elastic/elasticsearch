@@ -158,7 +158,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
         }
-        
+
         validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
@@ -241,7 +241,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         DerivativePipelineAggregationBuilder other = (DerivativePipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format) &&
             gapPolicy == other.gapPolicy &&

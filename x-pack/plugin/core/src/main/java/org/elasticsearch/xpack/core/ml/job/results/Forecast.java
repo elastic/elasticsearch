@@ -254,7 +254,7 @@ public class Forecast implements ToXContentObject, Writeable {
         if (this == other) {
             return true;
         }
-        if (other instanceof Forecast == false) {
+        if (!(other instanceof Forecast)) {
             return false;
         }
         Forecast that = (Forecast) other;

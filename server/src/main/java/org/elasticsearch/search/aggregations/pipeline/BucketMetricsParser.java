@@ -108,7 +108,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
 
     private void parseToken(String aggregationName, XContentParser parser, String currentFieldName,
                        XContentParser.Token currentToken, Map<String, Object> params) throws IOException {
-        if (token(parser, currentFieldName, currentToken, params) == false) {
+        if (!token(parser, currentFieldName, currentToken, params)) {
             throw new ParsingException(parser.getTokenLocation(),
                 "Unexpected token " + currentToken + " [" + currentFieldName + "] in [" + aggregationName + "]");
         }

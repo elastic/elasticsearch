@@ -301,7 +301,7 @@ public class License implements ToXContentObject {
             throw new IllegalStateException("maxNodes has to be set");
         } else if (expiryDate == -1) {
             throw new IllegalStateException("expiryDate has to be set");
-        } else if (expiryDate == LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS && "basic".equals(type) == false) {
+        } else if (expiryDate == LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS && !"basic".equals(type)) {
             throw new IllegalStateException("only basic licenses are allowed to have no expiration");
         }
     }

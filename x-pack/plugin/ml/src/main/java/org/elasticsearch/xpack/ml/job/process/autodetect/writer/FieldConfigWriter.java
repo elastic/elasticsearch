@@ -78,7 +78,7 @@ public class FieldConfigWriter {
 
     @SuppressWarnings("unused") // CATEGORIZATION_TOKENIZATION_IN_JAVA is used for performance testing
     private void writeCategorizationFilters(StringBuilder contents) {
-        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA == false) {
+        if (!MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA) {
             writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
                     contents, true);
         }
@@ -99,7 +99,7 @@ public class FieldConfigWriter {
 
         DefaultDetectorDescription.appendOn(detector, contents);
 
-        if (Strings.isNullOrEmpty(config.getCategorizationFieldName()) == false) {
+        if (!Strings.isNullOrEmpty(config.getCategorizationFieldName())) {
             contents.append(CATEGORIZATION_FIELD_OPTION)
             .append(quoteField(config.getCategorizationFieldName()));
         }
@@ -144,7 +144,7 @@ public class FieldConfigWriter {
     }
 
     private void writeScheduledEvents(StringBuilder buffer) throws IOException {
-        if (scheduledEvents.isEmpty() == false) {
+        if (!scheduledEvents.isEmpty()) {
             new ScheduledEventsWriter(scheduledEvents, config.getBucketSpan(), buffer).write();
         }
     }

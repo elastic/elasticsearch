@@ -139,6 +139,6 @@ abstract class OutboundMessage extends NetworkMessage {
     }
 
     private static boolean canCompress(Writeable message) {
-        return message instanceof BytesTransportRequest == false;
+        return !(message instanceof BytesTransportRequest);
     }
 }

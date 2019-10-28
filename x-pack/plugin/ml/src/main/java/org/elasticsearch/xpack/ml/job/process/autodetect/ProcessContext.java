@@ -55,7 +55,7 @@ final class ProcessContext {
 
     void tryLock() {
         try {
-            if (lock.tryLock(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getSeconds(), TimeUnit.SECONDS) == false) {
+            if (!lock.tryLock(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getSeconds(), TimeUnit.SECONDS)) {
                 LOGGER.error("Failed to acquire process lock for job [{}]", jobTask.getJobId());
                 throw ExceptionsHelper.serverError("Failed to acquire process lock for job [" + jobTask.getJobId() + "]");
             }
@@ -120,7 +120,7 @@ final class ProcessContext {
             }
             String jobId = jobTask.getJobId();
 
-            if (silent == false) {
+            if (!silent) {
                 String extraInfo = (state.getName() == ProcessStateName.DYING) ? " while closing" : "";
                 if (reason == null) {
                     LOGGER.info("Killing job [{}]{}", jobId, extraInfo);

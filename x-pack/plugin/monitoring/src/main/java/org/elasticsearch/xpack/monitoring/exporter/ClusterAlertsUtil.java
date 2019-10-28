@@ -145,13 +145,13 @@ public class ClusterAlertsUtil {
                 CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
         // validate the blacklist only contains recognized IDs
-        if (blacklist.isEmpty() == false) {
+        if (!blacklist.isEmpty()) {
             final List<String> watchIds = Arrays.asList(ClusterAlertsUtil.WATCH_IDS);
-            final Set<String> unknownIds = blacklist.stream().filter(id -> watchIds.contains(id) == false).collect(Collectors.toSet());
+            final Set<String> unknownIds = blacklist.stream().filter(id -> !watchIds.contains(id)).collect(Collectors.toSet());
 
-            if (unknownIds.isEmpty() == false) {
+            if (!unknownIds.isEmpty()) {
                 throw new SettingsException(
-                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + 
+                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() +
                             "] contains unrecognized Cluster Alert IDs [" + String.join(", ", unknownIds) + "]");
             }
         }

@@ -104,7 +104,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 success = true;
                 return message;
             } finally {
-                if (success == false) {
+                if (!success) {
                     IOUtils.closeWhileHandlingException(streamInput);
                 }
             }
@@ -129,7 +129,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
         // once the connection is established
         final Version compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
-        if (version.isCompatible(compatibilityVersion) == false) {
+        if (!version.isCompatible(compatibilityVersion)) {
             final Version minCompatibilityVersion = isHandshake ? compatibilityVersion : compatibilityVersion.minimumCompatibilityVersion();
             String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
             throw new IllegalStateException(msg + version + "] minimal compatible version is: [" + minCompatibilityVersion + "]");

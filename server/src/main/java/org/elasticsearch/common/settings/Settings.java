@@ -660,7 +660,7 @@ public final class Settings implements ToXContentFragment {
     }
 
     private static void validateValue(String key, Object currentValue, XContentParser parser, boolean allowNullValues) {
-        if (currentValue == null && allowNullValues == false) {
+        if (currentValue == null && !allowNullValues) {
             throw new ElasticsearchParseException(
                 "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
                 key,
@@ -746,7 +746,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         public Builder setSecureSettings(SecureSettings secureSettings) {
-            if (secureSettings.isLoaded() == false) {
+            if (!secureSettings.isLoaded()) {
                 throw new IllegalStateException("Secure settings must already be loaded");
             }
             if (this.secureSettings.get() != null) {
@@ -840,7 +840,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         public Builder copy(String key, String sourceKey, Settings source) {
-            if (source.settings.containsKey(sourceKey) == false) {
+            if (!source.settings.containsKey(sourceKey)) {
                 throw new IllegalArgumentException("source key not found in the source settings");
             }
             final Object value = source.settings.get(sourceKey);
@@ -1156,7 +1156,7 @@ public final class Settings implements ToXContentFragment {
             while(iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String key = entry.getKey();
-                if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                if (!key.startsWith(prefix) && !key.endsWith("*")) {
                     replacements.put(prefix + key, entry.getValue());
                     iterator.remove();
                 }
@@ -1218,7 +1218,7 @@ public final class Settings implements ToXContentFragment {
 
                         @Override
                         public Entry<String, Object> next() {
-                            if (currentElement == null && hasNext() == false) { // protect against no #hasNext call or not respecting it
+                            if (currentElement == null && !hasNext()) { // protect against no #hasNext call or not respecting it
 
                                 throw new NoSuchElementException("make sure to call hasNext first");
                             }

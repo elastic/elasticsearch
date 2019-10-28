@@ -84,7 +84,7 @@ public class AnalyticsResultProcessor {
                     progressTracker.writingResultsPercent.set(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
                 }
             }
-            if (isProcessKilled.get() == false) {
+            if (!isProcessKilled.get()) {
                 // This means we completed successfully so we need to set the progress to 100.
                 // This is because due to skipped rows, it is possible the processed rows will not reach the total rows.
                 progressTracker.writingResultsPercent.set(100);
@@ -122,7 +122,7 @@ public class AnalyticsResultProcessor {
         CountDownLatch latch = storeTrainedModel(trainedModelConfig);
 
         try {
-            if (latch.await(30, TimeUnit.SECONDS) == false) {
+            if (!latch.await(30, TimeUnit.SECONDS)) {
                 LOGGER.error("[{}] Timed out (30s) waiting for inference model to be stored", analytics.getId());
             }
         } catch (InterruptedException e) {
@@ -150,7 +150,7 @@ public class AnalyticsResultProcessor {
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Boolean> storeListener = ActionListener.wrap(
             aBoolean -> {
-                if (aBoolean == false) {
+                if (!aBoolean) {
                     LOGGER.error("[{}] Storing trained model responded false", analytics.getId());
                 } else {
                     LOGGER.info("[{}] Stored trained model with id [{}]", analytics.getId(), trainedModelConfig.getModelId());

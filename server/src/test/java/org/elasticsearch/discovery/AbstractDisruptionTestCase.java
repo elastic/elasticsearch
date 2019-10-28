@@ -107,7 +107,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     @Override
     protected void beforeIndexDeletion() throws Exception {
-        if (disableBeforeIndexDeletion == false) {
+        if (!disableBeforeIndexDeletion) {
             super.beforeIndexDeletion();
             internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
             internalCluster().assertSeqNos();

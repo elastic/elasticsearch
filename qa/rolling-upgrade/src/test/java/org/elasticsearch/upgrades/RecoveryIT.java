@@ -365,7 +365,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 for (Object nodeDetails : nodesMap.values()) {
                     final Map<?, ?> nodeDetailsMap = (Map<?, ?>) nodeDetails;
                     final String versionString = (String) nodeDetailsMap.get("version");
-                    if (versionString.equals(Version.CURRENT.toString()) == false) {
+                    if (!versionString.equals(Version.CURRENT.toString())) {
                         oldNodeNames.add((String) nodeDetailsMap.get("name"));
                     }
                 }
@@ -433,7 +433,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String indexName =
             String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(minimumNodeVersion.id)).toLowerCase(Locale.ROOT);
 
-        if (indexExists(indexName) == false) {
+        if (!indexExists(indexName)) {
             createIndex(indexName, Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)

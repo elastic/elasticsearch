@@ -58,7 +58,7 @@ public abstract class BaseGatewayShardAllocator {
             final ShardRouting shard = unassignedIterator.next();
             final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shard, allocation, logger);
 
-            if (allocateUnassignedDecision.isDecisionTaken() == false) {
+            if (!allocateUnassignedDecision.isDecisionTaken()) {
                 // no decision was taken by this allocator
                 continue;
             }

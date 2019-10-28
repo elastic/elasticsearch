@@ -57,7 +57,7 @@ public class UpdateShasTask extends DefaultTask {
             String jarName = dependency.getName();
             File shaFile = parentTask.get().getShaFile(jarName);
 
-            if (shaFile.exists() == false) {
+            if (!shaFile.exists()) {
                 createSha(dependency, jarName, shaFile);
             } else {
                 shaFiles.remove(shaFile);

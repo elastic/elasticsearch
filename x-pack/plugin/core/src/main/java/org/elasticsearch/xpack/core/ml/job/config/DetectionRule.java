@@ -72,10 +72,10 @@ public class DetectionRule implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ACTIONS_FIELD.getPreferredName(), actions);
-        if (scope.isEmpty() == false) {
+        if (!scope.isEmpty()) {
             builder.field(SCOPE_FIELD.getPreferredName(), scope);
         }
-        if (conditions.isEmpty() == false) {
+        if (!conditions.isEmpty()) {
             builder.field(CONDITIONS_FIELD.getPreferredName(), conditions);
         }
         builder.endObject();
@@ -104,7 +104,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (obj instanceof DetectionRule == false) {
+        if (!(obj instanceof DetectionRule)) {
             return false;
         }
 

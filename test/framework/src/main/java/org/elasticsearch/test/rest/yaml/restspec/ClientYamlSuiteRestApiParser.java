@@ -44,7 +44,7 @@ public class ClientYamlSuiteRestApiParser {
         }
 
         String apiName = parser.currentName();
-        if (location.endsWith(apiName + ".json") == false) {
+        if (!location.endsWith(apiName + ".json")) {
             throw new IllegalArgumentException("API [" + apiName + "] should have the same name as its file [" + location + "]");
         }
 
@@ -87,7 +87,7 @@ public class ClientYamlSuiteRestApiParser {
                                         }
                                         while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
                                             String method = parser.text();
-                                            if (methods.add(method) == false) {
+                                            if (!methods.add(method)) {
                                                 throw new ParsingException(parser.getTokenLocation(),
                                                     apiName + " API: found duplicate method [" + method + "]");
                                             }
@@ -104,7 +104,7 @@ public class ClientYamlSuiteRestApiParser {
                                                     apiName + " API: expected [parts] field in rest api definition to contain an object");
                                             }
                                             parser.skipChildren();
-                                            if (pathParts.add(part) == false) {
+                                            if (!pathParts.add(part)) {
                                                 throw new ParsingException(parser.getTokenLocation(),
                                                     apiName + " API: duplicated path part [" + part + "]");
                                             }
@@ -159,7 +159,7 @@ public class ClientYamlSuiteRestApiParser {
                                 }
                             }
                         }
-                        if (false == requiredFound) {
+                        if (!requiredFound) {
                             restApi.setBodyOptional();
                         }
                     }

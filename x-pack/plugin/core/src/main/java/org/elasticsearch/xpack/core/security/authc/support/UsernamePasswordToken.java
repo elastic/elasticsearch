@@ -90,8 +90,8 @@ public class UsernamePasswordToken implements AuthenticationToken {
         if (Strings.isNullOrEmpty(headerValue)) {
             return null;
         }
-        if (headerValue.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, BASIC_AUTH_PREFIX, 0,
-                BASIC_AUTH_PREFIX.length()) == false) {
+        if (!headerValue.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, BASIC_AUTH_PREFIX, 0,
+            BASIC_AUTH_PREFIX.length())) {
             // the header does not start with 'Basic ' so we cannot use it, but it may be valid for another realm
             return null;
         }

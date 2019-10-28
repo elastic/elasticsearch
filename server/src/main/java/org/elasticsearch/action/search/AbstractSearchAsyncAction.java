@@ -173,7 +173,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         if (shardsIts.size() > 0) {
             assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
-            if (request.allowPartialSearchResults() == false) {
+            if (!request.allowPartialSearchResults()) {
                 final StringBuilder missingShards = new StringBuilder();
                 // Fail-fast verification of all shards being available
                 for (int index = 0; index < shardsIts.size(); index++) {
@@ -194,7 +194,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             for (int index = 0; index < shardsIts.size(); index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
-                assert shardRoutings.skip() == false;
+                assert !shardRoutings.skip();
                 performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
             }
         }
@@ -306,7 +306,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-            if (allowPartialResults == false && successfulOps.get() != getNumShards()) {
+            if (!allowPartialResults && successfulOps.get() != getNumShards()) {
                 // check if there are actual failures in the atomic array since
                 // successful retries can reset the failures to null
                 ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
@@ -415,7 +415,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e) {
         // we don't aggregate shard failures on non active shards (but do keep the header counts right)
-        if (TransportActions.isShardNotAvailableException(e) == false) {
+        if (!TransportActions.isShardNotAvailableException(e)) {
             AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
             // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
             if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
@@ -522,7 +522,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (allowPartialResults == false && failures.length > 0){
+        if (!allowPartialResults && failures.length > 0){
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             listener.onResponse(buildSearchResponse(internalSearchResponse, scrollId, failures));

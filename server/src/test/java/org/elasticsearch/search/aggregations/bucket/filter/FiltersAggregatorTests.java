@@ -170,7 +170,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 int value = randomInt(maxTerm - 1);
                 filters[i] = QueryBuilders.termQuery("field", Integer.toString(value));
                 filterTerms[i] = value;
-                if (filterSet.contains(value) == false) {
+                if (!filterSet.contains(value)) {
                     expectedOtherCount -= expectedBucketCount[value];
                     filterSet.add(value);
                 }

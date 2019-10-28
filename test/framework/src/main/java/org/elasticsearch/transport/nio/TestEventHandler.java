@@ -117,7 +117,7 @@ public class TestEventHandler extends EventHandler {
     }
 
     public void handleConnect(SocketChannelContext context) throws IOException {
-        assert hasConnectedMap.contains(context) == false : "handleConnect should only be called is a channel is not yet connected";
+        assert !hasConnectedMap.contains(context) : "handleConnect should only be called is a channel is not yet connected";
         final boolean registered = transportThreadWatchdog.register();
         try {
             super.handleConnect(context);
@@ -132,7 +132,7 @@ public class TestEventHandler extends EventHandler {
     }
 
     public void connectException(SocketChannelContext context, Exception e) {
-        assert hasConnectExceptionMap.contains(context) == false : "connectException should only called at maximum once per channel";
+        assert !hasConnectExceptionMap.contains(context) : "connectException should only called at maximum once per channel";
         final boolean registered = transportThreadWatchdog.register();
         hasConnectExceptionMap.add(context);
         try {

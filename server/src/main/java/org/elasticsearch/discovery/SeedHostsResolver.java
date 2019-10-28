@@ -124,7 +124,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                     for (int addressId = 0; addressId < addresses.length; addressId++) {
                         final TransportAddress address = addresses[addressId];
                         // no point in pinging ourselves
-                        if (localAddresses.contains(address) == false) {
+                        if (!localAddresses.contains(address)) {
                             transportAddresses.add(address);
                         }
                     }
@@ -163,7 +163,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
 
     @Override
     public void resolveConfiguredHosts(Consumer<List<TransportAddress>> consumer) {
-        if (lifecycle.started() == false) {
+        if (!lifecycle.started()) {
             logger.debug("resolveConfiguredHosts: lifecycle is {}, not proceeding", lifecycle);
             return;
         }
@@ -177,7 +177,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
 
                 @Override
                 protected void doRun() {
-                    if (lifecycle.started() == false) {
+                    if (!lifecycle.started()) {
                         logger.debug("resolveConfiguredHosts.doRun: lifecycle is {}, not proceeding", lifecycle);
                         return;
                     }

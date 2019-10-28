@@ -89,7 +89,7 @@ public class JobNodeSelector {
         // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
         // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
         boolean allocateByMemory = isMemoryTrackerRecentlyRefreshed;
-        if (isMemoryTrackerRecentlyRefreshed == false) {
+        if (!isMemoryTrackerRecentlyRefreshed) {
             logger.warn("Falling back to allocating job [{}] by job counts because a memory requirement refresh could not be scheduled",
                 jobId);
         }
@@ -126,7 +126,7 @@ public class JobNodeSelector {
             Map<String, String> nodeAttributes = node.getAttributes();
             int maxNumberOfOpenJobs = dynamicMaxOpenJobs;
             // TODO: remove this in 8.0.0
-            if (allNodesHaveDynamicMaxWorkers == false) {
+            if (!allNodesHaveDynamicMaxWorkers) {
                 String maxNumberOfOpenJobsStr = nodeAttributes.get(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR);
                 try {
                     maxNumberOfOpenJobs = Integer.parseInt(maxNumberOfOpenJobsStr);
@@ -247,7 +247,7 @@ public class JobNodeSelector {
                 MlTasks.JOB_TASK_NAME, task -> node.getId().equals(task.getExecutorNode()));
             for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedAnomalyDetectorTasks) {
                 JobState jobState = MlTasks.getJobStateModifiedForReassignments(assignedTask);
-                if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
+                if (!jobState.isAnyOf(JobState.CLOSED, JobState.FAILED)) {
                     // Don't count CLOSED or FAILED jobs, as they don't consume native memory
                     ++result.numberOfAssignedJobs;
                     if (jobState == JobState.OPENING) {
@@ -272,7 +272,7 @@ public class JobNodeSelector {
                 DataFrameAnalyticsState dataFrameAnalyticsState = ((DataFrameAnalyticsTaskState) assignedTask.getState()).getState();
 
                 // Don't count stopped and failed df-analytics tasks as they don't consume native memory
-                if (dataFrameAnalyticsState.isAnyOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED) == false) {
+                if (!dataFrameAnalyticsState.isAnyOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED)) {
                     // The native process is only running in the ANALYZING and STOPPING states, but in the STARTED
                     // and REINDEXING states we're committed to using the memory soon, so account for it here
                     ++result.numberOfAssignedJobs;

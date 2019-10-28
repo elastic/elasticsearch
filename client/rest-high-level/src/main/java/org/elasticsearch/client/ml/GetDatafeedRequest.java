@@ -124,7 +124,7 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (datafeedIds.isEmpty() == false) {
+        if (!datafeedIds.isEmpty()) {
             builder.field(DATAFEED_IDS.getPreferredName(), datafeedIds);
         }
 

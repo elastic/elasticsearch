@@ -97,7 +97,7 @@ public class HttpExporterTests extends ESTestCase {
     private void runTestEmptyHostList(final boolean useDefault) {
         final String prefix = "xpack.monitoring.exporters.example";
         final Settings.Builder builder = Settings.builder().put(prefix + ".type", "http");
-        if (useDefault == false) {
+        if (!useDefault) {
             builder.putList(prefix + ".host", Collections.emptyList());
         }
         final Settings settings = builder.build();
@@ -120,7 +120,7 @@ public class HttpExporterTests extends ESTestCase {
     private void runTestEmptyHostListOkayIfTypeNotSet(final boolean useDefault) {
         final String prefix = "xpack.monitoring.exporters.example";
         final Settings.Builder builder = Settings.builder();
-        if (useDefault == false) {
+        if (!useDefault) {
             builder.put(prefix + ".type", Exporter.TYPE_SETTING.getConcreteSettingForNamespace("example").get(Settings.EMPTY));
         }
         builder.putList(prefix + ".host", Collections.emptyList());
@@ -377,15 +377,15 @@ public class HttpExporterTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http");
 
-        if (useIngest == false) {
+        if (!useIngest) {
             builder.put("xpack.monitoring.exporters._http.use_ingest", false);
         }
 
-        if (clusterAlertManagement == false) {
+        if (!clusterAlertManagement) {
             builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", false);
         }
 
-        if (createOldTemplates == false) {
+        if (!createOldTemplates) {
             builder.put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", false);
         }
 
@@ -458,7 +458,7 @@ public class HttpExporterTests extends ESTestCase {
             builder.put("xpack.monitoring.exporters._http.bulk.timeout", bulkTimeout.toString());
         }
 
-        if (useIngest == false) {
+        if (!useIngest) {
             builder.put("xpack.monitoring.exporters._http.use_ingest", false);
         }
 

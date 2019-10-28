@@ -159,7 +159,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        if (failIfAlreadyExists == false) {
+        if (!failIfAlreadyExists) {
             deleteBlobIgnoringIfNotExists(blobName);
         }
         final Path file = path.resolve(blobName);

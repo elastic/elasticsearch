@@ -88,7 +88,7 @@ public class TestTranslog {
             final Path checkpointPath = translogDir.resolve(CHECKPOINT_FILE_NAME);
             final Checkpoint checkpoint = Checkpoint.read(checkpointPath);
             unnecessaryCheckpointCopyPath = translogDir.resolve(Translog.getCommitCheckpointFileName(checkpoint.generation));
-            if (LuceneTestCase.rarely(random) && Files.exists(unnecessaryCheckpointCopyPath) == false) {
+            if (LuceneTestCase.rarely(random) && !Files.exists(unnecessaryCheckpointCopyPath)) {
                 // if we crashed while rolling a generation then we might have copied `translog.ckp` to its numbered generation file but
                 // have not yet written a new `translog.ckp`. During recovery we must also verify that this file is intact, so it's ok to
                 // corrupt this file too (either by writing the wrong information, correctly formatted, or by properly corrupting it)
@@ -100,7 +100,7 @@ public class TestTranslog {
                 Checkpoint.write(FileChannel::open, unnecessaryCheckpointCopyPath, checkpointCopy,
                     StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
 
-                if (checkpointCopy.equals(checkpoint) == false) {
+                if (!checkpointCopy.equals(checkpoint)) {
                     logger.info("corruptRandomTranslogFile: created [{}] containing [{}] instead of [{}]", unnecessaryCheckpointCopyPath,
                         checkpointCopy, checkpoint);
                     return;
@@ -127,7 +127,7 @@ public class TestTranslog {
         final Path fileToCorrupt = RandomPicks.randomFrom(random, candidates);
 
         // deleting the unnecessary checkpoint file doesn't count as a corruption
-        final boolean maybeDelete = fileToCorrupt.equals(unnecessaryCheckpointCopyPath) == false;
+        final boolean maybeDelete = !fileToCorrupt.equals(unnecessaryCheckpointCopyPath);
 
         corruptFile(logger, random, fileToCorrupt, maybeDelete);
     }

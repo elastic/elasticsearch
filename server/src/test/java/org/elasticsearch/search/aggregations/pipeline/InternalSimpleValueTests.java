@@ -59,7 +59,7 @@ public class InternalSimpleValueTests extends InternalAggregationTestCase<Intern
     @Override
     protected void assertFromXContent(InternalSimpleValue simpleValue, ParsedAggregation parsedAggregation) {
         ParsedSimpleValue parsed = ((ParsedSimpleValue) parsedAggregation);
-        if (Double.isInfinite(simpleValue.getValue()) == false && Double.isNaN(simpleValue.getValue()) == false) {
+        if (!Double.isInfinite(simpleValue.getValue()) && !Double.isNaN(simpleValue.getValue())) {
             assertEquals(simpleValue.getValue(), parsed.value(), 0);
             assertEquals(simpleValue.getValueAsString(), parsed.getValueAsString());
         } else {

@@ -40,7 +40,7 @@ final class ScriptedSimilarityProvider implements TriFunction<Settings, Version,
         Settings weightScriptSettings = settings.getAsSettings("weight_script");
         Script weightScript = null;
         SimilarityWeightScript.Factory weightScriptFactory = null;
-        if (weightScriptSettings.isEmpty() == false) {
+        if (!weightScriptSettings.isEmpty()) {
             weightScript = Script.parse(weightScriptSettings);
             weightScriptFactory = scriptService.compile(weightScript, SimilarityWeightScript.CONTEXT);
         }

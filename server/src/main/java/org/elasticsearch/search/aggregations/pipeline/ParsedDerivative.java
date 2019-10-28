@@ -67,7 +67,7 @@ public class ParsedDerivative extends ParsedSimpleValue implements Derivative {
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         super.doXContentBody(builder, params);
         if (hasNormalizationFactor) {
-            boolean hasValue = Double.isNaN(normalizedValue) == false;
+            boolean hasValue = !Double.isNaN(normalizedValue);
             builder.field(NORMALIZED.getPreferredName(), hasValue ? normalizedValue : null);
             if (hasValue && normalizedAsString != null) {
                 builder.field(NORMALIZED_AS_STRING.getPreferredName(), normalizedAsString);

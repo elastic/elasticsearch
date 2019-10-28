@@ -42,7 +42,7 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
             @Override
             protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
                 return channel -> {
-                    if (consumerCalled.compareAndSet(false, true) == false) {
+                    if (!consumerCalled.compareAndSet(false, true)) {
                         fail("consumerCalled was not false");
                     }
                 };
@@ -57,7 +57,7 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
         verify(licenseState).isSecurityAvailable();
-        if (securityDisabledByLicenseDefaults == false) {
+        if (!securityDisabledByLicenseDefaults) {
             assertTrue(consumerCalled.get());
             assertEquals(0, fakeRestChannel.responses().get());
             assertEquals(0, fakeRestChannel.errors().get());

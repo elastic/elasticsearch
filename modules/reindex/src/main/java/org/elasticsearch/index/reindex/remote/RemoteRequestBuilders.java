@@ -75,7 +75,7 @@ final class RemoteRequestBuilders {
         }
         request.addParameter("size", Integer.toString(searchRequest.source().size()));
 
-        if (searchRequest.source().version() == null || searchRequest.source().version() == false) {
+        if (searchRequest.source().version() == null || !searchRequest.source().version()) {
             request.addParameter("version", Boolean.FALSE.toString());
         } else {
             request.addParameter("version", Boolean.TRUE.toString());
@@ -110,12 +110,12 @@ final class RemoteRequestBuilders {
             searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
             if (remoteVersion.before(Version.fromId(1000099))) {
                 // Versions before 1.0.0 don't support `"_source": true` so we have to ask for the _source in a funny way.
-                if (false == searchRequest.source().storedFields().fieldNames().contains("_source")) {
+                if (!searchRequest.source().storedFields().fieldNames().contains("_source")) {
                     searchRequest.source().storedField("_source");
                 }
             }
         }
-        if (searchRequest.source().storedFields() != null && false == searchRequest.source().storedFields().fieldNames().isEmpty()) {
+        if (searchRequest.source().storedFields() != null && !searchRequest.source().storedFields().fieldNames().isEmpty()) {
             StringBuilder fields = new StringBuilder(searchRequest.source().storedFields().fieldNames().get(0));
             for (int i = 1; i < searchRequest.source().storedFields().fieldNames().size(); i++) {
                 fields.append(',').append(searchRequest.source().storedFields().fieldNames().get(i));

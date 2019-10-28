@@ -177,7 +177,7 @@ public class LiveVersionMapTests extends ESTestCase {
                                 map.removeTombstoneUnderLock(bytesRef);
                                 deletes.remove(bytesRef);
                             }
-                            if (isDelete == false && rarely()) {
+                            if (!isDelete && rarely()) {
                                 versionValue = new DeleteVersionValue(versionValue.version + 1,
                                     maxSeqNo.incrementAndGet(), versionValue.term, clock.getAndIncrement());
                                 deletes.put(bytesRef, (DeleteVersionValue) versionValue);
@@ -374,7 +374,7 @@ public class LiveVersionMapTests extends ESTestCase {
         });
         t.start();
         start.countDown();
-        while(done.get() == false) {
+        while(!done.get()) {
             map.beforeRefresh();
             Thread.yield();
             map.afterRefresh(false);

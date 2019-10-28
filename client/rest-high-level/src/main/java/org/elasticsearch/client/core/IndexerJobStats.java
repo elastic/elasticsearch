@@ -138,7 +138,7 @@ public abstract class IndexerJobStats {
             return true;
         }
 
-        if (other instanceof IndexerJobStats == false) {
+        if (!(other instanceof IndexerJobStats)) {
             return false;
         }
 

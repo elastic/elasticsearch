@@ -81,7 +81,7 @@ public class ExtractedFields {
             } else if (isFieldOfType(field, TEXT)) {
                 String parentField = MlStrings.getParentField(field);
                 // Field is text so check if it is a multi-field
-                if (Objects.equals(parentField, field) == false && fieldsCapabilities.getField(parentField) != null) {
+                if (!Objects.equals(parentField, field) && fieldsCapabilities.getField(parentField) != null) {
                     // Field is a multi-field which means it won't be available in source. Let's take the parent instead.
                     internalField = parentField;
                     method = isAggregatable(parentField) ? ExtractedField.ExtractionMethod.DOC_VALUE

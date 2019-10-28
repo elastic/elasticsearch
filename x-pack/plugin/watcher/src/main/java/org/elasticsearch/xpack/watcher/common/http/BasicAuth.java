@@ -60,7 +60,7 @@ public class BasicAuth implements ToXContentObject {
         // if the password is null, do not render it out, so we have the possibility to call toXContent when we want to update a watch
         // if the password is not null, ensure we never return the original password value, unless it is encrypted with the CryptoService
         if (password != null) {
-            if (WatcherParams.hideSecrets(params) && password.value().startsWith(CryptoService.ENCRYPTED_TEXT_PREFIX) == false) {
+            if (WatcherParams.hideSecrets(params) && !password.value().startsWith(CryptoService.ENCRYPTED_TEXT_PREFIX)) {
                 builder.field(Field.PASSWORD.getPreferredName(), WatcherXContentParser.REDACTED_PASSWORD);
             } else {
                 builder.field(Field.PASSWORD.getPreferredName(), password.value());

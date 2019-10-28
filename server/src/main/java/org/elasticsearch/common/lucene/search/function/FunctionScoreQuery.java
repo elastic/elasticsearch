@@ -302,7 +302,7 @@ public class FunctionScoreQuery extends Query {
             if (!expl.isMatch()) {
                 return expl;
             }
-            boolean singleFunction = functions.length == 1 && functions[0] instanceof FilterScoreFunction == false;
+            boolean singleFunction = functions.length == 1 && !(functions[0] instanceof FilterScoreFunction);
             if (functions.length > 0) {
                 // First: Gather explanations for all functions/filters
                 List<Explanation> functionsExplanations = new ArrayList<>();
@@ -310,7 +310,7 @@ public class FunctionScoreQuery extends Query {
                     if (filterWeights[i] != null) {
                         final Bits docSet = Lucene.asSequentialAccessBits(
                                 context.reader().maxDoc(), filterWeights[i].scorerSupplier(context));
-                        if (docSet.get(doc) == false) {
+                        if (!docSet.get(doc)) {
                             continue;
                         }
                     }
@@ -483,7 +483,7 @@ public class FunctionScoreQuery extends Query {
         if (this == o) {
             return true;
         }
-        if (sameClassAs(o) == false) {
+        if (!sameClassAs(o)) {
             return false;
         }
         FunctionScoreQuery other = (FunctionScoreQuery) o;

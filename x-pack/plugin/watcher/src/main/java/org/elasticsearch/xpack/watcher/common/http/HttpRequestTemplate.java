@@ -473,13 +473,13 @@ public class HttpRequestTemplate implements ToXContentObject {
         }
 
         public Builder fromUrl(String supposedUrl) {
-            if (Strings.hasLength(supposedUrl) == false) {
+            if (!Strings.hasLength(supposedUrl)) {
                 throw new ElasticsearchParseException("Configured URL is empty, please configure a valid URL");
             }
 
             try {
                 URI uri = new URI(supposedUrl);
-                if (Strings.hasLength(uri.getScheme()) == false) {
+                if (!Strings.hasLength(uri.getScheme())) {
                     throw new ElasticsearchParseException("URL [{}] does not contain a scheme", uri);
                 }
                 scheme = Scheme.parse(uri.getScheme());

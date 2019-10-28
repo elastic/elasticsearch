@@ -81,7 +81,7 @@ public final class RemoteClusterLicenseChecker {
          * @return the remote cluster license info
          */
         public RemoteClusterLicenseInfo remoteClusterLicenseInfo() {
-            assert isSuccess() == false;
+            assert !isSuccess();
             return remoteClusterLicenseInfo;
         }
 
@@ -151,7 +151,7 @@ public final class RemoteClusterLicenseChecker {
      */
     public void checkRemoteClusterLicenses(final List<String> clusterAliases, final ActionListener<LicenseCheck> listener) {
         final Iterator<String> clusterAliasesIterator = clusterAliases.iterator();
-        if (clusterAliasesIterator.hasNext() == false) {
+        if (!clusterAliasesIterator.hasNext()) {
             listener.onResponse(LicenseCheck.success());
             return;
         }
@@ -167,8 +167,8 @@ public final class RemoteClusterLicenseChecker {
                     listener.onFailure(new ResourceNotFoundException("license info is missing for cluster [" + clusterAlias.get() + "]"));
                     return;
                 }
-                if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false
-                        || predicate.test(License.OperationMode.resolve(licenseInfo.getMode())) == false) {
+                if (!(licenseInfo.getStatus() == LicenseStatus.ACTIVE)
+                        || !predicate.test(License.OperationMode.resolve(licenseInfo.getMode()))) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -278,7 +278,7 @@ public final class RemoteClusterLicenseChecker {
         if (remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
             error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterAlias()));
         } else {
-            assert predicate.test(remoteClusterLicenseInfo.licenseInfo()) == false : "license must be incompatible to build error message";
+            assert !predicate.test(remoteClusterLicenseInfo.licenseInfo()) : "license must be incompatible to build error message";
             final String message = String.format(
                     Locale.ROOT,
                     "the license mode [%s] on cluster [%s] does not enable [%s]",

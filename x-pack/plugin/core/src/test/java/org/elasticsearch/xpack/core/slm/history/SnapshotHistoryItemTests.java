@@ -74,7 +74,7 @@ public class SnapshotHistoryItemTests extends AbstractSerializingTestCase<Snapsh
                 return new SnapshotHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
                     instance.getSnapshotName(),
                     instance.getOperation(),
-                    instance.isSuccess() == false,
+                    !instance.isSuccess(),
                     instance.getSnapshotConfiguration(), instance.getErrorDetails());
             case 6:
                 return new SnapshotHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),

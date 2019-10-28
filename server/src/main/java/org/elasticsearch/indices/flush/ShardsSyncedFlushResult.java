@@ -129,7 +129,7 @@ public class ShardsSyncedFlushResult implements Writeable {
     public Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> failedShards() {
         Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> failures = new HashMap<>();
         for (Map.Entry<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> result : shardResponses.entrySet()) {
-            if (result.getValue().success() == false) {
+            if (!result.getValue().success()) {
                 failures.put(result.getKey(), result.getValue());
             }
         }

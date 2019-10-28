@@ -43,11 +43,11 @@ public class GCSCleanupTests extends AbstractCleanupTests {
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
 
-        if (Strings.isNullOrEmpty(getEndpoint()) == false) {
+        if (!Strings.isNullOrEmpty(getEndpoint())) {
             builder.put("gcs.client.default.endpoint", getEndpoint());
         }
 
-        if (Strings.isNullOrEmpty(getTokenUri()) == false) {
+        if (!Strings.isNullOrEmpty(getTokenUri())) {
             builder.put("gcs.client.default.token_uri", getTokenUri());
         }
 

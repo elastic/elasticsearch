@@ -64,7 +64,7 @@ public class TDigestState extends AVLTreeDigest {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj instanceof TDigestState == false) {
+        if (obj == null || !(obj instanceof TDigestState)) {
             return false;
         }
         TDigestState that = (TDigestState) obj;
@@ -74,7 +74,7 @@ public class TDigestState extends AVLTreeDigest {
         Iterator<? extends Centroid> thisCentroids = centroids().iterator();
         Iterator<? extends Centroid> thatCentroids = that.centroids().iterator();
         while (thisCentroids.hasNext()) {
-            if (thatCentroids.hasNext() == false) {
+            if (!thatCentroids.hasNext()) {
                 return false;
             }
             Centroid thisNext = thisCentroids.next();
@@ -83,7 +83,7 @@ public class TDigestState extends AVLTreeDigest {
                 return false;
             }
         }
-        return thatCentroids.hasNext() == false;
+        return !thatCentroids.hasNext();
     }
 
     @Override

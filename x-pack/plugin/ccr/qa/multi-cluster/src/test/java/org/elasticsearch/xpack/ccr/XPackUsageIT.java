@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class XPackUsageIT extends ESCCRRestTestCase {
 
     public void testXPackCcrUsage() throws Exception {
-        if ("follow".equals(targetCluster) == false) {
+        if (!"follow".equals(targetCluster)) {
             logger.info("skipping test, waiting for target cluster [follow]" );
             return;
         }

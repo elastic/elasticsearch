@@ -62,7 +62,7 @@ public class SysColumns extends Command {
     public List<Attribute> output() {
         return output(false);
     }
-    
+
     private List<Attribute> output(boolean odbcCompatible) {
         // https://github.com/elastic/elasticsearch/issues/35376
         // ODBC expects some fields as SHORT while JDBC as Integer
@@ -103,7 +103,7 @@ public class SysColumns extends Command {
         String cluster = session.indexResolver().clusterName();
 
         // bail-out early if the catalog is present but differs
-        if (Strings.hasText(catalog) && cluster.equals(catalog) == false) {
+        if (Strings.hasText(catalog) && !cluster.equals(catalog)) {
             listener.onResponse(Page.last(Rows.empty(output)));
             return;
         }
@@ -133,7 +133,7 @@ public class SysColumns extends Command {
             session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, ActionListener.wrap(r -> {
                 List<List<?>> rows = new ArrayList<>();
                 // populate the data only when a target is found
-                if (r.isValid() == true) {
+                if (r.isValid()) {
                     EsIndex esIndex = r.get();
                     fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
                 }
@@ -158,7 +158,7 @@ public class SysColumns extends Command {
             name = prefix != null ? prefix + "." + name : name;
             EsField field = entry.getValue();
             DataType type = field.getDataType();
-            
+
             // skip the nested, object and unsupported types
             if (type.isPrimitive()) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
@@ -205,7 +205,7 @@ public class SysColumns extends Command {
             }
         }
     }
-    
+
     private static Object odbcCompatible(Integer value, boolean isOdbcClient) {
         if (isOdbcClient && value != null) {
             return Short.valueOf(value.shortValue());

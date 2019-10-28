@@ -24,7 +24,7 @@ public class MoveToStepResponseTests extends AbstractWireSerializingTestCase<Res
 
     @Override
     protected Response mutateInstance(Response response) {
-        return new Response(response.isAcknowledged() == false);
+        return new Response(!response.isAcknowledged());
     }
 
 }

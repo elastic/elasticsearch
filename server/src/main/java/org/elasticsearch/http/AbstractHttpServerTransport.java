@@ -188,7 +188,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     @Override
     protected void doStop() {
         synchronized (httpServerChannels) {
-            if (httpServerChannels.isEmpty() == false) {
+            if (!httpServerChannels.isEmpty()) {
                 try {
                     CloseableChannel.closeChannels(new ArrayList<>(httpServerChannels), true);
                 } catch (Exception e) {
@@ -252,7 +252,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     public void onException(HttpChannel channel, Exception e) {
-        if (lifecycle.started() == false) {
+        if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
             return;

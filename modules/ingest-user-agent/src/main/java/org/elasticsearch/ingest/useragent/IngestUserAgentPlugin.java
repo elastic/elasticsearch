@@ -47,7 +47,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         Path userAgentConfigDirectory = parameters.env.configFile().resolve("ingest-user-agent");
 
-        if (Files.exists(userAgentConfigDirectory) == false && Files.isDirectory(userAgentConfigDirectory)) {
+        if (!Files.exists(userAgentConfigDirectory) && Files.isDirectory(userAgentConfigDirectory)) {
             throw new IllegalStateException(
                 "the user agent directory [" + userAgentConfigDirectory + "] containing the regex file doesn't exist");
         }

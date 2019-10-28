@@ -141,7 +141,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 .waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex("index"));
-            while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
+            while (!state.routingTable().index("index").shard(0).allShardsStarted()) {
                 logger.info(state);
                 state = cluster.applyStartedShards(state,
                     state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING));
@@ -155,7 +155,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
             if (randomBoolean()) {
                 // simulate node removal
                 List<DiscoveryNode> nodesToRemove = randomSubsetOf(2, dataNodes);
-                unchangedNodeIds = dataNodes.stream().filter(n -> nodesToRemove.contains(n) == false)
+                unchangedNodeIds = dataNodes.stream().filter(n -> !nodesToRemove.contains(n))
                     .map(DiscoveryNode::getId).collect(Collectors.toSet());
 
                 state = cluster.removeNodes(state, nodesToRemove);
@@ -168,7 +168,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null).build()).build();
 
                 List<DiscoveryNode> conflictingNodes = randomSubsetOf(2, dataNodes);
-                unchangedNodeIds = dataNodes.stream().filter(n -> conflictingNodes.contains(n) == false)
+                unchangedNodeIds = dataNodes.stream().filter(n -> !conflictingNodes.contains(n))
                     .map(DiscoveryNode::getId).collect(Collectors.toSet());
 
                 List<DiscoveryNode> nodesToAdd = conflictingNodes.stream()

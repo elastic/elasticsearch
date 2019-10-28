@@ -300,7 +300,7 @@ public final class SClass extends AStatement {
         }
 
         // Write the constants
-        if (false == globals.getConstantInitializers().isEmpty()) {
+        if (!globals.getConstantInitializers().isEmpty()) {
             Collection<Constant> inits = globals.getConstantInitializers().values();
 
             // Initialize the constants in a static initializer

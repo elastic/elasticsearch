@@ -77,7 +77,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case METADATA:
-                    if (user.metadata() != null && user.metadata().isEmpty() == false) {
+                    if (user.metadata() != null && !user.metadata().isEmpty()) {
                         userObject.put("metadata", user.metadata());
                     }
                     break;

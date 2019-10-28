@@ -359,7 +359,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             new AllocationDeciders(allocationDeciders), clusterState);
         MoveDecision rebalanceDecision = allocator.decideShardAllocation(shard, routingAllocation).getMoveDecision();
 
-        if (rebalanceExpected == false) {
+        if (!rebalanceExpected) {
             assertAssignedNodeRemainsSame(allocator, routingAllocation, shard);
         }
 

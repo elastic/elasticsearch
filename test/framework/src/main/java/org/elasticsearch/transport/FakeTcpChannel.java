@@ -110,7 +110,7 @@ public class FakeTcpChannel implements TcpChannel {
 
     @Override
     public boolean isOpen() {
-        return closeContext.isDone() == false;
+        return !closeContext.isDone();
     }
 
     @Override

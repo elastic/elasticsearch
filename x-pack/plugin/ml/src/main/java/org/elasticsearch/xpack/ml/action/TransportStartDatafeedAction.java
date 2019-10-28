@@ -120,7 +120,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
         DatafeedConfig.validateAggregations(datafeedConfig.getParsedAggregations(xContentRegistry));
         JobState jobState = MlTasks.getJobState(datafeedConfig.getJobId(), tasks);
-        if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
+        if (!jobState.isAnyOf(JobState.OPENING, JobState.OPENED)) {
             throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedConfig.getId() +
                     "] because job [" + job.getId() + "] is " + jobState);
         }
@@ -132,7 +132,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         List<String> deprecationWarnings = new ArrayList<>();
         deprecationWarnings.addAll(datafeed.getAggDeprecations(xContentRegistry));
         deprecationWarnings.addAll(datafeed.getQueryDeprecations(xContentRegistry));
-        if (deprecationWarnings.isEmpty() == false) {
+        if (!deprecationWarnings.isEmpty()) {
             String msg = "datafeed [" + datafeed.getId() +"] configuration has deprecations. [" +
                 Strings.collectionToDelimitedString(deprecationWarnings, ", ") + "]";
             auditor.warning(job.getId(), msg);
@@ -156,7 +156,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     protected void masterOperation(Task task, StartDatafeedAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
-        if (licenseState.isMachineLearningAllowed() == false) {
+        if (!licenseState.isMachineLearningAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -199,9 +199,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                     params.getDatafeedIndices()),
                             ActionListener.wrap(
                                     response -> {
-                                        if (response.isSuccess() == false) {
+                                        if (!response.isSuccess()) {
                                             listener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
-                                        } else if (remoteClusterSearchSupported == false) {
+                                        } else if (!remoteClusterSearchSupported) {
                                             listener.onFailure(
                                                 ExceptionsHelper.badRequestException(Messages.getMessage(
                                                     Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
@@ -481,8 +481,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 return false;
             }
             PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
-            if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                    assignment.isAssigned() == false) {
+            if (assignment != null && !assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) &&
+                !assignment.isAssigned()) {
                 // Assignment has failed despite passing our "fast fail" validation
                 exception = new ElasticsearchStatusException("Could not start datafeed, allocation explanation [" +
                         assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);

@@ -30,7 +30,7 @@ public class TragicExceptionHolder {
      */
     public void setTragicException(Exception ex) {
         assert ex != null;
-        if (tragedy.compareAndSet(null, ex) == false) {
+        if (!tragedy.compareAndSet(null, ex)) {
             if (tragedy.get() != ex) { // to ensure there is no self-suppression
                 tragedy.get().addSuppressed(ex);
             }

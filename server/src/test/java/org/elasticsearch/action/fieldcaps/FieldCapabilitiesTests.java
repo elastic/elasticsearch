@@ -135,10 +135,10 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             type += randomAlphaOfLengthBetween(1, 10);
             break;
         case 2:
-            isSearchable = isSearchable == false;
+            isSearchable = !isSearchable;
             break;
         case 3:
-            isAggregatable = isAggregatable == false;
+            isAggregatable = !isAggregatable;
             break;
         case 4:
             String[] newIndices;

@@ -225,7 +225,7 @@ public class CorsHandler {
     }
 
     public static Config fromSettings(Settings settings) {
-        if (SETTING_CORS_ENABLED.get(settings) == false) {
+        if (!SETTING_CORS_ENABLED.get(settings)) {
             return disabled();
         }
         String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);

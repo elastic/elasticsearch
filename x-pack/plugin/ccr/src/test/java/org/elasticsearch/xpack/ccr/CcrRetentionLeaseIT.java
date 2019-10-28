@@ -342,7 +342,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                if (shardsStats.get(i).getShardRouting().primary() == false) {
+                if (!shardsStats.get(i).getShardRouting().primary()) {
                     continue;
                 }
                 assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
@@ -585,7 +585,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final Map<Integer, Long> leaderGlobalCheckpoints = new HashMap<>();
         for (final ShardStats leaderShardStats : leaderShardsStats) {
             final ShardRouting routing = leaderShardStats.getShardRouting();
-            if (routing.primary() == false) {
+            if (!routing.primary()) {
                 continue;
             }
             leaderGlobalCheckpoints.put(routing.id(), leaderShardStats.getSeqNoStats().getGlobalCheckpoint());
@@ -702,7 +702,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                if (shardsStats.get(i).getShardRouting().primary() == false) {
+                if (!shardsStats.get(i).getShardRouting().primary()) {
                     continue;
                 }
                 assertNotNull(shardsStats.get(i).getRetentionLeaseStats());

@@ -606,7 +606,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         boolean testTemplate = randomBoolean();
         boolean testPipeline = randomBoolean();
-        boolean testScript = (testTemplate == false && testPipeline == false) || randomBoolean(); // At least something should be stored
+        boolean testScript = (!testTemplate && !testPipeline) || randomBoolean(); // At least something should be stored
 
         if(testTemplate) {
             logger.info("-->  creating test template");
@@ -2945,7 +2945,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         assertAcked(client().admin().indices().prepareDelete(nbDocsPerIndex.keySet().toArray(new String[nbDocsPerIndex.size()])));
 
-        Predicate<String> isRestorableIndex = index -> corruptedIndex.getName().equals(index) == false;
+        Predicate<String> isRestorableIndex = index -> !corruptedIndex.getName().equals(index);
 
         client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
             .setIndices(nbDocsPerIndex.keySet().stream().filter(isRestorableIndex).toArray(String[]::new))

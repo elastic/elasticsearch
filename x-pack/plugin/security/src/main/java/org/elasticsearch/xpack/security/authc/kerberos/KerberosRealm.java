@@ -96,13 +96,13 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         this.threadPool = threadPool;
         this.keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
 
-        if (Files.exists(keytabPath) == false) {
+        if (!Files.exists(keytabPath)) {
             throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] does not exist");
         }
         if (Files.isDirectory(keytabPath)) {
             throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] is a directory");
         }
-        if (Files.isReadable(keytabPath) == false) {
+        if (!Files.isReadable(keytabPath)) {
             throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] must have read permission");
         }
 

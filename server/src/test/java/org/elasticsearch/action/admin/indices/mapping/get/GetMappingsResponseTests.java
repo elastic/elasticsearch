@@ -57,7 +57,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
 
     public static MappingMetaData createMappingsForIndex() {
         Map<String, Object> mappings = new HashMap<>();
-        if (rarely() == false) { // rarely have no fields
+        if (!rarely()) { // rarely have no fields
             mappings.put("field", randomFieldMapping());
             if (randomBoolean()) {
                 mappings.put("field2", randomFieldMapping());

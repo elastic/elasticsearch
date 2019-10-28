@@ -80,7 +80,7 @@ public class DeprecationRestHandler implements RestHandler {
      * @return {@code true} if the {@code value} is not obviously wrong.
      */
     public static boolean validHeaderValue(String value) {
-        if (Strings.hasText(value) == false) {
+        if (!Strings.hasText(value)) {
             return false;
         }
 
@@ -104,7 +104,7 @@ public class DeprecationRestHandler implements RestHandler {
      * @throws IllegalArgumentException if {@code value} is not a {@link #validHeaderValue(String) valid header}.
      */
     public static String requireValidHeader(String value) {
-        if (validHeaderValue(value) == false) {
+        if (!validHeaderValue(value)) {
             throw new IllegalArgumentException("header value must contain only US ASCII text");
         }
 

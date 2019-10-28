@@ -125,9 +125,9 @@ public class NativeUsersStore {
         };
 
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else if (userNames.length == 1) { // optimization for single user lookup
             final String username = userNames[0];
@@ -163,9 +163,9 @@ public class NativeUsersStore {
 
     void getUserCount(final ActionListener<Long> listener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(0L);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
@@ -194,7 +194,7 @@ public class NativeUsersStore {
      */
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.isAvailable() == false) {
+        if (!frozenSecurityIndex.isAvailable()) {
             if (frozenSecurityIndex.indexExists()) {
                 logger.trace("could not retrieve user [{}] because security index does not exist", user);
             } else {
@@ -234,7 +234,7 @@ public class NativeUsersStore {
      */
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
-        assert SystemUser.NAME.equals(username) == false && XPackUser.NAME.equals(username) == false : username + "is internal!";
+        assert !SystemUser.NAME.equals(username) && !XPackUser.NAME.equals(username) : username + "is internal!";
         final String docType;
         if (ClientReservedRealm.isReserved(username, settings)) {
             docType = RESERVED_USER_TYPE;
@@ -471,9 +471,9 @@ public class NativeUsersStore {
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(false);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
@@ -518,9 +518,9 @@ public class NativeUsersStore {
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(null);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
@@ -563,9 +563,9 @@ public class NativeUsersStore {
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(Collections.emptyMap());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->

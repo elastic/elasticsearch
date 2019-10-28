@@ -108,7 +108,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        if (Double.isFinite(value) == false) {
+                        if (!Double.isFinite(value)) {
                             sum += value;
                         } else if (Double.isFinite(sum)) {
                             double corrected = value - compensation;

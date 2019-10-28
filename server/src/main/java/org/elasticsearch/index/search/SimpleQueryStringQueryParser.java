@@ -221,7 +221,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             try {
                 boolean hasMoreTokens = source.incrementToken();
                 while (hasMoreTokens) {
-                    if (currentPos.isEmpty() == false && posAtt.getPositionIncrement() > 0) {
+                    if (!currentPos.isEmpty() && posAtt.getPositionIncrement() > 0) {
                         tlist.add(currentPos);
                         currentPos = new ArrayList<>();
                     }
@@ -229,7 +229,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                     currentPos.add(term);
                     hasMoreTokens = source.incrementToken();
                 }
-                if (currentPos.isEmpty() == false) {
+                if (!currentPos.isEmpty()) {
                     tlist.add(currentPos);
                 }
             } catch (IOException e) {
@@ -261,7 +261,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 } else {
                     posQuery = newTermQuery(new Term(field, plist.get(0)));
                 }
-            } else if (isLastPos == false) {
+            } else if (!isLastPos) {
                 // build a synonym query for terms in the same position.
                 Term[] terms = new Term[plist.size()];
                 for (int i = 0; i < plist.size(); i++) {

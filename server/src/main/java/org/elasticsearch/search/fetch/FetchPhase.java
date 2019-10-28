@@ -103,7 +103,7 @@ public class FetchPhase implements SearchPhase {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
             fieldsVisitor = new FieldsVisitor(context.sourceRequested());
-        } else if (storedFieldsContext.fetchFields() == false) {
+        } else if (!storedFieldsContext.fetchFields()) {
             // disable stored fields entirely
             fieldsVisitor = null;
         } else {
@@ -261,7 +261,7 @@ public class FetchPhase implements SearchPhase {
         final Uid uid;
         final BytesReference source;
         final boolean needSource = context.sourceRequested() || context.highlight() != null;
-        if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
+        if (needSource || (!(context instanceof InnerHitsContext.InnerHitSubContext))) {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
             loadStoredFields(context.shardTarget(), subReaderContext, rootFieldsVisitor, rootSubDocId);
             rootFieldsVisitor.postProcess(context.mapperService());
@@ -314,8 +314,8 @@ public class FetchPhase implements SearchPhase {
                 } else {
                     throw new IllegalStateException("extracted source isn't an object or an array");
                 }
-                if ((nestedParsedSource.get(0) instanceof Map) == false &&
-                    nestedObjectMapper.parentObjectMapperAreNested(context.mapperService()) == false) {
+                if (!(nestedParsedSource.get(0) instanceof Map) &&
+                    !nestedObjectMapper.parentObjectMapperAreNested(context.mapperService())) {
                     // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
                     // from two or more layers resulting in a list of list being returned. This is because nestedPath
                     // encapsulates two or more object layers in the _source.
@@ -354,7 +354,7 @@ public class FetchPhase implements SearchPhase {
             Query parentFilter;
             nestedParentObjectMapper = current.getParentObjectMapper(mapperService);
             if (nestedParentObjectMapper != null) {
-                if (nestedParentObjectMapper.nested().isNested() == false) {
+                if (!nestedParentObjectMapper.nested().isNested()) {
                     current = nestedParentObjectMapper;
                     continue;
                 }

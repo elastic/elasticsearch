@@ -92,7 +92,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
             assertEquals(aggregation.percentile(percent), parsedPercentiles.percentile(percent), 0);
             // we cannot ensure we get the same as_string output for Double.NaN values since they are rendered as
             // null and we don't have a formatted string representation in the rest output
-            if (Double.isNaN(aggregation.percentile(percent)) == false) {
+            if (!Double.isNaN(aggregation.percentile(percent))) {
                 assertEquals(aggregation.percentileAsString(percent), parsedPercentiles.percentileAsString(percent));
             }
         }

@@ -119,7 +119,7 @@ public class GetFieldMappingsResponseTests extends AbstractSerializingTestCase<G
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // allow random fields at the level of `index` and `index.mappings.doctype.field`
         // otherwise random field could be evaluated as index name or type name
-        return s -> false == (s.matches("(?<index>[^.]+)")
+        return s -> !(s.matches("(?<index>[^.]+)")
             || s.matches("(?<index>[^.]+)\\.mappings\\.(?<doctype>[^.]+)\\.(?<field>[^.]+)"));
     }
 

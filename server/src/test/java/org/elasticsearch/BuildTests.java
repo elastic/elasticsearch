@@ -174,7 +174,7 @@ public class BuildTests extends ESTestCase {
                             b.build.hash(), randomStringExcept(b.build.date()), b.build.isSnapshot(), b.build.getQualifiedVersion()));
                     case 5:
                         return new WriteableBuild(new Build(b.build.flavor(), b.build.type(),
-                            b.build.hash(), b.build.date(), b.build.isSnapshot() == false, b.build.getQualifiedVersion()));
+                            b.build.hash(), b.build.date(), !b.build.isSnapshot(), b.build.getQualifiedVersion()));
                     case 6:
                         return new WriteableBuild(new Build(b.build.flavor(), b.build.type(),
                             b.build.hash(), b.build.date(), b.build.isSnapshot(), randomStringExcept(b.build.getQualifiedVersion())));

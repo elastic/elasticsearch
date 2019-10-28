@@ -44,7 +44,7 @@ public class KeyedFlatObjectAtomicFieldDataTests extends ESTestCase {
             allTerms[ord] = prefixedValue(key, "value" + ord);
 
             // Do not include the term 'avocado' in the mock document.
-            if (key.equals("avocado") == false) {
+            if (!key.equals("avocado")) {
                 documentOrds[index++] = ord;
             }
         }

@@ -403,7 +403,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 aggBuilder.addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).interval(between(10000, 3600000))
                     .subAggregation(new MaxAggregationBuilder(timeField).field(timeField)));
                 builder.setAggregations(AggProvider.fromParsedAggs(aggBuilder));
-                if (instance.getScriptFields().isEmpty() == false) {
+                if (!instance.getScriptFields().isEmpty()) {
                     builder.setScriptFields(Collections.emptyList());
                 }
             }

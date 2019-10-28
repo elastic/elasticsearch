@@ -90,7 +90,7 @@ public final class ContextDocGenerator {
             staticInfos = sortStaticInfos(sharedStaticInfos, staticInfos);
             classInfos = sortClassInfos(sharedClassInfos, new ArrayList<>(contextInfo.getClasses()));
 
-            if (staticInfos.isEmpty() == false || classInfos.isEmpty() == false) {
+            if (!staticInfos.isEmpty() || !classInfos.isEmpty()) {
                 Path contextDir = createContextDir(rootDir, contextInfo);
                 isSpecialized.add(contextInfo);
                 javaNamesToDisplayNames = getDisplayNames(contextInfo.getClasses());
@@ -251,7 +251,7 @@ public final class ContextDocGenerator {
 
         String currentPackageName = null;
 
-        if (staticInfos.isEmpty() == false) {
+        if (!staticInfos.isEmpty()) {
             indexStream.println();
             indexStream.println("==== Static Methods");
             indexStream.println("The following methods are directly callable without a class/instance qualifier. " +
@@ -271,7 +271,7 @@ public final class ContextDocGenerator {
             }
         }
 
-        if (classInfos.isEmpty() == false) {
+        if (!classInfos.isEmpty()) {
             indexStream.println();
             indexStream.println("==== Classes By Package");
             indexStream.println("The following classes are available grouped by their respective packages. Click on a class " +
@@ -281,7 +281,7 @@ public final class ContextDocGenerator {
             for (PainlessContextClassInfo classInfo : classInfos) {
                 String classPackageName = classInfo.getName().substring(0, classInfo.getName().lastIndexOf('.'));
 
-                if (classPackageName.equals(currentPackageName) == false) {
+                if (!classPackageName.equals(currentPackageName)) {
                     currentPackageName = classPackageName;
 
                     indexStream.println();
@@ -344,7 +344,7 @@ public final class ContextDocGenerator {
 
             String classPackageName = classInfo.getName().substring(0, classInfo.getName().lastIndexOf('.'));
 
-            if (classPackageName.equals(currentPackageName) == false) {
+            if (!classPackageName.equals(currentPackageName)) {
                 currentPackageName = classPackageName;
 
                 packagesStream.println();
@@ -766,7 +766,7 @@ public final class ContextDocGenerator {
             if (compare == 0) {
                 if (i1 && i2) {
                     compare = n1.substring(n1.lastIndexOf('.') + 1).compareTo(n2.substring(n2.lastIndexOf('.') + 1));
-                } else if (i1 == false && i2 == false) {
+                } else if (!i1 && !i2) {
                     compare = n1.compareTo(n2);
                 } else {
                     compare = Boolean.compare(i1, i2) * -1;

@@ -190,9 +190,9 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             this.setMaxMergesAndThreads(config.getMaxMergeCount(), config.getMaxThreadCount());
         }
         boolean isEnabled = getIORateLimitMBPerSec() != Double.POSITIVE_INFINITY;
-        if (config.isAutoThrottle() && isEnabled == false) {
+        if (config.isAutoThrottle() && !isEnabled) {
             enableAutoIOThrottle();
-        } else if (config.isAutoThrottle() == false && isEnabled) {
+        } else if (!config.isAutoThrottle() && isEnabled) {
             disableAutoIOThrottle();
         }
     }

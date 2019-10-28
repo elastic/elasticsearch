@@ -36,55 +36,55 @@ public class RestNodesInfoActionTests extends ESTestCase {
     public void testDuplicatedFiltersAreNotRemoved() {
         Map<String, String> params = new HashMap<>();
         params.put("nodeId", "_all,master:false,_all");
-        
+
         RestRequest restRequest = buildRestRequest(params);
         NodesInfoRequest actual = RestNodesInfoAction.prepareRequest(restRequest);
         assertArrayEquals(new String[] { "_all", "master:false", "_all" }, actual.nodesIds());
     }
-    
+
     public void testOnlyMetrics() {
         Map<String, String> params = new HashMap<>();
         int metricsCount = randomIntBetween(1, ALLOWED_METRICS.size());
         List<String> metrics = new ArrayList<>();
-        
+
         for(int i = 0; i < metricsCount; i++) {
             metrics.add(randomFrom(ALLOWED_METRICS));
         }
         params.put("nodeId", String.join(",", metrics));
-        
+
         RestRequest restRequest = buildRestRequest(params);
         NodesInfoRequest actual = RestNodesInfoAction.prepareRequest(restRequest);
         assertArrayEquals(new String[] { "_all" }, actual.nodesIds());
         assertMetrics(metrics, actual);
     }
-    
+
     public void testAllMetricsSelectedWhenNodeAndMetricSpecified() {
         Map<String, String> params = new HashMap<>();
         String nodeId = randomValueOtherThanMany(ALLOWED_METRICS::contains, () -> randomAlphaOfLength(23));
         String metric = randomFrom(ALLOWED_METRICS);
-        
+
         params.put("nodeId", nodeId + "," + metric);
         RestRequest restRequest = buildRestRequest(params);
-        
+
         NodesInfoRequest actual = RestNodesInfoAction.prepareRequest(restRequest);
         assertArrayEquals(new String[] { nodeId, metric }, actual.nodesIds());
         assertAllMetricsTrue(actual);
     }
-    
+
     public void testSeparateNodeIdsAndMetrics() {
         Map<String, String> params = new HashMap<>();
         List<String> nodeIds = new ArrayList<>(5);
         List<String> metrics = new ArrayList<>(5);
-        
+
         for(int i = 0; i < 5; i++) {
             nodeIds.add(randomValueOtherThanMany(ALLOWED_METRICS::contains, () -> randomAlphaOfLength(23)));
             metrics.add(randomFrom(ALLOWED_METRICS));
         }
-        
+
         params.put("nodeId", String.join(",", nodeIds));
         params.put("metrics", String.join(",", metrics));
         RestRequest restRequest = buildRestRequest(params);
-        
+
         NodesInfoRequest actual = RestNodesInfoAction.prepareRequest(restRequest);
         assertArrayEquals(nodeIds.toArray(), actual.nodesIds());
         assertMetrics(metrics, actual);
@@ -97,11 +97,11 @@ public class RestNodesInfoActionTests extends ESTestCase {
         for(int i = 0; i < 5; i++) {
             nodeIds.add(randomValueOtherThanMany(ALLOWED_METRICS::contains, () -> randomAlphaOfLength(23)));
         }
-        
+
         params.put("nodeId", String.join(",", nodeIds));
         params.put("metrics", "_all");
         RestRequest restRequest = buildRestRequest(params);
-        
+
         NodesInfoRequest actual = RestNodesInfoAction.prepareRequest(restRequest);
         assertArrayEquals(nodeIds.toArray(), actual.nodesIds());
         assertAllMetricsTrue(actual);
@@ -114,20 +114,20 @@ public class RestNodesInfoActionTests extends ESTestCase {
                 .withParams(params)
                 .build();
     }
-    
+
     private void assertMetrics(List<String> metrics, NodesInfoRequest nodesInfoRequest) {
-        assertTrue((metrics.contains("http") && nodesInfoRequest.http()) || metrics.contains("http") == false);
-        assertTrue((metrics.contains("ingest") && nodesInfoRequest.ingest()) || metrics.contains("ingest") == false);
-        assertTrue((metrics.contains("indices") && nodesInfoRequest.indices()) || metrics.contains("indices") == false);
-        assertTrue((metrics.contains("jvm") && nodesInfoRequest.jvm()) || metrics.contains("jvm") == false);
-        assertTrue((metrics.contains("os") && nodesInfoRequest.os()) || metrics.contains("os") == false);
-        assertTrue((metrics.contains("plugins") && nodesInfoRequest.plugins()) || metrics.contains("plugins") == false);
-        assertTrue((metrics.contains("process") && nodesInfoRequest.process()) || metrics.contains("process") == false);
-        assertTrue((metrics.contains("settings") && nodesInfoRequest.settings()) || metrics.contains("settings") == false);
-        assertTrue((metrics.contains("thread_pool") && nodesInfoRequest.threadPool()) || metrics.contains("thread_pool") == false);
-        assertTrue((metrics.contains("transport") && nodesInfoRequest.transport()) || metrics.contains("transport") == false);
+        assertTrue((metrics.contains("http") && nodesInfoRequest.http()) || !metrics.contains("http"));
+        assertTrue((metrics.contains("ingest") && nodesInfoRequest.ingest()) || !metrics.contains("ingest"));
+        assertTrue((metrics.contains("indices") && nodesInfoRequest.indices()) || !metrics.contains("indices"));
+        assertTrue((metrics.contains("jvm") && nodesInfoRequest.jvm()) || !metrics.contains("jvm"));
+        assertTrue((metrics.contains("os") && nodesInfoRequest.os()) || !metrics.contains("os"));
+        assertTrue((metrics.contains("plugins") && nodesInfoRequest.plugins()) || !metrics.contains("plugins"));
+        assertTrue((metrics.contains("process") && nodesInfoRequest.process()) || !metrics.contains("process"));
+        assertTrue((metrics.contains("settings") && nodesInfoRequest.settings()) || !metrics.contains("settings"));
+        assertTrue((metrics.contains("thread_pool") && nodesInfoRequest.threadPool()) || !metrics.contains("thread_pool"));
+        assertTrue((metrics.contains("transport") && nodesInfoRequest.transport()) || !metrics.contains("transport"));
     }
-    
+
     private void assertAllMetricsTrue(NodesInfoRequest nodesInfoRequest) {
         assertTrue(nodesInfoRequest.http());
         assertTrue(nodesInfoRequest.ingest());

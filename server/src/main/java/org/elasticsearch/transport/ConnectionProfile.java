@@ -236,7 +236,7 @@ public final class ConnectionProfile {
         public ConnectionProfile build() {
             EnumSet<TransportRequestOptions.Type> types = EnumSet.allOf(TransportRequestOptions.Type.class);
             types.removeAll(addedTypes);
-            if (types.isEmpty() == false) {
+            if (!types.isEmpty()) {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
             return new ConnectionProfile(Collections.unmodifiableList(handles), numConnections, connectTimeout, handshakeTimeout,

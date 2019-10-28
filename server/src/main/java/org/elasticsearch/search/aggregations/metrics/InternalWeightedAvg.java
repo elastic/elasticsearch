@@ -98,7 +98,7 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
             InternalWeightedAvg avg = (InternalWeightedAvg) aggregation;
             // If the weight is Inf or NaN, just add it to the running tally to "convert" to
             // Inf/NaN.  This keeps the behavior bwc from before kahan summing
-            if (Double.isFinite(avg.weight) == false) {
+            if (!Double.isFinite(avg.weight)) {
                 weight += avg.weight;
             } else if (Double.isFinite(weight)) {
                 double corrected = avg.weight - weightCompensation;
@@ -108,7 +108,7 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
             }
             // If the avg is Inf or NaN, just add it to the running tally to "convert" to
             // Inf/NaN.  This keeps the behavior bwc from before kahan summing
-            if (Double.isFinite(avg.sum) == false) {
+            if (!Double.isFinite(avg.sum)) {
                 sum += avg.sum;
             } else if (Double.isFinite(sum)) {
                 double corrected = avg.sum - sumCompensation;
@@ -137,7 +137,7 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         InternalWeightedAvg other = (InternalWeightedAvg) obj;
         return Objects.equals(sum, other.sum) &&
                 Objects.equals(weight, other.weight) &&

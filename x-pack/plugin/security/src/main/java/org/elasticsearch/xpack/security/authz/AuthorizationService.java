@@ -167,7 +167,7 @@ public class AuthorizationService {
         if (auditId == null) {
             // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
             // true because the request-id is generated during authentication
-            if (isInternalUser(authentication.getUser()) != false) {
+            if (isInternalUser(authentication.getUser())) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
                 auditTrail.tamperedRequest(null, authentication.getUser(), action, originalRequest);
@@ -387,18 +387,18 @@ public class AuthorizationService {
         final TransportRequest request;
         if (originalRequest instanceof ConcreteShardRequest) {
             request = ((ConcreteShardRequest<?>) originalRequest).getRequest();
-            assert TransportActionProxy.isProxyRequest(request) == false : "expected non-proxy request for action: " + action;
+            assert !TransportActionProxy.isProxyRequest(request) : "expected non-proxy request for action: " + action;
         } else {
             request = TransportActionProxy.unwrapRequest(originalRequest);
             final boolean isOriginalRequestProxyRequest = TransportActionProxy.isProxyRequest(originalRequest);
             final boolean isProxyAction = TransportActionProxy.isProxyAction(action);
-            if (isProxyAction && isOriginalRequestProxyRequest == false) {
+            if (isProxyAction && !isOriginalRequestProxyRequest) {
                 IllegalStateException cause = new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest +
                     "] but action: [" + action + "] is a proxy action");
                 auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
                 throw denialException(authentication, action, cause);
             }
-            if (TransportActionProxy.isProxyRequest(originalRequest) && TransportActionProxy.isProxyAction(action) == false) {
+            if (TransportActionProxy.isProxyRequest(originalRequest) && !TransportActionProxy.isProxyAction(action)) {
                 IllegalStateException cause = new IllegalStateException("originalRequest is a proxy request for: [" + request +
                     "] but action: [" + action + "] isn't");
                 auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
@@ -466,7 +466,7 @@ public class AuthorizationService {
                                 + String.join(",", resolvedIndices.getLocal()));
                         }
                         final String resolved = resolvedIndices.getLocal().get(0);
-                        if (localIndices.contains(resolved) == false) {
+                        if (!localIndices.contains(resolved)) {
                             throw illegalArgument("Found bulk item that writes to index " + resolved + " but the request writes to " +
                                 localIndices);
                         }
@@ -502,7 +502,7 @@ public class AuthorizationService {
                             final IndicesAccessControl indicesAccessControl = actionToIndicesAccessControl.get(itemAction);
                             final IndicesAccessControl.IndexAccessControl indexAccessControl
                                 = indicesAccessControl.getIndexPermissions(resolvedIndex);
-                            if (indexAccessControl == null || indexAccessControl.isGranted() == false) {
+                            if (indexAccessControl == null || !indexAccessControl.isGranted()) {
                                 auditTrail.explicitIndexAccessEvent(requestId, AuditLevel.ACCESS_DENIED, authentication, itemAction,
                                         resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
                                 item.abort(resolvedIndex, denialException(authentication, itemAction, null));
@@ -565,7 +565,7 @@ public class AuthorizationService {
         final User authUser = authentication.getUser().authenticatedUser();
         // Special case for anonymous user
         if (isAnonymousEnabled && anonymousUser.equals(authUser)) {
-            if (anonymousAuthzExceptionEnabled == false) {
+            if (!anonymousAuthzExceptionEnabled) {
                 return authcFailureHandler.authenticationRequired(action, threadContext);
             }
         }

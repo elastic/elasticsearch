@@ -111,7 +111,7 @@ public class NioTransport extends TcpTransport {
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         } finally {
-            if (success == false) {
+            if (!success) {
                 doStop();
             }
         }
@@ -161,7 +161,7 @@ public class NioTransport extends TcpTransport {
 
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
-            NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
+            NioTcpChannel nioChannel = new NioTcpChannel(!isClient, profileName, channel);
             TcpReadWriteHandler handler = new TcpReadWriteHandler(nioChannel, NioTransport.this);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, socketConfig, exceptionHandler, handler,

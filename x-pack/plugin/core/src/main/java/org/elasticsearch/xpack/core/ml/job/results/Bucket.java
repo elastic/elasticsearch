@@ -162,7 +162,7 @@ public class Bucket implements ToXContentObject, Writeable {
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(INITIAL_ANOMALY_SCORE.getPreferredName(), initialAnomalyScore);
-        if (records.isEmpty() == false) {
+        if (!records.isEmpty()) {
             builder.field(RECORDS.getPreferredName(), records);
         }
         builder.field(EVENT_COUNT.getPreferredName(), eventCount);
@@ -170,7 +170,7 @@ public class Bucket implements ToXContentObject, Writeable {
         builder.field(BUCKET_INFLUENCERS.getPreferredName(), bucketInfluencers);
         builder.field(PROCESSING_TIME_MS.getPreferredName(), processingTimeMs);
 
-        if (scheduledEvents.isEmpty() == false) {
+        if (!scheduledEvents.isEmpty()) {
             builder.field(SCHEDULED_EVENTS.getPreferredName(), scheduledEvents);
         }
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
@@ -299,7 +299,7 @@ public class Bucket implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof Bucket == false) {
+        if (!(other instanceof Bucket)) {
             return false;
         }
 

@@ -114,7 +114,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
                 unavailableIndices.add(index);
             }
         }
@@ -229,7 +229,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 }
             },
             error -> {
-                if (error instanceof ResourceNotFoundException == false) {
+                if (!(error instanceof ResourceNotFoundException)) {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_STATE, transformId);
                     logger.error(msg, error);
                     markAsFailed(buildTask, msg);

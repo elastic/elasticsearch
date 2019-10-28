@@ -255,7 +255,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof ModelSnapshot == false) {
+        if (!(other instanceof ModelSnapshot)) {
             return false;
         }
 

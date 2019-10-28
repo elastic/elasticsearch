@@ -46,11 +46,11 @@ public final class ProtocolUtils {
             String[] val = entry.getValue();
             String key = entry.getKey();
             if (val == null) {
-                if (b.get(key) != null || b.containsKey(key) == false) {
+                if (b.get(key) != null || !b.containsKey(key)) {
                     return false;
                 }
             } else {
-                if (Arrays.equals(val, b.get(key)) == false) {
+                if (!Arrays.equals(val, b.get(key))) {
                     return false;
                 }
             }

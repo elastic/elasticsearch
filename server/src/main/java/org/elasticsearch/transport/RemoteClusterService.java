@@ -139,7 +139,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * Returns <code>true</code> if at least one remote cluster is configured
      */
     public boolean isCrossClusterSearchEnabled() {
-        return remoteClusters.isEmpty() == false;
+        return !remoteClusters.isEmpty();
     }
 
     boolean isRemoteNodeConnected(final String remoteCluster, final DiscoveryNode node) {
@@ -237,7 +237,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-        if (remoteClusters.containsKey(clusterAlias) == false) {
+        if (!remoteClusters.containsKey(clusterAlias)) {
             CountDownLatch latch = new CountDownLatch(1);
             updateRemoteCluster(clusterAlias, settings, ActionListener.wrap(latch::countDown));
 
@@ -245,7 +245,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 // Wait 10 seconds for a new cluster. We must use a latch instead of a future because we
                 // are on the cluster state thread and our custom future implementation will throw an
                 // assertion.
-                if (latch.await(10, TimeUnit.SECONDS) == false) {
+                if (!latch.await(10, TimeUnit.SECONDS)) {
                     logger.warn("failed to connect to new remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(10));
                 }
             } catch (InterruptedException e) {
@@ -269,7 +269,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
 
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
-        if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, newSettings) == false) {
+        if (!RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, newSettings)) {
             try {
                 IOUtils.close(remote);
             } catch (IOException e) {
@@ -350,7 +350,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
         Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
-            if (remoteClusters.containsKey(cluster) == false) {
+            if (!remoteClusters.containsKey(cluster)) {
                 listener.onFailure(new NoSuchRemoteClusterException(cluster));
                 return;
             }
@@ -391,7 +391,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
-        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
+        if (!transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias)) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
         return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);

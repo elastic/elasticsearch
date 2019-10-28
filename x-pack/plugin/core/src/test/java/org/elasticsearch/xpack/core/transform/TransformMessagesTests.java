@@ -66,7 +66,7 @@ public class TransformMessagesTests extends ESTestCase {
 
         String properFormatedMessage = new MessageFormat(message, Locale.ROOT).format(args.toArray(new String[0]));
         for (String arg : args) {
-            if (properFormatedMessage.contains(arg) == false) {
+            if (!properFormatedMessage.contains(arg)) {
                 throw new RuntimeException("Message check: [" + message + "] failed, missing argument");
             }
         }

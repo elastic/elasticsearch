@@ -246,7 +246,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 .filter(e -> !e.getKey().equals(missingActiveID))
                 .forEach(e -> updateLocalCheckpoint(tracker, e.getKey().getId(), e.getValue()));
 
-        if (missingActiveID.equals(primaryId) == false) {
+        if (!missingActiveID.equals(primaryId)) {
             assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
             assertThat(updatedGlobalCheckpoint.get(), equalTo(UNASSIGNED_SEQ_NO));
         }
@@ -487,14 +487,14 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertTrue(
                 activeAllocationIds
                         .stream()
-                        .filter(a -> a.equals(primaryId) == false)
+                        .filter(a -> !a.equals(primaryId))
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
                             == SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertTrue(initializingIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
         assertTrue(
                 initializingIds
                         .stream()
-                        .filter(a -> a.equals(primaryId) == false)
+                        .filter(a -> !a.equals(primaryId))
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
                             == SequenceNumbers.UNASSIGNED_SEQ_NO));
 
@@ -529,7 +529,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertTrue(
                 newActiveAllocationIds
                         .stream()
-                        .filter(a -> a.equals(primaryId) == false)
+                        .filter(a -> !a.equals(primaryId))
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
                             == SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertTrue(newInitializingAllocationIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
@@ -971,7 +971,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
     private static void addPeerRecoveryRetentionLease(final ReplicationTracker tracker, final AllocationId allocationId) {
         final String nodeId = nodeIdFromAllocationId(allocationId);
-        if (tracker.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId)) == false) {
+        if (!tracker.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId))) {
             tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.wrap(() -> { }));
         }
     }

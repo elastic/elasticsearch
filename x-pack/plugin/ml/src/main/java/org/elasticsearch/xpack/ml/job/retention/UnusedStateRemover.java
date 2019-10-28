@@ -83,7 +83,7 @@ public class UnusedStateRemover implements MlDataRemover {
                     // not a managed state document id
                     continue;
                 }
-                if (jobIds.contains(jobId) == false) {
+                if (!jobIds.contains(jobId)) {
                     stateDocIdsToDelete.add(stateDocId);
                 }
             }

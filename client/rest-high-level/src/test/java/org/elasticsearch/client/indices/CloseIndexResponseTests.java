@@ -116,7 +116,7 @@ public class CloseIndexResponseTests extends
             final CloseIndexResponse.IndexResult actualIndexResult = actualIndexResults.get(0);
             assertThat(actualIndexResult.hasFailures(), equalTo(expectedIndexResult.hasFailures()));
 
-            if (expectedIndexResult.hasFailures() == false) {
+            if (!expectedIndexResult.hasFailures()) {
                 assertThat(actualIndexResult.getException(), nullValue());
                 assertThat(actualIndexResult.getShards(), nullValue());
             }

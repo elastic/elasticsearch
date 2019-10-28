@@ -215,7 +215,7 @@ final class S3ClientSettings {
         for (final String clientName : clientNames) {
             clients.put(clientName, getClientSettings(settings, clientName));
         }
-        if (clients.containsKey("default") == false) {
+        if (!clients.containsKey("default")) {
             // this won't find any settings under the default client,
             // but it will pull all the fallback static settings
             clients.put("default", getClientSettings(settings, "default"));

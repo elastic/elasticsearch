@@ -32,7 +32,7 @@ import static org.hamcrest.core.Is.is;
 public class FollowIndexIT extends ESCCRRestTestCase {
 
     public void testDowngradeRemoteClusterToBasic() throws Exception {
-        if ("follow".equals(targetCluster) == false) {
+        if (!"follow".equals(targetCluster)) {
             return;
         }
 
@@ -82,7 +82,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
             // parse the logs and ensure that the auto-coordinator skipped coordination on the leader cluster
             // (does not work on windows...)
-            if (Constants.WINDOWS == false) {
+            if (!Constants.WINDOWS) {
                 assertBusy(() -> {
                     Path path = PathUtils.get(System.getProperty("log"));
                     try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {

@@ -182,7 +182,7 @@ public final class SSLConfiguration {
         }
 
         VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
-        if (verificationMode.isCertificateVerificationEnabled() == false) {
+        if (!verificationMode.isCertificateVerificationEnabled()) {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);

@@ -168,7 +168,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertEquals("should be " + (3 + existing) + " users total", 3 + existing, allUsersResp.users().length);
         List<String> names = new ArrayList<>(3);
         for (User u : allUsersResp.users()) {
-            if (existingUsers.contains(u) == false) {
+            if (!existingUsers.contains(u)) {
                 names.add(u.principal());
             }
         }

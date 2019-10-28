@@ -390,10 +390,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         QueryValidationException validationException = null;
         // For everything post 2.0, validate latitude and longitude unless validation was explicitly turned off
-        if (GeoUtils.isValidLatitude(center.getLat()) == false) {
+        if (!GeoUtils.isValidLatitude(center.getLat())) {
             validationException = addValidationError("center point latitude is invalid: " + center.getLat(), validationException);
         }
-        if (GeoUtils.isValidLongitude(center.getLon()) == false) {
+        if (!GeoUtils.isValidLongitude(center.getLon())) {
             validationException = addValidationError("center point longitude is invalid: " + center.getLon(), validationException);
         }
         return validationException;

@@ -132,7 +132,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public ScaledFloatFieldMapper build(BuilderContext context) {
-            if (scalingFactorSet == false) {
+            if (!scalingFactorSet) {
                 throw new IllegalArgumentException("Field [" + name + "] misses required parameter [scaling_factor]");
             }
             setupFieldType(context);
@@ -257,7 +257,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             Long lo = null;
             if (lowerTerm != null) {
                 double dValue = scale(lowerTerm);
-                if (includeLower == false) {
+                if (!includeLower) {
                     dValue = Math.nextUp(dValue);
                 }
                 lo = Math.round(Math.ceil(dValue));
@@ -265,7 +265,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             Long hi = null;
             if (upperTerm != null) {
                 double dValue = scale(upperTerm);
-                if (includeUpper == false) {
+                if (!includeUpper) {
                     dValue = Math.nextDown(dValue);
                 }
                 hi = Math.round(Math.floor(dValue));
@@ -315,7 +315,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (super.equals(o) == false) {
+            if (!super.equals(o)) {
                 return false;
             }
             return scalingFactor == ((ScaledFloatFieldType) o).scalingFactor;
@@ -355,7 +355,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         final double scalingFactor = fieldType().getScalingFactor();
-        if (Double.isFinite(scalingFactor) == false || scalingFactor <= 0) {
+        if (!Double.isFinite(scalingFactor) || scalingFactor <= 0) {
             throw new IllegalArgumentException("[scaling_factor] must be a positive number, got [" + scalingFactor + "]");
         }
         this.ignoreMalformed = ignoreMalformed;
@@ -417,7 +417,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         double doubleValue = numericValue.doubleValue();
-        if (Double.isFinite(doubleValue) == false) {
+        if (!Double.isFinite(doubleValue)) {
             if (ignoreMalformed.value()) {
                 return;
             } else {
@@ -431,7 +431,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
         fields.addAll(NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored));
-        if (docValued == false && (indexed || stored)) {
+        if (!docValued && (indexed || stored)) {
             createFieldNamesField(context, fields);
         }
     }

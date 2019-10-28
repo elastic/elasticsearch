@@ -115,7 +115,7 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
             builder.field(BASIC_WAS_STARTED_FIELD.getPreferredName(), false);
             builder.field(ERROR_MESSAGE_FIELD.getPreferredName(), status.getErrorMessage());
         }
-        if (acknowledgeMessages.isEmpty() == false) {
+        if (!acknowledgeMessages.isEmpty()) {
             builder.startObject("acknowledge");
             builder.field(MESSAGE_FIELD.getPreferredName(), acknowledgeMessage);
             for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {

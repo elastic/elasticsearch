@@ -386,7 +386,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
-                if (entry.getValue() instanceof Map == false) {
+                if (!(entry.getValue() instanceof Map)) {
                     throw new ElasticsearchParseException("key [settings] must be an object");
                 }
                 settings((Map<String, Object>) entry.getValue());

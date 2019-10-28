@@ -113,7 +113,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         };
 
         Consumer<TimeValue> updater = newWaitForTimeOut -> {
-            if (newWaitForTimeOut.equals(waitForMetadataTimeOut) == false) {
+            if (!newWaitForTimeOut.equals(waitForMetadataTimeOut)) {
                 LOGGER.info("changing wait_for_metadata_timeout from [{}] to [{}]", waitForMetadataTimeOut, newWaitForTimeOut);
                 waitForMetadataTimeOut = newWaitForTimeOut;
             }
@@ -199,7 +199,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             return;
         }
 
-        if (ccrLicenseChecker.isCcrAllowed() == false) {
+        if (!ccrLicenseChecker.isCcrAllowed()) {
             // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
             LOGGER.warn("skipping auto-follower coordination", LicenseUtils.newComplianceException("ccr"));
             return;
@@ -209,7 +209,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         Set<String> newRemoteClusters = autoFollowMetadata.getPatterns().values().stream()
             .filter(AutoFollowPattern::isActive)
             .map(AutoFollowPattern::getRemoteCluster)
-            .filter(remoteCluster -> autoFollowers.containsKey(remoteCluster) == false)
+            .filter(remoteCluster -> !autoFollowers.containsKey(remoteCluster))
             .collect(Collectors.toSet());
 
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
@@ -286,7 +286,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             boolean exist = autoFollowMetadata.getPatterns().values().stream()
                 .filter(AutoFollowPattern::isActive)
                 .anyMatch(pattern -> pattern.getRemoteCluster().equals(remoteCluster));
-            if (exist == false) {
+            if (!exist) {
                 LOGGER.info("removing auto-follower for remote cluster [{}]", remoteCluster);
                 autoFollower.removed = true;
                 removedRemoteClusters.add(remoteCluster);
@@ -463,7 +463,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 } else {
                     List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster = autoFollowMetadata.getPatterns()
                         .entrySet().stream()
-                        .filter(item -> autoFollowPatternName.equals(item.getKey()) == false)
+                        .filter(item -> !autoFollowPatternName.equals(item.getKey()))
                         .filter(item -> remoteCluster.equals(item.getValue().getRemoteCluster()))
                         .map(item -> new Tuple<>(item.getKey(), item.getValue()))
                         .collect(Collectors.toList());
@@ -503,7 +503,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             "] for pattern [" + autoFollowPattenName + "] matches with other patterns " + otherMatchingPatterns + "")));
                 } else {
                     final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
-                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings) == false) {
+                    if (!IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings)) {
                         String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
                             indexToFollow.getName());
                         LOGGER.warn(message);
@@ -618,7 +618,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         // If not all primary shards are ready, then the next time the auto follow coordinator runs
                         // this index will be auto followed.
                         indexRoutingTable.allPrimaryShardsActive() &&
-                        followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
+                        !followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID())) {
 
                         leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
                     }
@@ -640,7 +640,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
-                if (newFollowedIndexUUIDS.containsKey(name) == false) {
+                if (!newFollowedIndexUUIDS.containsKey(name)) {
                     // A delete auto follow pattern request can have removed the auto follow pattern while we want to update
                     // the auto follow metadata with the fact that an index was successfully auto followed. If this
                     // happens, we can just skip this step.
@@ -682,7 +682,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
                 boolean requiresCSUpdate = false;
                 for (String autoFollowPatternName : autoFollowPatternNames) {
-                    if (autoFollowPatternNameToFollowedIndexUUIDs.containsKey(autoFollowPatternName) == false) {
+                    if (!autoFollowPatternNameToFollowedIndexUUIDs.containsKey(autoFollowPatternName)) {
                         // A delete auto follow pattern request can have removed the auto follow pattern while we want to update
                         // the auto follow metadata with the fact that an index was successfully auto followed. If this
                         // happens, we can just skip this step.
@@ -693,7 +693,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         new ArrayList<>(autoFollowPatternNameToFollowedIndexUUIDs.get(autoFollowPatternName));
                     // Remove leader indices that no longer exist in the remote cluster:
                     boolean entriesRemoved = followedIndexUUIDs.removeIf(
-                        followedLeaderIndexUUID -> remoteIndexUUIDS.contains(followedLeaderIndexUUID) == false);
+                        followedLeaderIndexUUID -> !remoteIndexUUIDS.contains(followedLeaderIndexUUID));
                     if (entriesRemoved) {
                         requiresCSUpdate = true;
                     }

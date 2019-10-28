@@ -84,7 +84,7 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
         if (obj == null) {
             return false;
         }
-        if (obj instanceof AbstractGetResourcesRequest == false) {
+        if (!(obj instanceof AbstractGetResourcesRequest)) {
             return false;
         }
         AbstractGetResourcesRequest other = (AbstractGetResourcesRequest) obj;

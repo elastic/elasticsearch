@@ -169,7 +169,7 @@ public class SSLDriverTests extends ESTestCase {
         assertTrue("Unexpected exception message: " + sslException.getMessage(), expectedMessage);
 
         // Prior to JDK11 we still need to send a close alert
-        if (serverDriver.isClosed() == false) {
+        if (!serverDriver.isClosed()) {
             failedCloseAlert(serverDriver, clientDriver, Arrays.asList("Received fatal alert: protocol_version",
                 "Received fatal alert: handshake_failure"));
         }
@@ -191,7 +191,7 @@ public class SSLDriverTests extends ESTestCase {
         expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
 
         // Prior to JDK11 we still need to send a close alert
-        if (serverDriver.isClosed() == false) {
+        if (!serverDriver.isClosed()) {
             List<String> messages = Arrays.asList("Received fatal alert: handshake_failure",
                 "Received close_notify during handshake");
             failedCloseAlert(serverDriver, clientDriver, messages);
@@ -328,7 +328,7 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private void handshake(SSLDriver clientDriver, SSLDriver serverDriver, boolean isRenegotiation) throws IOException {
-        if (isRenegotiation == false) {
+        if (!isRenegotiation) {
             clientDriver.init();
             serverDriver.init();
         }
@@ -372,7 +372,7 @@ public class SSLDriverTests extends ESTestCase {
 
         sendData(sendDriver.getOutboundBuffer().buildNetworkFlushOperation());
         receiveDriver.read(networkReadBuffer, applicationBuffer);
-        if (receiveDriver.readyForApplicationData() == false) {
+        if (!receiveDriver.readyForApplicationData()) {
             assertTrue(receiveDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
         }
     }
@@ -380,7 +380,7 @@ public class SSLDriverTests extends ESTestCase {
     private void sendAppData(SSLDriver sendDriver, ByteBuffer[] message) throws IOException {
         FlushOperation flushOperation = new FlushOperation(message, (r, l) -> {});
 
-        while (flushOperation.isFullyFlushed() == false) {
+        while (!flushOperation.isFullyFlushed()) {
             sendDriver.write(flushOperation);
         }
         sendData(sendDriver.getOutboundBuffer().buildNetworkFlushOperation());
@@ -394,7 +394,7 @@ public class SSLDriverTests extends ESTestCase {
         assert  writeBuffers.length > 0 : "No write buffers";
 
         int r = 0;
-        while (flushOperation.isFullyFlushed() == false) {
+        while (!flushOperation.isFullyFlushed()) {
             ByteBuffer readBuffer = byteBuffers[r];
             ByteBuffer writeBuffer = flushOperation.getBuffersToWrite()[0];
             int toWrite = Math.min(writeBuffer.remaining(), readBuffer.remaining());

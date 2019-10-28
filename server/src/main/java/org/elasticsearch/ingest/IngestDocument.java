@@ -130,7 +130,7 @@ public final class IngestDocument {
         try {
             return getFieldValue(path, clazz);
         } catch (IllegalArgumentException e) {
-            if (ignoreMissing && hasField(path) != true) {
+            if (ignoreMissing && !hasField(path)) {
                 return null;
             } else {
                 throw e;

@@ -447,11 +447,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
 
         void assertSupports(String parserName, XContentParser parser, String currentFieldName) {
-            if (parseField.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+            if (!parseField.match(currentFieldName, parser.getDeprecationHandler())) {
                 throw new XContentParseException(parser.getTokenLocation(),
                         "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
-            if (supportedTokens.contains(parser.currentToken()) == false) {
+            if (!supportedTokens.contains(parser.currentToken())) {
                 throw new XContentParseException(parser.getTokenLocation(),
                         "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + parser.currentToken());
             }

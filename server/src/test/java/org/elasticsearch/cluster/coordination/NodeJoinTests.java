@@ -495,8 +495,7 @@ public class NodeJoinTests extends ESTestCase {
         List<DiscoveryNode> successfulNodes;
         do {
             successfulNodes = randomSubsetOf(allNodes);
-        } while (votingConfiguration.hasQuorum(successfulNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList()))
-            == false);
+        } while (!votingConfiguration.hasQuorum(successfulNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())));
 
         logger.info("Successful voting nodes: {}", successfulNodes);
 
@@ -540,7 +539,7 @@ public class NodeJoinTests extends ESTestCase {
         final AtomicBoolean stopAsserting = new AtomicBoolean();
         final Thread assertionThread = new Thread(() -> {
             awaitBarrier.run();
-            while (stopAsserting.get() == false) {
+            while (!stopAsserting.get()) {
                 coordinator.invariant();
             }
         }, "assert invariants");

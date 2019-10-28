@@ -51,7 +51,7 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
     @Override
     protected void assertFromXContent(InternalMax max, ParsedAggregation parsedAggregation) {
         ParsedMax parsed = ((ParsedMax) parsedAggregation);
-        if (Double.isInfinite(max.getValue()) == false) {
+        if (!Double.isInfinite(max.getValue())) {
             assertEquals(max.getValue(), parsed.getValue(), Double.MIN_VALUE);
             assertEquals(max.getValueAsString(), parsed.getValueAsString());
         } else {

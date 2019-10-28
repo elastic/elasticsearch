@@ -89,7 +89,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
+        if (!collectsFromSingleBucket) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         if (valuesSource instanceof ValuesSource.Numeric) {
@@ -97,7 +97,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                 (ValuesSource.Numeric) valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
         } else if (valuesSource instanceof ValuesSource.Range) {
             ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
-            if (rangeValueSource.rangeType().isNumeric() == false) {
+            if (!rangeValueSource.rangeType().isNumeric()) {
                 throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
                     + rangeValueSource.rangeType().name + "]");
             }

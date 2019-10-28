@@ -88,7 +88,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             if (repositories != null) {
                 Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
                 for (String repositoryOrPattern : request.repositories()) {
-                    if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
+                    if (!Regex.isSimpleMatchPattern(repositoryOrPattern)) {
                         repositoriesToGet.add(repositoryOrPattern);
                     } else {
                         for (RepositoryMetaData repository : repositories.repositories()) {

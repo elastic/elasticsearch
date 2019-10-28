@@ -306,7 +306,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         @Override
         public Assignment getAssignment(TestParams params, ClusterState clusterState) {
-            if (nonClusterStateCondition == false) {
+            if (!nonClusterStateCondition) {
                 return new Assignment(null, "non cluster state condition prevents assignment");
             }
             if (params == null || params.getExecutorNodeAttr() == null) {

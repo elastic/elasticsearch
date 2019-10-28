@@ -69,7 +69,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if ((false == Strings.hasText(query())) && Strings.hasText(cursor) == false) {
+        if ((!Strings.hasText(query())) && !Strings.hasText(cursor)) {
             validationException = addValidationError("one of [query] or [cursor] is required", validationException);
         }
         return validationException;
@@ -94,7 +94,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.cursor = cursor;
         return this;
     }
-    
+
     /**
      * Should format the values in a columnar fashion or not (default false).
      * Depending on the format used (csv, tsv, txt, json etc) this setting will be taken into

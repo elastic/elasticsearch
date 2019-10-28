@@ -537,7 +537,7 @@ public abstract class StreamOutput extends OutputStream {
             writeByte((byte) -1);
             return;
         }
-        assert false == (map instanceof LinkedHashMap);
+        assert !(map instanceof LinkedHashMap);
         this.writeByte((byte) 10);
         this.writeVInt(map.size());
         Iterator<? extends Map.Entry<String, ?>> iterator =

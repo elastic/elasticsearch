@@ -403,7 +403,7 @@ public class RestClient implements Closeable {
             }
         }
 
-        if (false == livingNodes.isEmpty()) {
+        if (!livingNodes.isEmpty()) {
             /*
              * Normal state: there is at least one living node. If the
              * selector is ok with any over the living nodes then use them
@@ -411,7 +411,7 @@ public class RestClient implements Closeable {
              */
             List<Node> selectedLivingNodes = new ArrayList<>(livingNodes);
             nodeSelector.select(selectedLivingNodes);
-            if (false == selectedLivingNodes.isEmpty()) {
+            if (!selectedLivingNodes.isEmpty()) {
                 /*
                  * Rotate the list using a global counter as the distance so subsequent
                  * requests will try the nodes in a different order.
@@ -430,7 +430,7 @@ public class RestClient implements Closeable {
          * are ok. If the selector is ok with any of the nodes then we will take
          * the one in the list that has the lowest revival time and try it.
          */
-        if (false == deadNodes.isEmpty()) {
+        if (!deadNodes.isEmpty()) {
             final List<DeadNode> selectedDeadNodes = new ArrayList<>(deadNodes);
             /*
              * We'd like NodeSelectors to remove items directly from deadNodes
@@ -439,7 +439,7 @@ public class RestClient implements Closeable {
              * list.
              */
             nodeSelector.select(() -> new DeadNodeIteratorAdapter(selectedDeadNodes.iterator()));
-            if (false == selectedDeadNodes.isEmpty()) {
+            if (!selectedDeadNodes.isEmpty()) {
                 return singletonList(Collections.min(selectedDeadNodes).node);
             }
         }
@@ -548,7 +548,7 @@ public class RestClient implements Closeable {
         Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;
-            if (pathPrefix != null && pathPrefix.isEmpty() == false) {
+            if (pathPrefix != null && !pathPrefix.isEmpty()) {
                 if (pathPrefix.endsWith("/") && path.startsWith("/")) {
                     fullPath = pathPrefix.substring(0, pathPrefix.length() - 1) + path;
                 } else if (pathPrefix.endsWith("/") || path.startsWith("/")) {
@@ -712,7 +712,7 @@ public class RestClient implements Closeable {
                 requestNames.add(requestHeader.getName());
             }
             for (Header defaultHeader : defaultHeaders) {
-                if (requestNames.contains(defaultHeader.getName()) == false) {
+                if (!requestNames.contains(defaultHeader.getName())) {
                     httpRequest.addHeader(defaultHeader);
                 }
             }

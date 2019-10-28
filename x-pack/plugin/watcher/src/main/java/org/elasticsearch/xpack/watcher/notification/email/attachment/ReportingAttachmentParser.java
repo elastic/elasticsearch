@@ -123,7 +123,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     }
 
     void warningValidator(String name, String value) {
-        if (WARNINGS.keySet().contains(name) == false) {
+        if (!WARNINGS.keySet().contains(name)) {
             throw new IllegalArgumentException(new ParameterizedMessage(
                 "Warning [{}] is not supported. Only the following warnings are supported [{}]",
                 name, String.join(", ", WARNINGS.keySet())).getFormattedMessage());
@@ -200,7 +200,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
                             if (Boolean.valueOf(text[0])) {
                                 String warning = String.format(Locale.ROOT, defaultWarning, attachment.id());
                                 String customWarning = customWarnings.get(warningKey);
-                                if (Strings.isNullOrEmpty(customWarning) == false) {
+                                if (!Strings.isNullOrEmpty(customWarning)) {
                                     warning = String.format(Locale.ROOT, customWarning, attachment.id());
                                 }
                                 warnings.add(warning);

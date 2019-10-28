@@ -1478,7 +1478,7 @@ public class RestHighLevelClient implements Closeable {
                                                                            CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                            Set<Integer> ignores) throws IOException {
         ActionRequestValidationException validationException = request.validate();
-        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
+        if (validationException != null && !validationException.validationErrors().isEmpty()) {
             throw validationException;
         }
         return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
@@ -1607,7 +1607,7 @@ public class RestHighLevelClient implements Closeable {
                 CheckedFunction<Response, Resp, IOException> responseConverter,
                 ActionListener<Resp> listener, Set<Integer> ignores) {
         ActionRequestValidationException validationException = request.validate();
-        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
+        if (validationException != null && !validationException.validationErrors().isEmpty()) {
             listener.onFailure(validationException);
             return Cancellable.NO_OP;
         }

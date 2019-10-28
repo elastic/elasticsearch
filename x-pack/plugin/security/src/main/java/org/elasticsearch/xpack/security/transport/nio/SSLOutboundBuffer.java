@@ -68,7 +68,7 @@ public class SSLOutboundBuffer implements AutoCloseable {
     }
 
     boolean hasEncryptedBytesToFlush() {
-        return pages.isEmpty() == false;
+        return !pages.isEmpty();
     }
 
     @Override

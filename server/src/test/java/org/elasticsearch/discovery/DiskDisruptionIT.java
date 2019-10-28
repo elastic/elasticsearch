@@ -117,7 +117,7 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
             shardToGcp.put(i, SequenceNumbers.NO_OPS_PERFORMED);
         }
         final Thread globalCheckpointSampler = new Thread(() -> {
-            while (stopGlobalCheckpointFetcher.get() == false) {
+            while (!stopGlobalCheckpointFetcher.get()) {
                 try {
                     for (ShardStats shardStats : client().admin().indices().prepareStats("test").clear().get().getShards()) {
                         final int shardId = shardStats.getShardRouting().id();

@@ -174,7 +174,7 @@ class BulkPrimaryExecutionContext {
 
     /** returns a translog location that is needed to be synced in order to persist all operations executed so far */
     public Translog.Location getLocationToSync() {
-        assert hasMoreOperationsToExecute() == false;
+        assert !hasMoreOperationsToExecute();
         // we always get to the end of the list by using advance, which in turn sets the state to INITIAL
         assert assertInvariants(ItemProcessingState.INITIAL);
         return locationToSync;
@@ -288,7 +288,7 @@ class BulkPrimaryExecutionContext {
         assert executionResult != null && translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
-        if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent())  {
+        if (!translatedResponse.isFailed() && requestToExecute != null && requestToExecute != getCurrent())  {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
         getCurrentItem().setPrimaryResponse(translatedResponse);
@@ -298,7 +298,7 @@ class BulkPrimaryExecutionContext {
 
     /** builds the bulk shard response to return to the user */
     public BulkShardResponse buildShardResponse() {
-        assert hasMoreOperationsToExecute() == false;
+        assert !hasMoreOperationsToExecute();
         return new BulkShardResponse(request.shardId(),
             Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new));
     }

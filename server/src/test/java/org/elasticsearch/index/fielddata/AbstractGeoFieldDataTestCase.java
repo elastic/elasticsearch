@@ -80,8 +80,8 @@ public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImpl
     }
 
     private void assertValues(MultiGeoPointValues values, int docId, boolean missing) throws IOException {
-        assertEquals(missing == false, values.advanceExact(docId));
-        if (missing == false) {
+        assertEquals(!missing, values.advanceExact(docId));
+        if (!missing) {
             final int docCount = values.docValueCount();
             for (int i = 0; i < docCount; ++i) {
                 final GeoPoint point = values.nextValue();

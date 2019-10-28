@@ -93,9 +93,9 @@ public class NativePrivilegeStore {
     public void getPrivileges(Collection<String> applications, Collection<String> names,
                               ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else if (isSinglePrivilegeMatch(applications, names)) {
             getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
@@ -143,7 +143,7 @@ public class NativePrivilegeStore {
     }
 
     private boolean isSinglePrivilegeMatch(Collection<String> applications, Collection<String> names) {
-        return applications != null && applications.size() == 1 && hasWildcard(applications) == false && names != null && names.size() == 1;
+        return applications != null && applications.size() == 1 && !hasWildcard(applications) && names != null && names.size() == 1;
     }
 
     private boolean hasWildcard(Collection<String> applications) {
@@ -168,7 +168,7 @@ public class NativePrivilegeStore {
             }
         }
 
-        assert rawNames.isEmpty() == false || wildcardNames.isEmpty() == false;
+        assert !rawNames.isEmpty() || !wildcardNames.isEmpty();
 
         TermsQueryBuilder termsQuery = rawNames.isEmpty() ? null : QueryBuilders.termsQuery(APPLICATION.getPreferredName(), rawNames);
         if (wildcardNames.isEmpty()) {
@@ -192,7 +192,7 @@ public class NativePrivilegeStore {
 
     void getPrivilege(String application, String name, ActionListener<ApplicationPrivilegeDescriptor> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
-        if (frozenSecurityIndex.isAvailable() == false) {
+        if (!frozenSecurityIndex.isAvailable()) {
             logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name),
                 frozenSecurityIndex.getUnavailableReason());
             listener.onResponse(null);
@@ -265,9 +265,9 @@ public class NativePrivilegeStore {
     public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
                                  ActionListener<Map<String, List<String>>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(Collections.emptyMap());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {

@@ -103,7 +103,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
             if (parentObjectMapper == null) {
                 return new ReverseNestedAggregatorFactory(name, true, null, queryShardContext, parent, subFactoriesBuilder, metaData);
             }
-            if (parentObjectMapper.nested().isNested() == false) {
+            if (!parentObjectMapper.nested().isNested()) {
                 throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
             }
         }
@@ -175,7 +175,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         ReverseNestedAggregationBuilder other = (ReverseNestedAggregationBuilder) obj;
         return Objects.equals(path, other.path);
     }

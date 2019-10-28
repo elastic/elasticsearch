@@ -81,7 +81,7 @@ final class TransportHandshaker {
         } catch (Exception e) {
             handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));
         } finally {
-            if (success == false) {
+            if (!success) {
                 TransportResponseHandler<?> removed = pendingHandshakes.remove(requestId);
                 assert removed == null : "Handshake should not be pending if exception was thrown";
             }
@@ -134,7 +134,7 @@ final class TransportHandshaker {
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
                 Version version = response.responseVersion;
-                if (currentVersion.isCompatible(version) == false) {
+                if (!currentVersion.isCompatible(version)) {
                     listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
                         + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
                 } else {

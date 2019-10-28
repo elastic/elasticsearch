@@ -91,7 +91,7 @@ public class DatafeedNodeSelector {
             jobState = jobTaskState == null ? JobState.OPENING : jobTaskState.getState();
         }
 
-        if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
+        if (!jobState.isAnyOf(JobState.OPENING, JobState.OPENED)) {
             // lets try again later when the job has been opened:
             String reason = "cannot start datafeed [" + datafeedId + "], because the job's [" + jobId
                     + "] state is [" + jobState +  "] while state [" + JobState.OPENED + "] is required";
@@ -163,7 +163,7 @@ public class DatafeedNodeSelector {
             if (newFailure == null) {
                 return;
             }
-            if (failure == null || (failure.isCriticalForTaskCreation == false && newFailure.isCriticalForTaskCreation)) {
+            if (failure == null || (!failure.isCriticalForTaskCreation && newFailure.isCriticalForTaskCreation)) {
                 failure = newFailure;
             }
         }

@@ -185,7 +185,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
                 return new ClusterHealthResponse(instance.getClusterName(),
                         instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),
                         instance.getDelayedUnassignedShards(), instance.getTaskMaxWaitingTime(),
-                        instance.isTimedOut() == false, instance.getClusterStateHealth());
+                    !instance.isTimedOut(), instance.getClusterStateHealth());
             case "clusterStateHealth":
                 ClusterStateHealth state = instance.getClusterStateHealth();
                 ClusterStateHealth newState = new ClusterStateHealth(state.getActivePrimaryShards() + between(1, 10),

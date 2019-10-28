@@ -118,7 +118,7 @@ final class AzureStorageSettings {
         if (proxyType.equals(Proxy.Type.DIRECT) && ((proxyPort != 0) || Strings.hasText(proxyHost))) {
             throw new SettingsException("Azure Proxy port or host have been set but proxy type is not defined.");
         }
-        if ((proxyType.equals(Proxy.Type.DIRECT) == false) && ((proxyPort == 0) || Strings.isEmpty(proxyHost))) {
+        if ((!proxyType.equals(Proxy.Type.DIRECT)) && ((proxyPort == 0) || Strings.isEmpty(proxyHost))) {
             throw new SettingsException("Azure Proxy type has been set but proxy host or port is not defined.");
         }
 
@@ -157,7 +157,7 @@ final class AzureStorageSettings {
     private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
-        if (hasSasToken == false && hasKey == false) {
+        if (!hasSasToken && !hasKey) {
             throw new SettingsException("Neither a secret key nor a shared access token was set.");
         }
         if (hasSasToken && hasKey) {
@@ -204,7 +204,7 @@ final class AzureStorageSettings {
         for (final String clientName : ACCOUNT_SETTING.getNamespaces(settings)) {
             storageSettings.put(clientName, getClientSettings(settings, clientName));
         }
-        if (false == storageSettings.containsKey("default") && false == storageSettings.isEmpty()) {
+        if (!storageSettings.containsKey("default") && !storageSettings.isEmpty()) {
             // in case no setting named "default" has been set, let's define our "default"
             // as the first named config we get
             final AzureStorageSettings defaultSettings = storageSettings.values().iterator().next();

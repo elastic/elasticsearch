@@ -87,7 +87,7 @@ public class GeometryValidatorTests extends ESTestCase {
 
         @Override
         protected void checkAltitude(double zValue) {
-            if (Double.isNaN(zValue) == false && (zValue < MIN_ALT_INCL || zValue > MAX_ALT_INCL)) {
+            if (!Double.isNaN(zValue) && (zValue < MIN_ALT_INCL || zValue > MAX_ALT_INCL)) {
                 throw new IllegalArgumentException(
                     "invalid altitude " + zValue + "; must be between " + MIN_ALT_INCL + " and " + MAX_ALT_INCL);
             }

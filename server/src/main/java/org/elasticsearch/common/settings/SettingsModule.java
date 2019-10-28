@@ -107,7 +107,7 @@ public class SettingsModule implements Module {
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
         this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders);
         Settings indexSettings = settings.filter((s) -> s.startsWith("index.") && clusterSettings.get(s) == null);
-        if (indexSettings.isEmpty() == false) {
+        if (!indexSettings.isEmpty()) {
             try {
                 String separator = IntStream.range(0, 85).mapToObj(s -> "*").collect(Collectors.joining("")).trim();
                 StringBuilder builder = new StringBuilder();
@@ -175,11 +175,11 @@ public class SettingsModule implements Module {
      * the setting during startup.
      */
     private void registerSetting(Setting<?> setting) {
-        if (setting.getKey().contains(".") == false) {
+        if (!setting.getKey().contains(".")) {
             throw new IllegalArgumentException("setting [" + setting.getKey() + "] is not in any namespace, its name must contain a dot");
         }
         if (setting.isFiltered()) {
-            if (settingsFilterPattern.contains(setting.getKey()) == false) {
+            if (!settingsFilterPattern.contains(setting.getKey())) {
                 registerSettingsFilter(setting.getKey());
             }
         }
@@ -224,7 +224,7 @@ public class SettingsModule implements Module {
      * or if a setting is for internal purposes only. The given pattern must either be a valid settings key or a simple regexp pattern.
      */
     private void registerSettingsFilter(String filter) {
-        if (SettingsFilter.isValidPattern(filter) == false) {
+        if (!SettingsFilter.isValidPattern(filter)) {
             throw new IllegalArgumentException("filter [" + filter +"] is invalid must be either a key or a regex pattern");
         }
         if (settingsFilterPattern.contains(filter)) {

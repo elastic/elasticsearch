@@ -590,8 +590,8 @@ public class MetaDataTests extends ESTestCase {
                     new String[]{"index1", "index2", "index3"},
                     index -> {
                         if (index.equals("index1")) {
-                            return field -> field.startsWith("name.") == false && field.startsWith("properties.key.") == false
-                                    && field.equals("age") == false && field.equals("address.location") == false;
+                            return field -> !field.startsWith("name.") && !field.startsWith("properties.key.")
+                                    && !field.equals("age") && !field.equals("address.location");
                         }
                         if (index.equals("index2")) {
                             return field -> false;

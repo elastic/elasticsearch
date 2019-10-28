@@ -135,7 +135,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             batsTests.forEach((desc, task) -> {
                 configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
                     t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
-                    t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                    t.onlyIf(spec -> !isWindows(vmProject)); // bats doesn't run on windows
                     t.dependsOn(copyDistributionsTask);
                 });
             });
@@ -160,7 +160,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         // was not passed in, so randomly choose one from bwc versions
         ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
 
-        if ((boolean) extraProperties.get("bwc_tests_enabled") == false) {
+        if (!((boolean) extraProperties.get("bwc_tests_enabled"))) {
             // Upgrade tests will go from current to current when the BWC tests are disabled to skip real BWC tests
             return Version.fromString(project.getVersion().toString());
         }
@@ -331,8 +331,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     // We should never add a Docker distro with bundledJdk == false
-                    boolean skip = type == Type.DOCKER && bundledJdk == false;
-                    if (skip == false) {
+                    boolean skip = type == Type.DOCKER && !bundledJdk;
+                    if (!skip) {
                         addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
                     }
                 }

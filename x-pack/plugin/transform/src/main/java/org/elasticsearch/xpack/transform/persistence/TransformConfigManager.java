@@ -178,7 +178,7 @@ public class TransformConfigManager {
 
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
             response -> {
-                if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                if (!(response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty())) {
                     Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
                     listener.onFailure(
                         new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));
@@ -206,7 +206,7 @@ public class TransformConfigManager {
 
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
             response -> {
-                if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                if (!(response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty())) {
                     Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
                     listener.onFailure(
                         new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));
@@ -538,7 +538,7 @@ public class TransformConfigManager {
                         String previousId = null;
                         for (SearchHit hit : searchResponse.getHits().getHits()) {
                             // skip old versions
-                            if (hit.getId().equals(previousId) == false) {
+                            if (!hit.getId().equals(previousId)) {
                                 previousId = hit.getId();
                                 BytesReference source = hit.getSourceRef();
                                 try (InputStream stream = source.streamInput();
@@ -585,7 +585,7 @@ public class TransformConfigManager {
     private QueryBuilder buildQueryFromTokenizedIds(String[] idTokens, String resourceName) {
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), resourceName));
-        if (Strings.isAllOrWildcard(idTokens) == false) {
+        if (!Strings.isAllOrWildcard(idTokens)) {
             List<String> terms = new ArrayList<>();
             BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
             for (String token : idTokens) {
@@ -595,11 +595,11 @@ public class TransformConfigManager {
                     terms.add(token);
                 }
             }
-            if (terms.isEmpty() == false) {
+            if (!terms.isEmpty()) {
                 shouldQueries.should(QueryBuilders.termsQuery(TransformField.ID.getPreferredName(), terms));
             }
 
-            if (shouldQueries.should().isEmpty() == false) {
+            if (!shouldQueries.should().isEmpty()) {
                 queryBuilder.filter(shouldQueries);
             }
         }

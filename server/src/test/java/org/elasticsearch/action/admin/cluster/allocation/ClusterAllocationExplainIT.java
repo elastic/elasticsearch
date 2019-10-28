@@ -352,7 +352,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                     assertEquals(Decision.Type.NO, d.type());
                     assertThat(d.getExplanation(), startsWith(
                         "the shard cannot be allocated to the same node on which a copy of the shard already exists"));
-                } else if (d.label().equals("filter") && nodeHoldingPrimary == false) {
+                } else if (d.label().equals("filter") && !nodeHoldingPrimary) {
                     assertEquals(Decision.Type.NO, d.type());
                     assertEquals("node does not match index setting [index.routing.allocation.include] " +
                                      "filters [_name:\"" + primaryNodeName + "\"]", d.getExplanation());
@@ -1355,7 +1355,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 assertEquals(Token.END_OBJECT, parser.nextToken());
                 parser.nextToken();
             }
-            if (reuseStore == false) {
+            if (!reuseStore) {
                 assertEquals("weight_ranking", parser.currentName());
                 parser.nextToken();
                 assertThat(parser.intValue(), greaterThan(0));

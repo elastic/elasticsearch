@@ -108,7 +108,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             // during the cluster state publishing guarantees that we have enough
             newState = becomeMasterAndTrimConflictingNodes(currentState, joiningNodes);
             nodesChanged = true;
-        } else if (currentNodes.isLocalNodeElectedMaster() == false) {
+        } else if (!currentNodes.isLocalNodeElectedMaster()) {
             logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
             throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not master for join request");
         } else {
@@ -122,7 +122,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
         Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
         // we only enforce major version transitions on a fully formed clusters
-        final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
+        final boolean enforceMajorVersion = !currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
         // processing any joins
         for (final Task joinTask : joiningNodes) {
             if (joinTask.isBecomeMasterTask() || joinTask.isFinishElectionTask()) {
@@ -175,12 +175,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             } else {
                 final DiscoveryNode joiningNode = joinTask.node();
                 final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
-                if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
+                if (nodeWithSameId != null && !nodeWithSameId.equals(joiningNode)) {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
                     nodesBuilder.remove(nodeWithSameId.getId());
                 }
                 final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
-                if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
+                if (nodeWithSameAddress != null && !nodeWithSameAddress.equals(joiningNode)) {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameAddress,
                         joiningNode);
                     nodesBuilder.remove(nodeWithSameAddress.getId());
@@ -252,11 +252,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     /** ensures that the joining node has a version that's compatible with a given version range */
     public static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
         assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + " > " + maxClusterNodeVersion;
-        if (joiningNodeVersion.isCompatible(maxClusterNodeVersion) == false) {
+        if (!joiningNodeVersion.isCompatible(maxClusterNodeVersion)) {
             throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
                 "The cluster contains nodes with version [" + maxClusterNodeVersion + "], which is incompatible.");
         }
-        if (joiningNodeVersion.isCompatible(minClusterNodeVersion) == false) {
+        if (!joiningNodeVersion.isCompatible(minClusterNodeVersion)) {
             throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported." +
                 "The cluster contains nodes with version [" + minClusterNodeVersion + "], which is incompatible.");
         }

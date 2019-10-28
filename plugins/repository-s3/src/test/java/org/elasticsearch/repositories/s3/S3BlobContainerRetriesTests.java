@@ -374,7 +374,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             }
 
             // sends an error back or let the request time out
-            if (useTimeout == false) {
+            if (!useTimeout) {
                 if (randomBoolean() && contentLength > 0) {
                     Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
                 } else {

@@ -154,7 +154,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
         final Map<String, Object> resources = XContentHelper.convertToMap(xContent, response.getEntity().getContent(), false);
 
         // if it's empty, then there's no version in the response thanks to filter_path
-        if (resources.isEmpty() == false) {
+        if (!resources.isEmpty()) {
             @SuppressWarnings("unchecked")
             final Map<String, Object> metadata = (Map<String, Object>) resources.get("metadata");
             @SuppressWarnings("unchecked")

@@ -65,7 +65,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         new Modifier("doc_values", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setHasDocValues(ft.hasDocValues() == false);
+                ft.setHasDocValues(!ft.hasDocValues());
             }
         },
         new Modifier("analyzer", false) {
@@ -157,7 +157,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         new Modifier("eager_global_ordinals", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setEagerGlobalOrdinals(ft.eagerGlobalOrdinals() == false);
+                ft.setEagerGlobalOrdinals(!ft.eagerGlobalOrdinals());
             }
         },
         new Modifier("null_value", true) {
@@ -194,7 +194,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     // TODO: remove this once toString is no longer final on FieldType...
     protected void assertFieldTypeEquals(String property, MappedFieldType ft1, MappedFieldType ft2) {
-        if (ft1.equals(ft2) == false) {
+        if (!ft1.equals(ft2)) {
             fail("Expected equality, testing property " + property + "\nexpected: " + toString(ft1) + "; \nactual:   " + toString(ft2)
                 + "\n");
         }

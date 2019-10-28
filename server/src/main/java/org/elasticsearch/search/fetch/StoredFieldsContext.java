@@ -92,7 +92,7 @@ public class StoredFieldsContext implements Writeable {
      * Adds the field names {@code fieldNames} to the list of fields to load.
      */
     public StoredFieldsContext addFieldNames(List<String> fieldNames) {
-        if (fetchFields == false || fieldNames.contains(_NONE_)) {
+        if (!fetchFields || fieldNames.contains(_NONE_)) {
             throw new IllegalArgumentException("cannot combine _none_ with other fields");
         }
         this.fieldNames.addAll(fieldNames);
@@ -103,7 +103,7 @@ public class StoredFieldsContext implements Writeable {
      * Adds a field name {@code field} to the list of fields to load.
      */
     public StoredFieldsContext addFieldName(String field) {
-        if (fetchFields == false || _NONE_.equals(field)) {
+        if (!fetchFields || _NONE_.equals(field)) {
             throw new IllegalArgumentException("cannot combine _none_ with other fields");
         }
         this.fieldNames.add(field);
@@ -137,7 +137,7 @@ public class StoredFieldsContext implements Writeable {
     }
 
     public void toXContent(String preferredName, XContentBuilder builder) throws IOException {
-        if (fetchFields == false) {
+        if (!fetchFields) {
             builder.field(preferredName, _NONE_);
         }
         if (fieldNames != null) {

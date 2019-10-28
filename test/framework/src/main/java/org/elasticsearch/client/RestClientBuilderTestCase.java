@@ -41,7 +41,7 @@ public abstract class RestClientBuilderTestCase extends ESTestCase {
             }
             assertEquals(expectedValue, header.getValue());
         }
-        if (expectedHeaders.isEmpty() == false) {
+        if (!expectedHeaders.isEmpty()) {
             fail("Missing expected headers in rest client: " + Strings.join(expectedHeaders.keySet(), ", "));
         }
     }

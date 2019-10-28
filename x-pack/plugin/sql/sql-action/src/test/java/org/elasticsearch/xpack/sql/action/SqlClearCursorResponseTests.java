@@ -23,7 +23,7 @@ public class SqlClearCursorResponseTests extends AbstractSerializingTestCase<Sql
 
     @Override
     protected SqlClearCursorResponse mutateInstance(SqlClearCursorResponse instance) {
-        return new SqlClearCursorResponse(instance.isSucceeded() == false);
+        return new SqlClearCursorResponse(!instance.isSucceeded());
     }
 
     @Override

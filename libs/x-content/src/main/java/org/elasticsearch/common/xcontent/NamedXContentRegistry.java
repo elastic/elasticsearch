@@ -132,7 +132,7 @@ public class NamedXContentRegistry {
             throw new NamedObjectNotFoundException(parser.getTokenLocation(), "unable to parse " + categoryClass.getSimpleName() +
                 " with name [" + name + "]: parser not found");
         }
-        if (false == entry.name.match(name, parser.getDeprecationHandler())) {
+        if (!entry.name.match(name, parser.getDeprecationHandler())) {
             /* Note that this shouldn't happen because we already looked up the entry using the names but we need to call `match` anyway
              * because it is responsible for logging deprecation warnings. */
             throw new NamedObjectNotFoundException(parser.getTokenLocation(),

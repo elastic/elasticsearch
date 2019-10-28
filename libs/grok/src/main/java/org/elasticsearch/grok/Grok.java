@@ -119,7 +119,7 @@ public final class Grok {
                 message = "circular reference in pattern [" + path.remove(path.size() - 1) + "][" + pattern +
                     "] back to pattern [" + patternName + "]";
                 // add rest of the path:
-                if (path.isEmpty() == false) {
+                if (!path.isEmpty()) {
                     message += " via patterns [" + String.join("=>", path) + "]";
                 }
             }

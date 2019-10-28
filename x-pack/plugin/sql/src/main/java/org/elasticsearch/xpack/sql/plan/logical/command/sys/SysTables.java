@@ -89,7 +89,7 @@ public class SysTables extends Command {
                 return;
             }
         }
-        
+
         boolean includeFrozen = session.configuration().includeFrozen();
 
         // enumerate types
@@ -135,7 +135,7 @@ public class SysTables extends Command {
         if (tableTypes == null) {
             tableTypes = includeFrozen ? IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
         } else {
-            if (includeFrozen && tableTypes.contains(IndexType.FROZEN_INDEX) == false) {
+            if (includeFrozen && !tableTypes.contains(IndexType.FROZEN_INDEX)) {
                 tableTypes.add(IndexType.FROZEN_INDEX);
             }
         }

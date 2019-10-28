@@ -97,7 +97,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     public void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
                                             String deprecationMessage, DeprecationLogger logger) {
-        assert (handler instanceof DeprecationRestHandler) == false;
+        assert !(handler instanceof DeprecationRestHandler);
 
         registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, logger));
     }
@@ -226,12 +226,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
         // Get the map of matching handlers for a request, for the full set of HTTP methods.
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
-        if (validMethodSet.contains(method) == false) {
+        if (!validMethodSet.contains(method)) {
             if (method == RestRequest.Method.OPTIONS) {
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
-            if (validMethodSet.isEmpty() == false) {
+            if (!validMethodSet.isEmpty()) {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
@@ -263,7 +263,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
+        if (request.paramAsBoolean("error_trace", false) && !channel.detailedErrorsEnabled()) {
             channel.sendResponse(
                     BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
             return;
@@ -343,11 +343,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 msg.append(exception.getMessage());
             }
-            if (validMethodSet.isEmpty() == false) {
+            if (!validMethodSet.isEmpty()) {
                 msg.append(", allowed: ").append(validMethodSet);
             }
             BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(channel, METHOD_NOT_ALLOWED, msg.toString());
-            if (validMethodSet.isEmpty() == false) {
+            if (!validMethodSet.isEmpty()) {
                 bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
             }
             channel.sendResponse(bytesRestResponse);
@@ -368,7 +368,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         BytesRestResponse bytesRestResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
         // When we have an OPTIONS HTTP request and no valid handlers, simply send OK by default (with the Access Control Origin header
         // which gets automatically added).
-        if (validMethodSet.isEmpty() == false) {
+        if (!validMethodSet.isEmpty()) {
             bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
         }
         channel.sendResponse(bytesRestResponse);
@@ -482,7 +482,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         private void close() {
             // attempt to close once atomically
-            if (closed.compareAndSet(false, true) == false) {
+            if (!closed.compareAndSet(false, true)) {
                 throw new IllegalStateException("Channel is already closed");
             }
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);

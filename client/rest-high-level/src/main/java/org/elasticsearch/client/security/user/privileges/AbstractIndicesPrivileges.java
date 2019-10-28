@@ -153,7 +153,7 @@ public abstract class AbstractIndicesPrivileges {
         }
 
         private boolean hasDeniedFields() {
-            return deniedFields != null && false == deniedFields.isEmpty();
+            return deniedFields != null && !deniedFields.isEmpty();
         }
 
         private boolean limitsGrantedFields() {

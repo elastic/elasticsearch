@@ -72,7 +72,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         } catch (IllegalStateException e) {
             ctx.channel().close();
         } finally {
-            if (success == false) {
+            if (!success) {
                 promise.setFailure(new ClosedChannelException());
             }
         }
@@ -82,7 +82,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
         List<Tuple<Netty4HttpResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
 
-        if (inflightResponses.isEmpty() == false) {
+        if (!inflightResponses.isEmpty()) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
             for (Tuple<Netty4HttpResponse, ChannelPromise> inflightResponse : inflightResponses) {
                 try {

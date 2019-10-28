@@ -434,7 +434,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         boolean isWatchesTemplateAdded = randomBoolean();
         if (isWatchesTemplateAdded) {
             // ensure not all templates are added, otherwise life cycle service would start
-            if ((isHistoryTemplateAdded || isTriggeredTemplateAdded) == false) {
+            if (!(isHistoryTemplateAdded || isTriggeredTemplateAdded)) {
                 metaDataBuilder.put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()));
             }
         }

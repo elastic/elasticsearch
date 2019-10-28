@@ -110,7 +110,7 @@ public final class NodesResponseHeader {
      * @return {@code true} if {@link #failures} contains at least 1 exception.
      */
     public boolean hasFailures() {
-        return failures.isEmpty() == false;
+        return !failures.isEmpty();
     }
 
     @Override

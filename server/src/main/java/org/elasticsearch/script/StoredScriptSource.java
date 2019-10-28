@@ -389,7 +389,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         builder.startObject();
         builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
         builder.field(SOURCE_PARSE_FIELD.getPreferredName(), source);
-        if (options.isEmpty() == false) {
+        if (!options.isEmpty()) {
             builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
         }
         builder.endObject();

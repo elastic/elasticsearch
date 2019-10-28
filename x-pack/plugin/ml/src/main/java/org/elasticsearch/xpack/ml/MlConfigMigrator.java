@@ -138,7 +138,7 @@ public class MlConfigMigrator {
      * @param listener     The success listener
      */
     public void migrateConfigs(ClusterState clusterState, ActionListener<Boolean> listener) {
-        if (migrationInProgress.compareAndSet(false, true) == false) {
+        if (!migrationInProgress.compareAndSet(false, true)) {
             listener.onResponse(Boolean.FALSE);
             return;
         }
@@ -160,7 +160,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+        if (!clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName())) {
             createConfigIndex(ActionListener.wrap(
                     response -> {
                         unMarkMigrationInProgress.onResponse(Boolean.FALSE);
@@ -170,7 +170,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        if (migrationEligibilityCheck.canStartMigration(clusterState) == false) {
+        if (!migrationEligibilityCheck.canStartMigration(clusterState)) {
             unMarkMigrationInProgress.onResponse(Boolean.FALSE);
             return;
         }
@@ -265,10 +265,10 @@ public class MlConfigMigrator {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (removedConfigs.get() != null) {
-                    if (removedConfigs.get().removedJobIds.isEmpty() == false) {
+                    if (!removedConfigs.get().removedJobIds.isEmpty()) {
                         logger.info("ml job configurations migrated: {}", removedConfigs.get().removedJobIds);
                     }
-                    if (removedConfigs.get().removedDatafeedIds.isEmpty() == false) {
+                    if (!removedConfigs.get().removedDatafeedIds.isEmpty()) {
                         logger.info("ml datafeed configurations migrated: {}", removedConfigs.get().removedDatafeedIds);
                     }
                 }
@@ -533,7 +533,7 @@ public class MlConfigMigrator {
      */
     public static List<Job> nonDeletingJobs(List<Job> jobs) {
         return jobs.stream()
-                .filter(job -> job.isDeleting() == false)
+                .filter(job -> !job.isDeleting())
                 .collect(Collectors.toList());
     }
 
@@ -553,7 +553,7 @@ public class MlConfigMigrator {
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getJobs().values().stream()
-                .filter(job -> openJobIds.contains(job.getId()) == false)
+                .filter(job -> !openJobIds.contains(job.getId()))
                 .collect(Collectors.toList());
     }
 
@@ -573,7 +573,7 @@ public class MlConfigMigrator {
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getDatafeeds().values().stream()
-                .filter(datafeedConfig-> startedDatafeedIds.contains(datafeedConfig.getId()) == false)
+                .filter(datafeedConfig-> !startedDatafeedIds.contains(datafeedConfig.getId()))
                 .collect(Collectors.toList());
     }
 
@@ -598,7 +598,7 @@ public class MlConfigMigrator {
             .collect(Collectors.toMap(Job::getId, Function.identity(), (a, b) -> a));
 
         List<JobsAndDatafeeds> batches = new ArrayList<>();
-        while (stoppedDatafeeds.isEmpty() == false || eligibleJobs.isEmpty() == false) {
+        while (!stoppedDatafeeds.isEmpty() || !eligibleJobs.isEmpty()) {
             JobsAndDatafeeds batch = limitWrites(stoppedDatafeeds, eligibleJobs);
             batches.add(batch);
             stoppedDatafeeds.removeAll(batch.datafeedConfigs);
@@ -677,13 +677,13 @@ public class MlConfigMigrator {
 
     static List<Job> filterFailedJobConfigWrites(Set<String> failedDocumentIds, List<Job> jobs) {
         return jobs.stream()
-                .filter(job -> failedDocumentIds.contains(Job.documentId(job.getId())) == false)
+                .filter(job -> !failedDocumentIds.contains(Job.documentId(job.getId())))
                 .collect(Collectors.toList());
     }
 
     static List<DatafeedConfig> filterFailedDatafeedConfigWrites(Set<String> failedDocumentIds, Collection<DatafeedConfig> datafeeds) {
         return datafeeds.stream()
-                .filter(datafeed -> failedDocumentIds.contains(DatafeedConfig.documentId(datafeed.getId())) == false)
+                .filter(datafeed -> !failedDocumentIds.contains(DatafeedConfig.documentId(datafeed.getId())))
                 .collect(Collectors.toList());
     }
 }

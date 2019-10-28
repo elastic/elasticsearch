@@ -86,7 +86,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
             final List<String> tempDeletes = new ArrayList<>();
             final Map<String, String> tempUpserts = new HashMap<>();
             for (String key : before.keySet()) {
-                if (after.containsKey(key) == false) {
+                if (!after.containsKey(key)) {
                     tempDeletes.add(key);
                 }
             }
@@ -95,7 +95,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
                 String beforePart = before.get(partIter.getKey());
                 if (beforePart == null) {
                     tempUpserts.put(partIter.getKey(), partIter.getValue());
-                } else if (partIter.getValue().equals(beforePart) == false) {
+                } else if (!partIter.getValue().equals(beforePart)) {
                     tempUpserts.put(partIter.getKey(), partIter.getValue());
                 }
             }

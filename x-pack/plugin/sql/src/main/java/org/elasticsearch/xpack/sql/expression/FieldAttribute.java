@@ -36,7 +36,7 @@ public class FieldAttribute extends TypedAttribute {
     public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field) {
         this(source, parent, name, field, null, Nullability.TRUE, null, false);
     }
-    
+
     public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, String qualifier, Nullability nullability,
             ExpressionId id, boolean synthetic) {
         this(source, parent, name, field.getDataType(), field, qualifier, nullability, id, synthetic);
@@ -92,7 +92,7 @@ public class FieldAttribute extends TypedAttribute {
 
     public FieldAttribute exactAttribute() {
         EsField exactField = field.getExactField();
-        if (exactField.equals(field) == false) {
+        if (!exactField.equals(field)) {
             return innerField(exactField);
         }
         return this;

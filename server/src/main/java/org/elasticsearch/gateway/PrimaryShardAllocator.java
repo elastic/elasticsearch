@@ -77,14 +77,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     public AllocateUnassignedDecision makeAllocationDecision(final ShardRouting unassignedShard,
                                                              final RoutingAllocation allocation,
                                                              final Logger logger) {
-        if (isResponsibleFor(unassignedShard) == false) {
+        if (!isResponsibleFor(unassignedShard)) {
             // this allocator is not responsible for allocating this shard
             return AllocateUnassignedDecision.NOT_TAKEN;
         }
 
         final boolean explain = allocation.debugDecision();
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
-        if (shardState.hasData() == false) {
+        if (!shardState.hasData()) {
             allocation.setHasPendingAsyncFetch();
             List<NodeAllocationResult> nodeDecisions = null;
             if (explain) {
@@ -99,7 +99,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
-        assert inSyncAllocationIds.isEmpty() == false;
+        assert !inSyncAllocationIds.isEmpty();
         // use in-sync allocation ids to select nodes
         final NodeShardsResult nodeShardsResult = buildNodeShardsResult(unassignedShard, snapshotRestore,
             allocation.getIgnoreNodes(unassignedShard.shardId()), inSyncAllocationIds, shardState, logger);
@@ -107,7 +107,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         logger.debug("[{}][{}]: found {} allocation candidates of {} based on allocation ids: [{}]", unassignedShard.index(),
             unassignedShard.id(), nodeShardsResult.orderedAllocationCandidates.size(), unassignedShard, inSyncAllocationIds);
 
-        if (enoughAllocationsFound == false) {
+        if (!enoughAllocationsFound) {
             if (snapshotRestore) {
                 // let BalancedShardsAllocator take care of allocating this shard
                 logger.debug("[{}][{}]: missing local data, will restore from [{}]",
@@ -130,7 +130,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         DiscoveryNode node = null;
         String allocationId = null;
         boolean throttled = false;
-        if (nodesToAllocate.yesNodeShards.isEmpty() == false) {
+        if (!nodesToAllocate.yesNodeShards.isEmpty()) {
             DecidedNode decidedNode = nodesToAllocate.yesNodeShards.get(0);
             logger.debug("[{}][{}]: allocating [{}] to [{}] on primary allocation",
                          unassignedShard.index(), unassignedShard.id(), unassignedShard, decidedNode.nodeShardState.getNode());
@@ -140,14 +140,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             // The deciders returned a NO decision for all nodes with shard copies, so we check if primary shard
             // can be force-allocated to one of the nodes.
             nodesToAllocate = buildNodesToAllocate(allocation, nodeShardsResult.orderedAllocationCandidates, unassignedShard, true);
-            if (nodesToAllocate.yesNodeShards.isEmpty() == false) {
+            if (!nodesToAllocate.yesNodeShards.isEmpty()) {
                 final DecidedNode decidedNode = nodesToAllocate.yesNodeShards.get(0);
                 final NodeGatewayStartedShards nodeShardState = decidedNode.nodeShardState;
                 logger.debug("[{}][{}]: allocating [{}] to [{}] on forced primary allocation",
                              unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeShardState.getNode());
                 node = nodeShardState.getNode();
                 allocationId = nodeShardState.allocationId();
-            } else if (nodesToAllocate.throttleNodeShards.isEmpty() == false) {
+            } else if (!nodesToAllocate.throttleNodeShards.isEmpty()) {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on forced primary allocation",
                              unassignedShard.index(), unassignedShard.id(), unassignedShard, nodesToAllocate.throttleNodeShards);
                 throttled = true;
@@ -197,7 +197,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                                                                        dnode.decision);
                                 }).collect(Collectors.toList()));
             ineligibleShards = fetchedShardData.getData().values().stream().filter(shardData ->
-                discoNodes.contains(shardData.getNode()) == false
+                !discoNodes.contains(shardData.getNode())
             ).collect(Collectors.toList());
         } else {
             // there were no shard copies that were eligible for being assigned the allocation,

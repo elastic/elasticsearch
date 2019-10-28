@@ -61,7 +61,7 @@ public class JobRenormalizedResultsPersister {
     }
 
     private void updateBucketInfluencersStandalone(String indexName, List<BucketInfluencer> bucketInfluencers) {
-        if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
+        if (bucketInfluencers != null && !bucketInfluencers.isEmpty()) {
             for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                 updateResult(bucketInfluencer.getId(), indexName, bucketInfluencer);
             }

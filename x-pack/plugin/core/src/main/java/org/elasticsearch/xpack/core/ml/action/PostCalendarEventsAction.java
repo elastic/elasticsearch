@@ -51,7 +51,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
             List<ScheduledEvent.Builder> events = PARSER.apply(parser, null);
 
             for (ScheduledEvent.Builder event : events) {
-                if (event.getCalendarId() != null && event.getCalendarId().equals(calendarId) == false) {
+                if (event.getCalendarId() != null && !event.getCalendarId().equals(calendarId)) {
                     throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INCONSISTENT_ID,
                             Calendar.ID.getPreferredName(), event.getCalendarId(), calendarId));
                 }

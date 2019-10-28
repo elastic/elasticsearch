@@ -32,7 +32,7 @@ public class RestPutLicenseAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.hasContent() == false) {
+        if (!request.hasContent()) {
             throw new IllegalArgumentException("The license must be provided in the request body");
         }
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();

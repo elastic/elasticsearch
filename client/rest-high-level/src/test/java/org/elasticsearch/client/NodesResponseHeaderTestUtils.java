@@ -32,7 +32,7 @@ public class NodesResponseHeaderTestUtils {
         builder.field("successful", header.getSuccessful());
         builder.field("failed", header.getFailed());
 
-        if (header.getFailures().isEmpty() == false) {
+        if (!header.getFailures().isEmpty()) {
             builder.startArray("failures");
             for (ElasticsearchException failure : header.getFailures()) {
                 builder.startObject();

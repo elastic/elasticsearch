@@ -55,8 +55,8 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
-            if (options.has(forceOption) == false &&
-                terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
+            if (!options.has(forceOption) &&
+                !terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false)) {
                 terminal.println("Exiting without creating keystore.");
                 return;
             }
@@ -72,8 +72,8 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Missing setting name");
         }
         String setting = argumentValues.get(0);
-        if (keystore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
-            if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
+        if (keystore.getSettingNames().contains(setting) && !options.has(forceOption)) {
+            if (!terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false)) {
                 terminal.println("Exiting without modifying keystore.");
                 return;
             }
@@ -83,7 +83,7 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Missing file name");
         }
         Path file = getPath(argumentValues.get(1));
-        if (Files.exists(file) == false) {
+        if (!Files.exists(file)) {
             throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
         }
         if (argumentValues.size() > 2) {

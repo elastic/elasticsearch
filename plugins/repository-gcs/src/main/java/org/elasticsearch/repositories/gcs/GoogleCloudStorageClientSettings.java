@@ -150,7 +150,7 @@ public class GoogleCloudStorageClientSettings {
         for (final String clientName: settings.getGroups(PREFIX).keySet()) {
             clients.put(clientName, getClientSettings(settings, clientName));
         }
-        if (clients.containsKey("default") == false) {
+        if (!clients.containsKey("default")) {
             // this won't find any settings under the default client,
             // but it will pull all the fallback static settings
             clients.put("default", getClientSettings(settings, "default"));
@@ -184,7 +184,7 @@ public class GoogleCloudStorageClientSettings {
      */
     static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName) {
         try {
-            if (CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).exists(settings) == false) {
+            if (!CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).exists(settings)) {
                 // explicitly returning null here so that the default credential
                 // can be loaded later when creating the Storage client
                 return null;

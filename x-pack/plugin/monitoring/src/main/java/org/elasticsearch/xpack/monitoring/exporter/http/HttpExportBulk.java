@@ -74,7 +74,7 @@ class HttpExportBulk extends ExportBulk {
     @Override
     public void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
         try {
-            if (docs != null && docs.isEmpty() == false) {
+            if (docs != null && !docs.isEmpty()) {
                 try (BytesStreamOutput payload = new BytesStreamOutput()) {
                     for (MonitoringDoc monitoringDoc : docs) {
                         // any failure caused by an individual doc will be written as an empty byte[], thus not impacting the rest

@@ -56,9 +56,9 @@ public final class CorruptionUtils {
                     final String name = p.getFileName().toString();
                     boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
                         return Files.isRegularFile(p)
-                            && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
-                            && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
-                            && (corruptSegments ? segmentFile : segmentFile == false);
+                            && !name.startsWith("extra") // Skip files added by Lucene's ExtrasFS
+                            && !IndexWriter.WRITE_LOCK_NAME.equals(name)
+                            && (corruptSegments ? segmentFile : !segmentFile);
                     }
                 )
                 .toArray(Path[]::new);

@@ -57,7 +57,7 @@ public class GetIndexTemplatesRequest implements Validatable {
      */
     public GetIndexTemplatesRequest(List<String> names) {
         Objects.requireNonNull(names);
-        if (names.stream().anyMatch(name -> name == null || Strings.hasText(name) == false)) {
+        if (names.stream().anyMatch(name -> name == null || !Strings.hasText(name))) {
             throw new IllegalArgumentException("all index template names must be non null and non empty");
         }
         this.names = unmodifiableList(names);

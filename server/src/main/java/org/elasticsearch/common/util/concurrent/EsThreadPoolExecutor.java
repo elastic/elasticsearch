@@ -113,7 +113,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
             // sometimes we execute on a closed context and isDefaultContext doen't bypass the ensureOpen checks
             // this must not trigger an exception here since we only assert if the default is restored and
             // we don't really care if we are closed
-            if (contextHolder.isClosed() == false) {
+            if (!contextHolder.isClosed()) {
                 throw ex;
             }
         }

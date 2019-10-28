@@ -101,7 +101,7 @@ public class RecoveryTargetTests extends ESTestCase {
         @Override
         public void run() {
             try {
-                while (shouldStop.get() == false) {
+                while (!shouldStop.get()) {
                     serializeDeserialize();
                 }
                 serializeDeserialize();
@@ -246,7 +246,7 @@ public class RecoveryTargetTests extends ESTestCase {
 
         long bytesToRecover = totalFileBytes - totalReusedBytes;
         boolean completeRecovery = bytesToRecover == 0 || randomBoolean();
-        if (completeRecovery == false) {
+        if (!completeRecovery) {
             bytesToRecover = randomIntBetween(1, (int) bytesToRecover);
             logger.info("performing partial recovery ([{}] bytes of [{}])", bytesToRecover, totalFileBytes - totalReusedBytes);
         }

@@ -46,19 +46,19 @@ public class MlConfigMigrationEligibilityCheck {
      * @return A boolean that dictates if config migration can start
      */
     public boolean canStartMigration(ClusterState clusterState) {
-        if (isConfigMigrationEnabled == false) {
+        if (!isConfigMigrationEnabled) {
             return false;
         }
         return mlConfigIndexIsAllocated(clusterState);
     }
 
     static boolean mlConfigIndexIsAllocated(ClusterState clusterState) {
-        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+        if (!clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName())) {
             return false;
         }
 
         IndexRoutingTable routingTable = clusterState.getRoutingTable().index(AnomalyDetectorsIndex.configIndexName());
-        if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+        if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
             return false;
         }
         return true;
@@ -79,7 +79,7 @@ public class MlConfigMigrationEligibilityCheck {
      * @return A boolean depending on the conditions listed above
      */
     public boolean jobIsEligibleForMigration(String jobId, ClusterState clusterState) {
-        if (canStartMigration(clusterState) == false) {
+        if (!canStartMigration(clusterState)) {
             return false;
         }
 
@@ -91,7 +91,7 @@ public class MlConfigMigrationEligibilityCheck {
         }
 
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlTasks.openJobIds(persistentTasks).contains(jobId) == false ||
+        return !MlTasks.openJobIds(persistentTasks).contains(jobId) ||
                 MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
     }
 
@@ -108,17 +108,17 @@ public class MlConfigMigrationEligibilityCheck {
      * @return A boolean depending on the conditions listed above
      */
     public boolean datafeedIsEligibleForMigration(String datafeedId, ClusterState clusterState) {
-        if (canStartMigration(clusterState) == false) {
+        if (!canStartMigration(clusterState)) {
             return false;
         }
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        if (mlMetadata.getDatafeeds().containsKey(datafeedId) == false) {
+        if (!mlMetadata.getDatafeeds().containsKey(datafeedId)) {
             return false;
         }
 
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId) == false
+        return !MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId)
                 || MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
     }
 }

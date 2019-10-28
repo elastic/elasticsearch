@@ -302,7 +302,7 @@ public abstract class Rounding implements Writeable {
             long timeLocal = timeZone.convertUTCToLocal(utcMillis);
             long rounded = roundKey(timeLocal, interval) * interval;
             long roundedUTC;
-            if (isInDSTGap(rounded) == false) {
+            if (!isInDSTGap(rounded)) {
                 roundedUTC = timeZone.convertLocalToUTC(rounded, true, utcMillis);
                 // check if we crossed DST transition, in this case we want the
                 // last rounded value before the transition

@@ -56,8 +56,8 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
         List<SignificantLongTerms.Bucket> buckets = new ArrayList<>(numBuckets);
         Set<Long> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            long term = randomValueOtherThanMany(l -> terms.add(l) == false, random()::nextLong);
-            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(subsetDfs[i], subsetSize, 
+            long term = randomValueOtherThanMany(l -> !terms.add(l), random()::nextLong);
+            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(subsetDfs[i], subsetSize,
                     supersetDfs[i], supersetSize, term, aggs, format);
             bucket.updateScore(significanceHeuristic);
             buckets.add(bucket);

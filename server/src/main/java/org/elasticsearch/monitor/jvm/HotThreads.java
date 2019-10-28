@@ -131,7 +131,7 @@ public class HotThreads {
 
     private String innerDetect() throws Exception {
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
-        if (threadBean.isThreadCpuTimeSupported() == false) {
+        if (!threadBean.isThreadCpuTimeSupported()) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
 

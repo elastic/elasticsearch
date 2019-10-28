@@ -116,7 +116,7 @@ public class Environment {
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         if (DiscoveryNode.nodeRequiresLocalStorage(settings)) {
-            if (dataPaths.isEmpty() == false) {
+            if (!dataPaths.isEmpty()) {
                 dataFiles = new Path[dataPaths.size()];
                 for (int i = 0; i < dataPaths.size(); i++) {
                     dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
@@ -311,10 +311,10 @@ public class Environment {
 
     /** Ensure the configured temp directory is a valid directory */
     public void validateTmpFile() throws IOException {
-        if (Files.exists(tmpFile) == false) {
+        if (!Files.exists(tmpFile)) {
             throw new FileNotFoundException("Temporary file directory [" + tmpFile + "] does not exist or is not accessible");
         }
-        if (Files.isDirectory(tmpFile) == false) {
+        if (!Files.isDirectory(tmpFile)) {
             throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
         }
     }

@@ -94,7 +94,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         // resulting in later executions, as the time would only count after a watch has been stored, as this code is triggered by the
         // watcher indexing listener
         // this also means that updating an existing watch would not retrigger the schedule time, if it remains the same schedule
-        if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
+        if (currentSchedule == null || !currentSchedule.schedule.equals(trigger.getSchedule())) {
             schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
         }
     }
@@ -121,7 +121,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 }
             }
         }
-        if (events.isEmpty() == false) {
+        if (!events.isEmpty()) {
             notifyListeners(events);
         }
     }

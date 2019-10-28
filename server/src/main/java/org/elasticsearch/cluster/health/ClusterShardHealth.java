@@ -195,7 +195,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      */
     public static ClusterHealthStatus getInactivePrimaryHealth(final ShardRouting shardRouting) {
         assert shardRouting.primary() : "cannot invoke on a replica shard: " + shardRouting;
-        assert shardRouting.active() == false : "cannot invoke on an active shard: " + shardRouting;
+        assert !shardRouting.active() : "cannot invoke on an active shard: " + shardRouting;
         assert shardRouting.unassignedInfo() != null : "cannot invoke on a shard with no UnassignedInfo: " + shardRouting;
         assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();

@@ -20,7 +20,7 @@ public final class SecurityField {
     private SecurityField() {}
 
     public static String setting(String setting) {
-        assert setting != null && setting.startsWith(".") == false;
+        assert setting != null && !setting.startsWith(".");
         return settingPrefix() + setting;
     }
 

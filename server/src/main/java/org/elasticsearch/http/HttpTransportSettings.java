@@ -74,7 +74,7 @@ public final class HttpTransportSettings {
     public static final Setting<Boolean> SETTING_HTTP_CONTENT_TYPE_REQUIRED =
         new Setting<>("http.content_type.required", (s) -> Boolean.toString(true), (s) -> {
             final boolean value = Booleans.parseBoolean(s);
-            if (value == false) {
+            if (!value) {
                 throw new IllegalArgumentException("http.content_type.required cannot be set to false. It exists only to make a rolling" +
                     " upgrade easier");
             }

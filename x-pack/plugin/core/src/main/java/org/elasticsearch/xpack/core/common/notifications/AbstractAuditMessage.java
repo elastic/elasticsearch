@@ -118,7 +118,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
         if (obj == null) {
             return false;
         }
-        if (obj instanceof AbstractAuditMessage == false) {
+        if (!(obj instanceof AbstractAuditMessage)) {
             return false;
         }
 

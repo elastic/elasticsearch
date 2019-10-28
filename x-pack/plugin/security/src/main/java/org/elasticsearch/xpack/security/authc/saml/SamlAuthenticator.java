@@ -93,7 +93,7 @@ class SamlAuthenticator extends SamlRequestHandler {
             requireSignedAssertions = true;
         }
 
-        if (Strings.hasText(response.getInResponseTo()) && allowedSamlRequestIds.contains(response.getInResponseTo()) == false) {
+        if (Strings.hasText(response.getInResponseTo()) && !allowedSamlRequestIds.contains(response.getInResponseTo())) {
             logger.debug("The SAML Response with ID [{}] is unsolicited. A user might have used a stale URL or the Identity Provider " +
                     "incorrectly populates the InResponseTo attribute", response.getID());
             throw samlException("SAML content is in-response-to [{}] but expected one of {} ",
@@ -104,7 +104,7 @@ class SamlAuthenticator extends SamlRequestHandler {
         if (status == null || status.getStatusCode() == null) {
             throw samlException("SAML Response has no status code");
         }
-        if (isSuccess(status) == false) {
+        if (!isSuccess(status)) {
             throw samlException("SAML Response is not a 'success' response: {}", getStatusCodeMessage(status));
         }
         checkIssuer(response.getIssuer(), response);
@@ -181,7 +181,7 @@ class SamlAuthenticator extends SamlRequestHandler {
 
     private void checkResponseDestination(Response response) {
         final String asc = getSpConfiguration().getAscUrl();
-        if (asc.equals(response.getDestination()) == false) {
+        if (!asc.equals(response.getDestination())) {
             if (response.isSigned() || Strings.hasText(response.getDestination())) {
                 throw samlException("SAML response " + response.getID() + " is for destination " + response.getDestination()
                     + " but this realm uses " + asc);
@@ -270,17 +270,17 @@ class SamlAuthenticator extends SamlRequestHandler {
         final Instant now = now();
         final Instant pastNow = now.minusMillis(maxSkewInMillis());
         if (authnStatement.getSessionNotOnOrAfter() != null &&
-            pastNow.isBefore(toInstant(authnStatement.getSessionNotOnOrAfter())) == false) {
+            !pastNow.isBefore(toInstant(authnStatement.getSessionNotOnOrAfter()))) {
             throw samlException("Rejecting SAML assertion's Authentication Statement because [{}] is on/after [{}]", pastNow,
                 authnStatement.getSessionNotOnOrAfter());
         }
         List<String> reqAuthnCtxClassRef = this.getSpConfiguration().getReqAuthnCtxClassRef();
-        if (reqAuthnCtxClassRef.isEmpty() == false) {
+        if (!reqAuthnCtxClassRef.isEmpty()) {
             String authnCtxClassRefValue = null;
             if (authnStatement.getAuthnContext() != null && authnStatement.getAuthnContext().getAuthnContextClassRef() != null) {
                 authnCtxClassRefValue = authnStatement.getAuthnContext().getAuthnContextClassRef().getAuthnContextClassRef();
             }
-            if (Strings.isNullOrEmpty(authnCtxClassRefValue) || reqAuthnCtxClassRef.contains(authnCtxClassRefValue) == false) {
+            if (Strings.isNullOrEmpty(authnCtxClassRefValue) || !reqAuthnCtxClassRef.contains(authnCtxClassRefValue)) {
                 throw samlException("Rejecting SAML assertion as the AuthnContextClassRef [{}] is not one of the ({}) that were " +
                     "requested in the corresponding AuthnRequest", authnCtxClassRefValue, reqAuthnCtxClassRef);
             }
@@ -337,7 +337,7 @@ class SamlAuthenticator extends SamlRequestHandler {
 
     private void checkRecipient(SubjectConfirmationData subjectConfirmationData) {
         final SpConfiguration sp = getSpConfiguration();
-        if (sp.getAscUrl().equals(subjectConfirmationData.getRecipient()) == false) {
+        if (!sp.getAscUrl().equals(subjectConfirmationData.getRecipient())) {
             throw samlException("SAML Assertion SubjectConfirmationData Recipient [{}] does not match expected value [{}]",
                     subjectConfirmationData.getRecipient(), sp.getAscUrl());
         }
@@ -346,14 +346,14 @@ class SamlAuthenticator extends SamlRequestHandler {
     private void checkInResponseTo(SubjectConfirmationData subjectConfirmationData, Collection<String> allowedSamlRequestIds) {
         // Allow for IdP initiated SSO where InResponseTo MUST be missing
         if (Strings.hasText(subjectConfirmationData.getInResponseTo())
-                && allowedSamlRequestIds.contains(subjectConfirmationData.getInResponseTo()) == false) {
+                && !allowedSamlRequestIds.contains(subjectConfirmationData.getInResponseTo())) {
             throw samlException("SAML Assertion SubjectConfirmationData is in-response-to [{}] but expected one of [{}]",
                     subjectConfirmationData.getInResponseTo(), allowedSamlRequestIds);
         }
     }
 
     private void checkAudienceRestrictions(List<AudienceRestriction> restrictions) {
-        if (restrictions.stream().allMatch(this::checkAudienceRestriction) == false) {
+        if (!restrictions.stream().allMatch(this::checkAudienceRestriction)) {
             throw samlException("Conditions [{}] do not match required audience [{}]",
                 restrictions.stream().map(r -> text(r, 56, 8)).collect(Collectors.joining(" | ")), getSpConfiguration().getEntityId());
         }
@@ -361,7 +361,7 @@ class SamlAuthenticator extends SamlRequestHandler {
 
     private boolean checkAudienceRestriction(AudienceRestriction restriction) {
         final String spEntityId = this.getSpConfiguration().getEntityId();
-        if (restriction.getAudiences().stream().map(Audience::getAudienceURI).anyMatch(spEntityId::equals) == false) {
+        if (!restriction.getAudiences().stream().map(Audience::getAudienceURI).anyMatch(spEntityId::equals)) {
             restriction.getAudiences().stream().map(Audience::getAudienceURI).forEach(uri -> {
                 int diffChar;
                 for (diffChar = 0; diffChar < uri.length() && diffChar < spEntityId.length(); diffChar++) {
@@ -394,7 +394,7 @@ class SamlAuthenticator extends SamlRequestHandler {
         if (conditions.getNotBefore() != null && futureNow.isBefore(toInstant(conditions.getNotBefore()))) {
             throw samlException("Rejecting SAML assertion because [{}] is before [{}]", futureNow, conditions.getNotBefore());
         }
-        if (conditions.getNotOnOrAfter() != null && pastNow.isBefore(toInstant(conditions.getNotOnOrAfter())) == false) {
+        if (conditions.getNotOnOrAfter() != null && !pastNow.isBefore(toInstant(conditions.getNotOnOrAfter()))) {
             throw samlException("Rejecting SAML assertion because [{}] is on/after [{}]", pastNow, conditions.getNotOnOrAfter());
         }
     }

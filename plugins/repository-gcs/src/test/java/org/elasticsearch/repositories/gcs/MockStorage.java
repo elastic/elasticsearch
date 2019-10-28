@@ -129,7 +129,7 @@ class MockStorage implements Storage {
 
     @Override
     public Blob create(BlobInfo blobInfo, byte[] content, BlobTargetOption... options) {
-        if (bucketName.equals(blobInfo.getBucket()) == false) {
+        if (!bucketName.equals(blobInfo.getBucket())) {
             throw new StorageException(404, "Bucket not found");
         }
         if (Stream.of(options).anyMatch(option -> option.equals(BlobTargetOption.doesNotExist()))) {
@@ -145,7 +145,7 @@ class MockStorage implements Storage {
 
     @Override
     public Page<Blob> list(String bucket, BlobListOption... options) {
-        if (bucketName.equals(bucket) == false) {
+        if (!bucketName.equals(bucket)) {
             throw new StorageException(404, "Bucket not found");
         }
         final Storage storage = this;
@@ -282,7 +282,7 @@ class MockStorage implements Storage {
                 @Override
                 public void close() {
                     IOUtils.closeWhileHandlingException(writableByteChannel);
-                    if (failed == false) {
+                    if (!failed) {
                         if (Stream.of(options).anyMatch(option -> option.equals(BlobWriteOption.doesNotExist()))) {
                             byte[] existingBytes = blobs.putIfAbsent(blobInfo.getName(), output.toByteArray());
                             if (existingBytes != null) {

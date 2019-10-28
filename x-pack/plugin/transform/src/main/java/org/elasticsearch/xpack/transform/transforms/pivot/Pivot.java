@@ -72,7 +72,7 @@ public class Pivot {
 
     public void validateConfig() {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
-            if (Aggregations.isSupportedByTransform(agg.getType()) == false) {
+            if (!Aggregations.isSupportedByTransform(agg.getType())) {
                 throw new ElasticsearchStatusException("Unsupported aggregation type [" + agg.getType() + "]", RestStatus.BAD_REQUEST);
             }
         }
@@ -201,7 +201,7 @@ public class Pivot {
         // else: more than 1 group by, need to nest it
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
         for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            if (entry.getValue().supportsIncrementalBucketUpdate() == false) {
+            if (!entry.getValue().supportsIncrementalBucketUpdate()) {
                 continue;
             }
 

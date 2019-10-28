@@ -88,7 +88,7 @@ public abstract class AbstractLifecycleRunnable extends AbstractRunnable {
      */
     @Override
     public final void onAfter() {
-        if (lifecycle.stoppedOrClosed() == false) {
+        if (!lifecycle.stoppedOrClosed()) {
             onAfterInLifecycle();
         }
     }

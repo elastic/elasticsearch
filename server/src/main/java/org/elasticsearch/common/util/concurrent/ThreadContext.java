@@ -149,7 +149,7 @@ public final class ThreadContext implements Closeable, Writeable {
             try {
                 threadLocal.set(context);
             } catch (IllegalStateException e) {
-                if (isClosed() == false) {
+                if (!isClosed()) {
                     throw e;
                 }
             }
@@ -699,7 +699,7 @@ public final class ThreadContext implements Closeable, Writeable {
                 in.run();
                 whileRunning = false;
             } catch (IllegalStateException ex) {
-                if (whileRunning || threadLocal.closed.get() == false) {
+                if (whileRunning || !threadLocal.closed.get()) {
                     throw ex;
                 }
                 // if we hit an ISE here we have been shutting down
@@ -769,7 +769,7 @@ public final class ThreadContext implements Closeable, Writeable {
                 in.doRun();
                 whileRunning = false;
             } catch (IllegalStateException ex) {
-                if (whileRunning || threadLocal.closed.get() == false) {
+                if (whileRunning || !threadLocal.closed.get()) {
                     throw ex;
                 }
                 // if we hit an ISE here we have been shutting down

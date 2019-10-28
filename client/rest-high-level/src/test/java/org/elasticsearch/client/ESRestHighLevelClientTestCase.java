@@ -86,7 +86,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
      */
     protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
                                        AsyncMethod<Req, Resp> asyncMethod, RequestOptions options) throws IOException {
-        if (async == false) {
+        if (!async) {
             return syncMethod.execute(request, options);
         } else {
             PlainActionFuture<Resp> future = PlainActionFuture.newFuture();
@@ -102,7 +102,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
      */
     protected static <Resp> Resp execute(SyncMethodNoRequest<Resp> syncMethodNoRequest, AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
             RequestOptions requestOptions) throws IOException {
-        if (async == false) {
+        if (!async) {
             return syncMethodNoRequest.execute(requestOptions);
         } else {
             PlainActionFuture<Resp> future = PlainActionFuture.newFuture();

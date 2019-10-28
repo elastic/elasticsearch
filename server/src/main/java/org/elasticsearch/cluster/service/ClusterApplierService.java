@@ -367,7 +367,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     /** asserts that the current thread is <b>NOT</b> the cluster state update thread */
     public static boolean assertNotClusterStateUpdateThread(String reason) {
-        assert Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME) == false :
+        assert !Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME) :
             "Expected current thread [" + Thread.currentThread() + "] to not be the cluster state update thread. Reason: [" + reason + "]";
         return true;
     }
@@ -473,7 +473,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
 
         // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
-        if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
+        if (!clusterChangedEvent.state().blocks().disableStatePersistence() && clusterChangedEvent.metaDataChanged()) {
             logger.debug("applying settings from cluster state with version {}", newClusterState.version());
             final Settings incomingSettings = clusterChangedEvent.state().metaData().settings();
             try (Releasable ignored = stopWatch.timing("applying settings")) {

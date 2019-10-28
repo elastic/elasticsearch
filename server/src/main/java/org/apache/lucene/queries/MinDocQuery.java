@@ -61,7 +61,7 @@ public final class MinDocQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (sameClassAs(obj) == false) {
+        if (!sameClassAs(obj)) {
             return false;
         }
         MinDocQuery that = (MinDocQuery) obj;
@@ -70,7 +70,7 @@ public final class MinDocQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        if (Objects.equals(reader.getContext().id(), readerId) == false) {
+        if (!Objects.equals(reader.getContext().id(), readerId)) {
             return new MinDocQuery(minDoc, reader.getContext().id());
         }
         return this;
@@ -80,7 +80,7 @@ public final class MinDocQuery extends Query {
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         if (readerId == null) {
             throw new IllegalStateException("Rewrite first");
-        } else if (Objects.equals(searcher.getIndexReader().getContext().id(), readerId) == false) {
+        } else if (!Objects.equals(searcher.getIndexReader().getContext().id(), readerId)) {
             throw new IllegalStateException("Executing against a different reader than the query has been rewritten against");
         }
         return new ConstantScoreWeight(this, boost) {

@@ -175,7 +175,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry) {
         this.client = client;
-        if (enabled == false) {
+        if (!enabled) {
             return emptyList();
         }
 
@@ -209,7 +209,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.CCR, CCRUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.CCR, CCRInfoTransportAction.class);
-        if (enabled == false) {
+        if (!enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
 
@@ -251,7 +251,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (enabled == false) {
+        if (!enabled) {
             return emptyList();
         }
 
@@ -330,7 +330,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (enabled == false) {
+        if (!enabled) {
             return Collections.emptyList();
         }
 

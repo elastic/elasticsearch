@@ -35,7 +35,7 @@ public enum Releasables {
             // this does the right thing with respect to add suppressed and not wrapping errors etc.
             IOUtils.close(releasables);
         } catch (IOException e) {
-            if (ignoreException == false) {
+            if (!ignoreException) {
                 throw new UncheckedIOException(e);
             }
         }

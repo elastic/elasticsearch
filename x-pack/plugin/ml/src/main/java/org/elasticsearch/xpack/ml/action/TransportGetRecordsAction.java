@@ -38,7 +38,7 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
         jobManager.jobExists(request.getJobId(), ActionListener.wrap(
                 jobExists -> {
                     RecordsQueryBuilder query = new RecordsQueryBuilder()
-                            .includeInterim(request.isExcludeInterim() == false)
+                            .includeInterim(!request.isExcludeInterim())
                             .epochStart(request.getStart())
                             .epochEnd(request.getEnd())
                             .from(request.getPageParams().getFrom())

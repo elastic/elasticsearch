@@ -266,7 +266,7 @@ public class SyncedFlushService implements IndexEventListener {
             if (existingSyncId == null) {
                 existingSyncId = resp.existingSyncId;
             }
-            if (existingSyncId.equals(resp.existingSyncId) == false) {
+            if (!existingSyncId.equals(resp.existingSyncId)) {
                 return null;
             }
         }
@@ -527,7 +527,7 @@ public class SyncedFlushService implements IndexEventListener {
     private InFlightOpsResponse performInFlightOps(InFlightOpsRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
-        if (indexShard.routingEntry().primary() == false) {
+        if (!indexShard.routingEntry().primary()) {
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
         int opCount = indexShard.getActiveOperationsCount();

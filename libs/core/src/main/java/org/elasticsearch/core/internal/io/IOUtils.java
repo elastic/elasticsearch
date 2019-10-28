@@ -267,7 +267,7 @@ public final class IOUtils {
     public static void fsync(final Path fileToSync, final boolean isDir) throws IOException {
         if (isDir && WINDOWS) {
             // opening a directory on Windows fails, directories can not be fsynced there
-            if (Files.exists(fileToSync) == false) {
+            if (!Files.exists(fileToSync)) {
                 // yet do not suppress trying to fsync directories that do not exist
                 throw new NoSuchFileException(fileToSync.toString());
             }
@@ -278,7 +278,7 @@ public final class IOUtils {
                 file.force(true);
             } catch (final IOException e) {
                 if (isDir) {
-                    assert (LINUX || MAC_OS_X) == false :
+                    assert !(LINUX || MAC_OS_X) :
                             "on Linux and MacOSX fsyncing a directory should not throw IOException, "+
                                     "we just don't want to rely on that in production (undocumented); got: " + e;
                     // ignore exception if it is a directory

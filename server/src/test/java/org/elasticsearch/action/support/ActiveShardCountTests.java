@@ -272,7 +272,7 @@ public class ActiveShardCountTests extends ESTestCase {
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {
-                    if (shardRouting.active() == false) {
+                    if (!shardRouting.active()) {
                         if (numToStart > 0) {
                             shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
                                                .moveToStarted();
@@ -299,7 +299,7 @@ public class ActiveShardCountTests extends ESTestCase {
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {
-                    if (shardRouting.active() == false) {
+                    if (!shardRouting.active()) {
                         shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
                                            .moveToStarted();
                     }

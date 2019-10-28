@@ -102,7 +102,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
             ext.set("compilerJavaHome", compilerJavaHome);
             ext.set("runtimeJavaHome", runtimeJavaHome);
-            ext.set("isRuntimeJavaHomeSet", compilerJavaHome.equals(runtimeJavaHome) == false);
+            ext.set("isRuntimeJavaHomeSet", !compilerJavaHome.equals(runtimeJavaHome));
             ext.set("javaVersions", javaVersions);
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
@@ -193,7 +193,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                             }
                             // Number  of cores not including hyper-threading
                             if (name.equals("cpu cores")) {
-                                assert currentID.isEmpty() == false;
+                                assert !currentID.isEmpty();
                                 socketToCore.put("currentID", Integer.valueOf(value));
                                 currentID = "";
                             }
@@ -241,7 +241,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
              */
             final Path dotGit = rootDir.toPath().resolve(".git");
             final String revision;
-            if (Files.exists(dotGit) == false) {
+            if (!Files.exists(dotGit)) {
                 return "unknown";
             }
             final Path head;

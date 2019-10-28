@@ -35,7 +35,7 @@ public class DeprecatedAnnotationParser implements WhitelistAnnotationParser {
     public Object parse(Map<String, String> arguments) {
         String message = arguments.getOrDefault(MESSAGE, "");
 
-        if ((arguments.isEmpty() || arguments.size() == 1 && arguments.containsKey(MESSAGE)) == false) {
+        if (!(arguments.isEmpty() || arguments.size() == 1 && arguments.containsKey(MESSAGE))) {
             throw new IllegalArgumentException("unexpected parameters for [@deprecation] annotation, found " + arguments);
         }
 

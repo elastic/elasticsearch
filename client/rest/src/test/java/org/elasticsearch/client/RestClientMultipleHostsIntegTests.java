@@ -288,7 +288,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                         fail("expected to fail to connect");
                     } catch (ConnectException e) {
                         // Windows isn't consistent here. Sometimes the message is even null!
-                        if (false == System.getProperty("os.name").startsWith("Windows")) {
+                        if (!System.getProperty("os.name").startsWith("Windows")) {
                             assertEquals("Connection refused", e.getMessage());
                         }
                     }

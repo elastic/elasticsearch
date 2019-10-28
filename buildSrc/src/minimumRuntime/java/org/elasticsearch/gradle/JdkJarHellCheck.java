@@ -43,7 +43,7 @@ public class JdkJarHellCheck {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                 String entry = root.relativize(file).toString().replace('\\', '/');
-                if (entry.endsWith(".class") && entry.endsWith("module-info.class") == false) {
+                if (entry.endsWith(".class") && !entry.endsWith("module-info.class")) {
                     if (ext.getResource(entry) != null) {
                         detected.add(
                             entry
@@ -65,7 +65,7 @@ public class JdkJarHellCheck {
         JdkJarHellCheck checker = new JdkJarHellCheck();
         for (String location : argv) {
             Path path = Paths.get(location);
-            if (Files.exists(path) == false) {
+            if (!Files.exists(path)) {
                 throw new IllegalArgumentException("Path does not exist: " + path);
             }
             checker.scanForJDKJarHell(path);

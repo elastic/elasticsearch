@@ -155,7 +155,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     @Override
     protected boolean assertToXContentEquivalence() {
         // XContentEquivalence fails in the exception case, due to how exceptions are serialized.
-        return testExceptions == false;
+        return !testExceptions;
     }
 
     @Override

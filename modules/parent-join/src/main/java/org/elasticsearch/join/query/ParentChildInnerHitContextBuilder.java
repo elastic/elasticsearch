@@ -77,7 +77,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
             innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
         } else {
-            if (innerHitBuilder.isIgnoreUnmapped() == false) {
+            if (!innerHitBuilder.isIgnoreUnmapped()) {
                 throw new IllegalStateException("no join field has been configured");
             }
         }
@@ -110,7 +110,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
 
                 QueryShardContext qsc = context.getQueryShardContext();
                 ParentIdFieldMapper parentIdFieldMapper =
-                    joinFieldMapper.getParentIdFieldMapper(typeName, fetchChildInnerHits == false);
+                    joinFieldMapper.getParentIdFieldMapper(typeName, !fetchChildInnerHits);
                 if (parentIdFieldMapper == null) {
                     result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                     continue;
@@ -178,7 +178,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(docId, ctxs));
                 SortedDocValues docValues = ctx.reader().getSortedDocValues(field);
                 int segmentDocId = docId - ctx.docBase;
-                if (docValues == null || docValues.advanceExact(segmentDocId) == false) {
+                if (docValues == null || !docValues.advanceExact(segmentDocId)) {
                     return null;
                 }
                 int ord = docValues.ordValue();

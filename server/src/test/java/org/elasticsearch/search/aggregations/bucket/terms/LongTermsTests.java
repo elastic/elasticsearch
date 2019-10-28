@@ -52,7 +52,7 @@ public class LongTermsTests extends InternalTermsTestCase {
         final int numBuckets = randomNumberOfBuckets();
         Set<Long> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            long term = randomValueOtherThanMany(l -> terms.add(l) == false, random()::nextLong);
+            long term = randomValueOtherThanMany(l -> !terms.add(l), random()::nextLong);
             int docCount = randomIntBetween(1, 100);
             buckets.add(new LongTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
         }
@@ -100,7 +100,7 @@ public class LongTermsTests extends InternalTermsTestCase {
                 shardSize += between(1, 100);
                 break;
             case 4:
-                showTermDocCountError = showTermDocCountError == false;
+                showTermDocCountError = !showTermDocCountError;
                 break;
             case 5:
                 otherDocCount += between(1, 100);

@@ -198,7 +198,7 @@ public class IndicesOptions implements ToXContentFragment {
     public boolean allowAliasesToMultipleIndices() {
         // true is default here, for bw comp we keep the first 16 values
         // in the array same as before + the default value for the new flag
-        return options.contains(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES) == false;
+        return !options.contains(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
     }
 
     /**
@@ -255,7 +255,7 @@ public class IndicesOptions implements ToXContentFragment {
         if (expandToClosedIndices) {
             wildcards.add(WildcardStates.CLOSED);
         }
-        if (allowAliasesToMultipleIndices == false) {
+        if (!allowAliasesToMultipleIndices) {
             opts.add(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
         }
         if (forbidClosedIndices) {

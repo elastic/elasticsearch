@@ -25,10 +25,10 @@ public class SpatialFeatureSetUsageTests extends AbstractWireSerializingTestCase
         boolean enabled = instance.enabled();
         switch (between(0, 1)) {
             case 0:
-                available = available == false;
+                available = !available;
                 break;
             case 1:
-                enabled = enabled == false;
+                enabled = !enabled;
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

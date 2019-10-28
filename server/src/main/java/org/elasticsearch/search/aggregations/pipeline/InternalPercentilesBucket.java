@@ -46,7 +46,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
                                      DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
                                      Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
-        if ((percentiles.length == percents.length) == false) {
+        if (!(percentiles.length == percents.length)) {
             throw new IllegalArgumentException("The number of provided percents and percentiles didn't match. percents: "
                     + Arrays.toString(percents) + ", percentiles: " + Arrays.toString(percentiles));
         }
@@ -159,7 +159,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalPercentilesBucket that = (InternalPercentilesBucket) obj;
         return Arrays.equals(percents, that.percents) && Arrays.equals(percentiles, that.percentiles);

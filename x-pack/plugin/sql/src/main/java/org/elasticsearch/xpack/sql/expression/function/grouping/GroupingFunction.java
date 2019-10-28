@@ -70,7 +70,7 @@ public abstract class GroupingFunction extends Function {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (!super.equals(obj)) {
             return false;
         }
         GroupingFunction other = (GroupingFunction) obj;

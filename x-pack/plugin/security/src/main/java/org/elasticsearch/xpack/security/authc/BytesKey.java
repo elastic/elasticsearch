@@ -34,7 +34,7 @@ public final class BytesKey {
         if (other == null) {
             return false;
         }
-        if (other instanceof BytesKey == false) {
+        if (!(other instanceof BytesKey)) {
             return false;
         }
 

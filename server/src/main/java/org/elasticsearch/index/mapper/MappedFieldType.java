@@ -142,7 +142,7 @@ public abstract class MappedFieldType extends FieldType {
 
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
     private void checkTypeName(MappedFieldType other) {
-        if (typeName().equals(other.typeName()) == false) {
+        if (!typeName().equals(other.typeName())) {
             throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName()
                 + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {
@@ -189,16 +189,16 @@ public abstract class MappedFieldType extends FieldType {
 
         // null and "default"-named index analyzers both mean the default is used
         if (indexAnalyzer() == null || "default".equals(indexAnalyzer().name())) {
-            if (other.indexAnalyzer() != null && "default".equals(other.indexAnalyzer().name()) == false) {
+            if (other.indexAnalyzer() != null && !"default".equals(other.indexAnalyzer().name())) {
                 conflicts.add("mapper [" + name() + "] has different [analyzer]");
             }
         } else if (other.indexAnalyzer() == null || "default".equals(other.indexAnalyzer().name())) {
             conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        } else if (indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
+        } else if (!indexAnalyzer().name().equals(other.indexAnalyzer().name())) {
             conflicts.add("mapper [" + name() + "] has different [analyzer]");
         }
 
-        if (Objects.equals(similarity(), other.similarity()) == false) {
+        if (!Objects.equals(similarity(), other.similarity())) {
             conflicts.add("mapper [" + name() + "] has different [similarity]");
         }
     }
@@ -425,7 +425,7 @@ public abstract class MappedFieldType extends FieldType {
      *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
      **/
     protected final void failIfNoDocValues() {
-        if (hasDocValues() == false) {
+        if (!hasDocValues()) {
             throw new IllegalArgumentException("Can't load fielddata on [" + name()
                 + "] because fielddata is unsupported on fields of type ["
                 + typeName() + "]. Use doc values instead.");
@@ -483,7 +483,7 @@ public abstract class MappedFieldType extends FieldType {
                 return new Term(it.field(), term);
             }
         }
-        if (termQuery instanceof TermQuery == false) {
+        if (!(termQuery instanceof TermQuery)) {
             throw new IllegalArgumentException("Cannot extract a term from a query of type "
                     + termQuery.getClass() + ": " + termQuery);
         }

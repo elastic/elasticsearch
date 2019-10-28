@@ -215,7 +215,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
 
         public void run() {
-            while (stop == false) {
+            while (!stop) {
                 try {
                     roundBarrier.await(70, TimeUnit.SECONDS);
 
@@ -456,13 +456,13 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 }
                 linearizable = new LinearizabilityChecker().isLinearizable(spec, history, missingResponseGenerator(), abort::get);
                 ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
-                if (abort.get() && linearizable == false) {
+                if (abort.get() && !linearizable) {
                     linearizable = true; // let the test pass
                 }
             } finally {
                 // implicitly test that we can serialize all histories.
                 String serializedHistory = base64Serialize(history);
-                if (linearizable == false) {
+                if (!linearizable) {
                     // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
                     logger.error("Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}",
                         spec, initialVersion, serializedHistory);

@@ -156,17 +156,17 @@ public class ClusterChangedEvent {
         Set<String> result = new HashSet<>();
         ImmutableOpenMap<String, MetaData.Custom> currentCustoms = state.metaData().customs();
         ImmutableOpenMap<String, MetaData.Custom> previousCustoms = previousState.metaData().customs();
-        if (currentCustoms.equals(previousCustoms) == false) {
+        if (!currentCustoms.equals(previousCustoms)) {
             for (ObjectObjectCursor<String, MetaData.Custom> currentCustomMetaData : currentCustoms) {
                 // new custom md added or existing custom md changed
-                if (previousCustoms.containsKey(currentCustomMetaData.key) == false
-                        || currentCustomMetaData.value.equals(previousCustoms.get(currentCustomMetaData.key)) == false) {
+                if (!previousCustoms.containsKey(currentCustomMetaData.key)
+                        || !currentCustomMetaData.value.equals(previousCustoms.get(currentCustomMetaData.key))) {
                     result.add(currentCustomMetaData.key);
                 }
             }
             // existing custom md deleted
             for (ObjectObjectCursor<String, MetaData.Custom> previousCustomMetaData : previousCustoms) {
-                if (currentCustoms.containsKey(previousCustomMetaData.key) == false) {
+                if (!currentCustoms.containsKey(previousCustomMetaData.key)) {
                     result.add(previousCustomMetaData.key);
                 }
             }
@@ -240,7 +240,7 @@ public class ClusterChangedEvent {
     public boolean isNewCluster() {
         final String prevClusterUUID = previousState.metaData().clusterUUID();
         final String currClusterUUID = state.metaData().clusterUUID();
-        return prevClusterUUID.equals(currClusterUUID) == false;
+        return !prevClusterUUID.equals(currClusterUUID);
     }
 
     // Get the deleted indices by comparing the index metadatas in the previous and new cluster states.
@@ -253,7 +253,7 @@ public class ClusterChangedEvent {
         // See test DiscoveryWithServiceDisruptionsIT.testIndicesDeleted()
         // See discussion on https://github.com/elastic/elasticsearch/pull/9952 and
         // https://github.com/elastic/elasticsearch/issues/11665
-        if (metaDataChanged() == false || isNewCluster()) {
+        if (!metaDataChanged() || isNewCluster()) {
             return Collections.emptyList();
         }
         List<Index> deleted = null;

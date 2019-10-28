@@ -101,7 +101,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         // If the task was STARTED, the master notification is also triggered (this is handled by unregisterTask() method, which is
         // triggered by PersistentTaskListener
 
-        if (Objects.equals(tasks, previousTasks) == false || event.nodesChanged()) {
+        if (!Objects.equals(tasks, previousTasks) || event.nodesChanged()) {
             // We have some changes let's check if they are related to our node
             String localNodeId = event.state().getNodes().getLocalNodeId();
             Set<Long> notVisitedTasks = new HashSet<>(runningTasks.keySet());
@@ -195,7 +195,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             }
             processed = true;
         } finally {
-            if (processed == false) {
+            if (!processed) {
                 // something went wrong - unregistering task
                 logger.warn("Persistent task [{}] with id [{}] and allocation id [{}] failed to create", task.getAction(),
                         task.getPersistentTaskId(), task.getAllocationId());

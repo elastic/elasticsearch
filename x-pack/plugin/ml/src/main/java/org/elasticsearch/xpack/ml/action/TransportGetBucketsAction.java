@@ -38,7 +38,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
                 ok -> {
                     BucketsQueryBuilder query =
                             new BucketsQueryBuilder().expand(request.isExpand())
-                                    .includeInterim(request.isExcludeInterim() == false)
+                                    .includeInterim(!request.isExcludeInterim())
                                     .start(request.getStart())
                                     .end(request.getEnd())
                                     .anomalyScoreThreshold(request.getAnomalyScore())

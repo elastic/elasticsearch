@@ -38,7 +38,7 @@ public final class CachedSupplier<T> implements Supplier<T> {
 
     @Override
     public synchronized T get() {
-        if (resultSet == false) {
+        if (!resultSet) {
             result = supplier.get();
             resultSet = true;
         }

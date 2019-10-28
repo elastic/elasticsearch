@@ -86,7 +86,7 @@ public class MapsTests extends ESTestCase {
         assertMapEntriesAndImmutability(
                 replaced,
                 Stream.concat(
-                        entries.stream().filter(e -> key.equals(e.getKey()) == false),
+                        entries.stream().filter(e -> !key.equals(e.getKey())),
                         Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList()));
     }
 

@@ -111,7 +111,7 @@ public class MemoryUsageEstimationProcessManager {
      */
     private static MemoryUsageEstimationResult readResult(String jobId, AnalyticsProcess<MemoryUsageEstimationResult> process) {
         Iterator<MemoryUsageEstimationResult> iterator = process.readAnalyticsResults();
-        if (iterator.hasNext() == false) {
+        if (!iterator.hasNext()) {
             String errorMsg =
                 new ParameterizedMessage("[{}] Memory usage estimation process returned no results", jobId).getFormattedMessage();
             throw ExceptionsHelper.serverError(errorMsg);

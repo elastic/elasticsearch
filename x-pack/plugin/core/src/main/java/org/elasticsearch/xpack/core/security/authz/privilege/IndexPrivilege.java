@@ -156,7 +156,7 @@ public final class IndexPrivilege extends Privilege {
             }
         }
 
-        if (actions.isEmpty() == false) {
+        if (!actions.isEmpty()) {
             automata.add(patterns(actions));
         }
         return new IndexPrivilege(name, unionAndMinimize(automata));

@@ -253,7 +253,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         if (flavor == Flavor.OSS) {
             prefix += "oss-";
         }
-        if (bundledJdk == false) {
+        if (!bundledJdk) {
             prefix += "no-jdk-";
         }
 

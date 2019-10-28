@@ -51,7 +51,7 @@ import javax.crypto.spec.PBEKeySpec;
 /**
  * Used to publish secure setting hashes in the cluster state and to validate those hashes against the local values of those same settings.
  * This is colloquially referred to as the secure setting consistency check. It will publish and verify hashes only for the collection
- * of settings passed in the constructor. The settings have to have the {@link Setting.Property#Consistent} property. 
+ * of settings passed in the constructor. The settings have to have the {@link Setting.Property#Consistent} property.
  */
 public final class ConsistentSettingsService {
     private static final Logger logger = LogManager.getLogger(ConsistentSettingsService.class);
@@ -87,7 +87,7 @@ public final class ConsistentSettingsService {
     /**
      * Verifies that the hashes of consistent secure settings in the latest {@code ClusterState} verify for the values of those same
      * settings on the local node. The settings to be checked are passed in the constructor. Also, validates that a missing local
-     * value is also missing in the published set, and vice-versa.  
+     * value is also missing in the published set, and vice-versa.
      */
     public boolean areAllConsistent() {
         final ClusterState state = clusterService.state();
@@ -128,7 +128,7 @@ public final class ConsistentSettingsService {
                 final String publishedHash = parts[1];
                 final byte[] computedSaltedHashBytes = computeSaltedPBKDF2Hash(localHash, publishedSalt.getBytes(StandardCharsets.UTF_8));
                 final String computedSaltedHash = new String(Base64.getEncoder().encode(computedSaltedHashBytes), StandardCharsets.UTF_8);
-                if (false == publishedHash.equals(computedSaltedHash)) {
+                if (!publishedHash.equals(computedSaltedHash)) {
                     logger.warn("the published hash [{}] of the consistent secure setting [{}] differs from the locally computed one [{}]",
                             publishedHash, concreteSecureSetting.getKey(), computedSaltedHash);
                     if (state.nodes().isLocalNodeElectedMaster()) {

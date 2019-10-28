@@ -105,7 +105,7 @@ public class EmailAction implements Action {
         }
         if (auth != null) {
             builder.field(Field.USER.getPreferredName(), auth.user());
-            if (WatcherParams.hideSecrets(params) && auth.password().value().startsWith(CryptoService.ENCRYPTED_TEXT_PREFIX) == false) {
+            if (WatcherParams.hideSecrets(params) && !auth.password().value().startsWith(CryptoService.ENCRYPTED_TEXT_PREFIX)) {
                 builder.field(Field.PASSWORD.getPreferredName(), WatcherXContentParser.REDACTED_PASSWORD);
             } else {
                 builder.field(Field.PASSWORD.getPreferredName(), auth.password().value());

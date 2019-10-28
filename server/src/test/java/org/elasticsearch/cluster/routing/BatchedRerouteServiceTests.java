@@ -127,7 +127,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             } else {
                 final Priority priority = randomFrom(Priority.NORMAL, Priority.HIGH, Priority.URGENT, Priority.IMMEDIATE);
                 final boolean submittedConcurrentlyWithReroute = randomBoolean();
-                if (submittedConcurrentlyWithReroute == false) {
+                if (!submittedConcurrentlyWithReroute) {
                     tasksSubmittedCountDown.countDown(); // this task might be submitted later
                 }
                 actions.add(() -> {

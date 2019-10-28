@@ -515,7 +515,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (jobVersion != null) {
             builder.field(JOB_VERSION.getPreferredName(), jobVersion);
         }
-        if (groups.isEmpty() == false) {
+        if (!groups.isEmpty()) {
             builder.field(GROUPS.getPreferredName(), groups);
         }
         if (description != null) {
@@ -571,7 +571,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return true;
         }
 
-        if (other instanceof Job == false) {
+        if (!(other instanceof Job)) {
             return false;
         }
 
@@ -1071,7 +1071,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         private void validateGroups() {
             for (String group : this.groups) {
-                if (MlStrings.isValidId(group) == false) {
+                if (!MlStrings.isValidId(group)) {
                     throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_GROUP, group));
                 }
                 if (this.id.equals(group)) {
@@ -1089,7 +1089,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             for (Detector detector : this.analysisConfig.getDetectors()) {
                 // While testing for equality, ignore detectorIndex field as this field is auto-generated.
                 Detector canonicalDetector = new Detector.Builder(detector).setDetectorIndex(0).build();
-                if (canonicalDetectors.add(canonicalDetector) == false) {
+                if (!canonicalDetectors.add(canonicalDetector)) {
                     throw new IllegalArgumentException(
                         Messages.getMessage(Messages.JOB_CONFIG_DUPLICATE_DETECTORS_DISALLOWED, detector.getDetectorDescription()));
                 }

@@ -23,7 +23,7 @@ public class PutLifecycleResponseTests extends AbstractWireSerializingTestCase<R
 
     @Override
     protected Response mutateInstance(Response response) {
-        return new Response(response.isAcknowledged() == false);
+        return new Response(!response.isAcknowledged());
     }
 
 }

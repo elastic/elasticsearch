@@ -112,7 +112,7 @@ public class TransportBulkShardOperationsAction
             final long maxSeqNoOfUpdatesOrDeletes,
             final IndexShard primary,
             final Logger logger) throws IOException {
-        if (historyUUID.equalsIgnoreCase(primary.getHistoryUUID()) == false) {
+        if (!historyUUID.equalsIgnoreCase(primary.getHistoryUUID())) {
             throw new IllegalStateException("unexpected history uuid, expected [" + historyUUID +
                 "], actual [" + primary.getHistoryUUID() + "], shard is likely restored from snapshot or force allocated");
         }

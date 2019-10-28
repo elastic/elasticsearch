@@ -94,7 +94,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             for (SearchShardIterator i : result.get()) {
                 assertFalse(i.skip());
             }
-        } else if (shard1 == false &&  shard2 == false) {
+        } else if (!shard1 && !shard2) {
             assertFalse(result.get().get(0).skip());
             assertTrue(result.get().get(1).skip());
         } else {
@@ -123,7 +123,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     throw new IllegalArgumentException("boom");
                 } else {
                     new Thread(() -> {
-                        if (throwException == false) {
+                        if (!throwException) {
                             listener.onResponse(new SearchService.CanMatchResponse(shard1));
                         } else {
                             listener.onFailure(new NullPointerException());

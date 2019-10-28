@@ -169,7 +169,7 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class);
-        if (enabled == false) {
+        if (!enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
 
@@ -199,7 +199,7 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled) {
+        if (!enabled) {
             return emptyList();
         }
 
@@ -213,7 +213,7 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false) {
+        if (!enabled) {
             return emptyList();
         }
         transformAuditor.set(new TransformAuditor(client, clusterService.getNodeName()));
@@ -247,7 +247,7 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
             Client client, SettingsModule settingsModule) {
-        if (enabled == false) {
+        if (!enabled) {
             return emptyList();
         }
 

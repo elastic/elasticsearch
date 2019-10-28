@@ -399,7 +399,7 @@ public final class MockTransportService extends TransportService {
             @Override
             public void clearCallback() {
                 synchronized (this) {
-                    assert cleared == false;
+                    assert !cleared;
                     cleared = true;
                     requestsToSendWhenCleared.forEach(Runnable::run);
                 }
@@ -533,7 +533,7 @@ public final class MockTransportService extends TransportService {
         super.doClose();
         try {
             synchronized (openConnections) {
-                if (openConnections.isEmpty() == false) {
+                if (!openConnections.isEmpty()) {
                     openConnections.wait(TimeUnit.SECONDS.toMillis(30L));
                 }
                 assert openConnections.size() == 0 : "still open connections: " + openConnections;

@@ -22,14 +22,14 @@ public final class Statistics {
      */
     public static List<Double> softMax(List<Double> values) {
         Double expSum = 0.0;
-        Double max = values.stream().filter(v -> isInvalid(v) == false).max(Double::compareTo).orElse(null);
+        Double max = values.stream().filter(v -> !isInvalid(v)).max(Double::compareTo).orElse(null);
         if (max == null) {
             throw new IllegalArgumentException("no valid values present");
         }
         List<Double> exps = values.stream().map(v -> isInvalid(v) ? Double.NEGATIVE_INFINITY : v - max)
             .collect(Collectors.toList());
         for (int i = 0; i < exps.size(); i++) {
-            if (isInvalid(exps.get(i)) == false) {
+            if (!isInvalid(exps.get(i))) {
                 Double exp = Math.exp(exps.get(i));
                 expSum += exp;
                 exps.set(i, exp);

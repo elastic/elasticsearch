@@ -112,8 +112,8 @@ public class Join implements Writeable {
 
         Join join = (Join) o;
 
-        if (sourceNode.equals(join.sourceNode) == false) return false;
-        if (targetNode.equals(join.targetNode) == false) return false;
+        if (!sourceNode.equals(join.sourceNode)) return false;
+        if (!targetNode.equals(join.targetNode)) return false;
         if (lastAcceptedVersion != join.lastAcceptedVersion) return false;
         if (term != join.term) return false;
         return lastAcceptedTerm == join.lastAcceptedTerm;

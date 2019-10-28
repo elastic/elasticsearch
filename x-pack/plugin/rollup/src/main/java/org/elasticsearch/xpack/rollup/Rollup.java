@@ -135,7 +135,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class);
-        if (enabled == false) {
+        if (!enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(
@@ -153,7 +153,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled) {
+        if (!enabled) {
             return emptyList();
         }
 
@@ -168,7 +168,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                                                                        ThreadPool threadPool,
                                                                        Client client,
                                                                        SettingsModule settingsModule) {
-        if (enabled == false) {
+        if (!enabled) {
             return emptyList();
         }
 

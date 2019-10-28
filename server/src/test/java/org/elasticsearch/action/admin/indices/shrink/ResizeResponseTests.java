@@ -54,11 +54,11 @@ public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeRespo
     protected ResizeResponse mutateInstance(ResizeResponse response) {
         if (randomBoolean()) {
             if (randomBoolean()) {
-                boolean acknowledged = response.isAcknowledged() == false;
+                boolean acknowledged = !response.isAcknowledged();
                 boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
                 return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
             } else {
-                boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+                boolean shardsAcknowledged = !response.isShardsAcknowledged();
                 boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
                 return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
             }

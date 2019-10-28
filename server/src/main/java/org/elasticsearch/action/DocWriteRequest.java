@@ -231,7 +231,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         DocWriteRequest request, ActionRequestValidationException validationException) {
         final long version = request.version();
         final VersionType versionType = request.versionType();
-        if (versionType.validateVersionForWrites(version) == false) {
+        if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type ["
                 + versionType.name() + "]", validationException);
         }

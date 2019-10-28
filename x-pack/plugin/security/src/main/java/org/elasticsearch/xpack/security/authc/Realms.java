@@ -90,7 +90,7 @@ public class Realms implements Iterable<Realm> {
                 addNativeRealms(realmList);
             }
 
-            assert realmList.contains(reservedRealm) == false;
+            assert !realmList.contains(reservedRealm);
             realmList.add(0, reservedRealm);
             assert realmList.get(0) == reservedRealm;
         }
@@ -102,7 +102,7 @@ public class Realms implements Iterable<Realm> {
 
     @Override
     public Iterator<Realm> iterator() {
-        if (licenseState.isAuthAllowed() == false) {
+        if (!licenseState.isAuthAllowed()) {
             return Collections.emptyIterator();
         }
 
@@ -124,7 +124,7 @@ public class Realms implements Iterable<Realm> {
      */
     public List<Realm> getUnlicensedRealms() {
         // If auth is not allowed, then everything is unlicensed
-        if (licenseState.isAuthAllowed() == false) {
+        if (!licenseState.isAuthAllowed()) {
             return Collections.unmodifiableList(realms);
         }
 
@@ -141,7 +141,7 @@ public class Realms implements Iterable<Realm> {
         }
 
         // Otherwise, we return anything in "all realms" that is not in the allowed realm list
-        List<Realm> unlicensed = realms.stream().filter(r -> allowedRealms.contains(r) == false).collect(Collectors.toList());
+        List<Realm> unlicensed = realms.stream().filter(r -> !allowedRealms.contains(r)).collect(Collectors.toList());
         return Collections.unmodifiableList(unlicensed);
     }
 
@@ -150,7 +150,7 @@ public class Realms implements Iterable<Realm> {
     }
 
     public List<Realm> asList() {
-        if (licenseState.isAuthAllowed() == false) {
+        if (!licenseState.isAuthAllowed()) {
             return Collections.emptyList();
         }
 
@@ -243,15 +243,15 @@ public class Realms implements Iterable<Realm> {
         Map<String, Object> realmMap = new HashMap<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
         final List<Realm> realmList = asList().stream()
-            .filter(r -> ReservedRealm.TYPE.equals(r.type()) == false)
+            .filter(r -> !ReservedRealm.TYPE.equals(r.type()))
             .collect(Collectors.toList());
         final CountDown countDown = new CountDown(realmList.size());
         final Runnable doCountDown = () -> {
-            if ((realmList.isEmpty() || countDown.countDown()) && failed.get() == false) {
+            if ((realmList.isEmpty() || countDown.countDown()) && !failed.get()) {
                 final AllowedRealmType allowedRealmType = licenseState.allowedRealmType();
                 // iterate over the factories so we can add enabled & available info
                 for (String type : factories.keySet()) {
-                    assert ReservedRealm.TYPE.equals(type) == false;
+                    assert !ReservedRealm.TYPE.equals(type);
                     realmMap.compute(type, (key, value) -> {
                         if (value == null) {
                             return MapBuilder.<String, Object>newMapBuilder()
@@ -278,7 +278,7 @@ public class Realms implements Iterable<Realm> {
         } else {
             for (Realm realm : realmList) {
                 realm.usageStats(ActionListener.wrap(stats -> {
-                        if (failed.get() == false) {
+                        if (!failed.get()) {
                             synchronized (realmMap) {
                                 realmMap.compute(realm.type(), (key, value) -> {
                                     if (value == null) {

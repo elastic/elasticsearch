@@ -104,7 +104,7 @@ public final class SearchShardIterator extends PlainShardIterator {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (super.equals(o) == false) {
+        if (!super.equals(o)) {
             return false;
         }
         SearchShardIterator that = (SearchShardIterator) o;
@@ -119,7 +119,7 @@ public final class SearchShardIterator extends PlainShardIterator {
     @Override
     public int compareTo(ShardIterator o) {
         int superCompareTo = super.compareTo(o);
-        if (superCompareTo != 0 || (o instanceof SearchShardIterator == false)) {
+        if (superCompareTo != 0 || (!(o instanceof SearchShardIterator))) {
             return superCompareTo;
         }
         SearchShardIterator searchShardIterator = (SearchShardIterator)o;

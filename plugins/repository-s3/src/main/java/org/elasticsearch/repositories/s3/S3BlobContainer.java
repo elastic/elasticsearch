@@ -177,7 +177,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     partition.clear();
                 }
             }
-            if (partition.isEmpty() == false) {
+            if (!partition.isEmpty()) {
                 deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
             }
             SocketAccess.doPrivilegedVoid(() -> {
@@ -258,7 +258,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     return listing.getCommonPrefixes().stream();
                 })
                 .map(prefix -> prefix.substring(keyPath.length()))
-                .filter(name -> name.isEmpty() == false)
+                .filter(name -> !name.isEmpty())
                 // Stripping the trailing slash off of the common prefix
                 .map(name -> name.substring(0, name.length() - 1))
                 .collect(Collectors.toMap(Function.identity(), name -> blobStore.blobContainer(path().add(name))));
@@ -406,7 +406,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         } catch (final AmazonClientException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
         } finally {
-            if ((success == false) && Strings.hasLength(uploadId.get())) {
+            if ((!success) && Strings.hasLength(uploadId.get())) {
                 final AbortMultipartUploadRequest abortRequest = new AbortMultipartUploadRequest(bucketName, blobName, uploadId.get());
                 try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                     SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortRequest));

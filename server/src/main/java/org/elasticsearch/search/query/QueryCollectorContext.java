@@ -138,7 +138,7 @@ abstract class QueryCollectorContext {
             protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) throws IOException {
                 final List<InternalProfileCollector> subCollectors = new ArrayList<> ();
                 subCollectors.add(in);
-                if (subs.stream().anyMatch((col) -> col instanceof InternalProfileCollector == false)) {
+                if (subs.stream().anyMatch((col) -> !(col instanceof InternalProfileCollector))) {
                     throw new IllegalArgumentException("non-profiling collector");
                 }
                 for (Collector collector : subs) {

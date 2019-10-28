@@ -140,7 +140,7 @@ public class AliasActionsTests extends ESTestCase {
                         b.field("search_routing", searchRouting);
                     }
                 }
-                if (indexRouting != null && false == indexRouting.equals(searchRouting)) {
+                if (indexRouting != null && !indexRouting.equals(searchRouting)) {
                     b.field("index_routing", indexRouting);
                 }
                 b.field("is_write_index", writeIndex);

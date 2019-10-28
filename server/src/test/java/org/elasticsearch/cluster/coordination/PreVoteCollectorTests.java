@@ -111,7 +111,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         transportService.acceptIncomingRequests();
 
         preVoteCollector = new PreVoteCollector(transportService, () -> {
-            assert electionOccurred == false;
+            assert !electionOccurred;
             electionOccurred = true;
         }, l -> {
         }, ElectionStrategy.DEFAULT_INSTANCE); // TODO need tests that check that the max term seen is updated

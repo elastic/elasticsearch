@@ -203,9 +203,9 @@ public class EventHandler {
             SelectionKey selectionKey = context.getSelectionKey();
             boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(selectionKey);
             boolean pendingWrites = context.readyForFlush();
-            if (currentlyWriteInterested == false && pendingWrites) {
+            if (!currentlyWriteInterested && pendingWrites) {
                 SelectionKeyUtils.setWriteInterested(selectionKey);
-            } else if (currentlyWriteInterested && pendingWrites == false) {
+            } else if (currentlyWriteInterested && !pendingWrites) {
                 SelectionKeyUtils.removeWriteInterested(selectionKey);
             }
         }
@@ -238,7 +238,7 @@ public class EventHandler {
      */
     protected void handleClose(ChannelContext<?> context) throws IOException {
         context.closeFromSelector();
-        assert context.isOpen() == false : "Should always be done as we are on the selector thread";
+        assert !context.isOpen() : "Should always be done as we are on the selector thread";
     }
 
     /**

@@ -57,10 +57,10 @@ public final class PutPrivilegesResponse {
      * privilege name.
      */
     public boolean wasCreated(final String applicationName, final String privilegeName) {
-        if (Strings.hasText(applicationName) == false) {
+        if (!Strings.hasText(applicationName)) {
             throw new IllegalArgumentException("application name is required");
         }
-        if (Strings.hasText(privilegeName) == false) {
+        if (!Strings.hasText(privilegeName)) {
             throw new IllegalArgumentException("privilege name is required");
         }
         if (applicationPrivilegesCreatedOrUpdated.get(applicationName) == null

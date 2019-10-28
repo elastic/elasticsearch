@@ -262,7 +262,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             int docID = 10000;
             char[] chars = "abcdeghijklmnopqrstuvwxyz".toCharArray();
             for (char c : chars) {
-                if (isRunning.get() == false) {
+                if (!isRunning.get()) {
                     break;
                 }
                 final String source;
@@ -273,7 +273,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                     source = String.format(Locale.ROOT, "{\"%c\":\"%d\"}", c, valueToPutInDoc);
                 }
                 for (int i = 1; i < 10; i++) {
-                    if (isRunning.get() == false) {
+                    if (!isRunning.get()) {
                         break;
                     }
                     leaderClient().prepareIndex("index1").setId(Long.toString(docID++)).setSource(source, XContentType.JSON).get();
@@ -495,7 +495,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             int counter = 0;
             while (run.get()) {
                 try {
-                    if (availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS) == false) {
+                    if (!availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS)) {
                         continue;
                     }
                 } catch (InterruptedException e) {
@@ -806,7 +806,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             StatsResponses response = followerClient().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
             assertThat(response.getNodeFailures(), empty());
             assertThat(response.getTaskFailures(), empty());
-            if (response.getStatsResponses().isEmpty() == false) {
+            if (!response.getStatsResponses().isEmpty()) {
                 assertThat(response.getStatsResponses(), hasSize(1));
                 assertThat(response.getStatsResponses().get(0).status().failedWriteRequests(), greaterThanOrEqualTo(1L));
                 ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();

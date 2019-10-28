@@ -139,7 +139,7 @@ public class PriorityComparatorTests extends ESTestCase {
                 IndexMeta currentMeta = map.get(routing.getIndexName());
                 if (prevMeta.priority == currentMeta.priority) {
                     if (prevMeta.creationDate == currentMeta.creationDate) {
-                        if (prevMeta.name.equals(currentMeta.name) == false) {
+                        if (!prevMeta.name.equals(currentMeta.name)) {
                             assertTrue("indexName mismatch, expected:" + currentMeta.name + " after " + prevMeta.name + " " +
                                 prevMeta.name.compareTo(currentMeta.name), prevMeta.name.compareTo(currentMeta.name) > 0);
                         }

@@ -68,7 +68,7 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
     protected void assertFromXContent(InternalBucketMetricValue bucketMetricValue, ParsedAggregation parsedAggregation) {
         BucketMetricValue parsed = ((BucketMetricValue) parsedAggregation);
         assertArrayEquals(bucketMetricValue.keys(), parsed.keys());
-        if (Double.isInfinite(bucketMetricValue.value()) == false) {
+        if (!Double.isInfinite(bucketMetricValue.value())) {
             assertEquals(bucketMetricValue.value(), parsed.value(), 0);
             assertEquals(bucketMetricValue.getValueAsString(), parsed.getValueAsString());
         } else {

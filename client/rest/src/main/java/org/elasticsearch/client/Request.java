@@ -153,7 +153,7 @@ public final class Request {
         b.append("Request{");
         b.append("method='").append(method).append('\'');
         b.append(", endpoint='").append(endpoint).append('\'');
-        if (false == parameters.isEmpty()) {
+        if (!parameters.isEmpty()) {
             b.append(", params=").append(parameters);
         }
         if (entity != null) {

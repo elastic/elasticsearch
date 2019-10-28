@@ -61,7 +61,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
     }
 
     private static void addSslPropertiesIfNeeded(Properties properties) {
-        if (false == SSL_ENABLED) {
+        if (!SSL_ENABLED) {
             return;
         }
         Path keyStore;

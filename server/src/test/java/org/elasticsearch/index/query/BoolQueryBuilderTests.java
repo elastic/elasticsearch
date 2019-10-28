@@ -91,7 +91,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 if (queryBuilder.adjustPureNegative()) {
                     boolean isNegative = true;
                     for (BooleanClause clause : clauses) {
-                        if (clause.isProhibited() == false) {
+                        if (!clause.isProhibited()) {
                             isNegative = false;
                             break;
                         }
@@ -306,32 +306,32 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             mustRewrite = true;
             boolQueryBuilder.mustNot(new WrapperQueryBuilder(new TermsQueryBuilder("foo", "must_not").toString()));
         }
-        if (mustRewrite == false && randomBoolean()) {
+        if (!mustRewrite && randomBoolean()) {
             boolQueryBuilder.must(new TermsQueryBuilder("foo", "no_rewrite"));
         }
         QueryBuilder rewritten = boolQueryBuilder.rewrite(createShardContext());
-        if (mustRewrite == false && boolQueryBuilder.must().isEmpty()) {
+        if (!mustRewrite && boolQueryBuilder.must().isEmpty()) {
             // if it's empty we rewrite to match all
             assertEquals(rewritten, new MatchAllQueryBuilder());
         } else {
             BoolQueryBuilder rewrite = (BoolQueryBuilder) rewritten;
             if (mustRewrite) {
                 assertNotSame(rewrite, boolQueryBuilder);
-                if (boolQueryBuilder.must().isEmpty() == false) {
+                if (!boolQueryBuilder.must().isEmpty()) {
                     assertEquals(new TermsQueryBuilder("foo", "must"), rewrite.must().get(0));
                 }
-                if (boolQueryBuilder.should().isEmpty() == false) {
+                if (!boolQueryBuilder.should().isEmpty()) {
                     assertEquals(new TermsQueryBuilder("foo", "should"), rewrite.should().get(0));
                 }
-                if (boolQueryBuilder.mustNot().isEmpty() == false) {
+                if (!boolQueryBuilder.mustNot().isEmpty()) {
                     assertEquals(new TermsQueryBuilder("foo", "must_not"), rewrite.mustNot().get(0));
                 }
-                if (boolQueryBuilder.filter().isEmpty() == false) {
+                if (!boolQueryBuilder.filter().isEmpty()) {
                     assertEquals(new TermsQueryBuilder("foo", "filter"), rewrite.filter().get(0));
                 }
             } else {
                 assertSame(rewrite, boolQueryBuilder);
-                if (boolQueryBuilder.must().isEmpty() == false) {
+                if (!boolQueryBuilder.must().isEmpty()) {
                     assertSame(boolQueryBuilder.must().get(0), rewrite.must().get(0));
                 }
             }

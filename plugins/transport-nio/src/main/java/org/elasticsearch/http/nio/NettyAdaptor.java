@@ -70,7 +70,7 @@ class NettyAdaptor {
         ChannelFuture closeFuture = nettyChannel.close();
         // This should be safe as we are not a real network channel
         closeFuture.await();
-        if (closeFuture.isSuccess() == false) {
+        if (!closeFuture.isSuccess()) {
             Throwable cause = closeFuture.cause();
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             throw (Exception) cause;

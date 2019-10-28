@@ -235,12 +235,12 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         PersistentTasksCustomMetaData.Builder taskBuilder = PersistentTasksCustomMetaData.builder(tasks);
         for (PersistentTask<?> task : tasks.tasks()) {
             if (task.getAssignment().getExecutorNode() != null &&
-                    clusterState.nodes().nodeExists(task.getAssignment().getExecutorNode()) == false) {
+                !clusterState.nodes().nodeExists(task.getAssignment().getExecutorNode())) {
                 taskBuilder.reassignTask(task.getId(), LOST_NODE_ASSIGNMENT);
             }
         }
 
-        if (taskBuilder.isChanged() == false) {
+        if (!taskBuilder.isChanged()) {
             return clusterState;
         }
 
@@ -330,13 +330,13 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             this.assignment = assignment;
             this.allocationIdOnLastStatusUpdate = allocationIdOnLastStatusUpdate;
             if (params != null) {
-                if (params.getWriteableName().equals(taskName) == false) {
+                if (!params.getWriteableName().equals(taskName)) {
                     throw new IllegalArgumentException("params have to have the same writeable name as task. params: " +
                             params.getWriteableName() + " task: " + taskName);
                 }
             }
             if (state != null) {
-                if (state.getWriteableName().equals(taskName) == false) {
+                if (!state.getWriteableName().equals(taskName)) {
                     throw new IllegalArgumentException("status has to have the same writeable name as task. status: " +
                             state.getWriteableName() + " task: " + taskName);
                 }

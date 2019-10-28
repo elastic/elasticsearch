@@ -243,7 +243,7 @@ public abstract class ExtractedField {
             }
             if (value[0] instanceof String) { // doc_value field with the epoch_millis format
                 value[0] = Long.parseLong((String) value[0]);
-            } else if (value[0] instanceof Long == false) { // pre-6.0 field
+            } else if (!(value[0] instanceof Long)) { // pre-6.0 field
                 throw new IllegalStateException("Unexpected value for a time field: " + value[0].getClass());
             }
             return value;

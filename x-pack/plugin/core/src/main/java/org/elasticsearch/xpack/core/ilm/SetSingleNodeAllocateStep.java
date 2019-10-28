@@ -66,7 +66,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             .collect(Collectors.groupingBy(ShardRouting::shardId));
 
 
-        if (routingsByShardId.isEmpty() == false) {
+        if (!routingsByShardId.isEmpty()) {
             for (RoutingNode node : routingNodes) {
                 boolean canAllocateOneCopyOfEachShard = routingsByShardId.values().stream() // For each shard
                     .allMatch(shardRoutings -> shardRoutings.stream() // Can we allocate at least one shard copy to this node?

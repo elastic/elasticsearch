@@ -1034,7 +1034,7 @@ public class DefMath {
     /** Unary promotion. All Objects are promoted to Object. */
     private static Class<?> promote(Class<?> clazz) {
         // if either is a non-primitive type -> Object.
-        if (clazz.isPrimitive() == false) {
+        if (!clazz.isPrimitive()) {
             return Object.class;
         }
         // always promoted to integer
@@ -1048,7 +1048,7 @@ public class DefMath {
     /** Binary promotion. */
     private static Class<?> promote(Class<?> a, Class<?> b) {
         // if either is a non-primitive type -> Object.
-        if (a.isPrimitive() == false || b.isPrimitive() == false) {
+        if (!a.isPrimitive() || !b.isPrimitive()) {
             return Object.class;
         }
 

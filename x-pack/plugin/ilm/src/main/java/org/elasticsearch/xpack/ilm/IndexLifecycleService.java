@@ -115,7 +115,7 @@ public class IndexLifecycleService
             for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
                 IndexMetaData idxMeta = cursor.value;
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
-                if (Strings.isNullOrEmpty(policyName) == false) {
+                if (!Strings.isNullOrEmpty(policyName)) {
                     final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
                     StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
 
@@ -179,7 +179,7 @@ public class IndexLifecycleService
         if (this.isMaster) {
             if (scheduler.get() == null) {
                 // don't create scheduler if the node is shutting down
-                if (isClusterServiceStoppedOrClosed() == false) {
+                if (!isClusterServiceStoppedOrClosed()) {
                     scheduler.set(new SchedulerEngine(settings, clock));
                     scheduler.get().register(this);
                 }
@@ -260,7 +260,7 @@ public class IndexLifecycleService
         for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
             IndexMetaData idxMeta = cursor.value;
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
-            if (Strings.isNullOrEmpty(policyName) == false) {
+            if (!Strings.isNullOrEmpty(policyName)) {
                 final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
                 StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
 

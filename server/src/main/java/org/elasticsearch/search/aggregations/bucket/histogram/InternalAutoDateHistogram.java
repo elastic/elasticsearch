@@ -308,7 +308,7 @@ public final class InternalAutoDateHistogram extends
         };
         for (InternalAggregation aggregation : aggregations) {
             InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) aggregation;
-            if (histogram.buckets.isEmpty() == false) {
+            if (!histogram.buckets.isEmpty()) {
                 pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));
             }
         }
@@ -343,7 +343,7 @@ public final class InternalAutoDateHistogram extends
                 }
             } while (pq.size() > 0);
 
-            if (currentBuckets.isEmpty() == false) {
+            if (!currentBuckets.isEmpty()) {
                 final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                 reduceContext.consumeBucketsAndMaybeBreak(1);
                 reducedBuckets.add(reduced);
@@ -387,7 +387,7 @@ public final class InternalAutoDateHistogram extends
                 sameKeyedBuckets.add(createBucket(key, bucket.docCount, bucket.aggregations));
             }
         }
-        if (sameKeyedBuckets.isEmpty() == false) {
+        if (!sameKeyedBuckets.isEmpty()) {
             reduceContext.consumeBucketsAndMaybeBreak(1);
             mergedBuckets.add(reduceBucket(sameKeyedBuckets, reduceContext));
         }
@@ -547,7 +547,7 @@ public final class InternalAutoDateHistogram extends
         double key = roundingInfo.rounding.round(reducedBuckets.get(0).key);
         for (int i = 0; i < reducedBuckets.size(); i++) {
             Bucket bucket = reducedBuckets.get(i);
-            if (i % mergeInterval == 0 && sameKeyedBuckets.isEmpty() == false) {
+            if (i % mergeInterval == 0 && !sameKeyedBuckets.isEmpty()) {
                 reduceContext.consumeBucketsAndMaybeBreak(1);
                 mergedBuckets.add(reduceBucket(sameKeyedBuckets, reduceContext));
                 sameKeyedBuckets.clear();
@@ -556,7 +556,7 @@ public final class InternalAutoDateHistogram extends
             reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket) - 1);
             sameKeyedBuckets.add(new Bucket(Math.round(key), bucket.docCount, format, bucket.aggregations));
         }
-        if (sameKeyedBuckets.isEmpty() == false) {
+        if (!sameKeyedBuckets.isEmpty()) {
             reduceContext.consumeBucketsAndMaybeBreak(1);
             mergedBuckets.add(reduceBucket(sameKeyedBuckets, reduceContext));
         }
@@ -606,7 +606,7 @@ public final class InternalAutoDateHistogram extends
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalAutoDateHistogram that = (InternalAutoDateHistogram) obj;
         return Objects.equals(buckets, that.buckets)

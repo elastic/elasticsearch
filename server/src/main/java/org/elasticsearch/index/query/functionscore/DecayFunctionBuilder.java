@@ -489,7 +489,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected boolean doEquals(ScoreFunction other) {
             NumericFieldDataScoreFunction numericFieldDataScoreFunction = (NumericFieldDataScoreFunction) other;
-            if (super.doEquals(other) == false) {
+            if (!super.doEquals(other)) {
                 return false;
             }
             return Objects.equals(this.origin, numericFieldDataScoreFunction.origin);
@@ -549,7 +549,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
-                    if (distance.advanceExact(docId) == false) {
+                    if (!distance.advanceExact(docId)) {
                         return Explanation.noMatch("No value for the distance");
                     }
                     double value = distance.doubleValue();

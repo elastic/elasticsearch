@@ -266,9 +266,9 @@ public class PivotTests extends ESTestCase {
         }));
 
         assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
-        if (expectValid == true && exceptionHolder.get() != null) {
+        if (expectValid && exceptionHolder.get() != null) {
             throw exceptionHolder.get();
-        } else if (expectValid == false && exceptionHolder.get() == null) {
+        } else if (!expectValid && exceptionHolder.get() == null) {
             fail("Expected config to be invalid");
         }
     }

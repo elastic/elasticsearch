@@ -156,7 +156,7 @@ public class CertificateToolTests extends ESTestCase {
             final String name;
             while (true) {
                 String randomName = getValidRandomInstanceName();
-                if (instanceInput.containsKey(randomName) == false) {
+                if (!instanceInput.containsKey(randomName)) {
                     name = randomName;
                     break;
                 }
@@ -861,7 +861,7 @@ public class CertificateToolTests extends ESTestCase {
         do {
             name = randomAlphaOfLengthBetween(1, 32);
             valid = Name.fromUserProvidedName(name, name).error == null;
-        } while (valid == false);
+        } while (!valid);
         return name;
     }
 

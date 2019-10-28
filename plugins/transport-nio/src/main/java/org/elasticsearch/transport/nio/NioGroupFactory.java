@@ -164,7 +164,7 @@ public final class NioGroupFactory {
         }
 
         private void ensureOpen() {
-            if (isOpen.get() == false) {
+            if (!isOpen.get()) {
                 throw new IllegalStateException("NioGroup is closed.");
             }
         }

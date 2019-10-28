@@ -134,7 +134,7 @@ final class TestUtils {
 
     private static Integer parse(final Pattern pattern, final String contentRange, final BiFunction<String, String, Integer> fn) {
         final Matcher matcher = pattern.matcher(contentRange);
-        if (matcher.matches() == false || matcher.groupCount() != 2) {
+        if (!matcher.matches() || matcher.groupCount() != 2) {
             throw new IllegalArgumentException("Unable to parse content range header");
         }
         return fn.apply(matcher.group(1), matcher.group(2));

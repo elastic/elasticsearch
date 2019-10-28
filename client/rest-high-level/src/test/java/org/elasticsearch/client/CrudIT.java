@@ -650,7 +650,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
             DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
             if (opType == DocWriteRequest.OpType.DELETE) {
-                if (erroneous == false) {
+                if (!erroneous) {
                     assertEquals(RestStatus.CREATED,
                             highLevelClient().index(
                                     new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status());
@@ -679,7 +679,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 } else if (opType == DocWriteRequest.OpType.UPDATE) {
                     UpdateRequest updateRequest = new UpdateRequest("index", id)
                             .doc(new IndexRequest().source(source, xContentType));
-                    if (erroneous == false) {
+                    if (!erroneous) {
                         assertEquals(RestStatus.CREATED,
                                 highLevelClient().index(
                                         new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status());
@@ -739,7 +739,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
                 DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
                 if (opType == DocWriteRequest.OpType.DELETE) {
-                    if (erroneous == false) {
+                    if (!erroneous) {
                         assertEquals(RestStatus.CREATED,
                                 highLevelClient().index(
                                         new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status());
@@ -766,7 +766,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
                         UpdateRequest updateRequest = new UpdateRequest("index", id)
                                 .doc(new IndexRequest().source(xContentType, "id", i));
-                        if (erroneous == false) {
+                        if (!erroneous) {
                             assertEquals(RestStatus.CREATED,
                                     highLevelClient().index(
                                             new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status());

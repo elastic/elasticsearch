@@ -62,7 +62,7 @@ public enum VersionType implements Writeable {
                 return false;
             }
             if (expectedVersion == Versions.MATCH_DELETED) {
-                return deleted == false;
+                return !deleted;
             }
             if (currentVersion != expectedVersion) {
                 return true;

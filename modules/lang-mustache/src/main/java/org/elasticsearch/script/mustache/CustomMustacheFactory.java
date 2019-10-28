@@ -185,7 +185,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         ToJsonCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, CODE);
-            if (CODE.equalsIgnoreCase(variable) == false) {
+            if (!CODE.equalsIgnoreCase(variable)) {
                 throw new MustacheException("Mismatch function code [" + CODE + "] cannot be applied to [" + variable + "]");
             }
         }

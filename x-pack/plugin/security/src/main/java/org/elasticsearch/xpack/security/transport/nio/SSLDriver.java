@@ -95,7 +95,7 @@ public class SSLDriver implements AutoCloseable {
      * @throws SSLException if the handshake cannot be initiated
      */
     public void renegotiate() throws SSLException {
-        if (currentMode.isClose() == false) {
+        if (!currentMode.isClose()) {
             engine.beginHandshake();
             ((RegularMode) currentMode).startHandshake();
         } else {
@@ -132,7 +132,7 @@ public class SSLDriver implements AutoCloseable {
     public int write(FlushOperation applicationBytes) throws SSLException {
         int totalBytesProduced = 0;
         boolean continueWrap = true;
-        while (continueWrap && applicationBytes.isFullyFlushed() == false) {
+        while (continueWrap && !applicationBytes.isFullyFlushed()) {
             int bytesProduced = currentMode.write(applicationBytes);
             totalBytesProduced += bytesProduced;
             continueWrap = bytesProduced > 0;
@@ -152,7 +152,7 @@ public class SSLDriver implements AutoCloseable {
     public void close() throws SSLException {
         outboundBuffer.close();
         ArrayList<SSLException> closingExceptions = new ArrayList<>(2);
-        if (currentMode.isClose() == false) {
+        if (!currentMode.isClose()) {
             currentMode = new CloseMode(((RegularMode) currentMode).isHandshaking, false);
         }
         CloseMode closeMode = (CloseMode) this.currentMode;
@@ -244,7 +244,7 @@ public class SSLDriver implements AutoCloseable {
 
     private void internalClose() throws SSLException {
         // This check prevents us from attempting to send close_notify twice
-        if (currentMode.isClose() == false) {
+        if (!currentMode.isClose()) {
             currentMode = new CloseMode(((RegularMode) currentMode).isHandshaking);
         }
     }
@@ -355,7 +355,7 @@ public class SSLDriver implements AutoCloseable {
 
         @Override
         public boolean readyForApplicationData() {
-            return isHandshaking == false;
+            return !isHandshaking;
         }
 
         @Override
@@ -381,7 +381,7 @@ public class SSLDriver implements AutoCloseable {
         }
 
         private CloseMode(boolean isHandshaking, boolean tryToWrap) throws SSLException {
-            if (isHandshaking && engine.isInboundDone() == false) {
+            if (isHandshaking && !engine.isInboundDone()) {
                 // If we attempt to close during a handshake either we are sending an alert and inbound
                 // should already be closed or we are sending a close_notify. If we send a close_notify
                 // the peer might send an handshake error alert. If we attempt to receive the handshake alert,
@@ -410,7 +410,7 @@ public class SSLDriver implements AutoCloseable {
 
         @Override
         public int read(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer applicationBuffer) throws SSLException {
-            if (needToReceiveClose == false) {
+            if (!needToReceiveClose) {
                 // There is an issue where receiving handshake messages after initiating the close process
                 // can place the SSLEngine back into handshaking mode. In order to handle this, if we
                 // initiate close during a handshake we do not wait to receive close. As we do not need to
@@ -449,14 +449,14 @@ public class SSLDriver implements AutoCloseable {
         private boolean isCloseDone() {
             // We do as much as possible to generate the outbound messages in the ctor. At this point, we are
             // only interested in interrogating if we need to wait to receive the close message.
-            return needToReceiveClose == false;
+            return !needToReceiveClose;
         }
 
         private void closeInboundAndSwallowPeerDidNotCloseException() throws SSLException {
             try {
                 engine.closeInbound();
             } catch (SSLException e) {
-                if (e.getMessage().contains("before receiving peer's close_notify") == false) {
+                if (!e.getMessage().contains("before receiving peer's close_notify")) {
                     throw e;
                 }
             }

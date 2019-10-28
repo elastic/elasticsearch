@@ -112,7 +112,7 @@ public final class ConfigurableClusterPrivileges {
 
     private static void expectFieldName(XContentParser parser, ParseField... fields) throws IOException {
         final String fieldName = parser.currentName();
-        if (Arrays.stream(fields).anyMatch(pf -> pf.match(fieldName, parser.getDeprecationHandler())) == false) {
+        if (!Arrays.stream(fields).anyMatch(pf -> pf.match(fieldName, parser.getDeprecationHandler()))) {
             throw new XContentParseException(parser.getTokenLocation(),
                 "failed to parse privilege. expected " + (fields.length == 1 ? "field name" : "one of") + " ["
                     + Strings.arrayToCommaDelimitedString(fields) + "] but found [" + fieldName + "] instead");

@@ -103,7 +103,7 @@ final class ServerTransportFilter {
         authcService.authenticate(securityAction, request, (User)null, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
-                    SystemUser.is(authentication.getUser()) == false) {
+                    !SystemUser.is(authentication.getUser())) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                         final Authentication replaced = Authentication.getAuthentication(threadContext);
                         authzService.authorize(replaced, securityAction, request, listener);
@@ -111,7 +111,7 @@ final class ServerTransportFilter {
                 } else {
                     authzService.authorize(authentication, securityAction, request, listener);
                 }
-            } else if (licenseState.isAuthAllowed() == false) {
+            } else if (!licenseState.isAuthAllowed()) {
                 listener.onResponse(null);
             } else {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));

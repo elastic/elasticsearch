@@ -245,7 +245,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
-        if (searchRequest.isCcsMinimizeRoundtrips() == false) {
+        if (!searchRequest.isCcsMinimizeRoundtrips()) {
             return false;
         }
         if (searchRequest.scroll() != null) {
@@ -729,7 +729,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         @Override
         public void onFailure(Exception e) {
-            if (exceptions.compareAndSet(null, e) == false) {
+            if (!exceptions.compareAndSet(null, e)) {
                 exceptions.accumulateAndGet(e, (previous, current) -> {
                     current.addSuppressed(previous);
                     return current;
@@ -759,7 +759,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 maybeFinish();
             } else {
                 Exception exception = e;
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
+                if (!RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
                     exception = wrapRemoteClusterFailure(clusterAlias, e);
                 }
                 super.onFailure(exception);

@@ -96,7 +96,7 @@ public final class Role {
                  @Nullable Collection<IndicesPrivileges> indicesPrivileges,
                  @Nullable Collection<ApplicationResourcePrivileges> applicationPrivileges,
                  @Nullable Collection<String> runAsPrivilege, @Nullable Map<String, Object> metadata) {
-        if (Strings.hasText(name) == false){
+        if (!Strings.hasText(name)){
             throw new IllegalArgumentException("role name must be provided");
         } else {
             this.name = name;
@@ -168,7 +168,7 @@ public final class Role {
     public String toString() {
         StringBuilder sb = new StringBuilder("{");
         sb.append("Name=").append(name).append(",");
-        if (false == clusterPrivileges.isEmpty()) {
+        if (!clusterPrivileges.isEmpty()) {
             sb.append("ClusterPrivileges=");
             sb.append(clusterPrivileges.toString());
             sb.append(", ");
@@ -178,22 +178,22 @@ public final class Role {
             sb.append(globalPrivileges.toString());
             sb.append(", ");
         }
-        if (false == indicesPrivileges.isEmpty()) {
+        if (!indicesPrivileges.isEmpty()) {
             sb.append("IndicesPrivileges=");
             sb.append(indicesPrivileges.toString());
             sb.append(", ");
         }
-        if (false == applicationPrivileges.isEmpty()) {
+        if (!applicationPrivileges.isEmpty()) {
             sb.append("ApplicationPrivileges=");
             sb.append(applicationPrivileges.toString());
             sb.append(", ");
         }
-        if (false == runAsPrivilege.isEmpty()) {
+        if (!runAsPrivilege.isEmpty()) {
             sb.append("RunAsPrivilege=");
             sb.append(runAsPrivilege.toString());
             sb.append(", ");
         }
-        if (false == metadata.isEmpty()) {
+        if (!metadata.isEmpty()) {
             sb.append("Metadata=[");
             sb.append(metadata.toString());
             sb.append("], ");
@@ -224,7 +224,7 @@ public final class Role {
         }
 
         public Builder name(String name) {
-            if (Strings.hasText(name) == false){
+            if (!Strings.hasText(name)){
                 throw new IllegalArgumentException("role name must be provided");
             } else {
                 this.name = name;

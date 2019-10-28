@@ -22,7 +22,7 @@ public enum QueryMetric {
             return REST;
         }
     }
-    
+
     @Override
     public String toString() {
         return this.name().toLowerCase(Locale.ROOT);
@@ -31,7 +31,7 @@ public enum QueryMetric {
     public static QueryMetric from(Mode mode, String clientId) {
         if (mode == Mode.ODBC) {
             // default to "odbc_32" if the client_id is not provided or it has a wrong value
-            if (clientId == null || false == ODBC_CLIENT_IDS.contains(clientId)) {
+            if (clientId == null || !ODBC_CLIENT_IDS.contains(clientId)) {
                 return fromString(RequestInfo.ODBC_32);
             } else {
                 return fromString(clientId);

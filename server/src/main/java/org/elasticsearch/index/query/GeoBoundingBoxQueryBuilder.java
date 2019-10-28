@@ -133,17 +133,17 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
      * @param right The right longitude
      */
     public GeoBoundingBoxQueryBuilder setCorners(double top, double left, double bottom, double right) {
-        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) == false) {
-            if (Numbers.isValidDouble(top) == false) {
+        if (!GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
+            if (!Numbers.isValidDouble(top)) {
                 throw new IllegalArgumentException("top latitude is invalid: " + top);
             }
-            if (Numbers.isValidDouble(left) == false) {
+            if (!Numbers.isValidDouble(left)) {
                 throw new IllegalArgumentException("left longitude is invalid: " + left);
             }
-            if (Numbers.isValidDouble(bottom) == false) {
+            if (!Numbers.isValidDouble(bottom)) {
                 throw new IllegalArgumentException("bottom latitude is invalid: " + bottom);
             }
-            if (Numbers.isValidDouble(right) == false) {
+            if (!Numbers.isValidDouble(right)) {
                 throw new IllegalArgumentException("right longitude is invalid: " + right);
             }
 
@@ -297,19 +297,19 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
         QueryValidationException validationException = null;
         // For everything post 2.0 validate latitude and longitude unless validation was explicitly turned off
-        if (GeoUtils.isValidLatitude(topLeft.getLat()) == false) {
+        if (!GeoUtils.isValidLatitude(topLeft.getLat())) {
             validationException = addValidationError("top latitude is invalid: " + topLeft.getLat(),
                     validationException);
         }
-        if (GeoUtils.isValidLongitude(topLeft.getLon()) == false) {
+        if (!GeoUtils.isValidLongitude(topLeft.getLon())) {
             validationException = addValidationError("left longitude is invalid: " + topLeft.getLon(),
                     validationException);
         }
-        if (GeoUtils.isValidLatitude(bottomRight.getLat()) == false) {
+        if (!GeoUtils.isValidLatitude(bottomRight.getLat())) {
             validationException = addValidationError("bottom latitude is invalid: " + bottomRight.getLat(),
                     validationException);
         }
-        if (GeoUtils.isValidLongitude(bottomRight.getLon()) == false) {
+        if (!GeoUtils.isValidLongitude(bottomRight.getLon())) {
             validationException = addValidationError("right longitude is invalid: " + bottomRight.getLon(),
                     validationException);
         }
@@ -520,8 +520,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
         if (envelope != null) {
-            if (Double.isNaN(top) == false || Double.isNaN(bottom) == false || Double.isNaN(left) == false ||
-                Double.isNaN(right) == false) {
+            if (!Double.isNaN(top) || !Double.isNaN(bottom) || !Double.isNaN(left) ||
+                !Double.isNaN(right)) {
                 throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
                     + "using well-known text and explicit corners.");
             }

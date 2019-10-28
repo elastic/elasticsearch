@@ -116,7 +116,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
         if (includeUnloadedSegments) {
             final SegmentsStats stats = new SegmentsStats();
             stats.add(this.stats);
-            if (includeSegmentFileSizes == false) {
+            if (!includeSegmentFileSizes) {
                 stats.clearFileSizes();
             }
             return stats;
@@ -142,7 +142,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 if (translogUuid == null) {
                     throw new IllegalStateException("commit doesn't contain translog unique id");
                 }
-                if (commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY) == false) {
+                if (!commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY)) {
                     throw new IllegalStateException("commit doesn't contain translog generation id");
                 }
                 final long lastCommitGeneration = Long.parseLong(commitUserData.get(Translog.TRANSLOG_GENERATION_KEY));

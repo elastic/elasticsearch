@@ -51,7 +51,7 @@ public final class CharArrays {
             chars = new char[length];
             charBuffer.get(chars);
             // if the buffer is not read only we can reset and fill with 0's
-            if (charBuffer.isReadOnly() == false) {
+            if (!charBuffer.isReadOnly()) {
                 charBuffer.clear(); // reset
                 for (int i = 0; i < charBuffer.limit(); i++) {
                     charBuffer.put((char) 0);
@@ -80,7 +80,7 @@ public final class CharArrays {
             bytes = new byte[length];
             byteBuffer.get(bytes);
             // if the buffer is not read only we can reset and fill with 0's
-            if (byteBuffer.isReadOnly() == false) {
+            if (!byteBuffer.isReadOnly()) {
                 byteBuffer.clear(); // reset
                 for (int i = 0; i < byteBuffer.limit(); i++) {
                     byteBuffer.put((byte) 0);

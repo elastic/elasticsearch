@@ -106,7 +106,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
         if (value == null) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is not defined for repository");
         }
-        if ((value instanceof String) && (Strings.hasText((String) value)) == false) {
+        if ((value instanceof String) && !(Strings.hasText((String) value))) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is empty for repository");
         }
         return value;

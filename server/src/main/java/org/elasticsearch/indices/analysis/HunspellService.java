@@ -166,7 +166,7 @@ public class HunspellService {
             logger.debug("Loading hunspell dictionary [{}]...", locale);
         }
         Path dicDir = hunspellDir.resolve(locale);
-        if (FileSystemUtils.isAccessibleDirectory(dicDir, logger) == false) {
+        if (!FileSystemUtils.isAccessibleDirectory(dicDir, logger)) {
             throw new ElasticsearchException(String.format(Locale.ROOT, "Could not find hunspell dictionary [%s]", locale));
         }
 

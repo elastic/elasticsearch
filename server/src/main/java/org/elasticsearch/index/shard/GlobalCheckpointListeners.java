@@ -208,7 +208,7 @@ public class GlobalCheckpointListeners implements Closeable {
             listenersToNotify = new HashMap<>(listeners);
             listeners.clear();
         }
-        if (listenersToNotify.isEmpty() == false) {
+        if (!listenersToNotify.isEmpty()) {
             executor.execute(() ->
                     listenersToNotify
                             .forEach((listener, t) -> {

@@ -487,7 +487,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         @Override
         public void addHeader(String name, String value) {
-            if (headers.containsKey(name) == false) {
+            if (!headers.containsKey(name)) {
                 ArrayList<String> values = new ArrayList<>();
                 values.add(value);
                 headers.put(name, values);

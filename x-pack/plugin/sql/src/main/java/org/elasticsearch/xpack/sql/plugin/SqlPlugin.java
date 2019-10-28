@@ -56,18 +56,18 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             XPackLicenseState licenseState = getLicenseState();
             switch (mode) {
                 case JDBC:
-                    if (licenseState.isJdbcAllowed() == false) {
+                    if (!licenseState.isJdbcAllowed()) {
                         throw LicenseUtils.newComplianceException("jdbc");
                     }
                     break;
                 case ODBC:
-                    if (licenseState.isOdbcAllowed() == false) {
+                    if (!licenseState.isOdbcAllowed()) {
                         throw LicenseUtils.newComplianceException("odbc");
                     }
                     break;
                 case PLAIN:
                 case CLI:
-                    if (licenseState.isSqlAllowed() == false) {
+                    if (!licenseState.isSqlAllowed()) {
                         throw LicenseUtils.newComplianceException(XPackField.SQL);
                     }
                     break;
@@ -97,7 +97,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
      * Create components used by the sql plugin.
      */
     Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry) {
-        if (false == enabled) {
+        if (!enabled) {
             return emptyList();
         }
         IndexResolver indexResolver = new IndexResolver(client, clusterName);
@@ -110,7 +110,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                              SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
-        if (false == enabled) {
+        if (!enabled) {
             return emptyList();
         }
 
@@ -124,7 +124,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SQL, SqlUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.SQL, SqlInfoTransportAction.class);
-        if (false == enabled) {
+        if (!enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
 

@@ -231,7 +231,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
             // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
             // merge version of it, which it does when refreshing the mappings), and warn log it.
-            if (documentMapper(mappingType).mappingSource().equals(incomingMappingSource) == false) {
+            if (!documentMapper(mappingType).mappingSource().equals(incomingMappingSource)) {
                 logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}",
                     index(), mappingType, incomingMappingSource, documentMapper(mappingType).mappingSource());
 
@@ -267,14 +267,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 assert currentMappingVersion < newMappingVersion :
                         "expected current mapping version [" + currentMappingVersion + "] "
                                 + "to be less than new mapping version [" + newMappingVersion + "]";
-                assert updatedEntries.isEmpty() == false;
+                assert !updatedEntries.isEmpty();
                 for (final DocumentMapper documentMapper : updatedEntries.values()) {
                     final MappingMetaData currentMapping = currentIndexMetaData.mapping();
                     assert currentMapping == null || documentMapper.type().equals(currentMapping.type());
                     if (currentMapping != null) {
                         final CompressedXContent currentSource = currentMapping.source();
                         final CompressedXContent newSource = documentMapper.mappingSource();
-                        assert currentSource.equals(newSource) == false :
+                        assert !currentSource.equals(newSource) :
                                 "expected current mapping [" + currentSource + "] for type [" + documentMapper.type() + "] " +
                                         "to be different than new mapping";
                     }
@@ -313,7 +313,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MappingMetaData mappingMetaData = cursor.value;
             if (onlyUpdateIfNeeded) {
                 DocumentMapper existingMapper = documentMapper(mappingMetaData.type());
-                if (existingMapper == null || mappingMetaData.source().equals(existingMapper.mappingSource()) == false) {
+                if (existingMapper == null || !mappingMetaData.source().equals(existingMapper.mappingSource())) {
                     map.put(mappingMetaData.type(), mappingMetaData.source());
                 }
             } else {
@@ -350,7 +350,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             throw new InvalidTypeNameException("mapping type name [" + type + "] is too long; limit is length 255 but was ["
                 + type.length() + "]");
         }
-        if (type.charAt(0) == '_' && SINGLE_MAPPING_NAME.equals(type) == false) {
+        if (type.charAt(0) == '_' && !SINGLE_MAPPING_NAME.equals(type)) {
             throw new InvalidTypeNameException("mapping type name [" + type + "] can't start with '_' unless it is called ["
                 + SINGLE_MAPPING_NAME + "]");
         }
@@ -492,7 +492,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final CompressedXContent mappingSource = mapper.mappingSource();
         DocumentMapper newMapper = parse(mapper.type(), mappingSource);
 
-        if (newMapper.mappingSource().equals(mappingSource) == false) {
+        if (!newMapper.mappingSource().equals(mappingSource)) {
             throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
                 + mappingSource + "]\n--> Result ["
                 + newMapper.mappingSource() + "]");
@@ -655,7 +655,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToFullName(String pattern) {
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
+        if (!Regex.isSimpleMatchPattern(pattern)) {
             // no wildcards
             return Collections.singleton(pattern);
         }

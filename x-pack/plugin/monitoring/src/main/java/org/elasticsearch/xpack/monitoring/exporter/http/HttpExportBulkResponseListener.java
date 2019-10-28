@@ -65,7 +65,7 @@ class HttpExportBulkResponseListener implements ResponseListener {
                     } else if (token.isValue()) {
                         if ("errors".equals(currentFieldName)) {
                             // no errors? then we can stop looking
-                            if (parser.booleanValue() == false) {
+                            if (!parser.booleanValue()) {
                                 return;
                             }
                         }

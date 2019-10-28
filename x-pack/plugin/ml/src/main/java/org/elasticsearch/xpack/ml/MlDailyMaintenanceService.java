@@ -95,7 +95,7 @@ public class MlDailyMaintenanceService implements Releasable {
 
     public synchronized void stop() {
         LOGGER.debug("Stopping ML daily maintenance service");
-        if (cancellable != null && cancellable.isCancelled() == false) {
+        if (cancellable != null && !cancellable.isCancelled()) {
             cancellable.cancel();
         }
     }

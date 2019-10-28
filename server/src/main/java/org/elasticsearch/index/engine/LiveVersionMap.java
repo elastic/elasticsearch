@@ -133,7 +133,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         boolean shouldInheritSafeAccess() {
-            final boolean mapHasNotSeenAnyOperations = current.isEmpty() && current.isUnsafe() == false;
+            final boolean mapHasNotSeenAnyOperations = current.isEmpty() && !current.isUnsafe();
             return needsSafeAccess
                 // we haven't seen any ops and map before needed it so we maintain it
                 || (mapHasNotSeenAnyOperations && previousMapsNeededSafeAccess);

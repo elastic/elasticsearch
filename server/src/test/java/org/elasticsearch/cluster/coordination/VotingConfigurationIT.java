@@ -79,7 +79,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         assertThat(clusterState.nodes().getSize(), equalTo(4));
         assertThat(votingConfiguration, hasItem(clusterState.nodes().getMasterNodeId()));
         for (DiscoveryNode discoveryNode : clusterState.nodes()) {
-            if (votingConfiguration.contains(discoveryNode.getId()) == false) {
+            if (!votingConfiguration.contains(discoveryNode.getId())) {
                 assertThat(excludedNodeName, nullValue());
                 excludedNodeName = discoveryNode.getName();
             }

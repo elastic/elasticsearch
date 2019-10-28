@@ -79,7 +79,7 @@ public final class VersionsAndSeqNoResolver {
             throw new AssertionError("Mismatched numbers of leaves: " + lookupState.length + " != " + reader.leaves().size());
         }
 
-        if (lookupState.length > 0 && Objects.equals(lookupState[0].uidField, uidField) == false) {
+        if (lookupState.length > 0 && !Objects.equals(lookupState[0].uidField, uidField)) {
             throw new AssertionError("Index does not consistently use the same uid field: ["
                     + uidField + "] != [" + lookupState[0].uidField + "]");
         }

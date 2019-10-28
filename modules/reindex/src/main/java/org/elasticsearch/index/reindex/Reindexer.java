@@ -146,7 +146,7 @@ public class Reindexer {
                     c.setSSLStrategy(sslConfig.getStrategy());
                     return c;
                 });
-        if (Strings.hasLength(remoteInfo.getPathPrefix()) && "/".equals(remoteInfo.getPathPrefix()) == false) {
+        if (Strings.hasLength(remoteInfo.getPathPrefix()) && !"/".equals(remoteInfo.getPathPrefix())) {
             builder.setPathPrefix(remoteInfo.getPathPrefix());
         }
         return builder.build();

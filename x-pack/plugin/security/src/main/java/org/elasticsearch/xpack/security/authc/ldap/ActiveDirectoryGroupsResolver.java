@@ -80,7 +80,7 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
         searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER,
                 Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
                 ActionListener.wrap((entry) -> {
-                    if (entry == null || entry.hasAttribute(TOKEN_GROUPS) == false) {
+                    if (entry == null || !entry.hasAttribute(TOKEN_GROUPS)) {
                         listener.onResponse(null);
                     } else {
                         final byte[][] tokenGroupSIDBytes = entry.getAttributeValueByteArrays(TOKEN_GROUPS);

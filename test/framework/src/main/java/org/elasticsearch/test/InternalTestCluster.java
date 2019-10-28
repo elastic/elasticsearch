@@ -177,8 +177,8 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient -> DiscoveryNode.isDataNode(nodeAndClient.node.settings());
 
     private static final Predicate<NodeAndClient> NO_DATA_NO_MASTER_PREDICATE = nodeAndClient ->
-        DiscoveryNode.isMasterNode(nodeAndClient.node.settings()) == false
-            && DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;
+        !DiscoveryNode.isMasterNode(nodeAndClient.node.settings())
+            && !DiscoveryNode.isDataNode(nodeAndClient.node.settings());
 
     private static final Predicate<NodeAndClient> MASTER_NODE_PREDICATE =
         nodeAndClient -> DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
@@ -395,7 +395,7 @@ public final class InternalTestCluster extends TestCluster {
      * It's only possible to change {@link #bootstrapMasterNodeIndex} value if autoManageMasterNodes is false.
      */
     public void setBootstrapMasterNodeIndex(int bootstrapMasterNodeIndex) {
-        assert autoManageMasterNodes == false || bootstrapMasterNodeIndex == -1
+        assert !autoManageMasterNodes || bootstrapMasterNodeIndex == -1
             : "bootstrapMasterNodeIndex should be -1 if autoManageMasterNodes is true, but was " + bootstrapMasterNodeIndex;
         this.bootstrapMasterNodeIndex = bootstrapMasterNodeIndex;
     }
@@ -548,7 +548,7 @@ public final class InternalTestCluster extends TestCluster {
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         ensureOpen();
         List<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toList());
-        if (values.isEmpty() == false) {
+        if (!values.isEmpty()) {
             return randomFrom(random, values);
         }
         return null;
@@ -656,7 +656,7 @@ public final class InternalTestCluster extends TestCluster {
             onTransportServiceStarted.run(); // reusing an existing node implies its transport service already started
             return nodeAndClient;
         }
-        assert reuseExisting == true || nodeAndClient == null : "node name [" + name + "] already exists but not allowed to use it";
+        assert reuseExisting || nodeAndClient == null : "node name [" + name + "] already exists but not allowed to use it";
 
         SecureSettings secureSettings = Settings.builder().put(settings).getSecureSettings();
         if (secureSettings instanceof MockSecureSettings) {
@@ -701,8 +701,8 @@ public final class InternalTestCluster extends TestCluster {
         if (Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings)) {
             suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
         }
-        if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings) == false &&
-            Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings) == false
+        if (Node.NODE_MASTER_SETTING.exists(settings) && !Node.NODE_MASTER_SETTING.get(settings) &&
+            Node.NODE_DATA_SETTING.exists(settings) && !Node.NODE_DATA_SETTING.get(settings)
             ) {
             suffix = suffix + "c";
         }
@@ -868,7 +868,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         void resetClient() {
-            if (closed.get() == false) {
+            if (!closed.get()) {
                 Releasables.close(nodeClient);
                 nodeClient = null;
             }
@@ -882,7 +882,7 @@ public final class InternalTestCluster extends TestCluster {
             } catch (NodeValidationException e) {
                 throw new RuntimeException(e);
             } finally {
-                if (success == false) {
+                if (!success) {
                     IOUtils.closeWhileHandlingException(node);
                 }
             }
@@ -919,7 +919,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         private void recreateNode(final Settings newSettings, final Runnable onTransportServiceStarted) {
-            if (closed.get() == false) {
+            if (!closed.get()) {
                 throw new IllegalStateException("node " + name + " should be closed before recreating it");
             }
             // use a new seed to make sure we generate a fresh new node id if the data folder has been wiped
@@ -951,7 +951,7 @@ public final class InternalTestCluster extends TestCluster {
                 markNodeDataDirsAsPendingForWipe(node);
                 node.close();
                 try {
-                    if (node.awaitClose(10, TimeUnit.SECONDS) == false) {
+                    if (!node.awaitClose(10, TimeUnit.SECONDS)) {
                         throw new IOException("Node didn't close within 10 seconds.");
                     }
                 } catch (InterruptedException e) {
@@ -1247,7 +1247,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private IndexShard getShardOrNull(ClusterState clusterState, ShardRouting shardRouting) {
-        if (shardRouting == null || shardRouting.assignedToNode() == false) {
+        if (shardRouting == null || !shardRouting.assignedToNode()) {
             return null;
         }
         final DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
@@ -1529,7 +1529,7 @@ public final class InternalTestCluster extends TestCluster {
     private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {
         if (nodeAndClients.size() > 0) {
             final int newMasters = (int) nodeAndClients.stream().filter(NodeAndClient::isMasterEligible)
-                .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
+                .filter(nac -> !nodes.containsKey(nac.name)) // filter out old masters
                 .count();
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
             List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
@@ -1661,7 +1661,7 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.startNode();
         publishNode(nodeAndClient);
 
-        if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
+        if (callback.validateClusterForming() || !excludedNodeIds.isEmpty()) {
             // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
             // we have to do this via the node that was just restarted as it may be that the master didn't yet process the fact that it left
             validateClusterFormed(nodeAndClient.name);
@@ -1707,10 +1707,10 @@ public final class InternalTestCluster extends TestCluster {
 
     private void removeExclusions(Set<String> excludedNodeIds) {
         assert Thread.holdsLock(this);
-        if (excludedNodeIds.isEmpty() == false) {
+        if (!excludedNodeIds.isEmpty()) {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
-                Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
+                Client client = getRandomNodeAndClient(node -> !excludedNodeIds.contains(node.name)).client();
                 client.execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
             } catch (InterruptedException | ExecutionException e) {
                 throw new AssertionError("unexpected", e);
@@ -1848,7 +1848,7 @@ public final class InternalTestCluster extends TestCluster {
         List<Settings> newSettings = new ArrayList<>();
 
         for (Settings settings : allNodesSettings) {
-            if (Node.NODE_MASTER_SETTING.get(settings) == false) {
+            if (!Node.NODE_MASTER_SETTING.get(settings)) {
                 newSettings.add(settings);
             } else {
                 currentNodeId++;
@@ -1925,7 +1925,7 @@ public final class InternalTestCluster extends TestCluster {
         final int prevMasterCount = getMasterNodesCount();
         int autoBootstrapMasterNodeIndex = autoManageMasterNodes && prevMasterCount == 0 && newMasterCount > 0
             && Arrays.stream(extraSettings)
-                    .allMatch(s -> Node.NODE_MASTER_SETTING.get(s) == false || ZEN2_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(s)))
+                    .allMatch(s -> !Node.NODE_MASTER_SETTING.get(s) || ZEN2_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(s)))
             ? RandomNumbers.randomIntBetween(random, 0, newMasterCount - 1) : -1;
 
         final int numOfNodes = extraSettings.length;

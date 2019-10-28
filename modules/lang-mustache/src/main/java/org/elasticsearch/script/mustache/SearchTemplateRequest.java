@@ -157,7 +157,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         if (scriptType == null) {
             validationException = addValidationError("template's script type is missing", validationException);
         }
-        if (simulate == false) {
+        if (!simulate) {
             if (request == null) {
                 validationException = addValidationError("search request is missing", validationException);
             } else {

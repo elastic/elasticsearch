@@ -106,7 +106,7 @@ public final class XContentTestUtils {
                                 break;
                             }
                         }
-                        if (found == false) {
+                        if (!found) {
                             return reason;
                         }
                     }

@@ -190,13 +190,13 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             builder.field("dry_run", original.dryRun());
         }
         params.put("explain", Boolean.toString(original.explain()));
-        if (false == original.timeout().equals(AcknowledgedRequest.DEFAULT_ACK_TIMEOUT) || randomBoolean()) {
+        if (!original.timeout().equals(AcknowledgedRequest.DEFAULT_ACK_TIMEOUT) || randomBoolean()) {
             params.put("timeout", original.timeout().toString());
         }
         if (original.isRetryFailed() || randomBoolean()) {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
-        if (false == original.masterNodeTimeout().equals(MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
+        if (!original.masterNodeTimeout().equals(MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
             params.put("master_timeout", original.masterNodeTimeout().toString());
         }
         if (original.getCommands() != null) {

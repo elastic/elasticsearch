@@ -181,7 +181,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         long count = 0;
 
         for (boolean gotFieldFlag : gotFieldFlags) {
-            if (gotFieldFlag == false) {
+            if (!gotFieldFlag) {
                 ++count;
             }
         }

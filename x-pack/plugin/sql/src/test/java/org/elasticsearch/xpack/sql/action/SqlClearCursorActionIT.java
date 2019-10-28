@@ -75,7 +75,7 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
         do {
             sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).cursor(sqlQueryResponse.cursor()).get();
             fetched += sqlQueryResponse.size();
-        } while (sqlQueryResponse.cursor().isEmpty() == false);
+        } while (!sqlQueryResponse.cursor().isEmpty());
         assertEquals(indexSize, fetched);
 
         SqlClearCursorResponse cleanCursorResponse = new SqlClearCursorRequestBuilder(client(), SqlClearCursorAction.INSTANCE)

@@ -91,8 +91,8 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                     + LdapRealmSettings.AD_TYPE + ", " + LdapRealmSettings.LDAP_TYPE + "]";
             final boolean hasSearchSettings = LdapUserSearchSessionFactory.hasUserSearchSettings(config);
             final boolean hasTemplates = config.hasSetting(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING);
-            if (hasSearchSettings == false) {
-                if (hasTemplates == false) {
+            if (!hasSearchSettings) {
+                if (!hasTemplates) {
                     throw new IllegalArgumentException("settings were not found for either user search [" +
                             RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN) +
                             "] or user template [" +
@@ -232,7 +232,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             }, onFailure));
             loadingGroups = true;
         } finally {
-            if (loadingGroups == false) {
+            if (!loadingGroups) {
                 session.close();
             }
         }

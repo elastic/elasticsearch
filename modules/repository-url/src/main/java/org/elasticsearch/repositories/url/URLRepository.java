@@ -84,7 +84,7 @@ public class URLRepository extends BlobStoreRepository {
                          NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool) {
         super(metadata, namedXContentRegistry, threadPool, BlobPath.cleanPath());
 
-        if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) ==  false) {
+        if (!URL_SETTING.exists(metadata.settings()) && !REPOSITORIES_URL_SETTING.exists(environment.settings())) {
             throw new RepositoryException(metadata.name(), "missing url");
         }
         this.environment = environment;

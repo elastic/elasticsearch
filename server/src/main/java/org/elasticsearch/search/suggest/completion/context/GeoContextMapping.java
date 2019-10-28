@@ -273,7 +273,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             locations.add(geoHash);
             if (queryContext.getNeighbours().isEmpty() && geoHash.length() == this.precision) {
                 addNeighbors(geoHash, locations);
-            } else if (queryContext.getNeighbours().isEmpty() == false) {
+            } else if (!queryContext.getNeighbours().isEmpty()) {
                 queryContext.getNeighbours().stream()
                     .filter(neighbourPrecision -> neighbourPrecision < geoHash.length())
                     .forEach(neighbourPrecision -> {
@@ -302,7 +302,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     throw new ElasticsearchParseException(
                         "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 }
-            } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
+            } else if (!GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName())) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
                     deprecationLogger.deprecatedAndMaybeLog("geo_context_mapping",
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",

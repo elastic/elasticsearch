@@ -389,7 +389,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     private static String coordinateToWKT(final Coordinate coordinate) {
         final StringBuilder sb = new StringBuilder();
         sb.append(coordinate.x + GeoWKTParser.SPACE + coordinate.y);
-        if (Double.isNaN(coordinate.z) == false) {
+        if (!Double.isNaN(coordinate.z)) {
             sb.append(GeoWKTParser.SPACE + coordinate.z);
         }
         return sb.toString();
@@ -444,7 +444,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
 
     protected static XContentBuilder toXContent(XContentBuilder builder, Coordinate coordinate) throws IOException {
         builder.startArray().value(coordinate.x).value(coordinate.y);
-        if (Double.isNaN(coordinate.z) == false) {
+        if (!Double.isNaN(coordinate.z)) {
             builder.value(coordinate.z);
         }
         return builder.endArray();

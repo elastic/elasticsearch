@@ -258,10 +258,10 @@ public class Analysis {
         try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             String word;
             while ((word = br.readLine()) != null) {
-                if (Strings.hasText(word) == false) {
+                if (!Strings.hasText(word)) {
                     continue;
                 }
-                if (removeComments == false || word.startsWith("#") == false) {
+                if (!removeComments || !word.startsWith("#")) {
                     result.add(word.trim());
                 }
             }

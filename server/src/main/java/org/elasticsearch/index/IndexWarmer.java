@@ -61,7 +61,7 @@ public final class IndexWarmer {
         if (shard.state() == IndexShardState.CLOSED) {
             return;
         }
-        if (settings.isWarmerEnabled() == false) {
+        if (!settings.isWarmerEnabled()) {
             return;
         }
         if (logger.isTraceEnabled()) {
@@ -121,7 +121,7 @@ public final class IndexWarmer {
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (MappedFieldType fieldType : mapperService.fieldTypes()) {
                 final String indexName = fieldType.name();
-                if (fieldType.eagerGlobalOrdinals() == false) {
+                if (!fieldType.eagerGlobalOrdinals()) {
                     continue;
                 }
                 warmUpGlobalOrdinals.put(indexName, fieldType);
@@ -133,7 +133,7 @@ public final class IndexWarmer {
                         final long start = System.nanoTime();
                         IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
-                        if (reader.leaves().isEmpty() == false) {
+                        if (!reader.leaves().isEmpty()) {
                             global.load(reader.leaves().get(0));
                         }
 

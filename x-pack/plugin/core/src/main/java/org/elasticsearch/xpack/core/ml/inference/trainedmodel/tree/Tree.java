@@ -115,7 +115,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     @Override
     public double infer(List<Double> features) {
         TreeNode node = nodes.get(0);
-        while(node.isLeaf() == false) {
+        while(!node.isLeaf()) {
             node = nodes.get(node.compare(features));
         }
         return node.getLeafValue();
@@ -130,7 +130,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         List<TreeNode> visited = new ArrayList<>();
         TreeNode node = nodes.get(0);
         visited.add(node);
-        while(node.isLeaf() == false) {
+        while(!node.isLeaf()) {
             node = nodes.get(node.compare(features));
             visited.add(node);
         }
@@ -144,7 +144,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public List<Double> classificationProbability(Map<String, Object> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
+        if (!(targetType == TargetType.CLASSIFICATION)) {
             throw new UnsupportedOperationException(
                 "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
         }
@@ -157,7 +157,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public List<Double> classificationProbability(List<Double> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
+        if (!(targetType == TargetType.CLASSIFICATION)) {
             throw new UnsupportedOperationException(
                 "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
         }
@@ -253,7 +253,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         Set<Integer> visited = new HashSet<>(nodes.size());
         Queue<Integer> toVisit = new ArrayDeque<>(nodes.size());
         toVisit.add(0);
-        while(toVisit.isEmpty() == false) {
+        while(!toVisit.isEmpty()) {
             Integer nodeIdx = toVisit.remove();
             if (visited.contains(nodeIdx)) {
                 throw ExceptionsHelper.badRequestException("[tree] contains cycle at node {}", nodeIdx);
@@ -287,7 +287,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                 missingNodes.add(currentNode.getRightChild());
             }
         }
-        if (missingNodes.isEmpty() == false) {
+        if (!missingNodes.isEmpty()) {
             throw ExceptionsHelper.badRequestException("[tree] contains missing nodes {}", missingNodes);
         }
     }

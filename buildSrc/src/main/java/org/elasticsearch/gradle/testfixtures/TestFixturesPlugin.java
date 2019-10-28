@@ -77,7 +77,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             preProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
             postProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
 
-            if (dockerComposeSupported() == false) {
+            if (!dockerComposeSupported()) {
                 preProcessFixture.setEnabled(false);
                 postProcessFixture.setEnabled(false);
                 buildFixture.setEnabled(false);
@@ -120,7 +120,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         }
 
         extension.fixtures
-            .matching(fixtureProject -> fixtureProject.equals(project) == false)
+            .matching(fixtureProject -> !fixtureProject.equals(project))
             .all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
 
         conditionTaskByType(tasks, extension, Test.class);
@@ -128,7 +128,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         conditionTaskByType(tasks, extension, TestingConventionsTasks.class);
         conditionTaskByType(tasks, extension, ComposeUp.class);
 
-        if (dockerComposeSupported() == false) {
+        if (!dockerComposeSupported()) {
             project.getLogger().warn(
                 "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
                     "but none could be found so these will be skipped", project.getPath()
@@ -159,7 +159,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             task -> task.onlyIf(spec ->
                 extension.fixtures.stream()
                     .anyMatch(fixtureProject ->
-                        fixtureProject.getTasks().getByName("buildFixture").getEnabled() == false
+                        !fixtureProject.getTasks().getByName("buildFixture").getEnabled()
                     ) == false
             )
         );
@@ -176,7 +176,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                          public void execute(Task theTask) {
                              fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
                                  .entrySet().stream()
-                                 .filter(entry -> enableFilter == false ||
+                                 .filter(entry -> !enableFilter ||
                                      extension.isServiceRequired(entry.getKey(), fixtureProject.getPath())
                                  )
                                  .forEach(entry -> {
@@ -224,7 +224,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         Class<?> aClass;
         try {
             aClass = Class.forName(type);
-            if (DefaultTask.class.isAssignableFrom(aClass) == false) {
+            if (!DefaultTask.class.isAssignableFrom(aClass)) {
                 throw new IllegalArgumentException("Not a task type: " + type);
             }
         } catch (ClassNotFoundException e) {

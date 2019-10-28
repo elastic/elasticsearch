@@ -308,8 +308,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(GetCcrRestoreFileChunkAction.NAME) == false &&
-                    action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.NAME)) == false) {
+                if (!action.equals(GetCcrRestoreFileChunkAction.NAME) &&
+                    !action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.NAME))) {
                     connection.sendRequest(requestId, action, request, options);
                 }
             });

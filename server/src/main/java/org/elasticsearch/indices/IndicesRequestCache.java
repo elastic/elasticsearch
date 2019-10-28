@@ -245,7 +245,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Key key = (Key) o;
-            if (Objects.equals(readerCacheKey, key.readerCacheKey) == false) return false;
+            if (!Objects.equals(readerCacheKey, key.readerCacheKey)) return false;
             if (!entity.getCacheIdentity().equals(key.entity.getCacheIdentity())) return false;
             if (!value.equals(key.value)) return false;
             return true;
@@ -284,7 +284,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 return false;
             }
             CleanupKey that = (CleanupKey) o;
-            if (Objects.equals(readerCacheKey, that.readerCacheKey) == false) return false;
+            if (!Objects.equals(readerCacheKey, that.readerCacheKey)) return false;
             if (!entity.getCacheIdentity().equals(that.entity.getCacheIdentity())) return false;
             return true;
         }
@@ -307,7 +307,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext(); ) {
             CleanupKey cleanupKey = iterator.next();
             iterator.remove();
-            if (cleanupKey.readerCacheKey == null || cleanupKey.entity.isOpen() == false) {
+            if (cleanupKey.readerCacheKey == null || !cleanupKey.entity.isOpen()) {
                 // null indicates full cleanup, as does a closed shard
                 currentFullClean.add(cleanupKey.entity.getCacheIdentity());
             } else {

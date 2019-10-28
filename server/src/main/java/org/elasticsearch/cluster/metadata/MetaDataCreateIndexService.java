@@ -208,7 +208,7 @@ public class MetaDataCreateIndexService {
                     request.index(), request.waitForActiveShards());
                 activeShardsObserver.waitForActiveShards(new String[]{request.index()}, request.waitForActiveShards(), request.ackTimeout(),
                     shardsAcknowledged -> {
-                        if (shardsAcknowledged == false) {
+                        if (!shardsAcknowledged) {
                             logger.debug("[{}] index created, but the operation timed out while waiting for " +
                                              "enough shards to be started.", request.index());
                         } else {
@@ -422,7 +422,7 @@ public class MetaDataCreateIndexService {
                         routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
                     }
                 } else {
-                    assert IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build()) == false
+                    assert !IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build())
                         : "index.number_of_routing_shards should not be present on the target index on resize";
                     routingNumShards = sourceMetaData.getRoutingNumShards();
                 }
@@ -474,7 +474,7 @@ public class MetaDataCreateIndexService {
                 if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                     waitForActiveShards = tmpImd.getWaitForActiveShards();
                 }
-                if (waitForActiveShards.validate(tmpImd.getNumberOfReplicas()) == false) {
+                if (!waitForActiveShards.validate(tmpImd.getNumberOfReplicas())) {
                     throw new IllegalArgumentException("invalid wait_for_active_shards[" + request.waitForActiveShards() +
                         "]: cannot be greater than number of shard copies [" +
                         (tmpImd.getNumberOfReplicas() + 1) + "]");
@@ -616,7 +616,7 @@ public class MetaDataCreateIndexService {
             throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
-        if (validationErrors.isEmpty() == false) {
+        if (!validationErrors.isEmpty()) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
             throw new IndexCreationException(indexName, validationException);
@@ -646,9 +646,9 @@ public class MetaDataCreateIndexService {
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
         String customPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
         List<String> validationErrors = new ArrayList<>();
-        if (Strings.isEmpty(customPath) == false && env.sharedDataFile() == null) {
+        if (!Strings.isEmpty(customPath) && env.sharedDataFile() == null) {
             validationErrors.add("path.shared_data must be set in order to use custom data paths");
-        } else if (Strings.isEmpty(customPath) == false) {
+        } else if (!Strings.isEmpty(customPath)) {
             Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
             if (resolvedPath == null) {
                 validationErrors.add("custom path [" + customPath +
@@ -730,7 +730,7 @@ public class MetaDataCreateIndexService {
             throw new IndexNotFoundException(sourceIndex);
         }
         // ensure index is read-only
-        if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
+        if (!state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex)) {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
         }
 
@@ -797,7 +797,7 @@ public class MetaDataCreateIndexService {
             final Predicate<String> sourceSettingsPredicate =
                     (s) -> (s.startsWith("index.similarity.") || s.startsWith("index.analysis.") ||
                             s.startsWith("index.sort.") || s.equals("index.soft_deletes.enabled"))
-                            && indexSettingsBuilder.keys().contains(s) == false;
+                            && !indexSettingsBuilder.keys().contains(s);
             builder.put(sourceMetaData.getSettings().filter(sourceSettingsPredicate));
         }
 

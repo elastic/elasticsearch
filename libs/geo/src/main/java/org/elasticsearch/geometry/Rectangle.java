@@ -195,6 +195,6 @@ public class Rectangle implements Geometry {
 
     @Override
     public boolean hasZ() {
-        return Double.isNaN(maxZ) == false;
+        return !Double.isNaN(maxZ);
     }
 }

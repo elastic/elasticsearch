@@ -135,7 +135,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
 
     public void testDoPublishTrue() {
         final boolean checkResponse = randomBoolean();
-        final boolean publish = checkResponse == false;
+        final boolean publish = !checkResponse;
         final MockHttpResource mockWatch = new MockHttpResource(owner, randomBoolean(), checkResponse, publish);
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);

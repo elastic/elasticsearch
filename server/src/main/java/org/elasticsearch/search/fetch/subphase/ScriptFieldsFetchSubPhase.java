@@ -41,7 +41,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        if (context.hasScriptFields() == false) {
+        if (!context.hasScriptFields()) {
             return;
         }
 

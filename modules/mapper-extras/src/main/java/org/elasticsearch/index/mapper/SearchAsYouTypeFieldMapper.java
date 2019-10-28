@@ -283,7 +283,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
+            if (prefixField == null || !prefixField.termLengthWithinBounds(value.length())) {
                 return super.prefixQuery(value, method, context);
             } else {
                 final Query query = prefixField.prefixQuery(value, method, context);
@@ -349,11 +349,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             final SearchAsYouTypeFieldType otherFieldType = (SearchAsYouTypeFieldType) other;
             if (this.shingleFields.length != otherFieldType.shingleFields.length) {
                 conflicts.add("mapper [" + name() + "] has a different [max_shingle_size]");
-            } else if (Arrays.equals(this.shingleFields, otherFieldType.shingleFields) == false) {
+            } else if (!Arrays.equals(this.shingleFields, otherFieldType.shingleFields)) {
                 conflicts.add("mapper [" + name() + "] has shingle subfields that are configured differently");
             }
 
-            if (Objects.equals(this.prefixField, otherFieldType.prefixField) == false) {
+            if (!Objects.equals(this.prefixField, otherFieldType.prefixField)) {
                 conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
             }
         }
@@ -568,7 +568,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            if (prefixFieldType == null || prefixFieldType.termLengthWithinBounds(value.length()) == false) {
+            if (prefixFieldType == null || !prefixFieldType.termLengthWithinBounds(value.length())) {
                 return super.prefixQuery(value, method, context);
             } else {
                 final Query query = prefixFieldType.prefixQuery(value, method, context);
@@ -620,7 +620,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             if (ft.shingleSize != this.shingleSize) {
                 conflicts.add("mapper [" + name() + "] has different [shingle_size] values");
             }
-            if (Objects.equals(this.prefixFieldType, ft.prefixFieldType) == false) {
+            if (!Objects.equals(this.prefixFieldType, ft.prefixFieldType)) {
                 conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
             }
         }

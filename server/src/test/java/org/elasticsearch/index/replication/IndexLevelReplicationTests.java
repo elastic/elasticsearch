@@ -468,7 +468,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             for (IndexShard shard : shards) {
                 try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot()) {
                     // we flush at the end of peer recovery
-                    if (shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false) {
+                    if (shard.routingEntry().primary() || !shard.indexSettings().isSoftDeleteEnabled()) {
                         assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                     } else {
                         assertThat(snapshot.totalOperations(), equalTo(0));
@@ -486,7 +486,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
 
             for (IndexShard shard : shards) {
                 try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot()) {
-                    if (shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false) {
+                    if (shard.routingEntry().primary() || !shard.indexSettings().isSoftDeleteEnabled()) {
                         assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                     } else {
                         assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(Collections.singletonList(noop2)));
@@ -675,7 +675,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 String id = Integer.toString(randomIntBetween(1, 100));
                 if (randomBoolean()) {
                     group.index(new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON));
-                    if (liveDocs.add(id) == false) {
+                    if (!liveDocs.add(id)) {
                         versionLookups++;
                     }
                 } else {

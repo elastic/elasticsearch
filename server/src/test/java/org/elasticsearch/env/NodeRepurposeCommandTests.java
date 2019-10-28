@@ -144,8 +144,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         Matcher<String> outputMatcher = allOf(
             containsString(messageText),
             additionalOutputMatcher,
-            conditionalNot(containsString("testUUID"), verbose == false),
-            conditionalNot(containsString("testIndex"), verbose == false)
+            conditionalNot(containsString("testUUID"), !verbose),
+            conditionalNot(containsString("testIndex"), !verbose)
         );
 
         verifyUnchangedOnAbort(noDataNoMasterSettings, outputMatcher, verbose);
@@ -168,8 +168,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
         Matcher<String> matcher = allOf(
             containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
-            conditionalNot(containsString("testUUID"), verbose == false),
-            conditionalNot(containsString("testIndex"), verbose == false)
+            conditionalNot(containsString("testUUID"), !verbose),
+            conditionalNot(containsString("testIndex"), !verbose)
         );
 
         verifyUnchangedOnAbort(noDataMasterSettings,

@@ -59,7 +59,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         if (missingBucket && missingCurrentValue) {
             bits.clear(slot);
         } else {
-            assert missingCurrentValue == false;
+            assert !missingCurrentValue;
             if (missingBucket) {
                 bits.set(slot);
             }
@@ -70,9 +70,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     int compare(int from, int to) {
         if (missingBucket) {
-            if (bits.get(from) == false) {
+            if (!bits.get(from)) {
                 return bits.get(to) ? -1 * reverseMul : 0;
-            } else if (bits.get(to) == false) {
+            } else if (!bits.get(to)) {
                 return reverseMul;
             }
         }
@@ -84,7 +84,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         if (missingBucket) {
             if (missingCurrentValue) {
                 return bits.get(slot) ? -1 * reverseMul : 0;
-            } else if (bits.get(slot) == false) {
+            } else if (!bits.get(slot)) {
                 return reverseMul;
             }
         }
@@ -105,7 +105,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     @Override
     int hashCode(int slot) {
-        if (missingBucket && bits.get(slot) == false) {
+        if (missingBucket && !bits.get(slot)) {
             return 0;
         } else {
             return Double.hashCode(values.get(slot));
@@ -140,10 +140,10 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     @Override
     Double toComparable(int slot) {
-        if (missingBucket && bits.get(slot) == false) {
+        if (missingBucket && !bits.get(slot)) {
             return null;
         }
-        assert missingBucket == false || bits.get(slot);
+        assert !missingBucket || bits.get(slot);
         return values.get(slot);
     }
 

@@ -116,7 +116,7 @@ public class SymbolicLinkPreservingTar extends Tar {
 
             @Override
             public void processFile(final FileCopyDetailsInternal details) {
-                if (isChildOfVisitedSymbolicLink(details) == false) {
+                if (!isChildOfVisitedSymbolicLink(details)) {
                     if (isSymbolicLink(details)) {
                         visitSymbolicLink(details);
                     } else if (details.isDirectory()) {

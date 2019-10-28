@@ -98,7 +98,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             } catch (MasterNotDiscoveredException e) {
                 return; // ok, we hit the disconnected node
             }
-            if (clusterStateResponse.isWaitForTimedOut() == false) {
+            if (!clusterStateResponse.isWaitForTimedOut()) {
                 final ClusterState state = clusterStateResponse.getState();
                 assertNotNull("should always contain a master node", state.nodes().getMasterNodeId());
                 assertThat("waited for metadata version", state.metaData().version(), greaterThanOrEqualTo(waitForMetaDataVersion));
@@ -116,7 +116,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
                 .prepareState().clear().setLocal(true).setMetaData(true).setWaitForMetaDataVersion(waitForMetaDataVersion)
                 .setMasterNodeTimeout(TimeValue.timeValueMillis(100)).setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .get();
-            if (clusterStateResponse.isWaitForTimedOut() == false) {
+            if (!clusterStateResponse.isWaitForTimedOut()) {
                 final MetaData metaData = clusterStateResponse.getState().metaData();
                 assertThat("waited for metadata version " + waitForMetaDataVersion + " with node " + node,
                     metaData.version(), greaterThanOrEqualTo(waitForMetaDataVersion));
@@ -129,20 +129,20 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
 
         assertBusy(() -> assertThat(client().admin().cluster().prepareState().clear().setMetaData(true)
             .get().getState().getLastCommittedConfiguration().getNodeIds().stream()
-            .filter(n -> ClusterBootstrapService.isBootstrapPlaceholder(n) == false).collect(Collectors.toSet()), hasSize(3)));
+            .filter(n -> !ClusterBootstrapService.isBootstrapPlaceholder(n)).collect(Collectors.toSet()), hasSize(3)));
 
         final String masterName = internalCluster().getMasterName();
 
         final AtomicBoolean shutdown = new AtomicBoolean();
         final Thread assertingThread = new Thread(() -> {
-            while (shutdown.get() == false) {
+            while (!shutdown.get()) {
                 runnable.run();
             }
         }, "asserting thread");
 
         final Thread updatingThread = new Thread(() -> {
             String value = "none";
-            while (shutdown.get() == false) {
+            while (!shutdown.get()) {
                 value = "none".equals(value) ? "all" : "none";
                 final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
                 assertAcked(client(nonMasterNode).admin().cluster().prepareUpdateSettings().setPersistentSettings(

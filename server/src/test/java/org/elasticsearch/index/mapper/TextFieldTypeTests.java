@@ -56,7 +56,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             @Override
             public void modify(MappedFieldType ft) {
                 TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.setFielddata(tft.fielddata() == false);
+                tft.setFielddata(!tft.fielddata());
             }
         });
         addModifier(new Modifier("fielddata_frequency_filter.min", true) {

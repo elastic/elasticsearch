@@ -202,7 +202,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     protected void assertParameters(final PublishableHttpResource resource) {
         final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
-        if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
+        if (masterTimeout != null && !TimeValue.MINUS_ONE.equals(masterTimeout)) {
             assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
         } else {
             assertFalse(parameters.containsKey("master_timeout"));
@@ -215,7 +215,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     protected void assertVersionParameters(final PublishableHttpResource resource) {
         final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
-        if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
+        if (masterTimeout != null && !TimeValue.MINUS_ONE.equals(masterTimeout)) {
             assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
         } else {
             assertFalse(parameters.containsKey("master_timeout"));

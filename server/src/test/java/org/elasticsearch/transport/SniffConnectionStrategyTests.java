@@ -98,7 +98,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             success = true;
             return newService;
         } finally {
-            if (success == false) {
+            if (!success) {
                 newService.close();
             }
         }
@@ -300,7 +300,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         null, 3, n -> n.equals(rejectedNode) == false, seedNodes(seedNode))) {
+                         null, 3, n -> !n.equals(rejectedNode), seedNodes(seedNode))) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();

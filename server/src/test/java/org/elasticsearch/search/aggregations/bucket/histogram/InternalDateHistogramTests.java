@@ -118,7 +118,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
                     expectedCounts.put(minBound, 0L);
                 }
             }
-            if (expectedCounts.isEmpty() == false) {
+            if (!expectedCounts.isEmpty()) {
                 Long nextKey = expectedCounts.firstKey();
                 while (nextKey < expectedCounts.lastKey()) {
                     expectedCounts.putIfAbsent(nextKey, 0L);

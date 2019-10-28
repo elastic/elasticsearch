@@ -33,7 +33,7 @@ public final class ExplainFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
-        if (context.explain() == false || context.hasOnlySuggest()) {
+        if (!context.explain() || context.hasOnlySuggest()) {
             return;
         }
         try {

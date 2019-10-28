@@ -85,7 +85,7 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (!super.equals(obj)) {
             return false;
         }
         BasePrimaryAllocationCommand other = (BasePrimaryAllocationCommand) obj;

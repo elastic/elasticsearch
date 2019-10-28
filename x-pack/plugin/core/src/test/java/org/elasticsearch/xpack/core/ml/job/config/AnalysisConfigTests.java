@@ -715,7 +715,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             if (instance.getMultivariateByFields() == null) {
                 builder.setMultivariateByFields(randomBoolean());
             } else {
-                builder.setMultivariateByFields(instance.getMultivariateByFields() == false);
+                builder.setMultivariateByFields(!instance.getMultivariateByFields());
             }
             break;
         default:

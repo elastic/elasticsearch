@@ -668,7 +668,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             indices.put(watchIndex, new AliasOrIndex.Index(indexMetaData));
 
             // now point the alias, if the watch index is not .watches
-            if (watchIndex.equals(Watch.INDEX) == false) {
+            if (!watchIndex.equals(Watch.INDEX)) {
                 AliasMetaData aliasMetaData = mock(AliasMetaData.class);
                 when(aliasMetaData.alias()).thenReturn(watchIndex);
                 indices.put(Watch.INDEX, new AliasOrIndex.Alias(aliasMetaData, indexMetaData));

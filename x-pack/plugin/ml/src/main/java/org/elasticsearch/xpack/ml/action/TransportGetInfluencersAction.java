@@ -37,7 +37,7 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
         jobManager.jobExists(request.getJobId(), ActionListener.wrap(
                 jobExists -> {
                     InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder()
-                            .includeInterim(request.isExcludeInterim() == false)
+                            .includeInterim(!request.isExcludeInterim())
                             .start(request.getStart())
                             .end(request.getEnd())
                             .from(request.getPageParams().getFrom())

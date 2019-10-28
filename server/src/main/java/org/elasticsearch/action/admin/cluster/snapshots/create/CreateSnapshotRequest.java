@@ -445,7 +445,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("metadata")) {
-                if (entry.getValue() != null && (entry.getValue() instanceof Map == false)) {
+                if (entry.getValue() != null && (!(entry.getValue() instanceof Map))) {
                     throw new IllegalArgumentException("malformed metadata, should be an object");
                 }
                 userMetadata((Map<String, Object>) entry.getValue());
@@ -468,7 +468,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         builder.field("partial", partial);
         if (settings != null) {
             builder.startObject("settings");
-            if (settings.isEmpty() == false) {
+            if (!settings.isEmpty()) {
                 settings.toXContent(builder, params);
             }
             builder.endObject();

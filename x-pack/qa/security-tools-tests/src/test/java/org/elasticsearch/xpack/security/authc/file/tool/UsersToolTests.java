@@ -169,7 +169,7 @@ public class UsersToolTests extends CommandTestCase {
             if (usernameHash.length != 2) {
                 fail("Corrupted users file, line: " + line);
             }
-            if (username.equals(usernameHash[0]) == false) {
+            if (!username.equals(usernameHash[0])) {
                 continue;
             }
             String gotHash = usernameHash[1];
@@ -214,7 +214,7 @@ public class UsersToolTests extends CommandTestCase {
             if (roleUsers.length != 2) {
                 fail("Corrupted users_roles file, line: " + line);
             }
-            if (role.equals(roleUsers[0]) == false) {
+            if (!role.equals(roleUsers[0])) {
                 continue;
             }
             if (users.length == 0) {
@@ -222,7 +222,7 @@ public class UsersToolTests extends CommandTestCase {
             }
             List<String> gotUsers = Arrays.asList(roleUsers[1].split(","));
             for (String user : users) {
-                if (gotUsers.contains(user) == false) {
+                if (!gotUsers.contains(user)) {
                     fail("Expected users [" + Arrays.toString(users) + "] for role " + role +
                          " but found [" + gotUsers.toString() + "]");
                 }

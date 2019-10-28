@@ -147,7 +147,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      */
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        if (finished == false) {
+        if (!finished) {
             throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
         if (this.selectedBuckets != null) {

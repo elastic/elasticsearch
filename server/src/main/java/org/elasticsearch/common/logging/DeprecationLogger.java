@@ -72,7 +72,7 @@ public class DeprecationLogger {
         Objects.requireNonNull(threadContext, "Cannot register a null ThreadContext");
 
         // add returning false means it _did_ have it already
-        if (THREAD_CONTEXT.add(threadContext) == false) {
+        if (!THREAD_CONTEXT.add(threadContext)) {
             throw new IllegalStateException("Double-setting ThreadContext not allowed!");
         }
     }
@@ -89,7 +89,7 @@ public class DeprecationLogger {
         assert threadContext != null;
 
         // remove returning false means it did not have it already
-        if (THREAD_CONTEXT.remove(threadContext) == false) {
+        if (!THREAD_CONTEXT.remove(threadContext)) {
             throw new IllegalStateException("Removing unknown ThreadContext not allowed!");
         }
     }
@@ -262,7 +262,7 @@ public class DeprecationLogger {
 
     public String getXOpaqueId(Set<ThreadContext> threadContexts) {
         return threadContexts.stream()
-                             .filter(t -> t.isClosed() == false)
+                             .filter(t -> !t.isClosed())
                              .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
                              .findFirst()
                              .map(t -> t.getHeader(Task.X_OPAQUE_ID))
@@ -350,7 +350,7 @@ public class DeprecationLogger {
         for (int i = 0x80; i <= 0xFF; i++) {
             doesNotNeedEncoding.set(i);
         }
-        assert doesNotNeedEncoding.get('%') == false : doesNotNeedEncoding;
+        assert !doesNotNeedEncoding.get('%') : doesNotNeedEncoding;
     }
 
     private static final Charset UTF_8 = Charset.forName("UTF-8");
@@ -366,13 +366,13 @@ public class DeprecationLogger {
         boolean encodingNeeded = false;
         for (int i = 0; i < s.length(); i++) {
             int current = s.charAt(i);
-            if (doesNotNeedEncoding.get(current) == false) {
+            if (!doesNotNeedEncoding.get(current)) {
                 encodingNeeded = true;
                 break;
             }
         }
 
-        if (encodingNeeded == false) {
+        if (!encodingNeeded) {
             return s;
         }
 
@@ -392,7 +392,7 @@ public class DeprecationLogger {
                 int startIndex = i;
                 do {
                     i++;
-                } while (i < s.length() && doesNotNeedEncoding.get(s.charAt(i)) == false);
+                } while (i < s.length() && !doesNotNeedEncoding.get(s.charAt(i)));
 
                 final byte[] bytes = s.substring(startIndex, i).getBytes(UTF_8);
                 // noinspection ForLoopReplaceableByForEach

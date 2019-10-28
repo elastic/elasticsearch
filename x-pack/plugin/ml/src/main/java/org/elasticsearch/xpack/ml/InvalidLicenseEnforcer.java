@@ -40,7 +40,7 @@ public class InvalidLicenseEnforcer implements LicenseStateListener {
          * is, it would expose this to another thread before the constructor had finished. Therefore, we have a dedicated method to register
          * the listener that is invoked after the constructor has returned.
          */
-        assert licenseStateListenerRegistered == false;
+        assert !licenseStateListenerRegistered;
         licenseState.addListener(this);
         licenseStateListenerRegistered = true;
     }
@@ -48,7 +48,7 @@ public class InvalidLicenseEnforcer implements LicenseStateListener {
     @Override
     public void licenseStateChanged() {
         assert licenseStateListenerRegistered;
-        if (licenseState.isMachineLearningAllowed() == false) {
+        if (!licenseState.isMachineLearningAllowed()) {
             // if the license has expired, close jobs and datafeeds
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override

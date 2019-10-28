@@ -196,7 +196,7 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                 case SearchAction.NAME:
                     searchRequests.incrementAndGet();
                     Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
-                    if (timeout == false) {
+                    if (!timeout) {
                         if (rarely()) {
                             //make sure that search is sometimes also called from the same thread before the task is returned
                             listener.onResponse(null);
@@ -238,7 +238,7 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
 
         @Override
         public void close() {
-            if (open.compareAndSet(true, false) == false) {
+            if (!open.compareAndSet(true, false)) {
                 throw new IllegalStateException("channel already closed!");
             }
             ActionListener<Void> listener = closeListener.get();
@@ -268,10 +268,10 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
             //if the channel is already closed, the listener gets notified immediately, from the same thread.
-            if (open.get() == false) {
+            if (!open.get()) {
                 listener.onResponse(null);
             } else {
-                if (closeListener.compareAndSet(null, listener) == false) {
+                if (!closeListener.compareAndSet(null, listener)) {
                     throw new IllegalStateException("close listener already set, only one is allowed!");
                 }
             }

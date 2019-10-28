@@ -178,7 +178,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
         // err on the side of scanning these to make sure we don't miss anything
         Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null &&
-            dep.getGroup().startsWith("org.elasticsearch") == false;
+            !dep.getGroup().startsWith("org.elasticsearch");
         Set<File> jars = getRuntimeConfiguration()
             .getResolvedConfiguration()
             .getFiles(reallyThirdParty);
@@ -215,8 +215,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
         if (missingClassExcludes != null) {
             long bogousExcludesCount = Stream.concat(missingClassExcludes.stream(), violationsExcludes.stream())
-                .filter(each -> missingClasses.contains(each) == false)
-                .filter(each -> violationsClasses.contains(each) == false)
+                .filter(each -> !missingClasses.contains(each))
+                .filter(each -> !violationsClasses.contains(each))
                 .count();
             if (bogousExcludesCount != 0 && bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
                 logForbiddenAPIsOutput(forbiddenApisOutput);
@@ -231,7 +231,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         assertNoPointlessExclusions("have no violations", violationsExcludes, violationsClasses);
         assertNoPointlessExclusions("do not generate jar hell with the JDK", jdkJarHellExcludes, jdkJarHellClasses);
 
-        if (missingClassExcludes == null && (missingClasses.isEmpty() == false)) {
+        if (missingClassExcludes == null && (!missingClasses.isEmpty())) {
             getLogger().info(
                 "Found missing classes, but task is configured to ignore all of them:\n {}",
                 formatClassList(missingClasses)
@@ -244,10 +244,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
             getLogger().info("Third party audit passed successfully");
         } else {
             logForbiddenAPIsOutput(forbiddenApisOutput);
-            if (missingClasses.isEmpty() == false) {
+            if (!missingClasses.isEmpty()) {
                 getLogger().error("Missing classes:\n{}", formatClassList(missingClasses));
             }
-            if(violationsClasses.isEmpty() == false) {
+            if(!violationsClasses.isEmpty()) {
                 getLogger().error("Classes with violations:\n{}", formatClassList(violationsClasses));
             }
             throw new IllegalStateException("Audit of third party dependencies failed");
@@ -308,7 +308,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private void assertNoJarHell(Set<String> jdkJarHellClasses) {
         jdkJarHellClasses.removeAll(jdkJarHellExcludes);
-        if (jdkJarHellClasses.isEmpty() == false) {
+        if (!jdkJarHellClasses.isEmpty()) {
             throw new IllegalStateException(
                 "Audit of third party dependencies failed:\n" +
                     "  Jar Hell with the JDK:\n" + formatClassList(jdkJarHellClasses)
@@ -318,10 +318,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private void assertNoPointlessExclusions(String specifics, Set<String> excludes, Set<String> problematic) {
         String notMissing = excludes.stream()
-            .filter(each -> problematic.contains(each) == false)
+            .filter(each -> !problematic.contains(each))
             .map(each -> "  * " + each)
             .collect(Collectors.joining("\n"));
-        if (notMissing.isEmpty() == false) {
+        if (!notMissing.isEmpty()) {
             getLogger().error("Unnecessary exclusions, following classes " + specifics + ":\n {}", notMissing);
             throw new IllegalStateException("Third party audit task is not configured correctly");
         }
@@ -353,7 +353,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 "--allowmissingclasses"
             );
             spec.setErrorOutput(errorOut);
-            if (getLogger().isInfoEnabled() == false) {
+            if (!getLogger().isInfoEnabled()) {
                 spec.setStandardOutput(new NullOutputStream());
             }
             spec.setIgnoreExitValue(true);
@@ -367,7 +367,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         try (ByteArrayOutputStream outputStream = errorOut) {
             forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
         }
-        if (EXPECTED_EXIT_CODES.contains(result.getExitValue()) == false) {
+        if (!EXPECTED_EXIT_CODES.contains(result.getExitValue())) {
             throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
         }
         return forbiddenApisOutput;
@@ -377,7 +377,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = getProject().javaexec(spec -> {
             URL location = JdkJarHellCheck.class.getProtectionDomain().getCodeSource().getLocation();
-            if (location.getProtocol().equals("file") == false) {
+            if (!location.getProtocol().equals("file")) {
                 throw new GradleException("Unexpected location for JdkJarHellCheck class: " + location);
             }
             try {

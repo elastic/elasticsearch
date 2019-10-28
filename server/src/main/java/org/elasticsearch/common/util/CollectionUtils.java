@@ -159,7 +159,7 @@ public class CollectionUtils {
         if (value instanceof Map) {
             Map<?,?> map = (Map<?,?>) value;
             return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
-        } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
+        } else if ((value instanceof Iterable) && (!(value instanceof Path))) {
             return (Iterable<?>) value;
         } else if (value instanceof Object[]) {
             return Arrays.asList((Object[]) value);
@@ -171,7 +171,7 @@ public class CollectionUtils {
     private static void ensureNoSelfReferences(final Iterable<?> value, Object originalReference, final Set<Object> ancestors,
                                                String messageHint) {
         if (value != null) {
-            if (ancestors.add(originalReference) == false) {
+            if (!ancestors.add(originalReference)) {
                 String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
                 throw new IllegalArgumentException("Iterable object is self-referencing itself" + suffix);
             }

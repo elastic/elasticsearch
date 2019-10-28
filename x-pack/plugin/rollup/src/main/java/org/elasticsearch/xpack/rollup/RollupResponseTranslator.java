@@ -278,7 +278,7 @@ public class RollupResponseTranslator {
                 // We expect a filter agg here because the rollup convention is that all translated aggs
                 // will start with a filter, containing various agg-specific predicates.  If there
                 // *isn't* a filter agg here, something has gone very wrong!
-                if ((agg instanceof InternalFilter) == false) {
+                if (!(agg instanceof InternalFilter)) {
                     throw new RuntimeException("Expected [" +agg.getName()
                             + "] to be a FilterAggregation, but was ["
                             + agg.getClass().getSimpleName() + "]");
@@ -357,7 +357,7 @@ public class RollupResponseTranslator {
                     // the doc_count themselves on a per-bucket basis.
                     //
                     long count = -1;
-                    if (agg instanceof InternalMultiBucketAggregation == false) {
+                    if (!(agg instanceof InternalMultiBucketAggregation)) {
                         count = getAggCount(agg, rolled.getAsMap());
                     }
 
@@ -466,7 +466,7 @@ public class RollupResponseTranslator {
         // Iterate over the buckets in the multibucket
         List<B> buckets = source.getBuckets()
                 .stream()
-                .filter(b -> originalKeys.containsKey(b.getKey()) == false) // If the original has this key, ignore the rolled version
+                .filter(b -> !originalKeys.containsKey(b.getKey())) // If the original has this key, ignore the rolled version
                 .map(bucket -> {
 
                     // Grab the value from the count agg (if it exists), which represents this bucket's doc_count

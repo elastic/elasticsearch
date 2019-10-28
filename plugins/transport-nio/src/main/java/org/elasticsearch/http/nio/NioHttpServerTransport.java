@@ -125,7 +125,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         } finally {
-            if (success == false) {
+            if (!success) {
                 doStop(); // otherwise we leak threads since we never moved to started
             }
         }

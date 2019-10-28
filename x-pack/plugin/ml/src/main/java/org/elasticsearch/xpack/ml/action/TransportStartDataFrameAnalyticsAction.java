@@ -139,7 +139,7 @@ public class TransportStartDataFrameAnalyticsAction
     @Override
     protected void masterOperation(Task task, StartDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-        if (licenseState.isMachineLearningAllowed() == false) {
+        if (!licenseState.isMachineLearningAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -416,8 +416,8 @@ public class TransportStartDataFrameAnalyticsAction
                 return true;
             }
 
-            if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                assignment.isAssigned() == false) {
+            if (assignment != null && !assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) &&
+                !assignment.isAssigned()) {
                 // Assignment has failed despite passing our "fast fail" validation
                 exception = new ElasticsearchStatusException("Could not start data frame analytics task, allocation explanation [" +
                     assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
@@ -477,7 +477,7 @@ public class TransportStartDataFrameAnalyticsAction
         List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
         for (String index : concreteIndices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
                 unavailableIndices.add(index);
             }
         }
@@ -544,7 +544,7 @@ public class TransportStartDataFrameAnalyticsAction
             }
 
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-            if (isMemoryTrackerRecentlyRefreshed == false) {
+            if (!isMemoryTrackerRecentlyRefreshed) {
                 boolean scheduledRefresh = memoryTracker.asyncRefresh();
                 if (scheduledRefresh) {
                     String reason = "Not opening data frame analytics job [" + id +

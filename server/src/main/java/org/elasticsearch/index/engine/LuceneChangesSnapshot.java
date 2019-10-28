@@ -275,7 +275,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     private boolean assertDocSoftDeleted(LeafReader leafReader, int segmentDocId) throws IOException {
         final NumericDocValues ndv = leafReader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
-        if (ndv == null || ndv.advanceExact(segmentDocId) == false) {
+        if (ndv == null || !ndv.advanceExact(segmentDocId)) {
             throw new IllegalStateException("DocValues for field [" + Lucene.SOFT_DELETES_FIELD + "] is not found");
         }
         return ndv.longValue() == 1;

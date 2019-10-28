@@ -183,7 +183,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             //
             // For this to happen we must have already copied the translog.ckp file into translog-gen.ckp so we first check if that
             // file exists. If not we don't even try to clean it up and wait until we fail creating it
-            assert Files.exists(nextTranslogFile) == false ||
+            assert !Files.exists(nextTranslogFile) ||
                     Files.size(nextTranslogFile) <= TranslogHeader.headerSizeInBytes(translogUUID) :
                         "unexpected translog file: [" + nextTranslogFile + "]";
             if (Files.exists(currentCheckpointFile) // current checkpoint is already copied
@@ -205,7 +205,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // we have to close all the recovered ones otherwise we leak file handles here
                 // for instance if we have a lot of tlog and we can't create the writer we keep on holding
                 // on to all the uncommitted tlog files if we don't close
-                if (success == false) {
+                if (!success) {
                     IOUtils.closeWhileHandlingException(readers);
                 }
             }
@@ -232,7 +232,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             // translog was found.
             for (long i = checkpoint.generation; i >= minGenerationToRecoverFrom; i--) {
                 Path committedTranslogFile = location.resolve(getFilename(i));
-                if (Files.exists(committedTranslogFile) == false) {
+                if (!Files.exists(committedTranslogFile)) {
                     throw new TranslogCorruptedException(committedTranslogFile.toString(),
                         "translog file doesn't exist with generation: " + i + " recovering from: " + minGenerationToRecoverFrom
                             + " checkpoint: " + checkpoint.generation + " - translog ids must be consecutive");
@@ -256,7 +256,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             Path commitCheckpoint = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
             if (Files.exists(commitCheckpoint)) {
                 Checkpoint checkpointFromDisk = Checkpoint.read(commitCheckpoint);
-                if (checkpoint.equals(checkpointFromDisk) == false) {
+                if (!checkpoint.equals(checkpointFromDisk)) {
                     throw new TranslogCorruptedException(commitCheckpoint.toString(),
                         "checkpoint file " + commitCheckpoint.getFileName() + " already exists but has corrupted content: expected "
                             + checkpoint + " but got " + checkpointFromDisk);
@@ -266,7 +266,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 IOUtils.closeWhileHandlingException(foundTranslogs);
             }
         }
@@ -288,7 +288,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             // we only fsync the directory the tempFile was already fsynced
             IOUtils.fsync(targetPath.getParent(), true);
         } finally {
-            if (tempFileRenamed == false) {
+            if (!tempFileRenamed) {
                 try {
                     Files.delete(tempFile);
                 } catch (IOException ex) {
@@ -332,7 +332,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /** Returns {@code true} if this {@code Translog} is still open. */
     public boolean isOpen() {
-        return closed.get() == false;
+        return !closed.get();
     }
 
     private static boolean calledFromOutsideOrViaTragedyClose() {
@@ -686,7 +686,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             success = true;
             return result;
         } finally {
-            if (success == false) {
+            if (!success) {
                 onClose.close();
             }
         }
@@ -731,7 +731,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public void sync() throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
-            if (closed.get() == false) {
+            if (!closed.get()) {
                 current.sync();
             }
         } catch (final Exception ex) {
@@ -841,7 +841,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     protected void closeOnTragicEvent(final Exception ex) {
         // we can not hold a read lock here because closing will attempt to obtain a write lock and that would result in self-deadlock
-        assert readLock.isHeldByCurrentThread() == false : Thread.currentThread().getName();
+        assert !readLock.isHeldByCurrentThread() : Thread.currentThread().getName();
         if (tragedy.get() != null) {
             try {
                 close();
@@ -1249,9 +1249,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (version != index.version ||
                 seqNo != index.seqNo ||
                 primaryTerm != index.primaryTerm ||
-                id.equals(index.id) == false ||
+                !id.equals(index.id) ||
                 autoGeneratedIdTimestamp != index.autoGeneratedIdTimestamp ||
-                source.equals(index.source) == false) {
+                !source.equals(index.source)) {
                 return false;
             }
             if (routing != null ? !routing.equals(index.routing) : index.routing != null) {
@@ -1702,7 +1702,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current.sync();
                 deleteReaderFiles(reader);
             }
-            assert readers.isEmpty() == false || current.generation == minReferencedGen :
+            assert !readers.isEmpty() || current.generation == minReferencedGen :
                 "all readers were cleaned but the minReferenceGen [" + minReferencedGen + "] is not the current writer's gen [" +
                     current.generation + "]";
         } catch (final Exception ex) {

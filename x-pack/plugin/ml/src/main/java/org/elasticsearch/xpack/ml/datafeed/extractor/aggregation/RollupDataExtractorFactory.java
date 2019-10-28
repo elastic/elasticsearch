@@ -88,7 +88,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
 
         final AggregationBuilder datafeedHistogramAggregation = getHistogramAggregation(
             datafeed.getParsedAggregations(xContentRegistry).getAggregatorFactories());
-        if ((datafeedHistogramAggregation instanceof DateHistogramAggregationBuilder) == false) {
+        if (!(datafeedHistogramAggregation instanceof DateHistogramAggregationBuilder)) {
             listener.onFailure(
                 new IllegalArgumentException("Rollup requires that the datafeed configuration use a [date_histogram] aggregation," +
                     " not a [histogram] aggregation over the time field."));
@@ -132,10 +132,10 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
     }
 
     private static boolean validInterval(long datafeedInterval, ParsedRollupCaps rollupJobGroupConfig) {
-        if (rollupJobGroupConfig.hasDatehistogram() == false) {
+        if (!rollupJobGroupConfig.hasDatehistogram()) {
             return false;
         }
-        if (ZoneId.of(rollupJobGroupConfig.getTimezone()).getRules().equals(ZoneOffset.UTC.getRules()) == false) {
+        if (!ZoneId.of(rollupJobGroupConfig.getTimezone()).getRules().equals(ZoneOffset.UTC.getRules())) {
             return false;
         }
         try {
@@ -150,7 +150,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                                             final AggregationBuilder datafeedHistogramAggregation,
                                             final List<ValuesSourceAggregationBuilder<?, ?>> flattenedAggregations) {
         for (AggregationBuilder aggregationBuilder : datafeedAggregations) {
-            if (aggregationBuilder.equals(datafeedHistogramAggregation) == false) {
+            if (!aggregationBuilder.equals(datafeedHistogramAggregation)) {
                 flattenedAggregations.add((ValuesSourceAggregationBuilder)aggregationBuilder);
             }
             flattenAggregations(aggregationBuilder.getSubAggregations(), datafeedHistogramAggregation, flattenedAggregations);
@@ -162,11 +162,11 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             String type = aggregationBuilder.getType();
             String field = aggregationBuilder.field();
             if (aggregationBuilder instanceof TermsAggregationBuilder) {
-                if (rollupCaps.supportedTerms.contains(field) == false) {
+                if (!rollupCaps.supportedTerms.contains(field)) {
                     return false;
                 }
             } else {
-                if (rollupCaps.supportedMetrics.contains(field + "_" + type) == false) {
+                if (!rollupCaps.supportedMetrics.contains(field + "_" + type)) {
                     return false;
                 }
             }
@@ -198,7 +198,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                     String type = (String)agg.get("agg");
                     if (type.equals(TermsAggregationBuilder.NAME)) {
                         supportedTerms.add(field);
-                    } else if (aggsToIgnore.contains(type) == false) {
+                    } else if (!aggsToIgnore.contains(type)) {
                         supportedMetrics.add(field + "_" + type);
                     }
                 });

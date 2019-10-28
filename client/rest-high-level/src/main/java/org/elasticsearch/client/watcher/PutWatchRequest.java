@@ -47,7 +47,7 @@ public final class PutWatchRequest implements Validatable {
 
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(id, "watch id is missing");
-        if (isValidId(id) == false) {
+        if (!isValidId(id)) {
             throw new IllegalArgumentException("watch id contains whitespace");
         }
         Objects.requireNonNull(source, "watch source is missing");
@@ -143,6 +143,6 @@ public final class PutWatchRequest implements Validatable {
 
 
     public static boolean isValidId(String id) {
-        return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();
+        return !Strings.isEmpty(id) && NO_WS_PATTERN.matcher(id).matches();
     }
 }

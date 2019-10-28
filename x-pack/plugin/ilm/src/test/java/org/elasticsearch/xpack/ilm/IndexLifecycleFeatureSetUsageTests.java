@@ -36,10 +36,10 @@ public class IndexLifecycleFeatureSetUsageTests extends AbstractWireSerializingT
         List<PolicyStats> policyStats = instance.getPolicyStats();
         switch (between(0, 2)) {
         case 0:
-            available = available == false;
+            available = !available;
             break;
         case 1:
-            enabled = enabled == false;
+            enabled = !enabled;
             break;
         case 2:
             policyStats = new ArrayList<>(policyStats);

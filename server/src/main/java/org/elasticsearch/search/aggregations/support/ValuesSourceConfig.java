@@ -378,7 +378,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private ValuesSource rangeField() {
         MappedFieldType fieldType = fieldContext.fieldType();
 
-        if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
+        if (!(fieldType instanceof RangeFieldMapper.RangeFieldType)) {
             throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
         }
         RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType)fieldType;

@@ -179,7 +179,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             boolean realtime = randomBoolean();
             getRequest.realtime(realtime);
-            if (realtime == false) {
+            if (!realtime) {
                 expectedParams.put("realtime", "false");
             }
         }
@@ -208,7 +208,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             multiGetRequest.realtime(randomBoolean());
-            if (multiGetRequest.realtime() == false) {
+            if (!multiGetRequest.realtime()) {
                 expectedParams.put("realtime", "false");
             }
         }
@@ -311,7 +311,7 @@ public class RequestConvertersTests extends ESTestCase {
             if (randomBoolean()) {
                 boolean realtime = randomBoolean();
                 getRequest.realtime(realtime);
-                if (realtime == false) {
+                if (!realtime) {
                     expectedParams.put("realtime", "false");
                 }
             }
@@ -1152,7 +1152,7 @@ public class RequestConvertersTests extends ESTestCase {
         List<SearchRequest> requests = new ArrayList<>();
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (searchRequest, p) -> {
             SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
-            if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
+            if (!searchSourceBuilder.equals(new SearchSourceBuilder())) {
                 searchRequest.source(searchSourceBuilder);
             }
             requests.add(searchRequest);
@@ -1750,7 +1750,7 @@ public class RequestConvertersTests extends ESTestCase {
             if (randomBoolean()) {
                 boolean fetchSource = randomBoolean();
                 consumer.accept(new FetchSourceContext(fetchSource));
-                if (fetchSource == false) {
+                if (!fetchSource) {
                     expectedParams.put("_source", "false");
                 }
             } else {
@@ -1952,7 +1952,7 @@ public class RequestConvertersTests extends ESTestCase {
             }
             ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsString);
             setter.accept(activeShardCount);
-            if (defaultActiveShardCount.equals(activeShardCount) == false) {
+            if (!defaultActiveShardCount.equals(activeShardCount)) {
                 expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
             }
         }

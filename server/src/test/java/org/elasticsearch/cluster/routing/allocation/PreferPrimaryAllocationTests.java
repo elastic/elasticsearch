@@ -65,7 +65,7 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
             .add(newNode("node1")).add(newNode("node2"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        while (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty() == false) {
+        while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()) {
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         }
 

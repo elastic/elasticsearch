@@ -137,7 +137,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
             name += randomAlphaOfLength(5);
             break;
         case 1:
-            keyed = keyed == false;
+            keyed = !keyed;
             break;
         case 2:
             buckets = new ArrayList<>(buckets);

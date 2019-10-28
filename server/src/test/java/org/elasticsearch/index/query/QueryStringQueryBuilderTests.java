@@ -258,24 +258,24 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             if (allowLeadingWildCard == null) {
                 allowLeadingWildCard = randomBoolean();
             } else {
-                allowLeadingWildCard = randomBoolean() ? null : (allowLeadingWildCard == false);
+                allowLeadingWildCard = randomBoolean() ? null : (!allowLeadingWildCard);
             }
             break;
         case 8:
             if (analyzeWildcard == null) {
                 analyzeWildcard = randomBoolean();
             } else {
-                analyzeWildcard = randomBoolean() ? null : (analyzeWildcard == false);
+                analyzeWildcard = randomBoolean() ? null : (!analyzeWildcard);
             }
             break;
         case 9:
             maxDeterminizedStates += 5;
             break;
         case 10:
-            enablePositionIncrements = (enablePositionIncrements == false);
+            enablePositionIncrements = (!enablePositionIncrements);
             break;
         case 11:
-            escape = (escape == false);
+            escape = (!escape);
             break;
         case 12:
             phraseSlop += 5;
@@ -333,10 +333,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             }
             break;
         case 21:
-            autoGenerateSynonymsPhraseQuery = (autoGenerateSynonymsPhraseQuery == false);
+            autoGenerateSynonymsPhraseQuery = (!autoGenerateSynonymsPhraseQuery);
             break;
         case 22:
-            fuzzyTranspositions = (fuzzyTranspositions == false);
+            fuzzyTranspositions = (!fuzzyTranspositions);
             break;
         case 23:
             return changeNameOrBoost(instance);
@@ -1019,7 +1019,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(STRING_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
-        if (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false) {
+        if (!context.fieldMapper(STRING_FIELD_NAME).omitNorms()) {
             assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));
@@ -1029,7 +1029,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             String value = (quoted ? "\"" : "") + STRING_FIELD_NAME + (quoted ? "\"" : "");
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
-            if (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false) {
+            if (!context.fieldMapper(STRING_FIELD_NAME).omitNorms()) {
                 assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));

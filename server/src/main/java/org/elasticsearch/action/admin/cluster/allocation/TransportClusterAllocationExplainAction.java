@@ -122,7 +122,7 @@ public class TransportClusterAllocationExplainAction
         } else {
             AllocateUnassignedDecision allocateDecision = shardRouting.unassigned() ?
                 gatewayAllocator.decideUnassignedShardAllocation(shardRouting, allocation) : AllocateUnassignedDecision.NOT_TAKEN;
-            if (allocateDecision.isDecisionTaken() == false) {
+            if (!allocateDecision.isDecisionTaken()) {
                 shardDecision = shardAllocator.decideShardAllocation(shardRouting, allocation);
             } else {
                 shardDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
@@ -156,7 +156,7 @@ public class TransportClusterAllocationExplainAction
                 if (request.getCurrentNode() != null) {
                     DiscoveryNode primaryNode = allocation.nodes().resolveNode(request.getCurrentNode());
                     // the primary is assigned to a node other than the node specified in the request
-                    if (primaryNode.getId().equals(foundShard.currentNodeId()) == false) {
+                    if (!primaryNode.getId().equals(foundShard.currentNodeId())) {
                         throw new IllegalArgumentException(
                                 "unable to find primary shard assigned to node [" + request.getCurrentNode() + "]");
                     }

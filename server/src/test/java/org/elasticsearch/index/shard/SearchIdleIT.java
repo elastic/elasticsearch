@@ -106,7 +106,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             // we can't assert on hasRefreshed since it might have been refreshed in the background on the shard concurrently.
             // and if the background refresh wins the refresh race (both call maybeRefresh), the document might not be visible
             // until the background refresh is done.
-            if (hasRefreshed == false) {
+            if (!hasRefreshed) {
                 ensureNoPendingScheduledRefresh(indexService.getThreadPool());
             }
         }

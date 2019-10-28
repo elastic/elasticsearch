@@ -113,7 +113,7 @@ public class SentMessages implements ToXContentObject, Iterable<SentMessages.Sen
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(STATUS.getPreferredName(), isSuccess() ? "success" : "failure");
-            if (isSuccess() == false) {
+            if (!isSuccess()) {
                 if (request != null) {
                     if (WatcherParams.hideSecrets(params)) {
                         // this writes out the request to the byte array output stream with the correct excludes

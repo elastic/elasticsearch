@@ -84,7 +84,7 @@ public class FilterRef implements ToXContentObject {
             return true;
         }
 
-        if (obj instanceof FilterRef == false) {
+        if (!(obj instanceof FilterRef)) {
             return false;
         }
 

@@ -141,7 +141,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             features = new String[0];
         } else {
             defaultFeatures.names().forEach(key -> {
-                if (Booleans.parseBoolean(defaultFeatures.get(key)) == false) {
+                if (!Booleans.parseBoolean(defaultFeatures.get(key))) {
                     throw new IllegalArgumentException("feature settings must have default [true] value");
                 }
             });
@@ -221,7 +221,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public void close() {
             if (isClosing.compareAndSet(false, true)) {
                 try {
-                    boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
+                    boolean block = lifecycle.stopped() && !Transports.isTransportThread(Thread.currentThread());
                     CloseableChannel.closeChannels(channels, block);
                 } finally {
                     // Call the super method to trigger listeners
@@ -371,7 +371,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         closeLock.writeLock().lock();
         try {
             // No need for locking here since Lifecycle objects can't move from STARTED to INITIALIZED
-            if (lifecycle.initialized() == false && lifecycle.started() == false) {
+            if (!lifecycle.initialized() && !lifecycle.started()) {
                 throw new IllegalStateException("transport has been stopped");
             }
             boolean success = portsRange.iterate(portNumber -> {
@@ -409,7 +409,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         List<String> publishHosts = profileSettings.publishHosts;
-        if (profileSettings.isDefaultProfile == false && publishHosts.isEmpty()) {
+        if (!profileSettings.isDefaultProfile && publishHosts.isEmpty()) {
             publishHosts = Arrays.asList(boundAddressesHostStrings);
         }
         if (publishHosts.isEmpty()) {
@@ -539,7 +539,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final void doStop() {
         final CountDownLatch latch = new CountDownLatch(1);
         // make sure we run it on another thread than a possible IO handler thread
-        assert threadPool.generic().isShutdown() == false : "Must stop transport before terminating underlying threadpool";
+        assert !threadPool.generic().isShutdown() : "Must stop transport before terminating underlying threadpool";
         threadPool.generic().execute(() -> {
             closeLock.writeLock().lock();
             try {
@@ -858,7 +858,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @throws IllegalStateException if the transport is not started / open
      */
     private void ensureOpen() {
-        if (lifecycle.started() == false) {
+        if (!lifecycle.started()) {
             throw new IllegalStateException("transport has been stopped");
         }
     }
@@ -883,7 +883,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 isDefaultSet = true;
             }
         }
-        if (isDefaultSet == false) {
+        if (!isDefaultSet) {
             profiles.add(new ProfileSettings(settings, TransportSettings.DEFAULT_PROFILE));
         }
         return Collections.unmodifiableSet(profiles);
@@ -923,7 +923,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             bindHosts = (profileBindHosts.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : profileBindHosts);
             publishHosts = TransportSettings.PUBLISH_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             Setting<String> concretePort = TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(profileName);
-            if (concretePort.exists(settings) == false && isDefaultProfile == false) {
+            if (!concretePort.exists(settings) && !isDefaultProfile) {
                 throw new IllegalStateException("profile [" + profileName + "] has no port configured");
             }
             portOrRange = TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);

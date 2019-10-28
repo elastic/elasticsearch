@@ -111,7 +111,7 @@ public class FileUserRolesStore {
         }
         logger.trace("reading users_roles file [{}]...", path.toAbsolutePath());
 
-        if (Files.exists(path) == false) {
+        if (!Files.exists(path)) {
             return null;
         }
 

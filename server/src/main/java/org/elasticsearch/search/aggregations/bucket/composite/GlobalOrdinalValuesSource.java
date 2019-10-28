@@ -162,7 +162,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (currentValueIsSet == false) {
+                if (!currentValueIsSet) {
                     if (dvs.advanceExact(doc)) {
                         long ord;
                         while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
@@ -182,8 +182,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                fieldType instanceof StringFieldType == false ||
+        if (!checkIfSortedDocsIsApplicable(reader, fieldType) ||
+            !(fieldType instanceof StringFieldType) ||
                     (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }

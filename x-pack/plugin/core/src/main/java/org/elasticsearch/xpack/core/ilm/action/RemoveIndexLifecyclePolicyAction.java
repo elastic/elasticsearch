@@ -64,7 +64,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
         }
 
         public boolean hasFailures() {
-            return failedIndexes.isEmpty() == false;
+            return !failedIndexes.isEmpty();
         }
 
         @Override

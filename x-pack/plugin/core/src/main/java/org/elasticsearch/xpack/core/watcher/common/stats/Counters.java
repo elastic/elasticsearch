@@ -90,8 +90,8 @@ public class Counters implements Writeable {
                 for (int i = 0; i < parts.length; i++) {
                     String part = parts[i];
                     boolean isLast = i == parts.length - 1;
-                    if (isLast == false) {
-                        if (curr.containsKey(part) == false) {
+                    if (!isLast) {
+                        if (!curr.containsKey(part)) {
                             curr.put(part, new HashMap<String, Object>());
                             curr = (Map<String, Object>) curr.get(part);
                         } else {

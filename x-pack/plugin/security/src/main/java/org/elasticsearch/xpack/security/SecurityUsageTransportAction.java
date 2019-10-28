@@ -86,7 +86,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
-                boolean enabled = enabledInSettings && licenseState.isSecurityDisabledByLicenseDefaults() == false;
+                boolean enabled = enabledInSettings && !licenseState.isSecurityDisabledByLicenseDefaults();
                 var usage = new SecurityFeatureSetUsage(licenseState.isSecurityAvailable(), enabled,
                         realmsUsageRef.get(), rolesUsageRef.get(), roleMappingUsageRef.get(), sslUsage, auditUsage,
                         ipFilterUsage, anonymousUsage, tokenServiceUsage, apiKeyServiceUsage, fips140Usage);

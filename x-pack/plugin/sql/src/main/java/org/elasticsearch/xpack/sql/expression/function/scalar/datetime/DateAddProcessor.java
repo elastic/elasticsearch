@@ -44,7 +44,7 @@ public class DateAddProcessor extends ThreeArgsDateTimeProcessor {
         if (unit == null || numberOfUnits == null || timestamp == null) {
             return null;
         }
-        if (unit instanceof String == false) {
+        if (!(unit instanceof String)) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", unit);
         }
         Part datePartField = Part.resolve((String) unit);
@@ -59,11 +59,11 @@ public class DateAddProcessor extends ThreeArgsDateTimeProcessor {
             }
         }
 
-        if (numberOfUnits instanceof Number == false) {
+        if (!(numberOfUnits instanceof Number)) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", numberOfUnits);
         }
 
-        if (timestamp instanceof ZonedDateTime == false) {
+        if (!(timestamp instanceof ZonedDateTime)) {
             throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", timestamp);
         }
 

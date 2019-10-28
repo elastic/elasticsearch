@@ -56,7 +56,7 @@ public final class TaskId implements Writeable {
     }
 
     public TaskId(String taskId) {
-        if (Strings.hasLength(taskId) && "unset".equals(taskId) == false) {
+        if (Strings.hasLength(taskId) && !"unset".equals(taskId)) {
             String[] s = Strings.split(taskId, ":");
             if (s == null || s.length != 2) {
                 throw new IllegalArgumentException("malformed task id " + taskId);

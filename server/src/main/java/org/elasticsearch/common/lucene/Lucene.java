@@ -210,7 +210,7 @@ public class Lucene {
                  */
                 if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
                     foundSegmentFiles++;
-                    if (file.equals(si.getSegmentsFileName()) == false) {
+                    if (!file.equals(si.getSegmentsFileName())) {
                         directory.deleteFile(file); // remove all segment_N files except of the one we wanna keep
                     }
                 }

@@ -75,7 +75,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Metrics must be a non-null, non-empty array of strings");
         }
         metrics.forEach(m -> {
-            if (RollupField.SUPPORTED_METRICS.contains(m) == false) {
+            if (!RollupField.SUPPORTED_METRICS.contains(m)) {
                 throw new IllegalArgumentException("Unsupported metric [" + m + "]. " +
                     "Supported metrics include: " + RollupField.SUPPORTED_METRICS);
             }
@@ -107,16 +107,16 @@ public class MetricConfig implements Writeable, ToXContentObject {
                                  ActionRequestValidationException validationException) {
 
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
-        if (fieldCaps != null && fieldCaps.isEmpty() == false) {
+        if (fieldCaps != null && !fieldCaps.isEmpty()) {
             fieldCaps.forEach((key, value) -> {
-                if (value.isAggregatable() == false) {
+                if (!value.isAggregatable()) {
                     validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
                         "but is not.");
                 }
                 if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                     // nothing to do as all metrics are supported by SUPPORTED_NUMERIC_METRICS currently
                 } else if (RollupField.DATE_FIELD_MAPPER_TYPE.equals(key)) {
-                    if (RollupField.SUPPORTED_DATE_METRICS.containsAll(metrics) == false) {
+                    if (!RollupField.SUPPORTED_DATE_METRICS.containsAll(metrics)) {
                         validationException.addValidationError(
                             buildSupportedMetricError("date", RollupField.SUPPORTED_DATE_METRICS));
                     }

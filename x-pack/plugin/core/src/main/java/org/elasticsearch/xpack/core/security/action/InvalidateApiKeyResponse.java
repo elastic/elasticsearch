@@ -89,7 +89,7 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
             .array("invalidated_api_keys", invalidatedApiKeys.toArray(Strings.EMPTY_ARRAY))
             .array("previously_invalidated_api_keys", previouslyInvalidatedApiKeys.toArray(Strings.EMPTY_ARRAY))
             .field("error_count", errors.size());
-        if (errors.isEmpty() == false) {
+        if (!errors.isEmpty()) {
             builder.field("error_details");
             builder.startArray();
             for (ElasticsearchException e : errors) {

@@ -50,7 +50,7 @@ public class MultiSnapshotTests extends ESTestCase {
         final LongSet normalSet = new LongHashSet();
         IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(0, 5000);
-            boolean existed = normalSet.add(seq) == false;
+            boolean existed = !normalSet.add(seq);
             assertThat("SeqNoSet != Set" + seq, bitSet.getAndSet(seq), equalTo(existed));
         });
     }
@@ -60,7 +60,7 @@ public class MultiSnapshotTests extends ESTestCase {
         final LongSet normalSet = new LongHashSet();
         IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(i * 10_000, i * 30_000);
-            boolean existed = normalSet.add(seq) == false;
+            boolean existed = !normalSet.add(seq);
             assertThat("SeqNoSet != Set", bitSet.getAndSet(seq), equalTo(existed));
         });
     }
@@ -78,7 +78,7 @@ public class MultiSnapshotTests extends ESTestCase {
                 .collect(Collectors.toList());
             Randomness.shuffle(batch);
             batch.forEach(seq -> {
-                boolean existed = normalSet.add(seq) == false;
+                boolean existed = !normalSet.add(seq);
                 assertThat("SeqNoSet != Set", bitSet.getAndSet(seq), equalTo(existed));
             });
         }

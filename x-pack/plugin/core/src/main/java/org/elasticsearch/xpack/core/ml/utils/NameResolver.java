@@ -64,7 +64,7 @@ public abstract class NameResolver {
                             .map(this::lookup)
                             .flatMap(List::stream)
                             .collect(Collectors.toList());
-                    if (expanded.isEmpty() && allowNoMatch == false) {
+                    if (expanded.isEmpty() && !allowNoMatch) {
                         throw notFoundExceptionSupplier.apply(token);
                     }
                     result.addAll(expanded);
@@ -79,7 +79,7 @@ public abstract class NameResolver {
                 }
             }
         }
-        if (result.isEmpty() && allowNoMatch == false) {
+        if (result.isEmpty() && !allowNoMatch) {
             throw notFoundExceptionSupplier.apply(expression);
         }
         return result;

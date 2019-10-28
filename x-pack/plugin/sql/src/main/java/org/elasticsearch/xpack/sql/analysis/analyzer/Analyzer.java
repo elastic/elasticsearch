@@ -221,7 +221,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
             }
             // compound fields
-            else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
+            else if (!allowCompound && !fa.dataType().isPrimitive()) {
                 named = u.withUnresolvedMessage(
                         "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName + "] only its subfields");
             }
@@ -289,7 +289,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
-            if (indexResolution.isValid() == false) {
+            if (!indexResolution.isValid()) {
                 return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan :
                     new UnresolvedRelation(plan.source(), plan.table(), plan.alias(), plan.frozen(), indexResolution.toString());
             }
@@ -436,7 +436,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     return singletonList(us.qualifier());
                 }
                 // qualifier is unknown (e.g. unsupported type), bail out early
-                else if (q.resolved() == false) {
+                else if (!q.resolved()) {
                     return singletonList(q);
                 }
 
@@ -764,7 +764,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (p.child() instanceof Filter) {
                     Filter f = (Filter) p.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (!condition.resolved() && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
                         if (newCondition != condition) {
                             return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
@@ -778,7 +778,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (a.child() instanceof Filter) {
                     Filter f = (Filter) a.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (!condition.resolved() && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
                         if (newCondition != condition) {
                             return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
@@ -1017,10 +1017,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         n = ((Alias) n).child();
                     }
                     // no literal or aggregates - it's a 'regular' projection
-                    if (n.foldable() == false && Functions.isAggregate(n) == false
+                    if (!n.foldable() && !Functions.isAggregate(n)
                             // folding might not work (it might wait for the optimizer)
                             // so check whether any column is referenced
-                            && n.anyMatch(e -> e instanceof FieldAttribute) == true) {
+                            && n.anyMatch(e -> e instanceof FieldAttribute)) {
                         return f;
                     }
                 }
@@ -1151,12 +1151,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<NamedExpression> missing = new ArrayList<>();
 
                     for (NamedExpression orderedAgg : aggs) {
-                        if (Expressions.anyMatch(a.aggregates(), e -> Expressions.equalsAsAttribute(e, orderedAgg)) == false) {
+                        if (!Expressions.anyMatch(a.aggregates(), e -> Expressions.equalsAsAttribute(e, orderedAgg))) {
                             missing.add(orderedAgg);
                         }
                     }
                     // agg already contains all aggs
-                    if (missing.isEmpty() == false) {
+                    if (!missing.isEmpty()) {
                         // save aggregates
                         return new Aggregate(a.source(), a.child(), a.groupings(), CollectionUtils.combine(a.aggregates(), missing));
                     }

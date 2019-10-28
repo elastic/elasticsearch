@@ -56,7 +56,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         toAppendTo.append(threadInfo(event.getThreadName()));
-        if (event.getContextData().isEmpty() == false) {
+        if (!event.getContextData().isEmpty()) {
             toAppendTo.append(event.getContextData());
         }
     }

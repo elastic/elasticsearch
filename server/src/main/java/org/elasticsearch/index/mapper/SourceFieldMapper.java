@@ -296,13 +296,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (this.enabled != sourceMergeWith.enabled) {
             conflicts.add("Cannot update enabled setting for [_source]");
         }
-        if (Arrays.equals(includes(), sourceMergeWith.includes()) == false) {
+        if (!Arrays.equals(includes(), sourceMergeWith.includes())) {
             conflicts.add("Cannot update includes setting for [_source]");
         }
-        if (Arrays.equals(excludes(), sourceMergeWith.excludes()) == false) {
+        if (!Arrays.equals(excludes(), sourceMergeWith.excludes())) {
             conflicts.add("Cannot update excludes setting for [_source]");
         }
-        if (conflicts.isEmpty() == false) {
+        if (!conflicts.isEmpty()) {
             throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
         }
     }

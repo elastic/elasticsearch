@@ -425,7 +425,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
              parent != null;
              parent = parent.getParentObjectMapper(mapperService)) {
 
-            if (parent.nested().isNested() == false) {
+            if (!parent.nested().isNested()) {
                 return false;
             }
         }

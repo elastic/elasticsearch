@@ -399,7 +399,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         Settings newSettings = new Settings(settings);
         final Map<String, Float> resolvedFieldsAndWeights;
         boolean isAllField;
-        if (fieldsAndWeights.isEmpty() == false) {
+        if (!fieldsAndWeights.isEmpty()) {
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
             isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet());
         } else {

@@ -404,7 +404,7 @@ public final class InternalSqlScriptUtils {
         if (dateTime instanceof ZonedDateTime) {
             return dateTime;
         }
-        if (false == lenient) {
+        if (!lenient) {
             if (dateTime instanceof Number) {
                 return DateUtils.asDateTime(((Number) dateTime).longValue());
             }

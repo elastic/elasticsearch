@@ -94,7 +94,7 @@ public final class ECallLocal extends AExpression {
                 classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
 
                 // check to see if this class binding requires an implicit this reference
-                if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
+                if (classBinding != null && !classBinding.typeParameters.isEmpty() &&
                         classBinding.typeParameters.get(0) == scriptRoot.getScriptClassInfo().getBaseClass()) {
                     classBinding = null;
                 }
@@ -109,7 +109,7 @@ public final class ECallLocal extends AExpression {
                     classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
 
                     if (classBinding != null) {
-                        if (classBinding.typeParameters.isEmpty() == false &&
+                        if (!classBinding.typeParameters.isEmpty() &&
                                 classBinding.typeParameters.get(0) == scriptRoot.getScriptClassInfo().getBaseClass()) {
                             classBindingOffset = 1;
                         } else {

@@ -632,7 +632,7 @@ public class InternalEngineTests extends EngineTestCase {
             int updates = 0;
             int appends = 0;
             int iterations = scaledRandomIntBetween(1, 50);
-            for (int i = 0; i < iterations && liveDocsFirstSegment.isEmpty() == false; i++) {
+            for (int i = 0; i < iterations && !liveDocsFirstSegment.isEmpty(); i++) {
                 String idToUpdate = randomFrom(liveDocsFirstSegment);
                 liveDocsFirstSegment.remove(idToUpdate);
                 ParsedDocument doc = testParsedDocument(idToUpdate, null, testDocument(), B_1, null);
@@ -901,13 +901,13 @@ public class InternalEngineTests extends EngineTestCase {
             } catch (InterruptedException | BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
-            while (flushFinished.get() == false) {
+            while (!flushFinished.get()) {
                 Engine.GetResult previousGetResult = latestGetResult.get();
                 if (previousGetResult != null) {
                     previousGetResult.close();
                 }
                 latestGetResult.set(engine.get(newGet(true, doc), searcherFactory));
-                if (latestGetResult.get().exists() == false) {
+                if (!latestGetResult.get().exists()) {
                     break;
                 }
             }
@@ -1234,7 +1234,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertEquals(3, engine.segments(false).size());
 
                 engine.forceMerge(forceMergeFlushes, 1, false, false, false);
-                if (forceMergeFlushes == false) {
+                if (!forceMergeFlushes) {
                     engine.refresh("make all segments visible");
                     assertEquals(4, engine.segments(false).size());
                     assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
@@ -1653,7 +1653,7 @@ public class InternalEngineTests extends EngineTestCase {
                     useRecoverySource);
                 engine.index(indexForDoc(doc));
                 liveDocs.add(doc.id());
-                if (useRecoverySource == false) {
+                if (!useRecoverySource) {
                     liveDocsWithSource.add(Integer.toString(i));
                 }
             }
@@ -1669,7 +1669,7 @@ public class InternalEngineTests extends EngineTestCase {
                 if (randomBoolean()) {
                     engine.index(indexForDoc(doc));
                     liveDocs.add(doc.id());
-                    if (useRecoverySource == false) {
+                    if (!useRecoverySource) {
                         liveDocsWithSource.add(doc.id());
                     } else {
                         liveDocsWithSource.remove(doc.id());
@@ -1714,7 +1714,7 @@ public class InternalEngineTests extends EngineTestCase {
             // If the global checkpoint equals to the local checkpoint, the next force-merge will be a noop
             // because all deleted documents are expunged in the previous force-merge already. We need to flush
             // a new segment to make merge happen so that we can verify that all _recovery_source are pruned.
-            if (globalCheckpoint.get() == engine.getPersistedLocalCheckpoint() && liveDocs.isEmpty() == false) {
+            if (globalCheckpoint.get() == engine.getPersistedLocalCheckpoint() && !liveDocs.isEmpty()) {
                 String deleteId = randomFrom(liveDocs);
                 engine.delete(new Engine.Delete(deleteId, newUid(deleteId), primaryTerm.get()));
                 liveDocsWithSource.remove(deleteId);
@@ -2009,7 +2009,7 @@ public class InternalEngineTests extends EngineTestCase {
                     } else {
                         result = engine.delete(delWithVersion.apply(conflictingVersion, delete));
                     }
-                    assertThat(result.isFound(), equalTo(docDeleted == false));
+                    assertThat(result.isFound(), equalTo(!docDeleted));
                     assertThat(result.getVersion(), equalTo(lastOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
@@ -2022,7 +2022,7 @@ public class InternalEngineTests extends EngineTestCase {
                     } else {
                         result = engine.delete(deleteWithCurrentTerm.apply(delete));
                     }
-                    assertThat(result.isFound(), equalTo(docDeleted == false));
+                    assertThat(result.isFound(), equalTo(!docDeleted));
                     assertThat(result.getVersion(), equalTo(Math.max(lastOpVersion + 1, 1)));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                     assertThat(result.getFailure(), nullValue());
@@ -2038,7 +2038,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertVisibleCount(engine, docDeleted ? 0 : 1);
                 // even if doc is not not deleted, lastFieldValue can still be null if this is the
                 // first op and it failed.
-                if (docDeleted == false && lastFieldValue != null) {
+                if (!docDeleted && lastFieldValue != null) {
                     try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                         final TotalHitCountCollector collector = new TotalHitCountCollector();
                         searcher.search(new TermQuery(new Term("value", lastFieldValue)), collector);
@@ -2064,7 +2064,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         assertVisibleCount(engine, docDeleted ? 0 : 1);
-        if (docDeleted == false) {
+        if (!docDeleted) {
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                 final TotalHitCountCollector collector = new TotalHitCountCollector();
                 searcher.search(new TermQuery(new Term("value", lastFieldValue)), collector);
@@ -2102,7 +2102,7 @@ public class InternalEngineTests extends EngineTestCase {
             if (op instanceof Engine.Index) {
                 final Engine.Index index = (Engine.Index) op;
                 Engine.IndexResult result = engine.index(index);
-                if (op.versionType().isVersionConflictForWrites(highestOpVersion, op.version(), docDeleted) == false) {
+                if (!op.versionType().isVersionConflictForWrites(highestOpVersion, op.version(), docDeleted)) {
                     seqNo++;
                     assertThat(result.getSeqNo(), equalTo(seqNo));
                     assertThat(result.isCreated(), equalTo(docDeleted));
@@ -2120,17 +2120,17 @@ public class InternalEngineTests extends EngineTestCase {
             } else {
                 final Engine.Delete delete = (Engine.Delete) op;
                 Engine.DeleteResult result = engine.delete(delete);
-                if (op.versionType().isVersionConflictForWrites(highestOpVersion, op.version(), docDeleted) == false) {
+                if (!op.versionType().isVersionConflictForWrites(highestOpVersion, op.version(), docDeleted)) {
                     seqNo++;
                     assertThat(result.getSeqNo(), equalTo(seqNo));
-                    assertThat(result.isFound(), equalTo(docDeleted == false));
+                    assertThat(result.isFound(), equalTo(!docDeleted));
                     assertThat(result.getVersion(), equalTo(op.version()));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                     assertThat(result.getFailure(), nullValue());
                     docDeleted = true;
                     highestOpVersion = op.version();
                 } else {
-                    assertThat(result.isFound(), equalTo(docDeleted == false));
+                    assertThat(result.isFound(), equalTo(!docDeleted));
                     assertThat(result.getVersion(), equalTo(highestOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
@@ -2146,7 +2146,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         assertVisibleCount(engine, docDeleted ? 0 : 1);
-        if (docDeleted == false) {
+        if (!docDeleted) {
             logger.info("searching for [{}]", lastFieldValue);
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                 final TotalHitCountCollector collector = new TotalHitCountCollector();
@@ -2404,7 +2404,7 @@ public class InternalEngineTests extends EngineTestCase {
             for (int op = 0; op < opCount; op++) {
                 final String id;
                 // mostly index, sometimes delete
-                if (rarely() && indexedIds.isEmpty() == false) {
+                if (rarely() && !indexedIds.isEmpty()) {
                     // we have some docs indexed, so delete one of them
                     id = randomFrom(indexedIds);
                     final Engine.Delete delete = new Engine.Delete(
@@ -2553,7 +2553,7 @@ public class InternalEngineTests extends EngineTestCase {
                     // this will reduce pressure on disks and will allow threads to make progress without piling up too many commits
                     sleepTime = sleepTime * 2;
                 }
-            } while (doneIndexing == false);
+            } while (!doneIndexing);
 
             // now, verify all the commits have the correct docs according to the user commit data
             long prevLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
@@ -2623,7 +2623,7 @@ public class InternalEngineTests extends EngineTestCase {
             final Bits bits = leaf.getLiveDocs();
             for (int docID = 0; docID < leaf.maxDoc(); docID++) {
                 if (bits == null || bits.get(docID)) {
-                    if (values.advanceExact(docID) == false) {
+                    if (!values.advanceExact(docID)) {
                         throw new AssertionError("Document does not have a seq number: " + docID);
                     }
                     final long seqNo = values.longValue();
@@ -3164,7 +3164,7 @@ public class InternalEngineTests extends EngineTestCase {
             public void run() {
                 boolean stop = false;
                 logger.info("try with {}", operation);
-                while (stop == false) {
+                while (!stop) {
                     try {
                         switch (operation) {
                             case "optimize": {
@@ -3783,7 +3783,7 @@ public class InternalEngineTests extends EngineTestCase {
             int count = searcher.count(new MatchAllDocsQuery());
             assertEquals(numDocs, count);
         }
-        if (create || primary == false) {
+        if (create || !primary) {
             assertLuceneOperations(engine, numDocs, 0, 0);
         }
     }
@@ -3821,7 +3821,8 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
         }
         try (Store store = createStore(newFSDirectory(storeDir))) {
-            if (randomBoolean() || true) {
+            randomBoolean();
+            if (true) {
                 final String translogUUID = Translog.createEmptyTranslog(translogDir,
                     SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
                 store.associateIndexWithNewTranslog(translogUUID);
@@ -4059,7 +4060,7 @@ public class InternalEngineTests extends EngineTestCase {
                     for (String id : latestOps.keySet()) {
                         String msg = "latestOps=" + latestOps + " op=" + id;
                         DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), newUid(id));
-                        if (liveOps.containsKey(id) == false) {
+                        if (!liveOps.containsKey(id)) {
                             assertNull(msg, docIdAndSeqNo);
                         } else {
                             assertNotNull(msg, docIdAndSeqNo);
@@ -4073,12 +4074,12 @@ public class InternalEngineTests extends EngineTestCase {
             for (Engine.Operation op : operations) {
                 if (op instanceof Engine.Index) {
                     engine.index((Engine.Index) op);
-                    if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
+                    if (!latestOps.containsKey(op.id()) || latestOps.get(op.id()).seqNo() < op.seqNo()) {
                         latestOps.put(op.id(), op);
                     }
                 } else if (op instanceof Engine.Delete) {
                     engine.delete((Engine.Delete) op);
-                    if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
+                    if (!latestOps.containsKey(op.id()) || latestOps.get(op.id()).seqNo() < op.seqNo()) {
                         latestOps.put(op.id(), op);
                     }
                 }
@@ -4488,7 +4489,7 @@ public class InternalEngineTests extends EngineTestCase {
             } else {
                 seqNo = docIdAndSeqNo.seqNo;
                 NumericDocValues primaryTerms = docIdAndSeqNo.context.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                if (primaryTerms == null || primaryTerms.advanceExact(docIdAndSeqNo.docId) == false) {
+                if (primaryTerms == null || !primaryTerms.advanceExact(docIdAndSeqNo.docId)) {
                     throw new AssertionError("document does not have primary term [" + docIdAndSeqNo.docId + "]");
                 }
                 primaryTerm = primaryTerms.longValue();
@@ -4884,7 +4885,7 @@ public class InternalEngineTests extends EngineTestCase {
         thread.start();
         latch.countDown();
         latch.await();
-        while (done.get() == false) {
+        while (!done.get()) {
             engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
         }
         thread.join();
@@ -4928,7 +4929,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
             // check that we can still read the commit that we captured
             try (IndexReader reader = DirectoryReader.open(snapshot.getIndexCommit())) {
-                assertThat(reader.numDocs(), equalTo(flushFirst && safeCommit == false ? numDocs : 0));
+                assertThat(reader.numDocs(), equalTo(flushFirst && !safeCommit ? numDocs : 0));
             }
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(2));
             snapshot.close();
@@ -5270,7 +5271,7 @@ public class InternalEngineTests extends EngineTestCase {
                     final NumericDocValues values = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
                     if (values != null) {
                         for (int docID = 0; docID < context.reader().maxDoc(); docID++) {
-                            if (values.advanceExact(docID) == false) {
+                            if (!values.advanceExact(docID)) {
                                 throw new AssertionError("Document does not have a seq number: " + docID);
                             }
                             assertThat(values.longValue(), lessThanOrEqualTo(globalCheckpoint.get()));
@@ -5437,7 +5438,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < refreshThreads.length; i++) {
             latch.countDown();
             refreshThreads[i] = new Thread(() -> {
-                while (done.get() == false) {
+                while (!done.get()) {
                     long checkPointBeforeRefresh = engine.getProcessedLocalCheckpoint();
                     engine.refresh("test", randomFrom(Engine.SearcherScope.values()), true);
                     assertThat(engine.lastRefreshedCheckpoint(), greaterThanOrEqualTo(checkPointBeforeRefresh));
@@ -5561,7 +5562,7 @@ public class InternalEngineTests extends EngineTestCase {
             ParsedDocument doc = createParsedDoc(Integer.toString(between(1, 100)), null);
             if (randomBoolean()) {
                 Engine.IndexResult result = engine.index(indexForDoc(doc));
-                if (liveDocIds.add(doc.id()) == false) {
+                if (!liveDocIds.add(doc.id())) {
                     assertThat("update operations on primary must advance max_seq_no_of_updates",
                         engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo())));
                 } else {
@@ -5623,11 +5624,11 @@ public class InternalEngineTests extends EngineTestCase {
             try (InternalEngine engine = new InternalEngine(config)) { // do not recover from translog
                 final Map<BytesRef, Engine.Operation> deletesAfterCheckpoint = new HashMap<>();
                 for (Engine.Operation op : operationsInSafeCommit) {
-                    if (op instanceof Engine.NoOp == false && op.seqNo() > engine.getPersistedLocalCheckpoint()) {
+                    if (!(op instanceof Engine.NoOp) && op.seqNo() > engine.getPersistedLocalCheckpoint()) {
                         deletesAfterCheckpoint.put(new Term(IdFieldMapper.NAME, Uid.encodeId(op.id())).bytes(), op);
                     }
                 }
-                deletesAfterCheckpoint.values().removeIf(o -> o instanceof Engine.Delete == false);
+                deletesAfterCheckpoint.values().removeIf(o -> !(o instanceof Engine.Delete));
                 final Map<BytesRef, VersionValue> versionMap = engine.getVersionMap();
                 for (BytesRef uid : deletesAfterCheckpoint.keySet()) {
                     final VersionValue versionValue = versionMap.get(uid);
@@ -5766,7 +5767,7 @@ public class InternalEngineTests extends EngineTestCase {
         AtomicBoolean stopped = new AtomicBoolean();
         Semaphore indexedDocs = new Semaphore(0);
         Thread indexer = new Thread(() -> {
-            while (stopped.get() == false) {
+            while (!stopped.get()) {
                 String id = Integer.toString(randomIntBetween(1, 100));
                 try {
                     engine.index(indexForDoc(createParsedDoc(id, null)));
@@ -5780,7 +5781,7 @@ public class InternalEngineTests extends EngineTestCase {
         });
 
         Thread refresher = new Thread(() -> {
-            while (stopped.get() == false) {
+            while (!stopped.get()) {
                 try {
                     engine.refresh("test", randomFrom(Engine.SearcherScope.values()), randomBoolean());
                 } catch (AlreadyClosedException e) {

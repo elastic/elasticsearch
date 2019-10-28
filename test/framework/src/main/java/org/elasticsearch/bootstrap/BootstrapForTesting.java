@@ -181,7 +181,7 @@ public class BootstrapForTesting {
         try {
             Class<?> clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
             URL location = clazz.getProtectionDomain().getCodeSource().getLocation();
-            if (location.toString().endsWith(".jar") == false) {
+            if (!location.toString().endsWith(".jar")) {
                 if (codebases.put(name, location) != null) {
                     throw new IllegalStateException("Already added " + name + " codebase for testing");
                 }
@@ -256,7 +256,7 @@ public class BootstrapForTesting {
             Path path = PathUtils.get(url.toURI());
             if (Files.exists(path)) {
                 boolean added = cooked.add(path.toRealPath().toUri().toURL());
-                if (added == false) {
+                if (!added) {
                     throw new IllegalStateException("Duplicate in classpath after resolving symlinks: " + url);
                 }
             }

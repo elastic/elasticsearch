@@ -157,9 +157,9 @@ public class PkiRealm extends Realm implements CachingRealm {
                 } else {
                     listener.onResponse(AuthenticationResult.success(user));
                 }
-            } else if (false == delegationEnabled && token.isDelegated()) {
+            } else if (!delegationEnabled && token.isDelegated()) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Realm does not permit delegation for " + token.dn(), null));
-            } else if (false == isCertificateChainTrusted(token)) {
+            } else if (!isCertificateChainTrusted(token)) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
             } else {
                 // parse the principal again after validating the cert chain, and do not rely on the token.principal one, because that could
@@ -180,7 +180,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                         }
                         listener.onResponse(result);
                     }, listener::onFailure);
-                    if (false == principal.equals(token.principal())) {
+                    if (!principal.equals(token.principal())) {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage(
                                 "the extracted principal before [{}] and after [{}] cert chain validation, for DN [{}], are different",
                                 token.principal(), principal, token.dn()));
@@ -221,7 +221,7 @@ public class PkiRealm extends Realm implements CachingRealm {
     static String getPrincipalFromSubjectDN(Pattern principalPattern, X509AuthenticationToken token, Logger logger) {
         String dn = token.credentials()[0].getSubjectX500Principal().toString();
         Matcher matcher = principalPattern.matcher(dn);
-        if (false == matcher.find()) {
+        if (!matcher.find()) {
             logger.debug((Supplier<?>) () -> new ParameterizedMessage("could not extract principal from DN [{}] using pattern [{}]", dn,
                     principalPattern.toString()));
             return null;
@@ -240,7 +240,7 @@ public class PkiRealm extends Realm implements CachingRealm {
             // No extra trust managers specified
             // If the token is NOT delegated then it is authenticated, because the certificate chain has been validated by the TLS channel.
             // Otherwise, if the token is delegated, then it cannot be authenticated without a trustManager
-            return token.isDelegated() == false;
+            return !token.isDelegated();
         } else {
             try {
                 trustManager.checkClientTrusted(token.credentials(), AUTH_TYPE);
@@ -281,8 +281,8 @@ public class PkiRealm extends Realm implements CachingRealm {
     }
 
     private static X509TrustManager trustManagersFromTruststore(String truststorePath, RealmConfig realmConfig) {
-        if (realmConfig.hasSetting(PkiRealmSettings.TRUST_STORE_PASSWORD) == false
-                && realmConfig.hasSetting(PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD) == false) {
+        if (!realmConfig.hasSetting(PkiRealmSettings.TRUST_STORE_PASSWORD)
+                && !realmConfig.hasSetting(PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD)) {
             throw new IllegalArgumentException("Neither [" +
                     RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.TRUST_STORE_PASSWORD) + "] or [" +
                     RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD)
@@ -351,11 +351,11 @@ public class PkiRealm extends Realm implements CachingRealm {
                         + config.getConcreteSetting(PkiRealmSettings.CAPATH_SETTING).getKey() + " or "
                         + config.getConcreteSetting(PkiRealmSettings.TRUST_STORE_PATH).getKey() + ")");
             }
-            if (false == TokenService.isTokenServiceEnabled(config.settings())) {
+            if (!TokenService.isTokenServiceEnabled(config.settings())) {
                 exceptionMessages.add("that the token service be also enabled ("
                         + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + ")");
             }
-            if (false == exceptionMessages.isEmpty()) {
+            if (!exceptionMessages.isEmpty()) {
                 String message = "PKI realms with delegation enabled require " + exceptionMessages.get(0);
                 if (exceptionMessages.size() == 2) {
                     message = message + " and " + exceptionMessages.get(1);

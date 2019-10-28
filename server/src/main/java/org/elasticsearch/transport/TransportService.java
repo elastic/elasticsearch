@@ -366,7 +366,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             // We don't validate cluster names to allow for CCS connections.
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
-                if (node.equals(remote) == false) {
+                if (!node.equals(remote)) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                 }
                 return null;
@@ -447,10 +447,10 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 new ActionListener<>() {
                     @Override
                     public void onResponse(HandshakeResponse response) {
-                        if (clusterNamePredicate.test(response.clusterName) == false) {
+                        if (!clusterNamePredicate.test(response.clusterName)) {
                             listener.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote cluster name ["
                                 + response.clusterName.value() + "] does not match " + clusterNamePredicate));
-                        } else if (response.version.isCompatible(localNode.getVersion()) == false) {
+                        } else if (!response.version.isCompatible(localNode.getVersion())) {
                             listener.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote node version ["
                                 + response.version + "] is incompatible with local node version [" + localNode.getVersion() + "]"));
                         } else {
@@ -761,7 +761,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     private boolean shouldTraceAction(String action) {
         if (tracerLogInclude.length > 0) {
-            if (Regex.simpleMatch(tracerLogInclude, action) == false) {
+            if (!Regex.simpleMatch(tracerLogInclude, action)) {
                 return false;
             }
         }
@@ -792,7 +792,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     private void validateActionName(String actionName) {
         // TODO we should makes this a hard validation and throw an exception but we need a good way to add backwards layer
         // for it. Maybe start with a deprecation layer
-        if (isValidActionName(actionName) == false) {
+        if (!isValidActionName(actionName)) {
             logger.warn("invalid action name [" + actionName + "] must start with one of: " +
                 TransportService.VALID_ACTION_PREFIXES );
         }
@@ -858,7 +858,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      */
     @Override
     public void onRequestReceived(long requestId, String action) {
-        if (handleIncomingRequests.get() == false) {
+        if (!handleIncomingRequests.get()) {
             throw new IllegalStateException("transport not ready yet to handle incoming requests");
         }
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
@@ -913,7 +913,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         // lets see if its in the timeout holder, but sync on mutex to make sure any ongoing timeout handling has finished
         final DiscoveryNode sourceNode;
         final String action;
-        assert responseHandlers.contains(requestId) == false;
+        assert !responseHandlers.contains(requestId);
         TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
         if (timeoutInfoHolder != null) {
             long time = threadPool.relativeTimeInMillis();
@@ -928,7 +928,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             sourceNode = null;
         }
         // call tracer out of lock
-        if (tracerLog.isTraceEnabled() == false) {
+        if (!tracerLog.isTraceEnabled()) {
             return;
         }
         if (action == null) {
@@ -1004,7 +1004,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
          * to make sure this doesn't run.
          */
         public void cancel() {
-            assert responseHandlers.contains(requestId) == false :
+            assert !responseHandlers.contains(requestId) :
                 "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
             if (cancellable != null) {
                 cancellable.cancel();

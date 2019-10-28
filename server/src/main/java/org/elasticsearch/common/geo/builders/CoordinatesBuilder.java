@@ -44,7 +44,7 @@ public class CoordinatesBuilder {
     public CoordinatesBuilder coordinate(Coordinate coordinate) {
         int expectedDims;
         int actualDims;
-        if (points.isEmpty() == false
+        if (!points.isEmpty()
                 && (expectedDims = Double.isNaN(points.get(0).z) ? 2 : 3) != (actualDims = Double.isNaN(coordinate.z) ? 2 : 3)) {
             throw new ElasticsearchException("unable to add coordinate to CoordinateBuilder: " +
                 "coordinate dimensions do not match. Expected [{}] but found [{}]", expectedDims, actualDims);

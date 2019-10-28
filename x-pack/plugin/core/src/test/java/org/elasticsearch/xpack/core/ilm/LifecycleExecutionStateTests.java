@@ -115,7 +115,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
             changed = true;
         }
 
-        if (changed == false) {
+        if (!changed) {
             return LifecycleExecutionState.builder().build();
         }
 

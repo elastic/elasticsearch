@@ -130,7 +130,7 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
         transientSettings.toXContent(builder, params);
         builder.endObject();
 
-        if (defaultSettings.isEmpty() == false) {
+        if (!defaultSettings.isEmpty()) {
             builder.startObject(DEFAULTS_FIELD);
             defaultSettings.toXContent(builder, params);
             builder.endObject();

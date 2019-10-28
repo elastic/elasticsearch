@@ -214,7 +214,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 assertTrue(request.requests().stream().allMatch((r) -> version == r.source().version()));
                 assertTrue(request.requests().stream().allMatch((r) -> seqNoAndTerm == r.source().seqNoAndPrimaryTerm()));
                 assertTrue(request.requests().stream().allMatch((r) -> postFilter.equals(r.source().postFilter())));
-                assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().fetchSource() == false));
+                assertTrue(request.requests().stream().allMatch((r) -> !r.source().fetchSource().fetchSource()));
                 assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().includes().length == 0));
                 assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().excludes().length == 0));
             }

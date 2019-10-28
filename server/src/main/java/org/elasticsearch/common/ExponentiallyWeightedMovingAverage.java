@@ -56,6 +56,6 @@ public class ExponentiallyWeightedMovingAverage {
             final double newAvg = (alpha * newValue) + ((1 - alpha) * currentAvg);
             final long newBits = Double.doubleToLongBits(newAvg);
             successful = averageBits.compareAndSet(currentBits, newBits);
-        } while (successful == false);
+        } while (!successful);
     }
 }

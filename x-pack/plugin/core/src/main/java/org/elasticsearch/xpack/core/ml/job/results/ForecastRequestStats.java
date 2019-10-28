@@ -190,19 +190,19 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         if (messages != null) {
             builder.field(MESSAGES.getPreferredName(), messages);
         }
-        if (timestamp.equals(Instant.EPOCH) == false) {
+        if (!timestamp.equals(Instant.EPOCH)) {
             builder.field(Result.TIMESTAMP.getPreferredName(), timestamp.toEpochMilli());
         }
-        if (startTime.equals(Instant.EPOCH) == false) {
+        if (!startTime.equals(Instant.EPOCH)) {
             builder.field(START_TIME.getPreferredName(), startTime.toEpochMilli());
         }
-        if (endTime.equals(Instant.EPOCH) == false) {
+        if (!endTime.equals(Instant.EPOCH)) {
             builder.field(END_TIME.getPreferredName(), endTime.toEpochMilli());
         }
-        if (createTime.equals(Instant.EPOCH) == false) {
+        if (!createTime.equals(Instant.EPOCH)) {
             builder.field(CREATE_TIME.getPreferredName(), createTime.toEpochMilli());
         }
-        if (expiryTime.equals(Instant.EPOCH) == false) {
+        if (!expiryTime.equals(Instant.EPOCH)) {
             builder.field(EXPIRY_TIME.getPreferredName(), expiryTime.toEpochMilli());
         }
         builder.field(PROGRESS.getPreferredName(), progress);
@@ -294,7 +294,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     /**
      * Progress information of the ForecastRequest in the range 0 to 1,
      * while 1 means finished
-     * 
+     *
      * @return progress value
      */
     public double getProgress() {
@@ -335,7 +335,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         if (this == other) {
             return true;
         }
-        if (other instanceof ForecastRequestStats == false) {
+        if (!(other instanceof ForecastRequestStats)) {
             return false;
         }
         ForecastRequestStats that = (ForecastRequestStats) other;

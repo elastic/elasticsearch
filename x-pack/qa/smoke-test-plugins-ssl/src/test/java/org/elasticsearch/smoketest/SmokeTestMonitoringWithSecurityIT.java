@@ -91,7 +91,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (IllegalStateException e) {
-                if (e.getMessage().equals("thread was not started") == false) {
+                if (!e.getMessage().equals("thread was not started")) {
                     throw e;
                 }
                 // ignore since the thread was never started
@@ -189,7 +189,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> exporters = (Map<String, Object>) monitoringUsage.get("enabled_exporters");
-        return exporters != null && exporters.isEmpty() == false;
+        return exporters != null && !exporters.isEmpty();
     }
 
     public void testHTTPExporterWithSSL() throws Exception {

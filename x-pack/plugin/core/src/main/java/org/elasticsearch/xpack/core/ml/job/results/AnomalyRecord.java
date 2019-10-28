@@ -541,7 +541,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof AnomalyRecord == false) {
+        if (!(other instanceof AnomalyRecord)) {
             return false;
         }
 

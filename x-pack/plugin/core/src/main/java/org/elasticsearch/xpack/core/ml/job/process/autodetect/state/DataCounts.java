@@ -573,7 +573,7 @@ public class DataCounts implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof DataCounts == false) {
+        if (!(other instanceof DataCounts)) {
             return false;
         }
 

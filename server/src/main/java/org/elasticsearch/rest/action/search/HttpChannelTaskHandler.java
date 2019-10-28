@@ -110,7 +110,7 @@ public final class HttpChannelTaskHandler {
 
         synchronized void registerTask(TaskHolder taskHolder, TaskId taskId) {
             taskHolder.taskId = taskId;
-            if (taskHolder.completed == false) {
+            if (!taskHolder.completed) {
                 this.taskIds.add(taskId);
             }
         }

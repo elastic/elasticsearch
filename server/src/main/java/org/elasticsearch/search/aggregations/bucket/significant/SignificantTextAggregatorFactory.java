@@ -167,7 +167,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        if (collectsFromSingleBucket == false) {
+        if (!collectsFromSingleBucket) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 

@@ -56,7 +56,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         Thread indexingThread = new Thread() {
             @Override
             public void run() {
-                while (finished.get() == false && numAutoGenDocs.get() < 10_000) {
+                while (!finished.get() && numAutoGenDocs.get() < 10_000) {
                     IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
                     assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
@@ -97,7 +97,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             logger.info("--> [iteration {}] relocation complete", i);
             relocationSource = relocationTarget;
             // indexing process aborted early, no need for more relocations as test has already failed
-            if (indexingThread.isAlive() == false) {
+            if (!indexingThread.isAlive()) {
                 break;
             }
             if (i > 0  && i % 5 == 0) {

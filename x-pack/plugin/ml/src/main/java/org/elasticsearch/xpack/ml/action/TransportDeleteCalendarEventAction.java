@@ -58,7 +58,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                     GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, eventId);
                     executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(
                             getResponse -> {
-                                if (getResponse.isExists() == false) {
+                                if (!getResponse.isExists()) {
                                     listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
                                     return;
                                 }
@@ -71,7 +71,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                                     return;
                                 }
 
-                                if (calendarId.equals(request.getCalendarId()) == false) {
+                                if (!calendarId.equals(request.getCalendarId())) {
                                     listener.onFailure(ExceptionsHelper.badRequestException(
                                             "Event [" + eventId + "] has " + Calendar.ID.getPreferredName()
                                                     + " [" + calendarId + "] which does not match the request "

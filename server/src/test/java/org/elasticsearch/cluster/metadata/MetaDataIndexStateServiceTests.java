@@ -116,7 +116,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             assertThat(updatedState.blocks().hasIndexBlockWithId(nonBlockedIndex.getName(), INDEX_CLOSED_BLOCK_ID), is(false));
         }
         for (Index blockedIndex : blockedIndices.keySet()) {
-            if (results.get(blockedIndex).hasFailures() == false) {
+            if (!results.get(blockedIndex).hasFailures()) {
                 assertIsClosed(blockedIndex.getName(), updatedState);
             } else {
                 assertIsOpened(blockedIndex.getName(), updatedState);
@@ -202,7 +202,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             assertThat(state.blocks().hasIndexBlockWithId(nonBlockedIndex.getName(), INDEX_CLOSED_BLOCK_ID), is(false));
         }
         for (Index blockedIndex : blockedIndices.keySet()) {
-            if (results.get(blockedIndex).hasFailures() == false) {
+            if (!results.get(blockedIndex).hasFailures()) {
                 IndexMetaData indexMetaData = state.metaData().index(blockedIndex);
                 assertThat(indexMetaData.getState(), is(IndexMetaData.State.CLOSE));
                 Settings indexSettings = indexMetaData.getSettings();

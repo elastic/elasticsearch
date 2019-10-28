@@ -89,7 +89,7 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
 
         ShapeQueryBuilder builder;
         clearShapeFields();
-        if (indexedShape == false) {
+        if (!indexedShape) {
             builder = new ShapeQueryBuilder(fieldName(), shape);
         } else {
             indexedShapeToReturn = shape;

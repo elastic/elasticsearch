@@ -231,7 +231,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
         if (executionState != null) {
             out.writeString(executionState.id());
         }
-        boolean statusHasHeaders = headers != null && headers.isEmpty() == false;
+        boolean statusHasHeaders = headers != null && !headers.isEmpty();
         out.writeBoolean(statusHasHeaders);
         if (statusHasHeaders) {
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
@@ -260,7 +260,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
         if (executionState != null) {
             builder.field(Field.EXECUTION_STATE.getPreferredName(), executionState.id());
         }
-        if (headers != null && headers.isEmpty() == false && WatcherParams.hideHeaders(params) == false) {
+        if (headers != null && !headers.isEmpty() && !WatcherParams.hideHeaders(params)) {
             builder.field(Field.HEADERS.getPreferredName(), headers);
         }
         builder.field(Field.VERSION.getPreferredName(), version);

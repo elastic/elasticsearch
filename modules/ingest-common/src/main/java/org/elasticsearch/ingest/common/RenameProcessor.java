@@ -61,7 +61,7 @@ public final class RenameProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) {
         String path = document.renderTemplate(field);
-        if (document.hasField(path, true) == false) {
+        if (!document.hasField(path, true)) {
             if (ignoreMissing) {
                 return document;
             } else {

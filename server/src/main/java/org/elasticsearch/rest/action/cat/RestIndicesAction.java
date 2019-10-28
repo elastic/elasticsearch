@@ -502,7 +502,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final Table table = getTableWithHeader(request);
 
         indicesSettings.forEach((indexName, settings) -> {
-            if (indicesMetaDatas.containsKey(indexName) == false) {
+            if (!indicesMetaDatas.containsKey(indexName)) {
                 // the index exists in the Get Indices response but is not present in the cluster state:
                 // it is likely that the index was deleted in the meanwhile, so we ignore it.
                 return;

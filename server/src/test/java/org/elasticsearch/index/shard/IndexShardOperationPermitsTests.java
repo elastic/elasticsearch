@@ -244,10 +244,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testThreadContextPreservedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
         final ThreadContext context = threadPool.getThreadContext();
         final Function<ActionListener<Releasable>, Boolean> contextChecker = (listener) -> {
-            if ("bar".equals(context.getHeader("foo")) == false) {
+            if (!"bar".equals(context.getHeader("foo"))) {
                 listener.onFailure(new IllegalStateException("context did not have value [bar] for header [foo]. Actual value [" +
                     context.getHeader("foo") + "]"));
-            } else if ("baz".equals(context.getTransient("bar")) == false) {
+            } else if (!"baz".equals(context.getTransient("bar"))) {
                 listener.onFailure(new IllegalStateException("context did not have value [baz] for transient [bar]. Actual value [" +
                     context.getTransient("bar") + "]"));
             } else {

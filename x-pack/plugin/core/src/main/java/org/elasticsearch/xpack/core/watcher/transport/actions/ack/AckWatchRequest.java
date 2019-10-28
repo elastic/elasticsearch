@@ -72,7 +72,7 @@ public class AckWatchRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (watchId == null){
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
-        } else if (WatcherUtils.isValidId(watchId) == false) {
+        } else if (!WatcherUtils.isValidId(watchId)) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
         if (actionIds != null) {
@@ -80,7 +80,7 @@ public class AckWatchRequest extends ActionRequest {
                 if (actionId == null) {
                     validationException = ValidateActions.addValidationError(
                             String.format(Locale.ROOT, "action id may not be null"), validationException);
-                } else if (WatcherUtils.isValidId(actionId) == false) {
+                } else if (!WatcherUtils.isValidId(actionId)) {
                     validationException = ValidateActions.addValidationError(
                             String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId), validationException);
                 }

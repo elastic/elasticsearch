@@ -59,7 +59,7 @@ public class RestMainAction extends BaseRestHandler {
 
     static BytesRestResponse convertMainResponse(MainResponse response, RestRequest request, XContentBuilder builder) throws IOException {
         // Default to pretty printing, but allow ?pretty=false to disable
-        if (request.hasParam("pretty") == false) {
+        if (!request.hasParam("pretty")) {
             builder.prettyPrint().lfAtEnd();
         }
         response.toXContent(builder, request);

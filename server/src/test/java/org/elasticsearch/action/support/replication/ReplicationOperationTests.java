@@ -144,7 +144,7 @@ public class ReplicationOperationTests extends ESTestCase {
     private void addTrackingInfo(IndexShardRoutingTable indexShardRoutingTable, ShardRouting primaryShard, Set<String> trackedShards,
                                  Set<String> untrackedShards) {
         for (ShardRouting shr : indexShardRoutingTable.shards()) {
-            if (shr.unassigned() == false) {
+            if (!shr.unassigned()) {
                 if (shr.initializing()) {
                     if (randomBoolean()) {
                         trackedShards.add(shr.allocationId().getId());
@@ -422,13 +422,13 @@ public class ReplicationOperationTests extends ESTestCase {
                 if (shardRouting.unassigned()) {
                     continue;
                 }
-                if (localNodeId.equals(shardRouting.currentNodeId()) == false) {
+                if (!localNodeId.equals(shardRouting.currentNodeId())) {
                     if (trackedShards.contains(shardRouting.allocationId().getId())) {
                         expectedReplicas.add(shardRouting);
                     }
                 }
 
-                if (shardRouting.relocating() && localNodeId.equals(shardRouting.relocatingNodeId()) == false) {
+                if (shardRouting.relocating() && !localNodeId.equals(shardRouting.relocatingNodeId())) {
                     if (trackedShards.contains(shardRouting.getTargetRelocatingShard().allocationId().getId())) {
                         expectedReplicas.add(shardRouting.getTargetRelocatingShard());
                     }
@@ -485,7 +485,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         @Override
         public void perform(Request request, ActionListener<Result> listener) {
-            if (request.processedOnPrimary.compareAndSet(false, true) == false) {
+            if (!request.processedOnPrimary.compareAndSet(false, true)) {
                 fail("processed [" + request + "] twice");
             }
             listener.onResponse(new Result(request));
@@ -616,7 +616,7 @@ public class ReplicationOperationTests extends ESTestCase {
         @Override
         public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
                                       ActionListener<Void> listener) {
-            if (failedReplicas.add(replica) == false) {
+            if (!failedReplicas.add(replica)) {
                 fail("replica [" + replica + "] was failed twice");
             }
             if (opFailures.containsKey(replica)) {
@@ -628,7 +628,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         @Override
         public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, ActionListener<Void> listener) {
-            if (markedAsStaleCopies.add(allocationId) == false) {
+            if (!markedAsStaleCopies.add(allocationId)) {
                 fail("replica [" + allocationId + "] was marked as stale twice");
             }
             listener.onResponse(null);

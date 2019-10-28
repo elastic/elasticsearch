@@ -62,7 +62,7 @@ public class ConnectionBuilder {
         }
 
         if (keystoreLocation != null) {
-            if (false == "https".equals(uri.getScheme())) {
+            if (!"https".equals(uri.getScheme())) {
                 throw new UserException(ExitCodes.USAGE, "keystore file specified without https");
             }
             Path p = getKeystorePath(keystoreLocation);
@@ -105,10 +105,10 @@ public class ConnectionBuilder {
     }
 
     protected void checkIfExists(String name, Path p) throws UserException {
-        if (false == Files.exists(p)) {
+        if (!Files.exists(p)) {
             throw new UserException(ExitCodes.USAGE, name + " [" + p + "] doesn't exist");
          }
-         if (false == Files.isRegularFile(p)) {
+         if (!Files.isRegularFile(p)) {
              throw new UserException(ExitCodes.USAGE, name + " [" + p + "] isn't a regular file");
          }
     }

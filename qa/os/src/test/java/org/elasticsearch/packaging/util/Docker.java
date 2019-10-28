@@ -165,9 +165,9 @@ public class Docker {
                 final String command = "docker rm -f " + containerId;
                 final Shell.Result result = sh.runIgnoreExitCode(command);
 
-                if (result.isSuccess() == false) {
+                if (!result.isSuccess()) {
                     // I'm not sure why we're already removing this container, but that's OK.
-                    if (result.stderr.contains("removal of container " + " is already in progress") == false) {
+                    if (!result.stderr.contains("removal of container " + " is already in progress")) {
                         throw new RuntimeException(
                             "Command was not successful: [" + command + "] result: " + result.toString());
                     }

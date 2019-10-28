@@ -50,7 +50,7 @@ public class GetSnapshotLifecyclePolicyResponse implements ToXContentObject {
         parser.nextToken();
 
         Map<String, SnapshotLifecyclePolicyMetadata> policies = new HashMap<>();
-        while (parser.isClosed() == false) {
+        while (!parser.isClosed()) {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 final String policyId = parser.currentName();
                 SnapshotLifecyclePolicyMetadata policyDefinition = SnapshotLifecyclePolicyMetadata.parse(parser, policyId);

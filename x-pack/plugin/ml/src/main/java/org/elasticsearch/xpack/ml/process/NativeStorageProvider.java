@@ -68,7 +68,7 @@ public class NativeStorageProvider {
      */
     public Path tryGetLocalTmpStorage(String uniqueIdentifier, ByteSizeValue requestedSize) {
         Path path = allocatedStorage.get(uniqueIdentifier);
-        if (path != null && localTmpStorageHasEnoughSpace(path, requestedSize) == false) {
+        if (path != null && !localTmpStorageHasEnoughSpace(path, requestedSize)) {
             LOGGER.debug("Previous tmp storage for [{}] run out, returning null", uniqueIdentifier);
             return null;
         } else {

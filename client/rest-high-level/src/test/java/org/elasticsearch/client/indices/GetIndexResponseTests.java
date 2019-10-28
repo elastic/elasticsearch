@@ -95,7 +95,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
         int typeCount = rarely() ? 0 : 1;
         MappingMetaData mmd = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
         for (int i = 0; i < typeCount; i++) {
-            if (rarely() == false) { // rarely have no fields
+            if (!rarely()) { // rarely have no fields
                 Map<String, Object> mappings = new HashMap<>();
                 mappings.put("field-" + i, randomFieldMapping());
                 if (randomBoolean()) {

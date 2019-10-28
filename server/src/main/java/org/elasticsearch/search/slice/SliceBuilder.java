@@ -242,11 +242,11 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         boolean useTermQuery = false;
         if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;
-        } else if (type.hasDocValues() == false) {
+        } else if (!type.hasDocValues()) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);
         } else {
             IndexFieldData ifm = context.getForField(type);
-            if (ifm instanceof IndexNumericFieldData == false) {
+            if (!(ifm instanceof IndexNumericFieldData)) {
                 throw new IllegalArgumentException("cannot load numeric doc values on " + field);
             }
         }

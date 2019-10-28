@@ -118,7 +118,7 @@ public class HttpHostBuilder {
         try {
             String cleanedUri = uri;
 
-            if (uri.contains("://") == false) {
+            if (!uri.contains("://")) {
                 cleanedUri = "http://" + uri;
             }
 
@@ -152,7 +152,7 @@ public class HttpHostBuilder {
             }
 
             // fail for proxies
-            if (parsedUri.getRawPath() != null && parsedUri.getRawPath().isEmpty() == false) {
+            if (parsedUri.getRawPath() != null && !parsedUri.getRawPath().isEmpty()) {
                 throw new IllegalArgumentException(
                     "HttpHosts do not use paths [" + parsedUri.getRawPath() +
                         "]. see setRequestConfigCallback for proxies. value: [" + uri + "]");

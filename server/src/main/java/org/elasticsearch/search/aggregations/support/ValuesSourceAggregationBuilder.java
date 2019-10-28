@@ -384,7 +384,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
         return Objects.equals(valuesSourceType, other.valuesSourceType)
             && Objects.equals(field, other.field)

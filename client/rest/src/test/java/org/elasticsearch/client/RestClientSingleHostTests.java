@@ -255,7 +255,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             for (int errorStatusCode : getAllErrorStatusCodes()) {
                 try {
                     Request request = new Request(method, "/" + errorStatusCode);
-                    if (false == ignoreParam.isEmpty()) {
+                    if (!ignoreParam.isEmpty()) {
                         request.addParameter("ignore", ignoreParam);
                     }
                     Response response = restClient.performRequest(request);
@@ -452,7 +452,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     @Override
                     public boolean warningsShouldFailRequest(List<String> warnings) {
                         for (String warning : warnings) {
-                            if (false == warning.startsWith("ignorable")) {
+                            if (!warning.startsWith("ignorable")) {
                                 return true;
                             }
                         }
@@ -466,7 +466,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 return new WarningsHandler() {
                     @Override
                     public boolean warningsShouldFailRequest(List<String> warnings) {
-                        return false == warnings.equals(Arrays.asList("exact"));
+                        return !warnings.equals(Arrays.asList("exact"));
                     }
                 };
             }
@@ -486,7 +486,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         final boolean expectFailure;
         if (randomBoolean()) {
             logger.info("checking strictWarningsMode=[" + strictDeprecationMode + "] and warnings=" + warningBodyTexts);
-            expectFailure = strictDeprecationMode && false == warningBodyTexts.isEmpty();
+            expectFailure = strictDeprecationMode && !warningBodyTexts.isEmpty();
         } else {
             DeprecationWarningOption warningOption = randomFrom(DeprecationWarningOption.values());
             logger.info("checking warningOption=" + warningOption + " and warnings=" + warningBodyTexts);
@@ -502,7 +502,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 fail("expected WarningFailureException from warnings");
                 return;
             } catch (WarningFailureException e) {
-                if (false == warningBodyTexts.isEmpty()) {
+                if (!warningBodyTexts.isEmpty()) {
                     assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
                 }
                 response = e.getResponse();
@@ -510,7 +510,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         } else {
             response = performRequestSyncOrAsync(restClient, request);
         }
-        assertEquals(false == warningBodyTexts.isEmpty(), response.hasWarnings());
+        assertEquals(!warningBodyTexts.isEmpty(), response.hasWarnings());
         assertEquals(warningBodyTexts, response.getWarnings());
     }
 
@@ -595,7 +595,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
         for (Header defaultHeader : defaultHeaders) {
             // request level headers override default headers
-            if (uniqueNames.contains(defaultHeader.getName()) == false) {
+            if (!uniqueNames.contains(defaultHeader.getName())) {
                 expectedRequest.addHeader(defaultHeader);
             }
         }

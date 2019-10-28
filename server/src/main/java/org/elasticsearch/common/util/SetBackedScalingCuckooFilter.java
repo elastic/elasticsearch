@@ -251,7 +251,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         }
 
         boolean success = filters.get(filters.size() - 1).add(hash);
-        if (success == false) {
+        if (!success) {
             // filter is full, create a new one and insert there
             CuckooFilter t = new CuckooFilter(capacity, fpp, rng);
             t.add(hash);
@@ -271,7 +271,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * This will create a list of CuckooFilters, and null out the set of hashes
      */
     void convert() {
-        if (isSetMode == false) {
+        if (!isSetMode) {
             throw new IllegalStateException("Cannot convert SetBackedScalingCuckooFilter to approximate " +
                 "when it has already been converted.");
         }
@@ -335,13 +335,13 @@ public class SetBackedScalingCuckooFilter implements Writeable {
             // Both in sets, merge collections then see if we need to convert to cuckoo
             hashes.addAll(other.hashes);
             maybeConvert();
-        } else if (isSetMode && other.isSetMode == false) {
+        } else if (isSetMode && !other.isSetMode) {
             // Other is in cuckoo mode, so we convert our set to a cuckoo, then
             // call the merge function again.  Since both are now in set-mode
             // this will fall through to the last conditional and do a cuckoo-cuckoo merge
             convert();
             merge(other);
-        } else if (isSetMode == false && other.isSetMode) {
+        } else if (!isSetMode && other.isSetMode) {
             // Rather than converting the other to a cuckoo first, we can just
             // replay the values directly into our filter.
             other.hashes.forEach(this::add);
@@ -367,7 +367,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
                             continue;
                         }
                         // Try to insert into the last filter in our list
-                        if (currentFilter.mergeFingerprint(bucket, (int) fingerprint) == false) {
+                        if (!currentFilter.mergeFingerprint(bucket, (int) fingerprint)) {
                             // if we failed, the filter is now saturated and we need to create a new one
                             CuckooFilter t = new CuckooFilter(capacity, fpp, rng);
                             filters.add(t);

@@ -116,7 +116,7 @@ public class Point implements Geometry {
 
     @Override
     public boolean hasZ() {
-        return Double.isNaN(z) == false;
+        return !Double.isNaN(z);
     }
 
     @Override

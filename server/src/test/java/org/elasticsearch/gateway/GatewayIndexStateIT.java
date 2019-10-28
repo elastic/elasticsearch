@@ -445,7 +445,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         final IndexMetaData metaData = state.getMetaData().index("test");
         final IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
-                .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
+                .filter((s) -> !"index.analysis.analyzer.test.tokenizer".equals(s))).build();
         writeBrokenMeta(metaStateService -> metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta));
 
         // check that the cluster does not keep reallocating shards

@@ -116,7 +116,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         request.setJsonEntity("{\"query\": \"SELECT COUNT(*) FROM test\"" + mode(mode) + "}");
         Map<String, Object> actual = responseToMap(client.performRequest(request));
 
-        if (false == expected.equals(actual)) {
+        if (!expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());

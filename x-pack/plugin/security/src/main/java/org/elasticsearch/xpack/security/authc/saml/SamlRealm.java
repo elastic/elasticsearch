@@ -179,7 +179,7 @@ public final class SamlRealm extends Realm implements Releasable {
                                    UserRoleMapper roleMapper) throws Exception {
         SamlUtils.initialize(logger);
 
-        if (TokenService.isTokenServiceEnabled(config.settings()) == false) {
+        if (!TokenService.isTokenServiceEnabled(config.settings())) {
             throw new IllegalStateException("SAML requires that the token service be enabled ("
                     + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + ")");
         }
@@ -335,7 +335,7 @@ public final class SamlRealm extends Realm implements Releasable {
                 throw new IllegalArgumentException(
                         "The configured key store for " + prefix
                                 + " does not contain any RSA key pairs");
-            } else if (allowMultiple == false && aliases.size() > 1) {
+            } else if (!allowMultiple && aliases.size() > 1) {
                 throw new IllegalArgumentException(
                         "The configured key store for " + prefix
                                 + " has multiple keys but no alias has been specified (from setting "
@@ -351,13 +351,13 @@ public final class SamlRealm extends Realm implements Releasable {
                 throw new IllegalArgumentException(
                         "The configured key store for " + prefix
                                 + " does not have a key associated with alias [" + alias + "] "
-                                + ((Strings.isNullOrEmpty(configuredAlias) == false)
+                                + ((!Strings.isNullOrEmpty(configuredAlias))
                                         ? "(from setting " + RealmSettings.getFullSettingKey(config, aliasSetting) + ")"
                                         : ""));
             }
 
             final String keyType = keyManager.getPrivateKey(alias).getAlgorithm();
-            if (keyType.equals("RSA") == false) {
+            if (!keyType.equals("RSA")) {
                 throw new IllegalArgumentException("The key associated with alias [" + alias + "] " + "(from setting "
                         + RealmSettings.getFullSettingKey(config, aliasSetting) + ") uses unsupported key algorithm type [" + keyType
                         + "], only RSA is supported");
@@ -763,7 +763,7 @@ public final class SamlRealm extends Realm implements Releasable {
                                     + setting.name(realmConfig) + "]",
                             attributes -> attributes.getAttributeValues(attributeName).stream().map(s -> {
                                 final Matcher matcher = regex.matcher(s);
-                                if (matcher.find() == false) {
+                                if (!matcher.find()) {
                                     logger.debug("Attribute [{}] is [{}], which does not match [{}]", attributeName, s, regex.pattern());
                                     return null;
                                 }

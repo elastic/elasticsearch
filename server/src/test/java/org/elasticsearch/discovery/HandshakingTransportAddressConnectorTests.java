@@ -75,7 +75,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                 super.onSendRequest(requestId, action, request, node);
                 assertThat(action, equalTo(TransportService.HANDSHAKE_ACTION_NAME));
                 assertEquals(remoteNode.getAddress(), node.getAddress());
-                if (dropHandshake == false) {
+                if (!dropHandshake) {
                     handleResponse(requestId, new HandshakeResponse(remoteNode, new ClusterName(remoteClusterName), Version.CURRENT));
                 }
             }

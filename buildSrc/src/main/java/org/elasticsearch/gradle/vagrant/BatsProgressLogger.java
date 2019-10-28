@@ -60,7 +60,7 @@ public class BatsProgressLogger implements UnaryOperator<String> {
     public String apply(String line) {
         if (testCount == null) {
             Matcher m = startRegex.matcher(line);
-            if (m.matches() == false) {
+            if (!m.matches()) {
                 // haven't reached start of bats test yet, pass through whatever we see
                 return line;
             }
@@ -71,14 +71,14 @@ public class BatsProgressLogger implements UnaryOperator<String> {
             return null;
         }
         Matcher m = lineRegex.matcher(line);
-        if (m.matches() == false) {
+        if (!m.matches()) {
             /* These might be failure report lines or comments or whatever. Its hard
               to tell and it doesn't matter. */
             logger.warn(line);
             return null;
         }
         boolean skipped = m.group("skip") != null;
-        boolean success = skipped == false && m.group("status").equals("ok");
+        boolean success = !skipped && m.group("status").equals("ok");
         String skipReason = m.group("skipReason");
         String suiteName = m.group("suite");
         String testName = m.group("test");
@@ -96,7 +96,7 @@ public class BatsProgressLogger implements UnaryOperator<String> {
         }
 
         String counts = new Formatter().format(countsFormat, testsCompleted, testsFailed, testsSkipped, testCount).out().toString();
-        if (success == false) {
+        if (!success) {
             logger.warn(line);
         }
         return "BATS " + counts + ", " + status + " [" + suiteName + "] " + testName;

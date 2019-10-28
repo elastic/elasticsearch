@@ -164,7 +164,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
                                              CollapseTopFieldDocs[] shardHits, boolean setShardIndex) {
         String collapseField = shardHits[0].field;
         for (int i = 1; i < shardHits.length; i++) {
-            if (collapseField.equals(shardHits[i].field) == false) {
+            if (!collapseField.equals(shardHits[i].field)) {
                 throw new IllegalArgumentException("collapse field differ across shards [" +
                     collapseField + "] != [" + shardHits[i].field + "]");
             }
@@ -186,7 +186,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             }
             if (shard.scoreDocs != null && shard.scoreDocs.length > 0) {
                 availHitCount += shard.scoreDocs.length;
-                queue.add(new ShardRef(shardIDX, setShardIndex == false));
+                queue.add(new ShardRef(shardIDX, !setShardIndex));
             }
         }
 

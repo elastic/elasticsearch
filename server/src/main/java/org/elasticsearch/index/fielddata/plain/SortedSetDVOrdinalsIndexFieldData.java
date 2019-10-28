@@ -71,7 +71,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
          */
         if (nested != null ||
                 (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN) ||
-                (source.sortMissingLast(missingValue) == false && source.sortMissingFirst(missingValue) == false)) {
+                (!source.sortMissingLast(missingValue) && !source.sortMissingFirst(missingValue))) {
             return new SortField(getFieldName(), source, reverse);
         }
         SortField sortField = new SortedSetSortField(fieldName, reverse,
@@ -115,7 +115,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
                 break;
             }
         }
-        if (fieldFound == false) {
+        if (!fieldFound) {
             // Some directory readers may be wrapped and report different set of fields and use the same cache key.
             // If a field can't be found then it doesn't mean it isn't there,
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.

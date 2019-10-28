@@ -79,7 +79,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
     }
 
     private static boolean isFilteredRequest(GetSettingsRequest request) {
-        return CollectionUtils.isEmpty(request.names()) == false;
+        return !CollectionUtils.isEmpty(request.names());
     }
 
     @Override

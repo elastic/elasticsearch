@@ -272,7 +272,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // for the sequence based recovery are not fully retained and extra documents were added to the primary.
             boolean expectSeqNoRecovery = (moreDocs == 0 || randomBoolean());
             int uncommittedOpsOnPrimary = 0;
-            if (expectSeqNoRecovery == false) {
+            if (!expectSeqNoRecovery) {
                 IndexMetaData.Builder builder = IndexMetaData.builder(newPrimary.indexSettings().getIndexMetaData());
                 builder.settings(Settings.builder().put(newPrimary.indexSettings().getSettings())
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
@@ -710,7 +710,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             int numThreads = between(1, 3);
             for (int i = 0; i < numThreads; i++) {
                 Thread thread = new Thread(() -> {
-                    while (stopped.get() == false) {
+                    while (!stopped.get()) {
                         try {
                             int nextId = docId.incrementAndGet();
                             if (appendOnly) {
@@ -782,7 +782,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 List<IndexShard> replicas = new ArrayList<>(shards.getReplicas());
                 replicas.remove(newPrimary);
                 latch.countDown();
-                while (done.get() == false) {
+                while (!done.get()) {
                     try {
                         List<DocIdSeqNoAndSource> exposedDocs = EngineTestCase.getDocIds(getEngine(randomFrom(replicas)), randomBoolean());
                         assertThat(docsBelowGlobalCheckpoint, everyItem(isIn(exposedDocs)));
@@ -822,7 +822,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;
             this.logger = logger;
-            if (SUPPORTED_STAGES.contains(stageToBlock) == false) {
+            if (!SUPPORTED_STAGES.contains(stageToBlock)) {
                 throw new UnsupportedOperationException(stageToBlock + " is not supported");
             }
         }
@@ -853,7 +853,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final RetentionLeases retentionLeases,
                 final long mappingVersion,
                 final ActionListener<Long> listener) {
-            if (hasBlocked() == false) {
+            if (!hasBlocked()) {
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
             super.indexTranslogOperations(
@@ -869,7 +869,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
         @Override
         public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
-            if (hasBlocked() == false) {
+            if (!hasBlocked()) {
                 // it maybe that not ops have been transferred, block now
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }

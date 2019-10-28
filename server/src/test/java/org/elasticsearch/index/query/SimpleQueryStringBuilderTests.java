@@ -285,7 +285,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             }
         } else if (queryBuilder.fields().size() == 1) {
             Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
-            if (query instanceof MatchNoDocsQuery == false) {
+            if (!(query instanceof MatchNoDocsQuery)) {
                 assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
             }
         } else if (queryBuilder.fields().size() == 0) {

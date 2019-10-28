@@ -42,7 +42,7 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
         final String o1Index = o1.getIndexName();
         final String o2Index = o2.getIndexName();
         int cmp = 0;
-        if (o1Index.equals(o2Index) == false) {
+        if (!o1Index.equals(o2Index)) {
             final Settings settingsO1 = getIndexSettings(o1.index());
             final Settings settingsO2 = getIndexSettings(o2.index());
             cmp = Long.compare(priority(settingsO2), priority(settingsO1));

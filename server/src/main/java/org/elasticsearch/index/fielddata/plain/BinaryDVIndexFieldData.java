@@ -55,7 +55,7 @@ public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements I
          */
         if (nested != null ||
                 (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN) ||
-                (source.sortMissingFirst(missingValue) == false && source.sortMissingLast(missingValue) == false)) {
+                (!source.sortMissingFirst(missingValue) && !source.sortMissingLast(missingValue))) {
             return new SortField(getFieldName(), source, reverse);
         }
         SortField sortField = new SortedSetSortField(fieldName, reverse,

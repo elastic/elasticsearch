@@ -100,7 +100,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
             if (name.length() > 256) {
                 validationException = addValidationError("name may not be more than 256 characters long", validationException);
             }
-            if (name.equals(name.trim()) == false) {
+            if (!name.equals(name.trim())) {
                 validationException = addValidationError("name may not begin or end with whitespace", validationException);
             }
             if (name.startsWith("_")) {

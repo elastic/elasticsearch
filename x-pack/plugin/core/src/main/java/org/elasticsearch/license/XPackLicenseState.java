@@ -231,7 +231,7 @@ public class XPackLicenseState {
     private static String[] logstashAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
-                if (isBasic(currentMode) == false) {
+                if (!isBasic(currentMode)) {
                     return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
                 }
                 break;
@@ -242,7 +242,7 @@ public class XPackLicenseState {
     private static String[] beatsAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
-                if (isBasic(currentMode) == false) {
+                if (!isBasic(currentMode)) {
                     return new String[] { "Beats will no longer be able to use centrally-managed configuration" };
                 }
                 break;
@@ -512,7 +512,7 @@ public class XPackLicenseState {
     public synchronized boolean isWatcherAllowed() {
         Status localStatus = status;
 
-        if (localStatus.active == false) {
+        if (!localStatus.active) {
             return false;
         }
 
@@ -635,7 +635,7 @@ public class XPackLicenseState {
      */
     public synchronized boolean isLogstashAllowed() {
         Status localStatus = status;
-        return localStatus.active && (isBasic(localStatus.mode) == false);
+        return localStatus.active && (!isBasic(localStatus.mode));
     }
 
     /**
@@ -644,7 +644,7 @@ public class XPackLicenseState {
      */
     public synchronized boolean isBeatsAllowed() {
         Status localStatus = status;
-        return localStatus.active && (isBasic(localStatus.mode) == false);
+        return localStatus.active && (!isBasic(localStatus.mode));
 
     }
 
@@ -806,7 +806,7 @@ public class XPackLicenseState {
         switch (status.mode) {
             case TRIAL:
             case BASIC:
-                return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+                return isSecurityEnabled && !isSecurityExplicitlyEnabled;
         }
         return false;
     }

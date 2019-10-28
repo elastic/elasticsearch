@@ -170,8 +170,8 @@ public final class BinaryDocValuesRangeQuery extends Query {
             @Override
             boolean matches(BytesRef from, BytesRef to, BytesRef otherFrom, BytesRef otherTo) {
                 // does not disjoint AND not within:
-                return  (from.compareTo(otherTo) > 0 || to.compareTo(otherFrom) < 0) == false &&
-                    (from.compareTo(otherFrom) <= 0 && to.compareTo(otherTo) >= 0) == false;
+                return !(from.compareTo(otherTo) > 0 || to.compareTo(otherFrom) < 0) &&
+                    !(from.compareTo(otherFrom) <= 0 && to.compareTo(otherTo) >= 0);
             }
         };
 

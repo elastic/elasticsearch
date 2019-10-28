@@ -127,10 +127,10 @@ public class CoordinationMetaDataTests extends ESTestCase {
 
     private VotingConfiguration randomlyChangeVotingConfiguration(VotingConfiguration cfg) {
         Set<String> newNodeIds = new HashSet<>(cfg.getNodeIds());
-        if (cfg.isEmpty() == false && randomBoolean()) {
+        if (!cfg.isEmpty() && randomBoolean()) {
             // remove random element
             newNodeIds.remove(randomFrom(cfg.getNodeIds()));
-        } else if (cfg.isEmpty() == false && randomBoolean()) {
+        } else if (!cfg.isEmpty() && randomBoolean()) {
             // change random element
             newNodeIds.remove(randomFrom(cfg.getNodeIds()));
             newNodeIds.add(randomAlphaOfLength(20));
@@ -170,7 +170,7 @@ public class CoordinationMetaDataTests extends ESTestCase {
                         builder.lastAcceptedConfiguration(randomlyChangeVotingConfiguration(meta.getLastAcceptedConfiguration()));
                         break;
                     case 3:
-                        if (meta.getVotingConfigExclusions().isEmpty() == false && randomBoolean()) {
+                        if (!meta.getVotingConfigExclusions().isEmpty() && randomBoolean()) {
                             builder.clearVotingConfigExclusions();
                         } else {
                             randomVotingTombstones().forEach(dn -> builder.addVotingConfigExclusion(dn));

@@ -178,7 +178,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         final boolean noFilteredIndexPermissions = randomBoolean();
         boolean restrictiveLimitedIndexPermissions = false;
-        if (noFilteredIndexPermissions == false) {
+        if (!noFilteredIndexPermissions) {
             restrictiveLimitedIndexPermissions = randomBoolean();
         }
         Set<BytesReference> queries = new HashSet<>();

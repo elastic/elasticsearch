@@ -112,7 +112,7 @@ public class Shell {
 
     private Result runScript(String[] command) {
         Result result = runScriptIgnoreExitCode(command);
-        if (result.isSuccess() == false) {
+        if (!result.isSuccess()) {
             throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());
         }
         return result;
@@ -142,7 +142,7 @@ public class Shell {
 
         try {
             Process process = builder.start();
-            if (process.waitFor(10, TimeUnit.MINUTES) == false) {
+            if (!process.waitFor(10, TimeUnit.MINUTES)) {
                 if (process.isAlive()) {
                     process.destroyForcibly();
                 }

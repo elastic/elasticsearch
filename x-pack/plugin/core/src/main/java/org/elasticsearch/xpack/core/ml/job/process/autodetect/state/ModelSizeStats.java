@@ -284,7 +284,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof ModelSizeStats == false) {
+        if (!(other instanceof ModelSizeStats)) {
             return false;
         }
 

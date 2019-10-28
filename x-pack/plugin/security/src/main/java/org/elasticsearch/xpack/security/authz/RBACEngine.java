@@ -171,7 +171,7 @@ public class RBACEngine implements AuthorizationEngine {
                 }
 
                 assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
-                    || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
+                    || GetUserPrivilegesAction.NAME.equals(action) || !sameUsername
                     : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
                 return sameUsername;
             } else if (request instanceof GetApiKeyRequest) {
@@ -215,7 +215,7 @@ public class RBACEngine implements AuthorizationEngine {
                 if (request instanceof BulkShardRequest) {
                     return false;
                 }
-                if (request instanceof CompositeIndicesRequest == false) {
+                if (!(request instanceof CompositeIndicesRequest)) {
                     throw new IllegalStateException("Composite and bulk actions must implement " +
                         CompositeIndicesRequest.class.getSimpleName() + ", " + request.getClass().getSimpleName() + " doesn't. Action " +
                         action);
@@ -238,7 +238,7 @@ public class RBACEngine implements AuthorizationEngine {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
             authorizeIndexActionName(action, authorizationInfo, null, listener);
-        } else if (request instanceof IndicesRequest == false && request instanceof IndicesAliasesRequest == false) {
+        } else if (!(request instanceof IndicesRequest) && !(request instanceof IndicesAliasesRequest)) {
             // scroll is special
             // some APIs are indices requests that are not actually associated with indices. For example,
             // search scroll request, is categorized under the indices context, but doesn't hold indices names
@@ -344,7 +344,7 @@ public class RBACEngine implements AuthorizationEngine {
                 Automaton existingPermissions = permissionMap.computeIfAbsent(entry.getKey(), role::allowedActionsMatcher);
                 for (String alias : entry.getValue()) {
                     Automaton newNamePermissions = permissionMap.computeIfAbsent(alias, role::allowedActionsMatcher);
-                    if (Operations.subsetOf(newNamePermissions, existingPermissions) == false) {
+                    if (!Operations.subsetOf(newNamePermissions, existingPermissions)) {
                         listener.onResponse(AuthorizationResult.deny());
                         return;
                     }
@@ -362,7 +362,7 @@ public class RBACEngine implements AuthorizationEngine {
                                 HasPrivilegesRequest request,
                                 Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
                                 ActionListener<HasPrivilegesResponse> listener) {
-        if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
+        if (!(authorizationInfo instanceof RBACAuthorizationInfo)) {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
             return;
@@ -414,7 +414,7 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void getUserPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, GetUserPrivilegesRequest request,
                                   ActionListener<GetUserPrivilegesResponse> listener) {
-        if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
+        if (!(authorizationInfo instanceof RBACAuthorizationInfo)) {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
         } else {

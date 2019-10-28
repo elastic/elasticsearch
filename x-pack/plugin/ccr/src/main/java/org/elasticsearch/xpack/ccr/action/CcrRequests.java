@@ -97,7 +97,7 @@ public final class CcrRequests {
                             final IndexMetaData indexMetaData = state.metaData().index(index);
                             return indexMetaData != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetaData.getSettings());
                         }).collect(Collectors.toList());
-                if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
+                if (!followingIndices.isEmpty() && !"ccr".equals(request.origin())) {
                     final String errorMessage = "can't put mapping to the following indices "
                             + "[" + followingIndices.stream().map(Index::getName).collect(Collectors.joining(", ")) + "]; "
                             + "the mapping of the following indices are self-replicated from its leader indices";
@@ -116,7 +116,7 @@ public final class CcrRequests {
                             final IndexMetaData indexMetaData = state.metaData().index(index);
                             return indexMetaData != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetaData.getSettings());
                         }).collect(Collectors.toList());
-                if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
+                if (!followingIndices.isEmpty() && !"ccr".equals(request.origin())) {
                     final String errorMessage = "can't modify aliases on indices "
                             + "[" + followingIndices.stream().map(Index::getName).collect(Collectors.joining(", ")) + "]; "
                             + "aliases of following indices are self-replicated from their leader indices";

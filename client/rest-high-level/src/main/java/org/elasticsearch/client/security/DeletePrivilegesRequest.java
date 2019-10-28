@@ -51,7 +51,7 @@ public final class DeletePrivilegesRequest implements Validatable {
      * @param refreshPolicy the refresh policy {@link RefreshPolicy} for the request, defaults to {@link RefreshPolicy#getDefault()}
      */
     public DeletePrivilegesRequest(String application, String[] privileges, @Nullable RefreshPolicy refreshPolicy) {
-        if (Strings.hasText(application) == false) {
+        if (!Strings.hasText(application)) {
             throw new IllegalArgumentException("application name is required");
         }
         if (CollectionUtils.isEmpty(privileges)) {

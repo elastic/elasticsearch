@@ -347,7 +347,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         });
 
         try {
-            if (nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+            if (!nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS)) {
                 logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
             }
         } catch (InterruptedException e) {
@@ -355,7 +355,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
 
         try {
-            if (indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+            if (!indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS)) {
                 logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
             }
         } catch (InterruptedException e) {

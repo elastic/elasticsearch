@@ -299,7 +299,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertThat(stopAnalytics(id).isStopped(), is(true));
         assertIsStopped(id);
-        if (indexExists(config.getDest().getIndex()) == false) {
+        if (!indexExists(config.getDest().getIndex())) {
             // We stopped before we even created the destination index
             return;
         }

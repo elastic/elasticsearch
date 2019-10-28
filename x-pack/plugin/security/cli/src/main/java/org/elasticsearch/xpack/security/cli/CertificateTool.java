@@ -270,7 +270,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             } else {
                 file = CertificateTool.resolvePath(defaultFilename);
                 String input = terminal.readText("Please enter the desired output file [" + file + "]: ");
-                if (input.isEmpty() == false) {
+                if (!input.isEmpty()) {
                     file = CertificateTool.resolvePath(input);
                 }
             }
@@ -349,7 +349,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
 
         private CAInfo loadPemCA(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            if (options.hasArgument(caKeyPathSpec) == false) {
+            if (!options.hasArgument(caKeyPathSpec)) {
                 throw new UserException(ExitCodes.USAGE, "Option " + caCertPathSpec + " also requires " + caKeyPathSpec);
             }
             Path cert = resolvePath(options, caCertPathSpec);
@@ -430,9 +430,9 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         static Collection<CertificateInformation> readMultipleCertificateInformation(Terminal terminal) {
             Map<String, CertificateInformation> map = new HashMap<>();
             boolean done = false;
-            while (done == false) {
+            while (!done) {
                 String name = terminal.readText("Enter instance name: ");
-                if (name.isEmpty() == false) {
+                if (!name.isEmpty()) {
                     String filename = requestFileName(terminal, name);
                     String ipAddresses = terminal.readText("Enter IP Addresses for instance (comma-separated if more than one) []: ");
                     String dnsNames = terminal.readText("Enter DNS names for instance (comma-separated if more than one) []: ");
@@ -459,7 +459,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
                 String exit = terminal.readText("Would you like to specify another instance? Press 'y' to continue entering instance " +
                     "information: ");
-                if ("y".equals(exit) == false) {
+                if (!"y".equals(exit)) {
                     done = true;
                 }
             }
@@ -734,7 +734,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             terminal.println(filesDescription + " to the relevant configuration directory");
             terminal.println("and then follow the SSL configuration instructions in the product guide.");
             terminal.println("");
-            if (usePemFormat || caInfo.generated == false) {
+            if (usePemFormat || !caInfo.generated) {
                 terminal.println("For client applications, you may only need to copy the CA certificate and");
                 terminal.println("configure the client to trust this certificate.");
             }
@@ -1002,7 +1002,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 Files.deleteIfExists(file);
             }
         }
@@ -1084,12 +1084,12 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 errors.add(name.error);
             }
             for (String ip : ipAddresses) {
-                if (InetAddresses.isInetAddress(ip) == false) {
+                if (!InetAddresses.isInetAddress(ip)) {
                     errors.add("[" + ip + "] is not a valid IP address");
                 }
             }
             for (String dnsName : dnsNames) {
-                if (DERIA5String.isIA5String(dnsName) == false) {
+                if (!DERIA5String.isIA5String(dnsName)) {
                     errors.add("[" + dnsName + "] is not a valid DNS name");
                 }
             }
@@ -1133,7 +1133,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             }
 
             boolean validFilename = isValidFilename(filename);
-            if (validFilename == false) {
+            if (!validFilename) {
                 return new Name(name, principal, null, "[" + filename + "] is not a valid filename");
             }
             return new Name(name, principal, resolvePath(filename).toString(), null);
@@ -1142,7 +1142,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         static boolean isValidFilename(String name) {
             return ALLOWED_FILENAME_CHAR_PATTERN.matcher(name).matches()
                 && ALLOWED_FILENAME_CHAR_PATTERN.matcher(resolvePath(name).toString()).matches()
-                && name.startsWith(".") == false;
+                && !name.startsWith(".");
         }
 
         @Override

@@ -11,7 +11,7 @@ interface TestClustersAware extends Task {
     Collection<ElasticsearchCluster> getClusters();
 
     default void useCluster(ElasticsearchCluster cluster) {
-        if (cluster.getPath().equals(getProject().getPath()) == false) {
+        if (!cluster.getPath().equals(getProject().getPath())) {
             throw new TestClustersException(
                 "Task " + getPath() + " can't use test cluster from" +
                     " another project " + cluster

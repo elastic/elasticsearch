@@ -320,13 +320,13 @@ public class NumberFieldMapper extends FieldMapper {
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, false);
-                    if (includeLower == false) {
+                    if (!includeLower) {
                         l = FloatPoint.nextUp(l);
                     }
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm, false);
-                    if (includeUpper == false) {
+                    if (!includeUpper) {
                         u = FloatPoint.nextDown(u);
                     }
                 }
@@ -406,13 +406,13 @@ public class NumberFieldMapper extends FieldMapper {
                 double u = Double.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, false);
-                    if (includeLower == false) {
+                    if (!includeLower) {
                         l = DoublePoint.nextUp(l);
                     }
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm, false);
-                    if (includeUpper == false) {
+                    if (!includeUpper) {
                         u = DoublePoint.nextDown(u);
                     }
                 }
@@ -640,7 +640,7 @@ public class NumberFieldMapper extends FieldMapper {
                     // - if the bound is negative then we leave it as is:
                     //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
                     boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
-                    if ((lowerTermHasDecimalPart == false && includeLower == false) ||
+                    if ((!lowerTermHasDecimalPart && !includeLower) ||
                             (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
                         if (l == Integer.MAX_VALUE) {
                             return new MatchNoDocsQuery();
@@ -651,7 +651,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (upperTerm != null) {
                     u = parse(upperTerm, true);
                     boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
-                    if ((upperTermHasDecimalPart == false && includeUpper == false) ||
+                    if ((!upperTermHasDecimalPart && !includeUpper) ||
                             (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                         if (u == Integer.MIN_VALUE) {
                             return new MatchNoDocsQuery();
@@ -759,7 +759,7 @@ public class NumberFieldMapper extends FieldMapper {
                     // - if the bound is negative then we leave it as is:
                     //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
                     boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
-                    if ((lowerTermHasDecimalPart == false && includeLower == false) ||
+                    if ((!lowerTermHasDecimalPart && !includeLower) ||
                             (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
                         if (l == Long.MAX_VALUE) {
                             return new MatchNoDocsQuery();
@@ -770,7 +770,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (upperTerm != null) {
                     u = parse(upperTerm, true);
                     boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
-                    if ((upperTermHasDecimalPart == false && includeUpper == false) ||
+                    if ((!upperTermHasDecimalPart && !includeUpper) ||
                             (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                         if (u == Long.MIN_VALUE) {
                             return new MatchNoDocsQuery();
@@ -981,7 +981,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (super.equals(o) == false) {
+            if (!super.equals(o)) {
                 return false;
             }
             NumberFieldType that = (NumberFieldType) o;
@@ -1071,7 +1071,7 @@ public class NumberFieldMapper extends FieldMapper {
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
         fields.addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, docValued, stored));
-        if (docValued == false && (stored || indexed)) {
+        if (!docValued && (stored || indexed)) {
             createFieldNamesField(context, fields);
         }
     }

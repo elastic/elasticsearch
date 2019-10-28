@@ -105,7 +105,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         Node node = NODE;
         NODE = null;
         IOUtils.close(node);
-        if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
+        if (node != null && !node.awaitClose(10, TimeUnit.SECONDS)) {
             throw new AssertionError("Node couldn't close within 10 seconds.");
         }
     }
@@ -215,7 +215,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .build();
 
         Collection<Class<? extends Plugin>> plugins = getPlugins();
-        if (plugins.contains(getTestTransportPlugin()) == false) {
+        if (!plugins.contains(getTestTransportPlugin())) {
             plugins = new ArrayList<>(plugins);
             plugins.add(getTestTransportPlugin());
         }

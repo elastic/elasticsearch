@@ -66,7 +66,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(p);
                         List<FieldSortBuilder> fieldSorts = new ArrayList<>(sorts.size());
                         for (SortBuilder<?> sort : sorts) {
-                            if (sort instanceof FieldSortBuilder == false) {
+                            if (!(sort instanceof FieldSortBuilder)) {
                                 throw new IllegalArgumentException("[" + NAME + "] only supports field based sorting; incompatible sort: ["
                                         + sort + "]");
                             }
@@ -182,7 +182,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         BucketSortPipelineAggregationBuilder other = (BucketSortPipelineAggregationBuilder) obj;
         return Objects.equals(sorts, other.sorts)
                 && Objects.equals(from, other.from)

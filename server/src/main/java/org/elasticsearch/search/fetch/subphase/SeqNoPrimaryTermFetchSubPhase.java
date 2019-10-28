@@ -34,7 +34,7 @@ import java.util.Comparator;
 public final class SeqNoPrimaryTermFetchSubPhase implements FetchSubPhase {
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        if (context.seqNoAndPrimaryTerm() == false) {
+        if (!context.seqNoAndPrimaryTerm()) {
             return;
         }
 

@@ -208,7 +208,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (super.equals(o) == false) {
+            if (!super.equals(o)) {
                 return false;
             }
             KeywordFieldType other = (KeywordFieldType) o;
@@ -220,7 +220,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
             super.checkCompatibility(otherFT, conflicts);
             KeywordFieldType other = (KeywordFieldType) otherFT;
-            if (Objects.equals(normalizer, other.normalizer) == false) {
+            if (!Objects.equals(normalizer, other.normalizer)) {
                 conflicts.add("mapper [" + name() + "] has different [normalizer]");
             }
         }
@@ -352,7 +352,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             try (TokenStream ts = normalizer.tokenStream(name(), value)) {
                 final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
                 ts.reset();
-                if (ts.incrementToken() == false) {
+                if (!ts.incrementToken()) {
                   throw new IllegalStateException("The normalization token stream is "
                       + "expected to produce exactly 1 token, but got 0 for analyzer "
                       + normalizer + " and input \"" + value + "\"");
@@ -374,7 +374,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             Field field = new Field(fieldType().name(), binaryValue, fieldType());
             fields.add(field);
 
-            if (fieldType().hasDocValues() == false && fieldType().omitNorms()) {
+            if (!fieldType().hasDocValues() && fieldType().omitNorms()) {
                 createFieldNamesField(context, fields);
             }
         }

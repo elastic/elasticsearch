@@ -60,7 +60,7 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
             assertThat(updatedState, sameInstance(clusterState));
         }
         {
-            Request pauseRequest = new Request("remote_cluster", autoFollowPattern.isActive() == false);
+            Request pauseRequest = new Request("remote_cluster", !autoFollowPattern.isActive());
             ClusterState updatedState = TransportActivateAutoFollowPatternAction.innerActivate(pauseRequest, clusterState);
             assertThat(updatedState, not(sameInstance(clusterState)));
 

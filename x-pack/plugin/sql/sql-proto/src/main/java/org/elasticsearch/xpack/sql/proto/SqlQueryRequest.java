@@ -114,7 +114,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public ToXContent filter() {
         return filter;
     }
-    
+
     /**
      * Optional setting for returning the result values in a columnar fashion (as opposed to rows of values).
      * Each column will have all its values in a list. Defaults to false.
@@ -126,11 +126,11 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public boolean fieldMultiValueLeniency() {
         return fieldMultiValueLeniency;
     }
-    
+
     public boolean indexIncludeFrozen() {
         return indexIncludeFrozen;
     }
-    
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -171,7 +171,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (clientId() != null) {
             builder.field("client_id", clientId());
         }
-        if (this.params.isEmpty() == false) {
+        if (!this.params.isEmpty()) {
             builder.startArray("params");
             for (SqlTypedParamValue val : this.params) {
                 val.toXContent(builder, params);

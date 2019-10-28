@@ -105,7 +105,7 @@ public class PeerFinderTests extends ESTestCase {
 
         @Override
         public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
-            assert localNode.getAddress().equals(transportAddress) == false : "should not probe local node";
+            assert !localNode.getAddress().equals(transportAddress) : "should not probe local node";
 
             final boolean isNotInFlight = inFlightConnectionAttempts.add(transportAddress);
             assertTrue(isNotInFlight);
@@ -159,7 +159,7 @@ public class PeerFinderTests extends ESTestCase {
 
         @Override
         protected void onActiveMasterFound(DiscoveryNode masterNode, long term) {
-            assert holdsLock() == false : "PeerFinder lock held in error";
+            assert !holdsLock() : "PeerFinder lock held in error";
             assertThat(discoveredMasterNode, nullValue());
             assertFalse(discoveredMasterTerm.isPresent());
             discoveredMasterNode = masterNode;
@@ -168,7 +168,7 @@ public class PeerFinderTests extends ESTestCase {
 
         @Override
         protected void onFoundPeersUpdated() {
-            assert holdsLock() == false : "PeerFinder lock held in error";
+            assert !holdsLock() : "PeerFinder lock held in error";
             foundPeersFromNotification = getFoundPeers();
             logger.trace("onFoundPeersUpdated({})", foundPeersFromNotification);
         }

@@ -174,7 +174,7 @@ public class GCEFixture extends AbstractHttpFixture {
         final RequestHandler authorizedHandler = handlers.retrieve(authorizedPath, request.getParameters());
         if (authorizedHandler != null) {
             final String authorization = request.getHeader("Authorization");
-            if ((TOKEN_TYPE + " " + TOKEN).equals(authorization) == false) {
+            if (!(TOKEN_TYPE + " " + TOKEN).equals(authorization)) {
                 return newError(RestStatus.UNAUTHORIZED, "Authorization", "Login Required");
             }
             return authorizedHandler.handle(request);

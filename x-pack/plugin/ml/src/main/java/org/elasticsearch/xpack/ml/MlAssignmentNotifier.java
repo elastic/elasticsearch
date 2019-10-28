@@ -51,7 +51,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
 
-        if (event.localNodeMaster() == false) {
+        if (!event.localNodeMaster()) {
             return;
         }
 
@@ -66,7 +66,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
 
     private void auditChangesToMlTasks(ClusterChangedEvent event) {
 
-        if (event.metaDataChanged() == false) {
+        if (!event.metaDataChanged()) {
             return;
         }
 
@@ -99,7 +99,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
 
             boolean isTaskAssigned = (currentAssignment.getExecutorNode() != null);
             if (Objects.equals(currentAssignment, previousAssignment) &&
-                (isTaskAssigned || alwaysAuditUnassigned == false)) {
+                (isTaskAssigned || !alwaysAuditUnassigned)) {
                 continue;
             }
 
@@ -124,7 +124,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                 } else {
                     String msg = "No node found to start datafeed [" + datafeedParams.getDatafeedId() +"]. Reasons [" +
                         currentAssignment.getExplanation() + "]";
-                    if (alwaysAuditUnassigned == false) {
+                    if (!alwaysAuditUnassigned) {
                         logger.warn("[{}] {}", jobId, msg);
                     }
                     if (jobId != null) {

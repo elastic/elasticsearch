@@ -53,7 +53,7 @@ public class TimeBasedExtractedFields extends ExtractedFields {
         Set<String> scriptFields = datafeed.getScriptFields().stream().map(sf -> sf.fieldName()).collect(Collectors.toSet());
         ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
         String timeField = job.getDataDescription().getTimeField();
-        if (scriptFields.contains(timeField) == false && extractionMethodDetector.isAggregatable(timeField) == false) {
+        if (!scriptFields.contains(timeField) && !extractionMethodDetector.isAggregatable(timeField)) {
             throw new IllegalArgumentException("cannot retrieve time field [" + timeField + "] because it is not aggregatable");
         }
         ExtractedField timeExtractedField = extractedTimeField(timeField, scriptFields, fieldsCapabilities);

@@ -182,7 +182,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        if (context.externalValueSet() == false) {
+        if (!context.externalValueSet()) {
             throw new IllegalStateException("external value not set");
         }
         String refId = (String) context.externalValue();

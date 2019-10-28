@@ -80,7 +80,7 @@ public class UpdateHelper {
      * noop).
      */
     protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
-        if (getResult.isExists() == false) {
+        if (!getResult.isExists()) {
             // If the document didn't exist, execute the update request as an upsert
             return prepareUpsert(shardId, request, getResult, nowInMillis);
         } else if (getResult.internalSourceRef() == null) {
@@ -284,7 +284,7 @@ public class UpdateHelper {
     public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long seqNo, long primaryTerm, long version,
                                              final Map<String, Object> source, XContentType sourceContentType,
                                              @Nullable final BytesReference sourceAsBytes) {
-        if (request.fetchSource() == null || request.fetchSource().fetchSource() == false) {
+        if (request.fetchSource() == null || !request.fetchSource().fetchSource()) {
             return null;
         }
 

@@ -118,7 +118,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         GeoBoundsAggregationBuilder other = (GeoBoundsAggregationBuilder) obj;
         return Objects.equals(wrapLongitude, other.wrapLongitude);
     }

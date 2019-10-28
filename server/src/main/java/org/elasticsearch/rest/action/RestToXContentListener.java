@@ -43,7 +43,7 @@ public class RestToXContentListener<Response extends ToXContentObject> extends R
     }
 
     public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-        assert response.isFragment() == false; //would be nice if we could make default methods final
+        assert !response.isFragment(); //would be nice if we could make default methods final
         response.toXContent(builder, channel.request());
         return new BytesRestResponse(getStatus(response), builder);
     }

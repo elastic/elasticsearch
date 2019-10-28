@@ -177,10 +177,10 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         }
 
         private Builder type(String type, boolean allowed) {
-            if (allowed == false) {
+            if (!allowed) {
                 throw new IllegalStateException("Field " + Fields.TYPE.getPreferredName() + " cannot be specified here");
             }
-            if (ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE.equals(type) == false) {
+            if (!ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE.equals(type)) {
                 throw new IllegalStateException("XContent has wrong " + Fields.TYPE.getPreferredName() + " field " + type);
             }
             return this;

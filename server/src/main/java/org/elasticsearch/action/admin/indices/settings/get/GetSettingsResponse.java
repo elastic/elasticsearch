@@ -211,7 +211,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             builder.startObject("settings");
             cursor.value.toXContent(builder, params);
             builder.endObject();
-            if (indexToDefaultSettings.isEmpty() == false) {
+            if (!indexToDefaultSettings.isEmpty()) {
                 builder.startObject("defaults");
                 indexToDefaultSettings.get(cursor.key).toXContent(builder, params);
                 builder.endObject();

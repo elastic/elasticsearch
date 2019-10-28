@@ -64,7 +64,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IndexTemplateConfig> getTemplateConfigs() {
-        if (slmHistoryEnabled == false) {
+        if (!slmHistoryEnabled) {
             return Collections.emptyList();
         }
         return Collections.singletonList(TEMPLATE_SLM_HISTORY);
@@ -72,7 +72,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
-        if (slmHistoryEnabled == false) {
+        if (!slmHistoryEnabled) {
             return Collections.emptyList();
         }
         return Collections.singletonList(SLM_HISTORY_POLICY);

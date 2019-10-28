@@ -132,7 +132,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", !primaryOnNode1,
                 ShardRoutingState.STARTED));
 
         CheckShrinkReadyStep step = new CheckShrinkReadyStep(randomStepKey(), randomStepKey());
@@ -161,7 +161,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         shardOnNode1 = shardOnNode1.relocate("node3", 230);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(shardOnNode1)
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", !primaryOnNode1,
                 ShardRoutingState.STARTED));
 
         CheckShrinkReadyStep step = new CheckShrinkReadyStep(randomStepKey(), randomStepKey());
@@ -213,7 +213,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", !primaryOnNode1,
                 ShardRoutingState.STARTED));
 
         CheckShrinkReadyStep step = new CheckShrinkReadyStep(randomStepKey(), randomStepKey());

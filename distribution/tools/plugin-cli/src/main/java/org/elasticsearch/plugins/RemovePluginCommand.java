@@ -94,7 +94,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
                 }
             }
         }
-        if (usedBy.isEmpty() == false) {
+        if (!usedBy.isEmpty()) {
             throw new UserException(PLUGIN_STILL_USED, "plugin [" + pluginName + "] cannot be removed" +
                 " because it is extended by other plugins: " + usedBy);
         }

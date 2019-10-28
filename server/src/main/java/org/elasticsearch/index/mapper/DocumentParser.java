@@ -71,7 +71,7 @@ final class DocumentParser {
             throw wrapInMapperParsingException(source, e);
         }
         String remainingPath = context.path().pathAsText("");
-        if (remainingPath.isEmpty() == false) {
+        if (!remainingPath.isEmpty()) {
             throw new IllegalStateException("found leftover path elements: " + remainingPath);
         }
 
@@ -83,11 +83,11 @@ final class DocumentParser {
     private static boolean containsDisabledObjectMapper(ObjectMapper objectMapper, String[] subfields) {
         for (int i = 0; i < subfields.length - 1; ++i) {
             Mapper mapper = objectMapper.getMapper(subfields[i]);
-            if (mapper instanceof ObjectMapper == false) {
+            if (!(mapper instanceof ObjectMapper)) {
                 break;
             }
             objectMapper = (ObjectMapper) mapper;
-            if (objectMapper.isEnabled() == false) {
+            if (!objectMapper.isEnabled()) {
                 return true;
             }
         }
@@ -102,10 +102,10 @@ final class DocumentParser {
             metadataMapper.preParse(context);
         }
 
-        if (mapping.root.isEnabled() == false) {
+        if (!mapping.root.isEnabled()) {
             // entire type is disabled
             parser.skipChildren();
-        } else if (emptyDoc == false) {
+        } else if (!emptyDoc) {
             parseObjectOrNested(context, mapping.root);
         }
 
@@ -179,9 +179,9 @@ final class DocumentParser {
         if (fullFieldPath.contains(".")) {
             String[] parts = fullFieldPath.split("\\.");
             for (String part : parts) {
-                if (Strings.hasText(part) == false) {
+                if (!Strings.hasText(part)) {
                     // check if the field name contains only whitespace
-                    if (Strings.isEmpty(part) == false) {
+                    if (!Strings.isEmpty(part)) {
                         throw new IllegalArgumentException(
                                 "object field cannot contain only whitespace: ['" + fullFieldPath + "']");
                     }
@@ -335,7 +335,7 @@ final class DocumentParser {
             parentMappers.add((ObjectMapper)intermediate);
             previousIntermediate = (ObjectMapper)intermediate;
         }
-        if (parentMappers.isEmpty() == false) {
+        if (!parentMappers.isEmpty()) {
             // add the new mapper to the stack, and pop down to the original parent level
             addToLastMapper(parentMappers, mapper, false);
             popMappers(parentMappers, 1, false);
@@ -345,7 +345,7 @@ final class DocumentParser {
     }
 
     static void parseObjectOrNested(ParseContext context, ObjectMapper mapper) throws IOException {
-        if (mapper.isEnabled() == false) {
+        if (!mapper.isEnabled()) {
             context.parser().skipChildren();
             return;
         }
@@ -716,7 +716,7 @@ final class DocumentParser {
                     builder = newFloatBuilder(currentFieldName);
                 }
                 return builder;
-            } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
+            } else if (!parseableAsLong && !parseableAsDouble && context.root().dateDetection()) {
                 // We refuse to match pure numbers, which are too likely to be
                 // false positives with date formats that include eg.
                 // `epoch_millis` or `YYYY`
@@ -733,7 +733,7 @@ final class DocumentParser {
                     }
                     if (builder instanceof DateFieldMapper.Builder) {
                         DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
-                        if (dateBuilder.isFormatterSet() == false) {
+                        if (!dateBuilder.isFormatterSet()) {
                             dateBuilder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
                         }
                     }
@@ -823,7 +823,7 @@ final class DocumentParser {
 
     /** Creates instances of the fields that the current field should be copied to */
     private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
-        if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
+        if (!context.isWithinCopyTo() && !copyToFields.isEmpty()) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {
                 // In case of a hierarchy of nested documents, we need to figure out
@@ -950,7 +950,7 @@ final class DocumentParser {
     private static Mapper getMapper(ObjectMapper objectMapper, String fieldName, String[] subfields) {
         for (int i = 0; i < subfields.length - 1; ++i) {
             Mapper mapper = objectMapper.getMapper(subfields[i]);
-            if (mapper == null || (mapper instanceof ObjectMapper) == false) {
+            if (mapper == null || !(mapper instanceof ObjectMapper)) {
                 return null;
             }
             objectMapper = (ObjectMapper)mapper;

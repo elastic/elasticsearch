@@ -390,7 +390,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         int totalHits = extractTotalHits(response);
         assertEquals(numDocs, totalHits);
 
-        if (isRunningAgainstOldCluster() == false) {
+        if (!isRunningAgainstOldCluster()) {
             response = entityAsMap(client().performRequest(new Request("GET", "/" + shrunkenIndex + "/_search")));
             assertNoFailures(response);
             totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
@@ -710,7 +710,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<String, Object> countResponse = entityAsMap(client().performRequest(countRequest));
         assertTotalHits(count, countResponse);
 
-        if (false == isRunningAgainstOldCluster()) {
+        if (!isRunningAgainstOldCluster()) {
             boolean restoredFromTranslog = false;
             boolean foundPrimary = false;
             Request recoveryRequest = new Request("GET", "/_cat/recovery/" + index);
@@ -720,7 +720,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             for (String line : recoveryResponse.split("\n")) {
                 // Find the primaries
                 foundPrimary = true;
-                if (false == line.contains("done") && line.contains("existing_store")) {
+                if (!line.contains("done") && line.contains("existing_store")) {
                     continue;
                 }
                 /* Mark if we see a primary that looked like it restored from the translog.
@@ -739,7 +739,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
             String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
-            if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
+            if (shouldHaveTranslog && !currentLuceneVersion.equals(bwcLuceneVersion)) {
                 int numCurrentVersion = 0;
                 int numBwcVersion = 0;
                 Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
@@ -747,7 +747,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 segmentsRequest.addParameter("s", "prirep,shard,index");
                 String segmentsResponse = toStr(client().performRequest(segmentsRequest));
                 for (String line : segmentsResponse.split("\n")) {
-                    if (false == line.startsWith("p")) {
+                    if (!line.startsWith("p")) {
                         continue;
                     }
                     Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
@@ -860,7 +860,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(createSnapshot);
 
         checkSnapshot("old_snap", count, getOldClusterVersion());
-        if (false == isRunningAgainstOldCluster()) {
+        if (!isRunningAgainstOldCluster()) {
             checkSnapshot("new_snap", count, Version.CURRENT);
         }
     }
@@ -990,7 +990,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertClosedIndex(index, false);
         }
 
-        if (isRunningAgainstOldCluster() == false) {
+        if (!isRunningAgainstOldCluster()) {
             openIndex(index);
             ensureGreen(index);
 
@@ -1133,7 +1133,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         aliases.put("alias2", singletonMap("filter", singletonMap("term", singletonMap("version", tookOnVersion.toString()))));
         expectedTemplate.put("aliases", aliases);
         expectedTemplate = singletonMap("test_template", expectedTemplate);
-        if (false == expectedTemplate.equals(getTemplateResponse)) {
+        if (!expectedTemplate.equals(getTemplateResponse)) {
             NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
             builder.compareMaps(getTemplateResponse, expectedTemplate);
             logger.info("expected: {}\nactual:{}", expectedTemplate, getTemplateResponse);

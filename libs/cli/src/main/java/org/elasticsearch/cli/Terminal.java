@@ -143,7 +143,7 @@ public abstract class Terminal {
             }
             answer = answer.toLowerCase(Locale.ROOT);
             boolean answerYes = answer.equals("y");
-            if (answerYes == false && answer.equals("n") == false) {
+            if (!answerYes && !answer.equals("n")) {
                 errorPrintln("Did not understand answer '" + answer + "'");
                 continue;
             }

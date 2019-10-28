@@ -206,7 +206,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                     fieldName = parser.currentName();
                     if ("error".equals(fieldName)) {
                         item = new Item(null, ElasticsearchException.failureFromXContent(parser));
-                    } else if ("status".equals(fieldName) == false) {
+                    } else if (!"status".equals(fieldName)) {
                         item = new Item(SearchResponse.innerFromXContent(parser), null);
                         break outer;
                     }

@@ -157,7 +157,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                         for (Path subPath : stream) {
                             String fileName = subPath.getFileName().toString();
                             Path targetSubPath = targetPath.resolve(fileName);
-                            if (fileName.equals("nodes") == false) {
+                            if (!fileName.equals("nodes")) {
                                 Files.move(subPath, targetSubPath, StandardCopyOption.ATOMIC_MOVE);
                             }
                         }
@@ -170,7 +170,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         dataPaths.forEach(path -> assertTrue(Files.exists(path.resolve("nodes"))));
 
         // create extra file/folder, and check that upgrade fails
-        if (dataPaths.isEmpty() == false) {
+        if (!dataPaths.isEmpty()) {
             final Path badFileInNodesDir = Files.createTempFile(randomFrom(dataPaths).resolve("nodes"), "bad", "file");
             IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
             assertThat(ise.getMessage(), containsString("unexpected file/folder encountered during data folder upgrade"));
@@ -192,7 +192,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             Files.delete(badFolder);
 
             final Path conflictingFolder = randomFrom(dataPaths).resolve("indices");
-            if (Files.exists(conflictingFolder) == false) {
+            if (!Files.exists(conflictingFolder)) {
                 Files.createDirectories(conflictingFolder);
                 ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
                 assertThat(ise.getMessage(), containsString("target folder already exists during data folder upgrade"));

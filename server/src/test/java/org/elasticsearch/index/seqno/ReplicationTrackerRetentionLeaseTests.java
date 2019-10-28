@@ -757,9 +757,9 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             final long version,
             final boolean primaryMode,
             final boolean expireLeases) {
-        assertTrue(expireLeases == false || primaryMode);
+        assertTrue(!expireLeases || primaryMode);
         final RetentionLeases retentionLeases;
-        if (expireLeases == false) {
+        if (!expireLeases) {
             if (randomBoolean()) {
                 retentionLeases = replicationTracker.getRetentionLeases();
             } else {
@@ -775,7 +775,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         assertThat(retentionLeases.primaryTerm(), equalTo(primaryTerm));
         assertThat(retentionLeases.version(), equalTo(version));
         final Map<String, RetentionLease> idToRetentionLease = retentionLeases.leases().stream()
-            .filter(retentionLease -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source()) == false)
+            .filter(retentionLease -> !ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source()))
             .collect(Collectors.toMap(RetentionLease::id, Function.identity()));
 
         assertThat(idToRetentionLease.entrySet(), hasSize(size));

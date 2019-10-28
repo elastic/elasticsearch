@@ -316,8 +316,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     if (repository != null) {
                         // Found previous version of this repository
                         RepositoryMetaData previousMetadata = repository.getMetadata();
-                        if (previousMetadata.type().equals(repositoryMetaData.type()) == false
-                            || previousMetadata.settings().equals(repositoryMetaData.settings()) == false) {
+                        if (!previousMetadata.type().equals(repositoryMetaData.type())
+                            || !previousMetadata.settings().equals(repositoryMetaData.settings())) {
                             // Previous version is different from the version in settings
                             logger.debug("updating repository [{}]", repositoryMetaData.name());
                             closeRepository(repository);
@@ -377,7 +377,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             logger.debug("put internal repository [{}][{}]", name, type);
             return createRepository(metaData, internalTypesRegistry);
         });
-        if (type.equals(repository.getMetadata().type()) == false) {
+        if (!type.equals(repository.getMetadata().type())) {
             logger.warn(new ParameterizedMessage("internal repository [{}][{}] already registered. this prevented the registration of " +
                 "internal repository [{}][{}].", name, repository.getMetadata().type(), name, type));
         } else if (repositories.containsKey(name)) {
@@ -423,13 +423,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static void validate(final String repositoryName) {
-        if (Strings.hasLength(repositoryName) == false) {
+        if (!Strings.hasLength(repositoryName)) {
             throw new RepositoryException(repositoryName, "cannot be empty");
         }
         if (repositoryName.contains("#")) {
             throw new RepositoryException(repositoryName, "must not contain '#'");
         }
-        if (Strings.validFileName(repositoryName) == false) {
+        if (!Strings.validFileName(repositoryName)) {
             throw new RepositoryException(repositoryName,
                 "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }

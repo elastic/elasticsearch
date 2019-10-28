@@ -100,8 +100,8 @@ public class StoreRecoveryTests extends ESTestCase {
         final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
         storeRecovery.addIndices(indexStats, target, indexSort, dirs, maxSeqNo, maxUnsafeAutoIdTimestamp, null,  0, false, false);
         int numFiles = 0;
-        Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false && f.equals("write.lock") == false
-            && f.startsWith("extra") == false;
+        Predicate<String> filesFilter = (f) -> !f.startsWith("segments") && !f.equals("write.lock")
+            && !f.startsWith("extra");
         for (Directory d : dirs) {
             numFiles += Arrays.asList(d.listAll()).stream().filter(filesFilter).count();
         }

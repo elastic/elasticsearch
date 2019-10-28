@@ -281,12 +281,12 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
 
             final String[] nonSearchableIndices;
-            if (isSearchable == false &&
+            if (!isSearchable &&
                 indiceList.stream().anyMatch((caps) -> caps.isSearchable)) {
                 // Iff this field is searchable in some indices AND non-searchable in others
                 // we record the list of non-searchable indices
                 nonSearchableIndices = indiceList.stream()
-                    .filter((caps) -> caps.isSearchable == false)
+                    .filter((caps) -> !caps.isSearchable)
                     .map(caps -> caps.name)
                     .toArray(String[]::new);
             } else {
@@ -294,12 +294,12 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
 
             final String[] nonAggregatableIndices;
-            if (isAggregatable == false &&
+            if (!isAggregatable &&
                 indiceList.stream().anyMatch((caps) -> caps.isAggregatable)) {
                 // Iff this field is aggregatable in some indices AND non-searchable in others
                 // we keep the list of non-aggregatable indices
                 nonAggregatableIndices = indiceList.stream()
-                    .filter((caps) -> caps.isAggregatable == false)
+                    .filter((caps) -> !caps.isAggregatable)
                     .map(caps -> caps.name)
                     .toArray(String[]::new);
             } else {

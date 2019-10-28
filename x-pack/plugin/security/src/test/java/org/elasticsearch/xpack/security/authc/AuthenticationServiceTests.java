@@ -710,7 +710,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         String username = randomBoolean() ? AnonymousUser.DEFAULT_ANONYMOUS_USERNAME : "user1";
         Settings.Builder builder = Settings.builder()
                 .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3");
-        if (username.equals(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME) == false) {
+        if (!username.equals(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME)) {
             builder.put(AnonymousUser.USERNAME_SETTING.getKey(), username);
         }
         Settings settings = builder.build();
@@ -824,7 +824,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         final boolean terminateWithNoException = rarely();
-        final boolean throwElasticsearchSecurityException = (terminateWithNoException == false) && randomBoolean();
+        final boolean throwElasticsearchSecurityException = (!terminateWithNoException) && randomBoolean();
         final boolean withAuthenticateHeader = throwElasticsearchSecurityException && randomBoolean();
         Exception throwE = new Exception("general authentication error");
         final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";

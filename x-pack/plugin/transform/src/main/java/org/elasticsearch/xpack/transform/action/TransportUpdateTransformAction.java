@@ -182,7 +182,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
 
 
         // Early check to verify that the user can create the destination index and can read from the source
-        if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
+        if (licenseState.isAuthAllowed() && !request.isDeferValidation()) {
             final String username = securityContext.getUser().principal();
             HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(

@@ -224,7 +224,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // filter out joda timezones that are deprecated for the java time migration
         List<String> jodaTZIds = DateTimeZone.getAvailableIDs().stream()
-            .filter(s -> DateUtils.DEPRECATED_SHORT_TZ_IDS.contains(s) == false).sorted().collect(Collectors.toList());
+            .filter(s -> !DateUtils.DEPRECATED_SHORT_TZ_IDS.contains(s)).sorted().collect(Collectors.toList());
         JODA_TIMEZONE_IDS = Collections.unmodifiableList(jodaTZIds);
 
         List<String> javaTZIds = Arrays.asList(TimeZone.getAvailableIDs());
@@ -260,15 +260,15 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         protected void afterAlways(List<Throwable> errors) throws Throwable {
-            if (errors != null && errors.isEmpty() == false) {
+            if (errors != null && !errors.isEmpty()) {
                 boolean allAssumption = true;
                 for (Throwable error : errors) {
-                    if (false == error instanceof AssumptionViolatedException) {
+                    if (!(error instanceof AssumptionViolatedException)) {
                         allAssumption = false;
                         break;
                     }
                 }
-                if (false == allAssumption) {
+                if (!allAssumption) {
                     ESTestCase.this.afterIfFailed(errors);
                 }
             }
@@ -417,7 +417,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final void assertWarnings(String... expectedWarnings) {
-        if (enableWarningsCheck() == false) {
+        if (!enableWarningsCheck()) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
@@ -643,7 +643,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         } else {
             result = randomDouble();
-            if (lowerInclusive == false) {
+            if (!lowerInclusive) {
                 while (result <= 0.0) {
                     result = randomDouble();
                 }
@@ -1128,10 +1128,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         Collections.shuffle(keys, random());
         for (String key : keys) {
             Object value = map.get(key);
-            if (value instanceof Map && exceptFields.contains(key) == false) {
+            if (value instanceof Map && !exceptFields.contains(key)) {
                 LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
                 targetMap.put(key, shuffleMap(valueMap, exceptFields));
-            } else if(value instanceof List && exceptFields.contains(key) == false) {
+            } else if(value instanceof List && !exceptFields.contains(key)) {
                 targetMap.put(key, shuffleList((List) value, exceptFields));
             } else {
                 targetMap.put(key, value);

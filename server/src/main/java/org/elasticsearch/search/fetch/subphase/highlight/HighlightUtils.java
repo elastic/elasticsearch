@@ -52,7 +52,7 @@ public final class HighlightUtils {
                                                boolean forceSource) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
         List<Object> textsToHighlight;
-        if (forceSource == false && fieldType.stored()) {
+        if (!forceSource && fieldType.stored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             textsToHighlight = fieldVisitor.fields().get(fieldType.name());
@@ -73,5 +73,5 @@ public final class HighlightUtils {
         public static final Encoder DEFAULT = new DefaultEncoder();
         public static final Encoder HTML = new SimpleHTMLEncoder();
     }
-    
+
 }

@@ -81,7 +81,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
     @Override
     public void offMaster() {
-        if (cancellable != null && cancellable.isCancelled() == false) {
+        if (cancellable != null && !cancellable.isCancelled()) {
             isMaster = false;
             cancellable.cancel();
         }
@@ -138,7 +138,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             .indicesOptions(IndicesOptions.lenientExpand());
         // Check that no enrich policies are being executed
         final EnrichPolicyLocks.EnrichPolicyExecutionState executionState = enrichPolicyLocks.captureExecutionState();
-        if (executionState.isAnyPolicyInFlight() == false) {
+        if (!executionState.isAnyPolicyInFlight()) {
             client.admin().indices().getIndex(indices, new ActionListener<>() {
                 @Override
                 public void onResponse(GetIndexResponse getIndexResponse) {
@@ -174,7 +174,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         Map<String, Object> mapping = mappingMetaData.getSourceAsMap();
         String policyName = ObjectPath.eval(MAPPING_POLICY_FIELD_PATH, mapping);
         // Check if index has a corresponding policy
-        if (policyName == null || policies.containsKey(policyName) == false) {
+        if (policyName == null || !policies.containsKey(policyName)) {
             // No corresponding policy. Index should be marked for removal.
             logger.debug("Enrich index [{}] does not correspond to any existing policy. Found policy name [{}]", indexName, policyName);
             return true;
@@ -190,7 +190,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             .stream()
             .anyMatch((aliasMetaData -> aliasMetaData.getAlias().equals(aliasName)));
         // Index is not currently published to the enrich alias. Should be marked for removal.
-        if (hasAlias == false) {
+        if (!hasAlias) {
             logger.debug("Enrich index [{}] is not marked as a live index since it lacks the alias [{}]", indexName, aliasName);
             return true;
         }

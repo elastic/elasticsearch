@@ -54,7 +54,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                              int maxNumRemoteConnections, List<Supplier<TransportAddress>> addresses) {
         super(clusterAlias, transportService, connectionManager);
         this.maxNumRemoteConnections = maxNumRemoteConnections;
-        assert addresses.isEmpty() == false : "Cannot use simple connection strategy with no configured addresses";
+        assert !addresses.isEmpty() : "Cannot use simple connection strategy with no configured addresses";
         this.addresses = addresses;
         // TODO: Move into the ConnectionManager
         this.profile = new ConnectionProfile.Builder()
@@ -68,7 +68,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                     if (remoteClusterName.compareAndSet(null, remote)) {
                         return null;
                     } else {
-                        if (remoteClusterName.get().equals(remote) == false) {
+                        if (!remoteClusterName.get().equals(remote)) {
                             DiscoveryNode node = newConnection.getNode();
                             throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
                         }

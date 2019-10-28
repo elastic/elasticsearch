@@ -91,7 +91,7 @@ public class BoolQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (!super.equals(obj)) {
             return false;
         }
         BoolQuery other = (BoolQuery) obj;

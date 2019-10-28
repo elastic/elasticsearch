@@ -136,7 +136,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 stepTime = randomValueOtherThan(stepTime, () -> randomLongBetween(0, 100000));
                 break;
             case 6:
-                if (Strings.hasLength(failedStep) == false) {
+                if (!Strings.hasLength(failedStep)) {
                     failedStep = randomAlphaOfLength(10);
                 } else if (randomBoolean()) {
                     failedStep = failedStep + randomAlphaOfLengthBetween(1, 5);
@@ -148,7 +148,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 policyTime = randomValueOtherThan(policyTime, () -> randomLongBetween(0, 100000));
                 break;
             case 8:
-                if (Strings.hasLength(stepInfo) == false) {
+                if (!Strings.hasLength(stepInfo)) {
                     stepInfo = new BytesArray(randomByteArrayOfLength(100));
                 } else if (randomBoolean()) {
                     stepInfo = randomValueOtherThan(stepInfo,

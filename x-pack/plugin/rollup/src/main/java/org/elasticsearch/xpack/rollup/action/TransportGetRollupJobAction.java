@@ -98,7 +98,7 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
         assert jobTask.getConfig().getId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
 
         // Little extra insurance, make sure we only return jobs that aren't cancelled
-        if (jobTask.isCancelled() == false) {
+        if (!jobTask.isCancelled()) {
             GetRollupJobsAction.JobWrapper wrapper = new GetRollupJobsAction.JobWrapper(jobTask.getConfig(), jobTask.getStats(),
                     (RollupJobStatus) jobTask.getStatus());
             jobs = Collections.singletonList(wrapper);

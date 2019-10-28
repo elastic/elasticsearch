@@ -146,12 +146,12 @@ public final class QueryParserHelper {
                 continue;
             }
 
-            if (acceptMetadataField == false && fieldType.name().startsWith("_")) {
+            if (!acceptMetadataField && fieldType.name().startsWith("_")) {
                 // Ignore metadata fields
                 continue;
             }
 
-            if (acceptAllTypes == false) {
+            if (!acceptAllTypes) {
                 try {
                     fieldType.termQuery("", context);
                 } catch (QueryShardException | UnsupportedOperationException e) {

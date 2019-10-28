@@ -99,9 +99,9 @@ public class PeerFinderMessagesTests extends ESTestCase {
 
     private List<DiscoveryNode> modifyDiscoveryNodesList(Collection<DiscoveryNode> originalNodes, boolean allowEmpty) {
         final List<DiscoveryNode> discoveryNodes = new ArrayList<>(originalNodes);
-        if (discoveryNodes.isEmpty() == false && randomBoolean() && (allowEmpty || discoveryNodes.size() > 1)) {
+        if (!discoveryNodes.isEmpty() && randomBoolean() && (allowEmpty || discoveryNodes.size() > 1)) {
             discoveryNodes.remove(randomIntBetween(0, discoveryNodes.size() - 1));
-        } else if (discoveryNodes.isEmpty() == false && randomBoolean()) {
+        } else if (!discoveryNodes.isEmpty() && randomBoolean()) {
             discoveryNodes.set(randomIntBetween(0, discoveryNodes.size() - 1), createNode(randomAlphaOfLength(10)));
         } else {
             discoveryNodes.add(createNode(randomAlphaOfLength(10)));

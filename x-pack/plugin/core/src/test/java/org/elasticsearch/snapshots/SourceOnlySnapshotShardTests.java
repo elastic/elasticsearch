@@ -327,7 +327,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             targetShard.refresh("test");
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 closeShards(targetShard);
             }
         }

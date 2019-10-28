@@ -61,7 +61,7 @@ public abstract class SliceQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (sameClassAs(o) == false) {
+        if (!sameClassAs(o)) {
             return false;
         }
         SliceQuery that = (SliceQuery) o;

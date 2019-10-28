@@ -158,7 +158,7 @@ public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
         assertDatabaseLoadStatus(ingestNode, true);
         // the geo-IP database should still not be loaded on the non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames())
-                .filter(node -> node.equals(ingestNode) == false)
+                .filter(node -> !node.equals(ingestNode))
                 .forEach(node -> assertDatabaseLoadStatus(node, false));
     }
 

@@ -335,7 +335,7 @@ public final class ReservedFieldNames {
      */
     public static boolean isValidFieldName(String fieldName) {
         String[] segments = DOT_PATTERN.split(fieldName);
-        return RESERVED_RESULT_FIELD_NAMES.contains(segments[0]) == false;
+        return !RESERVED_RESULT_FIELD_NAMES.contains(segments[0]);
     }
 
     /**

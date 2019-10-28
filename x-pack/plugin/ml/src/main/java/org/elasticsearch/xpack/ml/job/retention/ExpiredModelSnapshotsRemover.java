@@ -118,7 +118,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     }
 
     private void deleteModelSnapshots(Iterator<ModelSnapshot> modelSnapshotIterator, ActionListener<Boolean> listener) {
-        if (modelSnapshotIterator.hasNext() == false) {
+        if (!modelSnapshotIterator.hasNext()) {
             listener.onResponse(true);
             return;
         }

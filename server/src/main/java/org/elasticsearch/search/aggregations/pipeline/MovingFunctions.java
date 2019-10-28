@@ -51,7 +51,7 @@ public class MovingFunctions {
             return 0.0;
         }
         return Arrays.stream(values).map(value -> {
-            if (Double.isNaN(value) == false) {
+            if (!Double.isNaN(value)) {
                 return value;
             }
             return 0.0;
@@ -69,7 +69,7 @@ public class MovingFunctions {
         double avg = 0.0;
         long count = 0;
         for (double v : values) {
-            if (Double.isNaN(v) == false) {
+            if (!Double.isNaN(v)) {
                 avg += v;
                 count += 1;
             }
@@ -91,7 +91,7 @@ public class MovingFunctions {
             long count = 0;
             double squaredMean = 0;
             for (double v : values) {
-                if (Double.isNaN(v) == false) {
+                if (!Double.isNaN(v)) {
                     squaredMean += Math.pow(v - avg, 2);
                     count += 1;
                 }
@@ -114,7 +114,7 @@ public class MovingFunctions {
         long current = 1;
 
         for (double v : values) {
-            if (Double.isNaN(v) == false) {
+            if (!Double.isNaN(v)) {
                 avg += v * current;
                 totalWeight += current;
                 current += 1;
@@ -142,7 +142,7 @@ public class MovingFunctions {
         boolean first = true;
 
         for (double v : values) {
-            if (Double.isNaN(v) == false) {
+            if (!Double.isNaN(v)) {
                 if (first) {
                     avg = v;
                     first = false;
@@ -196,7 +196,7 @@ public class MovingFunctions {
 
         Double last;
         for (double v : values) {
-            if (Double.isNaN(v) == false) {
+            if (!Double.isNaN(v)) {
                 last = v;
                 if (counter == 0) {
                     s = v;
@@ -282,7 +282,7 @@ public class MovingFunctions {
         int counter = 0;
         double[] vs = new double[values.length];
         for (double v : values) {
-            if (Double.isNaN(v) == false) {
+            if (!Double.isNaN(v)) {
                 vs[counter] = v + padding;
                 counter += 1;
             }

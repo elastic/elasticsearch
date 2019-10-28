@@ -58,7 +58,7 @@ public class CategorizationAnalyzer implements Closeable {
             while (stream.incrementToken()) {
                 String token = term.toString();
                 // Ignore empty tokens for categorization
-                if (token.isEmpty() == false) {
+                if (!token.isEmpty()) {
                     tokens.add(term.toString());
                 }
             }

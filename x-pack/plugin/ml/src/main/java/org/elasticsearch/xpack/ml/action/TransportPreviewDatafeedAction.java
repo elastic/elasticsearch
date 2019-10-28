@@ -113,7 +113,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         // what the datafeed is set to do as it can reveal problems with
         // the datafeed config (e.g. a chunking config that would hit circuit-breakers).
         DatafeedConfig.Builder previewDatafeed = new DatafeedConfig.Builder(datafeed);
-        if (datafeed.hasAggregations() == false) {
+        if (!datafeed.hasAggregations()) {
             previewDatafeed.setChunkingConfig(ChunkingConfig.newAuto());
         }
         return previewDatafeed;

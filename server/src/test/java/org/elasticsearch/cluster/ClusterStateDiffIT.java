@@ -571,7 +571,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         builder.settings(Settings.builder().put(part.getSettings()).put(randomSettings(Settings.EMPTY)));
                         break;
                     case 1:
-                        if (randomBoolean() && part.getAliases().isEmpty() == false) {
+                        if (randomBoolean() && !part.getAliases().isEmpty()) {
                             builder.removeAlias(randomFrom(part.getAliases().keys().toArray(String.class)));
                         } else {
                             builder.putAlias(AliasMetaData.builder(randomAlphaOfLength(10)));

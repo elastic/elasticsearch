@@ -219,13 +219,13 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             }
         }
         SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
-        final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
+        final int size = !reduceContext.isFinalReduce() ? buckets.size() : Math.min(requiredSize, buckets.size());
         BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
         for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
             List<B> sameTermBuckets = entry.getValue();
             final B b = reduceBucket(sameTermBuckets, reduceContext);
             b.updateScore(heuristic);
-            if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
+            if (((b.score > 0) && (b.subsetDf >= minDocCount)) || !reduceContext.isFinalReduce()) {
                 B removed = ordered.insertWithOverflow(b);
                 if (removed == null) {
                     reduceContext.consumeBucketsAndMaybeBreak(1);
@@ -283,7 +283,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
         return Objects.equals(minDocCount, that.minDocCount)

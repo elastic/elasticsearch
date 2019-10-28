@@ -152,7 +152,7 @@ public class MetaDataIndexStateService {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
                         listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
                     } else {
-                        assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
+                        assert !blockedIndices.isEmpty() : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
                             .execute(new WaitForClosedBlocksApplied(blockedIndices, request,
                                 ActionListener.wrap(verifyResults ->
@@ -179,7 +179,7 @@ public class MetaDataIndexStateService {
 
                                             final boolean acknowledged = indices.stream().noneMatch(IndexResult::hasFailures);
                                             final String[] waitForIndices = indices.stream()
-                                                .filter(result -> result.hasFailures() == false)
+                                                .filter(result -> !result.hasFailures())
                                                 .filter(result -> newState.routingTable().hasIndex(result.getIndex()))
                                                 .map(result -> result.getIndex().getName())
                                                 .toArray(String[]::new);
@@ -187,7 +187,7 @@ public class MetaDataIndexStateService {
                                             if (waitForIndices.length > 0) {
                                                 activeShardsObserver.waitForActiveShards(waitForIndices, request.waitForActiveShards(),
                                                     request.ackTimeout(), shardsAcknowledged -> {
-                                                        if (shardsAcknowledged == false) {
+                                                        if (!shardsAcknowledged) {
                                                             logger.debug("[{}] indices closed, but the operation timed out while waiting " +
                                                                 "for enough shards to be started.", Arrays.toString(waitForIndices));
                                                         }
@@ -249,13 +249,13 @@ public class MetaDataIndexStateService {
 
         // Check if index closing conflicts with any running restores
         Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, indicesToClose);
-        if (restoringIndices.isEmpty() == false) {
+        if (!restoringIndices.isEmpty()) {
             throw new IllegalArgumentException("Cannot close indices that are being restored: " + restoringIndices);
         }
 
         // Check if index closing conflicts with any running snapshots
         Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToClose);
-        if (snapshottingIndices.isEmpty() == false) {
+        if (!snapshottingIndices.isEmpty()) {
             throw new SnapshotInProgressException("Cannot close indices that are being snapshotted: " + snapshottingIndices +
                 ". Try again after snapshot finishes or cancel the currently running snapshot.");
         }
@@ -433,9 +433,9 @@ public class MetaDataIndexStateService {
         Map<Index, IndexResult> closingResults = new HashMap<>(verifyResult);
         for (Map.Entry<Index, IndexResult> result : verifyResult.entrySet()) {
             final Index index = result.getKey();
-            final boolean acknowledged = result.getValue().hasFailures() == false;
+            final boolean acknowledged = !result.getValue().hasFailures();
             try {
-                if (acknowledged == false) {
+                if (!acknowledged) {
                     logger.debug("verification of shards before closing {} failed [{}]", index, result);
                     continue;
                 }
@@ -447,7 +447,7 @@ public class MetaDataIndexStateService {
                 }
                 final ClusterBlock closingBlock = blockedIndices.get(index);
                 assert closingBlock != null;
-                if (currentState.blocks().hasIndexBlock(index.getName(), closingBlock) == false) {
+                if (!currentState.blocks().hasIndexBlock(index.getName(), closingBlock)) {
                     // we should report error in this case as the index can be left as open.
                     closingResults.put(result.getKey(), new IndexResult(result.getKey(), new IllegalStateException(
                         "verification of shards before closing " + index + " succeeded but block has been removed in the meantime")));
@@ -457,7 +457,7 @@ public class MetaDataIndexStateService {
 
                 // Check if index closing conflicts with any running restores
                 Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, singleton(index));
-                if (restoringIndices.isEmpty() == false) {
+                if (!restoringIndices.isEmpty()) {
                     closingResults.put(result.getKey(), new IndexResult(result.getKey(), new IllegalStateException(
                         "verification of shards before closing " + index + " succeeded but index is being restored in the meantime")));
                     logger.debug("verification of shards before closing {} succeeded but index is being restored in the meantime", index);
@@ -466,7 +466,7 @@ public class MetaDataIndexStateService {
 
                 // Check if index closing conflicts with any running snapshots
                 Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, singleton(index));
-                if (snapshottingIndices.isEmpty() == false) {
+                if (!snapshottingIndices.isEmpty()) {
                     closingResults.put(result.getKey(), new IndexResult(result.getKey(), new IllegalStateException(
                         "verification of shards before closing " + index + " succeeded but index is being snapshot in the meantime")));
                     logger.debug("verification of shards before closing {} succeeded but index is being snapshot in the meantime", index);
@@ -506,7 +506,7 @@ public class MetaDataIndexStateService {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
                 activeShardsObserver.waitForActiveShards(indexNames, request.waitForActiveShards(), request.ackTimeout(),
                     shardsAcknowledged -> {
-                        if (shardsAcknowledged == false) {
+                        if (!shardsAcknowledged) {
                             logger.debug("[{}] indices opened, but the operation timed out while waiting for " +
                                 "enough shards to be started.", Arrays.toString(indexNames));
                         }

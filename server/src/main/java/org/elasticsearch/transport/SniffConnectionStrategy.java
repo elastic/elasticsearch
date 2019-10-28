@@ -59,7 +59,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private static final Logger logger = LogManager.getLogger(SniffConnectionStrategy.class);
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-        && (node.isMasterNode() == false || node.isDataNode() || node.isIngestNode());
+        && (!node.isMasterNode() || node.isDataNode() || node.isIngestNode());
 
 
     private final List<String> configuredSeedNodes;
@@ -365,14 +365,14 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
         Set<String> oldSeeds = new HashSet<>(oldSeedNodes);
         Set<String> newSeeds = new HashSet<>(newSeedNodes);
-        return oldSeeds.equals(newSeeds) == false;
+        return !oldSeeds.equals(newSeeds);
     }
 
     private boolean proxyChanged(String oldProxy, String newProxy) {
         if (oldProxy == null || oldProxy.isEmpty()) {
-            return (newProxy == null || newProxy.isEmpty()) == false;
+            return !(newProxy == null || newProxy.isEmpty());
         }
 
-        return Objects.equals(oldProxy, newProxy) == false;
+        return !Objects.equals(oldProxy, newProxy);
     }
 }

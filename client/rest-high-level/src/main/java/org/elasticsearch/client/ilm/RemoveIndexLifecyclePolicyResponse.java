@@ -54,7 +54,7 @@ public class RemoveIndexLifecyclePolicyResponse {
     }
 
     public boolean hasFailures() {
-        return failedIndexes.isEmpty() == false;
+        return !failedIndexes.isEmpty();
     }
 
     public static RemoveIndexLifecyclePolicyResponse fromXContent(XContentParser parser) {

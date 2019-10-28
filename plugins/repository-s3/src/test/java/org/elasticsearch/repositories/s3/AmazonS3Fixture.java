@@ -160,7 +160,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                 if (sessionToken == null) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
                 }
-                if (sessionToken.equals(bucket.token) == false) {
+                if (!sessionToken.equals(bucket.token)) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
                 }
             }
@@ -254,7 +254,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                         return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
                     }
                 } else {
-                    if (disableChunkedEncoding == false) {
+                    if (!disableChunkedEncoding) {
                         return newInternalError(request.getId(), "Something is wrong with this PUT request");
                     }
                     // Read from body directly
@@ -419,7 +419,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
         handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/latest/meta-data/iam/security-credentials/{profileName}"), (request) -> {
             final String profileName = request.getParam("profileName");
-            if (EC2_PROFILE.equals(profileName) == false) {
+            if (!EC2_PROFILE.equals(profileName)) {
                 return new Response(RestStatus.NOT_FOUND.getStatus(), new HashMap<>(), "unknown profile".getBytes(UTF_8));
             }
             return credentialResponseFunction.apply(profileName, ec2Bucket.key, ec2Bucket.token);

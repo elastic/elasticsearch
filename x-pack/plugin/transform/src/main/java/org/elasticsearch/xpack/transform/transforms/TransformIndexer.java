@@ -310,7 +310,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 builder.startObject();
                 for (Map.Entry<String, ?> value : document.entrySet()) {
                     // skip all internal fields
-                    if (value.getKey().startsWith("_") == false) {
+                    if (!value.getKey().startsWith("_")) {
                         builder.field(value.getKey(), value.getValue());
                     }
                 }
@@ -438,7 +438,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 .filter(config.getSyncConfig()
                         .getRangeQuery(nextCheckpoint));
 
-        if (changedBuckets != null && changedBuckets.isEmpty() == false) {
+        if (changedBuckets != null && !changedBuckets.isEmpty()) {
             QueryBuilder pivotFilter = pivot.filterBuckets(changedBuckets);
             if (pivotFilter != null) {
                 filteredQuery.filter(pivotFilter);
@@ -491,12 +491,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private RunState determineRunStateAtStart() {
         // either 1st run or not a continuous data frame
-        if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
+        if (nextCheckpoint.getCheckpoint() == 1 || !isContinuous()) {
             return RunState.FULL_RUN;
         }
 
         // if incremental update is not supported, do a full run
-        if (pivot.supportsIncrementalBucketUpdate() == false) {
+        if (!pivot.supportsIncrementalBucketUpdate()) {
             return RunState.FULL_RUN;
         }
 

@@ -79,7 +79,7 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        if (oldState.equals(newState) == false) {
+        if (!oldState.equals(newState)) {
             stateChangeConsumer.accept(newState);
         }
     }

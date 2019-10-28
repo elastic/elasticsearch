@@ -294,12 +294,12 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
             } else if ("version".equals(name)) {
-                if ((entry.getValue() instanceof Integer) == false) {
+                if (!(entry.getValue() instanceof Integer)) {
                     throw new IllegalArgumentException("Malformed [version] value, should be an integer");
                 }
                 version((Integer)entry.getValue());
             } else if (name.equals("settings")) {
-                if ((entry.getValue() instanceof Map) == false) {
+                if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("Malformed [settings] section, should include an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());

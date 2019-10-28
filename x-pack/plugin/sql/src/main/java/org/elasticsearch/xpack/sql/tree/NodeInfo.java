@@ -50,7 +50,7 @@ public abstract class NodeInfo<T extends Node<?>> {
         List<?> children = node.children();
 
         Function<Object, Object> realRule = p -> {
-            if (p != children && false == children.contains(p)
+            if (p != children && !children.contains(p)
                     && (p == null || typeToken.isInstance(p))) {
                 return rule.apply(typeToken.cast(p));
             }
@@ -396,7 +396,7 @@ public abstract class NodeInfo<T extends Node<?>> {
     public interface NodeCtor9<P1, P2, P3, P4, P5, P6, P7, P8, P9, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9);
     }
-    
+
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10> NodeInfo<T> create(
             T n, NodeCtor10<P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, T> ctor,
             P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10) {

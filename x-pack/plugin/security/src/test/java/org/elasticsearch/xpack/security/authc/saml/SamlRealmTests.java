@@ -524,7 +524,7 @@ public class SamlRealmTests extends SamlTestCase {
         final KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(null);
         final boolean noRSAKeysInKS = randomBoolean();
-        if (noRSAKeysInKS == false) {
+        if (!noRSAKeysInKS) {
             ks.setKeyEntry(getAliasName(certKeyPair1), certKeyPair1.v2(), "key-password".toCharArray(),
                     new Certificate[] { certKeyPair1.v1() });
             ks.setKeyEntry(getAliasName(certKeyPair2), certKeyPair2.v2(), "key-password".toCharArray(),

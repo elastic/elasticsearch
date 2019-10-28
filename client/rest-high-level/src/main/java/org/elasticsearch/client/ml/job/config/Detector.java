@@ -128,7 +128,7 @@ public class Detector implements ToXContentObject {
         if (excludeFrequent != null) {
             builder.field(EXCLUDE_FREQUENT_FIELD.getPreferredName(), excludeFrequent);
         }
-        if (rules.isEmpty() == false) {
+        if (!rules.isEmpty()) {
             builder.field(CUSTOM_RULES_FIELD.getPreferredName(), rules);
         }
         // negative means unknown
@@ -241,7 +241,7 @@ public class Detector implements ToXContentObject {
             return true;
         }
 
-        if (other instanceof Detector == false) {
+        if (!(other instanceof Detector)) {
             return false;
         }
 

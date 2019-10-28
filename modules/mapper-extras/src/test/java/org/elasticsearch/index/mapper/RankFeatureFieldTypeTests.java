@@ -34,7 +34,7 @@ public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
             @Override
             public void modify(MappedFieldType ft) {
                 RankFeatureFieldMapper.RankFeatureFieldType tft = (RankFeatureFieldMapper.RankFeatureFieldType)ft;
-                tft.setPositiveScoreImpact(tft.positiveScoreImpact() == false);
+                tft.setPositiveScoreImpact(!tft.positiveScoreImpact());
             }
             @Override
             public void normalizeOther(MappedFieldType other) {

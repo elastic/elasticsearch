@@ -283,7 +283,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> check that the stale primary shard gets allocated and that documents are available");
         ensureYellow(idxName);
 
-        if (useStaleReplica == false) {
+        if (!useStaleReplica) {
             // When invoking AllocateEmptyPrimaryAllocationCommand, due to the UnassignedInfo.Reason being changed to INDEX_CREATION,
             // its possible that the shard has not completed initialization, even though the cluster health is yellow, so the
             // search can throw an "all shards failed" exception.  We will wait until the shard initialization has completed before

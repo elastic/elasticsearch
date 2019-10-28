@@ -184,7 +184,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         public int numReplicas() {
             int count = 0;
             for (ShardRouting msr : routing) {
-                if (msr.primary() == false && msr.id()==0) {
+                if (!msr.primary() && msr.id()==0) {
                     count++;
                 }
             }

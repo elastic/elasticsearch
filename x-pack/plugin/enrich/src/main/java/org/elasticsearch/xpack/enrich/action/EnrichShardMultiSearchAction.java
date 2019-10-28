@@ -119,7 +119,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = validateNonNullIndex();
-            if (index.startsWith(EnrichPolicy.ENRICH_INDEX_NAME_BASE) == false) {
+            if (!index.startsWith(EnrichPolicy.ENRICH_INDEX_NAME_BASE)) {
                 validationException = ValidateActions.addValidationError("index [" + index + "] is not an enrich index",
                     validationException);
             }

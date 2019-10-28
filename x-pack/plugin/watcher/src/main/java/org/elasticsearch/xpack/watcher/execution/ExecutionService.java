@@ -253,7 +253,7 @@ public class ExecutionService {
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         for (TriggerEvent event : events) {
             GetResponse response = getWatch(event.jobName());
-            if (response.isExists() == false) {
+            if (!response.isExists()) {
                 logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
                 continue;
             }
@@ -298,7 +298,7 @@ public class ExecutionService {
                 try {
                     ctx.ensureWatchExists(() -> {
                         GetResponse resp = getWatch(watchId);
-                        if (resp.isExists() == false) {
+                        if (!resp.isExists()) {
                             throw new ResourceNotFoundException("watch [{}] does not exist", watchId);
                         }
                         return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON,
@@ -547,7 +547,7 @@ public class ExecutionService {
         int counter = 0;
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
             GetResponse response = getWatch(triggeredWatch.id().watchId());
-            if (response.isExists() == false) {
+            if (!response.isExists()) {
                 String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() +
                     "], perhaps it has been deleted, ignoring...";
                 WatchRecord record = new WatchRecord.MessageWatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(),

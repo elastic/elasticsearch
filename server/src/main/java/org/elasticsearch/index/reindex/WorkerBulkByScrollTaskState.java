@@ -273,7 +273,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
             long remainingDelay = scheduled.getDelay(TimeUnit.NANOSECONDS);
             // Actually reschedule the task
-            if (scheduled == null || false == scheduled.cancel()) {
+            if (scheduled == null || !scheduled.cancel()) {
                 // Couldn't cancel, probably because the task has finished or been scheduled. Either way we have nothing to do here.
                 logger.debug("[{}]: skipping rescheduling because we couldn't cancel the task", task.getId());
                 return this;

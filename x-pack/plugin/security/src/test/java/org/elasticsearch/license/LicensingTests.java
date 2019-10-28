@@ -215,7 +215,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         Path conf = home.resolve("config");
         Files.createDirectories(conf);
         Settings.Builder nodeSettings = Settings.builder()
-            .put(nodeSettings(maxNumberOfNodes() - 1).filter(s -> "xpack.security.enabled".equals(s) == false))
+            .put(nodeSettings(maxNumberOfNodes() - 1).filter(s -> !"xpack.security.enabled".equals(s)))
             .put("node.name", "my-test-node")
             .put("network.host", "localhost")
             .put("cluster.name", internalCluster().getClusterName())
@@ -244,7 +244,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         // wait for things to stabilize!
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                if (licenseState.isAuthAllowed() == false) {
+                if (!licenseState.isAuthAllowed()) {
                     enableLicensing(OperationMode.BASIC);
                     break;
                 }

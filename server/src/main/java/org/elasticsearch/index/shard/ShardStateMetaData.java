@@ -65,10 +65,10 @@ public final class ShardStateMetaData {
         if (primary != that.primary) {
             return false;
         }
-        if (indexUUID.equals(that.indexUUID) == false) {
+        if (!indexUUID.equals(that.indexUUID)) {
           return false;
         }
-        if (Objects.equals(allocationId, that.allocationId) == false) {
+        if (!Objects.equals(allocationId, that.allocationId)) {
             return false;
         }
 

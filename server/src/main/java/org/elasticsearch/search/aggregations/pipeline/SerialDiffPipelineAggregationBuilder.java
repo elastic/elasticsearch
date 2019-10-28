@@ -138,10 +138,10 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         return new SerialDiffPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, lag, metaData);
     }
-    
+
     @Override
     public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
-            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {        
+            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
         validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
@@ -236,7 +236,7 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         SerialDiffPipelineAggregationBuilder other = (SerialDiffPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format)
                 && Objects.equals(gapPolicy, other.gapPolicy)

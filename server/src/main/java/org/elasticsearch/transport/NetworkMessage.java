@@ -59,7 +59,7 @@ public abstract class NetworkMessage {
     }
 
     boolean isResponse() {
-        return TransportStatus.isRequest(status) == false;
+        return !TransportStatus.isRequest(status);
     }
 
     boolean isRequest() {

@@ -99,7 +99,7 @@ public final class Sets {
     public static <T> SortedSet<T> sortedDifference(final Set<T> left, final Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
-        return left.stream().filter(k -> right.contains(k) == false).collect(toSortedSet());
+        return left.stream().filter(k -> !right.contains(k)).collect(toSortedSet());
     }
 
     /**
@@ -115,7 +115,7 @@ public final class Sets {
     public static <T> SortedSet<T> unmodifiableSortedDifference(final Set<T> left, final Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
-        return left.stream().filter(k -> right.contains(k) == false).collect(toUnmodifiableSortedSet());
+        return left.stream().filter(k -> !right.contains(k)).collect(toUnmodifiableSortedSet());
     }
 
     /**

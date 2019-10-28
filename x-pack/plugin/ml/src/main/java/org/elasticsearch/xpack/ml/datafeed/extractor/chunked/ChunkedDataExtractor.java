@@ -137,7 +137,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         while (hasNext()) {
             boolean isNewSearch = false;
 
-            if (currentExtractor == null || currentExtractor.hasNext() == false) {
+            if (currentExtractor == null || !currentExtractor.hasNext()) {
                 // First search or the current search finished; we can advance to the next search
                 advanceTime();
                 isNewSearch = true;
@@ -329,7 +329,7 @@ public class ChunkedDataExtractor implements DataExtractor {
 
         @Override
         public boolean hasData() {
-            return (Double.isInfinite(earliestTime) || Double.isInfinite(latestTime)) == false;
+            return !(Double.isInfinite(earliestTime) || Double.isInfinite(latestTime));
         }
 
         @Override

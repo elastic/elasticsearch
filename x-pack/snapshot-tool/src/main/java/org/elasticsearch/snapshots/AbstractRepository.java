@@ -171,7 +171,7 @@ public abstract class AbstractRepository {
         terminal.println(Terminal.Verbosity.VERBOSE, "Reading latest index file");
         final RepositoryData repositoryData = getRepositoryData(latestIndexId);
         final Collection<SnapshotId> incompatibleSnapshots = getIncompatibleSnapshots();
-        if (incompatibleSnapshots.isEmpty() == false) {
+        if (!incompatibleSnapshots.isEmpty()) {
             throw new ElasticsearchException(
                 "Found incompatible snapshots which prevent a safe cleanup execution " + incompatibleSnapshots);
         }
@@ -247,7 +247,7 @@ public abstract class AbstractRepository {
         } finally {
             executor.shutdown();
             try {
-                if (executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
+                if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
                     terminal.println(Terminal.Verbosity.NORMAL, "Unexpectedly there are still tasks running on the executor");
                 }
             } catch (InterruptedException e) {
@@ -282,7 +282,7 @@ public abstract class AbstractRepository {
     private void confirm(Terminal terminal, String msg) {
         terminal.println(Terminal.Verbosity.NORMAL, msg);
         String text = terminal.readText("Confirm [y/N] ");
-        if (text.equalsIgnoreCase("y") == false) {
+        if (!text.equalsIgnoreCase("y")) {
             throw new ElasticsearchException("Aborted by user");
         }
     }

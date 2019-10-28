@@ -202,7 +202,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             // nothing to do
         } else if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
-            if (previous.v1().equals(data) == false) {
+            if (!previous.v1().equals(data)) {
                 Translog.Operation newOp = Translog.readOperation(
                         new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
                 Translog.Operation prvOp = Translog.readOperation(
@@ -224,7 +224,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 } else {
                     sameOp = false;
                 }
-                if (sameOp == false) {
+                if (!sameOp) {
                     throw new AssertionError(
                         "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
                             "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());

@@ -199,7 +199,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
                     "Please specify one or the other.");
             }
 
-            if (Strings.isNullOrEmpty(fieldName) == false && script != null) {
+            if (!Strings.isNullOrEmpty(fieldName) && script != null) {
                 throw new IllegalArgumentException("[" +  ParseField.CommonFields.FIELD.getPreferredName()
                     + "] and [" + Script.SCRIPT_PARSE_FIELD.getPreferredName() + "] cannot both be configured.  " +
                     "Please specify one or the other.");

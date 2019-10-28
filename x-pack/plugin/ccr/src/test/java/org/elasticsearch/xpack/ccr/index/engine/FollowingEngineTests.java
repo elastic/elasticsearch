@@ -522,7 +522,7 @@ public class FollowingEngineTests extends ESTestCase {
                                  InternalEngine leader, FollowingEngine follower) throws IOException {
         final MapperService mapperService = EngineTestCase.createMapperService("test");
         final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), follower.config().getIndexSettings());
-        while (stopped.get() == false) {
+        while (!stopped.get()) {
             final long checkpoint = leader.getProcessedLocalCheckpoint();
             final long lastSeqNo = lastFetchedSeqNo.get();
             if (lastSeqNo < checkpoint) {
@@ -692,7 +692,7 @@ public class FollowingEngineTests extends ESTestCase {
                     List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, VersionType.EXTERNAL, 2, 50, 500, "id");
                     engine.advanceMaxSeqNoOfUpdatesOrDeletes(ops.stream().mapToLong(Engine.Operation::seqNo).max().getAsLong());
                     for (Engine.Operation op : ops) {
-                        if (running.get() == false) {
+                        if (!running.get()) {
                             return;
                         }
                         try {

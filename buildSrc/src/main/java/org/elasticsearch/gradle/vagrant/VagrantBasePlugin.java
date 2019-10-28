@@ -88,7 +88,7 @@ public class VagrantBasePlugin implements Plugin<Project> {
             });
             String output = pipe.toString(StandardCharsets.UTF_8).trim();
             Matcher matcher = versionRegex.matcher(output);
-            if (matcher.find() == false) {
+            if (!matcher.find()) {
                 throw new IllegalStateException(tool +
                     " version output [" + output + "] did not match regex [" + versionRegex.pattern() + "]");
             }

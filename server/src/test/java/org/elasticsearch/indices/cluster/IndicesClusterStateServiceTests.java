@@ -195,7 +195,7 @@ public class IndicesClusterStateServiceTests extends ESTestCase {
                         new IndexShardClosedException(indexShard.shardId()),
                         new RuntimeException("failed"));
                     listener.onFailure(e);
-                    if (e instanceof AlreadyClosedException == false && e instanceof IndexShardClosedException == false) {
+                    if (!(e instanceof AlreadyClosedException) && !(e instanceof IndexShardClosedException)) {
                         final ArgumentCaptor<ParameterizedMessage> captor = ArgumentCaptor.forClass(ParameterizedMessage.class);
                         verify(mockLogger).warn(captor.capture(), same(e));
                         final ParameterizedMessage message = captor.getValue();

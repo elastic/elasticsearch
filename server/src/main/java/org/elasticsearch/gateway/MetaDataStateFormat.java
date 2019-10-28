@@ -327,7 +327,7 @@ public abstract class MetaDataStateFormat<T> {
             Path stateLocation = location.resolve(STATE_DIR_NAME);
             try (Directory stateDir = newDirectory(stateLocation)) {
                 for (String file : stateDir.listAll()) {
-                    if (file.startsWith(prefix) && file.equals(fileNameToKeep) == false) {
+                    if (file.startsWith(prefix) && !file.equals(fileNameToKeep)) {
                         deleteFileIgnoreExceptions(stateLocation, stateDir, file);
                     }
                 }

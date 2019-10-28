@@ -444,7 +444,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             if (cmpValue == null) {
                 if ("_first".equals(missingValue)) {
                     cmpValue = new BytesRef();
-                } else if ("_last".equals(missingValue) == false) {
+                } else if (!"_last".equals(missingValue)) {
                     cmpValue = (BytesRef) missingValue;
                 }
             }

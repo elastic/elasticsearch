@@ -448,7 +448,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         getRequest.preference("_local").routing(termsLookup.routing());
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
-            if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
+            if (!getResponse.isSourceEmpty()) { // extract terms only if the doc source exists
                 List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
                 terms.addAll(extractedValues);
             }

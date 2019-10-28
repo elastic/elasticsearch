@@ -149,7 +149,7 @@ public class FsRepositoryTests extends ESTestCase {
             assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size()-2);
             assertEquals(secondState.getIndex().recoveredFileCount(), 2);
             List<RecoveryState.File> recoveredFiles =
-                secondState.getIndex().fileDetails().stream().filter(f -> f.reused() == false).collect(Collectors.toList());
+                secondState.getIndex().fileDetails().stream().filter(f -> !f.reused()).collect(Collectors.toList());
             Collections.sort(recoveredFiles, Comparator.comparing(RecoveryState.File::name));
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
             assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));

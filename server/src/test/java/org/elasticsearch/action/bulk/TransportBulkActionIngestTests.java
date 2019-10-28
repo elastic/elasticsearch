@@ -342,7 +342,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
         boolean usedNode1 = node.getValue() == remoteNode1; // make sure we used one of the nodes
-        if (usedNode1 == false) {
+        if (!usedNode1) {
             assertSame(remoteNode2, node.getValue());
         }
         assertFalse(action.isExecuted); // no local index execution
@@ -386,7 +386,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
         boolean usedNode1 = node.getValue() == remoteNode1; // make sure we used one of the nodes
-        if (usedNode1 == false) {
+        if (!usedNode1) {
             assertSame(remoteNode2, node.getValue());
         }
         assertFalse(action.isExecuted); // no local index execution

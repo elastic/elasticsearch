@@ -76,7 +76,7 @@ public abstract class RestClientTestCase extends RandomizedTest {
         }
         for (final Header defaultHeader : defaultHeaders) {
             final String name = defaultHeader.getName();
-            if (requestHeaderKeys.contains(name) == false) {
+            if (!requestHeaderKeys.contains(name)) {
                 addValueToListEntry(expectedHeaders, name, defaultHeader.getValue());
             }
         }

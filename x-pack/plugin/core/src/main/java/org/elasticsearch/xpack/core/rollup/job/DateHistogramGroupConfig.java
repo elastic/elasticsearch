@@ -227,7 +227,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         this.interval = interval;
         this.field = field;
         this.delay = delay;
-        this.timeZone = (timeZone != null && timeZone.isEmpty() == false) ? timeZone : DEFAULT_TIMEZONE;
+        this.timeZone = (timeZone != null && !timeZone.isEmpty()) ? timeZone : DEFAULT_TIMEZONE;
 
         // validate interval
         createRounding(this.interval.toString(), this.timeZone);
@@ -316,7 +316,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
                                                              ActionRequestValidationException validationException) {
 
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
-        if (fieldCaps != null && fieldCaps.isEmpty() == false) {
+        if (fieldCaps != null && !fieldCaps.isEmpty()) {
             if (fieldCaps.containsKey("date") && fieldCaps.size() == 1) {
                 if (fieldCaps.get("date").isAggregatable()) {
                     return;
@@ -339,7 +339,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         if (this == other) {
             return true;
         }
-        if (other == null || other instanceof DateHistogramGroupConfig == false) {
+        if (other == null || !(other instanceof DateHistogramGroupConfig)) {
             return false;
         }
         final DateHistogramGroupConfig that = (DateHistogramGroupConfig) other;

@@ -273,13 +273,13 @@ public class Detector implements ToXContentObject, Writeable {
         if (excludeFrequent != null) {
             builder.field(EXCLUDE_FREQUENT_FIELD.getPreferredName(), excludeFrequent);
         }
-        if (rules.isEmpty() == false) {
+        if (!rules.isEmpty()) {
             builder.field(CUSTOM_RULES_FIELD.getPreferredName(), rules);
         }
         // negative means "unknown", which should only happen for a 5.4 job
         if (detectorIndex >= 0
                 // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
-                && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
+                && !params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         }
         builder.endObject();
@@ -422,7 +422,7 @@ public class Detector implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof Detector == false) {
+        if (!(other instanceof Detector)) {
             return false;
         }
 
@@ -553,7 +553,7 @@ public class Detector implements ToXContentObject, Writeable {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_FIELDNAME, function));
             }
 
-            if (!emptyField && (Detector.FIELD_NAME_FUNCTIONS.contains(function) == false)) {
+            if (!emptyField && (!Detector.FIELD_NAME_FUNCTIONS.contains(function))) {
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION, function));
             }

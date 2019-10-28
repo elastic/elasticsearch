@@ -47,7 +47,7 @@ public final class LoggerInfoStream extends InfoStream {
     public boolean isEnabled(String component) {
         // TP is a special "test point" component; we don't want
         // to log it:
-        return getLogger(component).isTraceEnabled() && component.equals("TP") == false;
+        return getLogger(component).isTraceEnabled() && !component.equals("TP");
     }
 
     private Logger getLogger(String component) {

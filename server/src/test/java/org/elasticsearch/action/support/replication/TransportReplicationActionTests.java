@@ -229,7 +229,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
             @Override
             public ClusterBlockLevel indexBlockLevel() {
-                return globalBlock == false ? ClusterBlockLevel.WRITE : null;
+                return !globalBlock ? ClusterBlockLevel.WRITE : null;
             }
         };
 
@@ -312,7 +312,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
                 @Override
                 public ClusterBlockLevel indexBlockLevel() {
-                    return globalBlock == false ? ClusterBlockLevel.WRITE : null;
+                    return !globalBlock ? ClusterBlockLevel.WRITE : null;
                 }
             };
 
@@ -712,7 +712,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         AtomicBoolean closed = new AtomicBoolean();
         Releasable releasable = () -> {
-            if (closed.compareAndSet(false, true) == false) {
+            if (!closed.compareAndSet(false, true)) {
                 fail("releasable is closed twice");
             }
         };
@@ -1014,7 +1014,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             fail("using a wrong aid didn't fail the operation");
         } catch (ExecutionException execException) {
             Throwable throwable = execException.getCause();
-            if (action.retryPrimaryException(throwable) == false) {
+            if (!action.retryPrimaryException(throwable)) {
                 throw new AssertionError("thrown exception is not retriable", throwable);
             }
             assertThat(throwable.getMessage(), containsString("_not_a_valid_aid_"));
@@ -1258,7 +1258,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         protected void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
                 ActionListener<PrimaryResult<Request, TestResponse>> listener) {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
-            assert executedBefore == false : "request has already been executed on the primary";
+            assert !executedBefore : "request has already been executed on the primary";
             listener.onResponse(new PrimaryResult<>(shardRequest, new TestResponse()));
         }
 

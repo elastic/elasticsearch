@@ -996,7 +996,7 @@ public class SettingTests extends ESTestCase {
         if (changeAffixKeySetting) {
             currentSettingsBuilder.put("prefix.foo.infix.suffix", "bar");
         }
-        if (removeAffixKeySetting == false && changeAffixKeySetting == false && removeAffixNamespace) {
+        if (!removeAffixKeySetting && !changeAffixKeySetting && removeAffixNamespace) {
             currentSettingsBuilder.remove("prefix.foo.infix.suffix");
             currentSettingsBuilder.put("prefix.foo.infix2.suffix", "bar");
             previousSettingsBuilder.put("prefix.foo.infix2.suffix", "bar");

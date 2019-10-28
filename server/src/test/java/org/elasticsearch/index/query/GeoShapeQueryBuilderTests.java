@@ -88,7 +88,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         GeoShapeQueryBuilder builder;
         clearShapeFields();
-        if (indexedShape == false) {
+        if (!indexedShape) {
             builder = new GeoShapeQueryBuilder(fieldName(), shape);
         } else {
             indexedShapeToReturn = shape;

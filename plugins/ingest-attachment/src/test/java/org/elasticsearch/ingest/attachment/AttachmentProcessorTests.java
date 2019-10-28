@@ -80,7 +80,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             AttachmentProcessor.Property property;
             do {
                 property = randomFrom(fieldsList);
-            } while (selectedProperties.add(property) == false);
+            } while (!selectedProperties.add(property));
 
             selectedFieldNames[i] = property.toLowerCase();
         }

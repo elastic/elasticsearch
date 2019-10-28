@@ -523,7 +523,7 @@ public class IndexShardTests extends IndexShardTestCase {
             } catch (final BrokenBarrierException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            while(stop.get() == false) {
+            while(!stop.get()) {
                 if (indexShard.routingEntry().primary()) {
                     assertThat(indexShard.getPendingPrimaryTerm(), equalTo(promotedTerm));
                     final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
@@ -716,7 +716,7 @@ public class IndexShardTests extends IndexShardTestCase {
             latch.await();
         }
 
-        if (Assertions.ENABLED && indexShard.routingEntry().isRelocationTarget() == false) {
+        if (Assertions.ENABLED && !indexShard.routingEntry().isRelocationTarget()) {
             assertThat(expectThrows(AssertionError.class, () -> indexShard.acquireReplicaOperationPermit(pendingPrimaryTerm,
                 indexShard.getLastKnownGlobalCheckpoint(), indexShard.getMaxSeqNoOfUpdatesOrDeletes(), new ActionListener<Releasable>() {
                     @Override
@@ -890,7 +890,7 @@ public class IndexShardTests extends IndexShardTestCase {
         logger.info("shard routing to {}", shardRouting);
 
         assertEquals(0, indexShard.getActiveOperationsCount());
-        if (shardRouting.primary() == false && Assertions.ENABLED) {
+        if (!shardRouting.primary() && Assertions.ENABLED) {
             AssertionError e =
                     expectThrows(AssertionError.class,
                         () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE, ""));
@@ -906,7 +906,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final Releasable operation1;
         final Releasable operation2;
-        if (engineClosed == false) {
+        if (!engineClosed) {
             operation1 = acquireReplicaOperationPermitBlockingly(indexShard, primaryTerm);
             assertEquals(1, indexShard.getActiveOperationsCount());
             operation2 = acquireReplicaOperationPermitBlockingly(indexShard, primaryTerm);
@@ -921,7 +921,7 @@ public class IndexShardTests extends IndexShardTestCase {
             final AtomicReference<Exception> onFailure = new AtomicReference<>();
             final CyclicBarrier barrier = new CyclicBarrier(2);
             final long newPrimaryTerm = primaryTerm + 1 + randomInt(20);
-            if (engineClosed == false) {
+            if (!engineClosed) {
                 assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
                 assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
             }
@@ -1559,7 +1559,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard();
         // refresh on: finalize and end of recovery
         // finalizing a replica involves two refreshes with soft deletes because of estimateNumberOfHistoryOperations()
-        final long initialRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 2L : 3L;
+        final long initialRefreshes = shard.routingEntry().primary() || !shard.indexSettings().isSoftDeleteEnabled() ? 2L : 3L;
         assertThat(shard.refreshStats().getTotal(), equalTo(initialRefreshes));
         long initialTotalTime = shard.refreshStats().getTotalTimeInMillis();
         // check time advances
@@ -1595,7 +1595,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertThat(shard.refreshStats().getExternalTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
         }
         final long externalRefreshCount = shard.refreshStats().getExternalTotal();
-        final long extraInternalRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 0 : 1;
+        final long extraInternalRefreshes = shard.routingEntry().primary() || !shard.indexSettings().isSoftDeleteEnabled() ? 0 : 1;
         indexDoc(shard, "_doc", "test");
         try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test",
             new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
@@ -3048,7 +3048,7 @@ public class IndexShardTests extends IndexShardTestCase {
         expectThrows(AlreadyClosedException.class, () -> newShard.getEngine()); // no engine
         Thread thread = new Thread(() -> {
             latch.countDown();
-            while(stop.get() == false){
+            while(!stop.get()){
                 try {
                     Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
                     assertEquals(0, storeFileMetaDatas.recoveryDiff(readMeta).different.size());
@@ -3224,7 +3224,7 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         Thread snapshotter = new Thread(() -> {
             latch.countDown();
-            while (stop.get() == false) {
+            while (!stop.get()) {
                 try {
                     Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
                     assertThat(readMeta.getNumDocs(), equalTo(numDocs));
@@ -3285,7 +3285,7 @@ public class IndexShardTests extends IndexShardTestCase {
         for (int i = offset + 1; i < operations; i++) {
             if (!rarely() || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
                 final String id = ids.isEmpty() || randomBoolean() ? Integer.toString(i) : randomFrom(ids);
-                if (ids.add(id) == false) { // this is an update
+                if (!ids.add(id)) { // this is an update
                     indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(i);
                 }
                 SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), id,
@@ -3765,7 +3765,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Thread thread = new Thread(() -> {
             latch.countDown();
             int hitClosedExceptions = 0;
-            while (done.get() == false) {
+            while (!done.get()) {
                 try {
                     List<String> exposedDocIds = EngineTestCase.getDocIds(getEngine(shard), rarely())
                         .stream().map(DocIdSeqNoAndSource::getId).collect(Collectors.toList());

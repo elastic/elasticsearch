@@ -327,9 +327,9 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             final long version,
             final boolean primary,
             final boolean expireLeases) {
-        assertTrue(expireLeases == false || primary);
+        assertTrue(!expireLeases || primary);
         final RetentionLeases retentionLeases;
-        if (expireLeases == false) {
+        if (!expireLeases) {
             if (randomBoolean()) {
                 retentionLeases = indexShard.getRetentionLeases();
             } else {
@@ -360,7 +360,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         assertThat(retentionLeases.version(), equalTo(version));
         final Map<String, RetentionLease> idToRetentionLease = new HashMap<>();
         for (final RetentionLease retentionLease : retentionLeases.leases()) {
-            if (ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source()) == false) {
+            if (!ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source())) {
                 idToRetentionLease.put(retentionLease.id(), retentionLease);
             }
         }

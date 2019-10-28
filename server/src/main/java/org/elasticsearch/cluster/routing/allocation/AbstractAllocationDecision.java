@@ -102,7 +102,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
     }
 
     protected void checkDecisionState() {
-        if (isDecisionTaken() == false) {
+        if (!isDecisionTaken()) {
             throw new IllegalStateException("decision was not taken, individual object fields cannot be accessed");
         }
     }
@@ -116,7 +116,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
         builder.field(outerObjectWritten ? "id" : "node_id", node.getId());
         builder.field(outerObjectWritten ? "name" : "node_name", node.getName());
         builder.field("transport_address", node.getAddress().toString());
-        if (node.getAttributes().isEmpty() == false) {
+        if (!node.getAttributes().isEmpty()) {
             builder.startObject(outerObjectWritten ? "attributes" : "node_attributes");
             for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
@@ -140,7 +140,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
     public XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
         throws IOException {
 
-        if (nodeDecisions != null && nodeDecisions.isEmpty() == false) {
+        if (nodeDecisions != null && !nodeDecisions.isEmpty()) {
             builder.startArray("node_allocation_decisions");
             {
                 for (NodeAllocationResult explanation : nodeDecisions) {
@@ -172,7 +172,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
         if (this == other) {
             return true;
         }
-        if (other == null || other instanceof AbstractAllocationDecision == false) {
+        if (other == null || !(other instanceof AbstractAllocationDecision)) {
             return false;
         }
         AbstractAllocationDecision that = (AbstractAllocationDecision) other;

@@ -85,7 +85,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             try (CppLogMessageHandler h = cppLogHandler) {
                 h.tailStream();
             } catch (IOException e) {
-                if (processKilled == false) {
+                if (!processKilled) {
                     LOGGER.error(new ParameterizedMessage("[{}] Error tailing {} process logs", jobId, getName()), e);
                 }
             } finally {
@@ -127,11 +127,11 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         stateProcessorFuture = executorService.submit(() -> {
             try (InputStream in = persistStream) {
                 stateProcessor.process(in);
-                if (processKilled == false) {
+                if (!processKilled) {
                     LOGGER.info("[{}] State output finished", jobId);
                 }
             } catch (IOException e) {
-                if (processKilled == false) {
+                if (!processKilled) {
                     LOGGER.error(new ParameterizedMessage("[{}] Error reading {} state output", jobId, getName()), e);
                 }
             }

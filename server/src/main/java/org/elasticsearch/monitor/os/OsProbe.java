@@ -621,11 +621,11 @@ public class OsProbe {
         final List<String> lines;
         if (Files.exists(PathUtils.get("/etc/os-release"))) {
             lines = Files.readAllLines(PathUtils.get("/etc/os-release"));
-            assert lines != null && lines.isEmpty() == false;
+            assert lines != null && !lines.isEmpty();
             return lines;
         } else if (Files.exists(PathUtils.get("/usr/lib/os-release"))) {
             lines = Files.readAllLines(PathUtils.get("/usr/lib/os-release"));
-            assert lines != null && lines.isEmpty() == false;
+            assert lines != null && !lines.isEmpty();
             return lines;
         } else if (Files.exists(PathUtils.get("/etc/system-release"))) {
             // fallback for older Red Hat-like OS

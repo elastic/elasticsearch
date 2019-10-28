@@ -292,7 +292,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             mapping.put("properties", properties);
 
             Map<String, Object> meta = new HashMap<>();
-            if (version != null && version.equals("NO_VERSION_FIELD") == false) {
+            if (version != null && !version.equals("NO_VERSION_FIELD")) {
                 meta.put("version", version);
             }
             mapping.put("_meta", meta);

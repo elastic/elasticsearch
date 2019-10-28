@@ -345,7 +345,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
             if (hasContextMappings() != other.hasContextMappings()) {
                 conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
-            } else if (hasContextMappings() && contextMappings.equals(other.contextMappings) == false) {
+            } else if (hasContextMappings() && !contextMappings.equals(other.contextMappings)) {
                 conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
             }
         }
@@ -591,7 +591,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                         }
                         weight = weightValue.intValue();
                     } else if (Fields.CONTENT_FIELD_NAME_CONTEXTS.equals(currentFieldName)) {
-                        if (fieldType().hasContextMappings() == false) {
+                        if (!fieldType().hasContextMappings()) {
                             throw new IllegalArgumentException("contexts field is not supported for field: [" + fieldType().name() + "]");
                         }
                         ContextMappings contextMappings = fieldType().getContextMappings();
@@ -616,7 +616,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 }
             }
             for (String input : inputs) {
-                if (inputMap.containsKey(input) == false || inputMap.get(input).weight < weight) {
+                if (!inputMap.containsKey(input) || inputMap.get(input).weight < weight) {
                     inputMap.put(input, new CompletionInputMetaData(input, contextsMap, weight));
                 }
             }
@@ -648,7 +648,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         builder.startObject(simpleName())
                 .field(Fields.TYPE.getPreferredName(), CONTENT_TYPE);
         builder.field(Fields.ANALYZER.getPreferredName(), fieldType().indexAnalyzer().name());
-        if (fieldType().indexAnalyzer().name().equals(fieldType().searchAnalyzer().name()) == false) {
+        if (!fieldType().indexAnalyzer().name().equals(fieldType().searchAnalyzer().name())) {
             builder.field(Fields.SEARCH_ANALYZER.getPreferredName(), fieldType().searchAnalyzer().name());
         }
         builder.field(Fields.PRESERVE_SEPARATORS.getPreferredName(), fieldType().preserveSep());

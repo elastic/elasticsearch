@@ -179,14 +179,14 @@ public final class ApplicationPermission {
             if (this.privilege.equals(other)) {
                 return true;
             }
-            if (this.application.test(other.getApplication()) == false) {
+            if (!this.application.test(other.getApplication())) {
                 return false;
             }
             if (Operations.isTotal(privilege.getAutomaton())) {
                 return true;
             }
-            return Operations.isEmpty(privilege.getAutomaton()) == false
-                && Operations.isEmpty(other.getAutomaton()) == false
+            return !Operations.isEmpty(privilege.getAutomaton())
+                && !Operations.isEmpty(other.getAutomaton())
                 && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
         }
 

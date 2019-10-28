@@ -78,9 +78,9 @@ public abstract class Publication {
             return;
         }
 
-        assert cancelled == false;
+        assert !cancelled;
         cancelled = true;
-        if (applyCommitRequest.isPresent() == false) {
+        if (!applyCommitRequest.isPresent()) {
             logger.debug("cancel: [{}] cancelled before committing (reason: {})", this, reason);
             // fail all current publications
             final Exception e = new ElasticsearchException("publication cancelled before committing: " + reason);
@@ -110,7 +110,7 @@ public abstract class Publication {
             return;
         }
 
-        if (cancelled == false) {
+        if (!cancelled) {
             for (final PublicationTarget target : publicationTargets) {
                 if (target.isActive()) {
                     return;
@@ -118,15 +118,15 @@ public abstract class Publication {
             }
         }
 
-        if (applyCommitRequest.isPresent() == false) {
+        if (!applyCommitRequest.isPresent()) {
             logger.debug("onPossibleCompletion: [{}] commit failed", this);
-            assert isCompleted == false;
+            assert !isCompleted;
             isCompleted = true;
             onCompletion(false);
             return;
         }
 
-        assert isCompleted == false;
+        assert !isCompleted;
         isCompleted = true;
         onCompletion(true);
         assert applyCommitRequest.isPresent();
@@ -135,10 +135,10 @@ public abstract class Publication {
 
     // For assertions only: verify that this invariant holds
     private boolean publicationCompletedIffAllTargetsInactiveOrCancelled() {
-        if (cancelled == false) {
+        if (!cancelled) {
             for (final PublicationTarget target : publicationTargets) {
                 if (target.isActive()) {
-                    return isCompleted == false;
+                    return !isCompleted;
                 }
             }
         }
@@ -165,7 +165,7 @@ public abstract class Publication {
             }
         }
 
-        if (isPublishQuorum(possiblySuccessfulNodes) == false) {
+        if (!isPublishQuorum(possiblySuccessfulNodes)) {
             logger.debug("onPossibleCommitFailure: non-failed nodes {} do not form a quorum, so {} cannot succeed",
                 possiblySuccessfulNodes, this);
             Exception e = new FailedToCommitClusterStateException("non-failed nodes do not form a quorum");
@@ -199,7 +199,7 @@ public abstract class Publication {
     void logIncompleteNodes(Level level) {
         final String message = publicationTargets.stream().filter(PublicationTarget::isActive).map(publicationTarget ->
             publicationTarget.getDiscoveryNode() + " [" + publicationTarget.getState() + "]").collect(Collectors.joining(", "));
-        if (message.isEmpty() == false) {
+        if (!message.isEmpty()) {
             final TimeValue elapsedTime = TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime);
             logger.log(level, "after [{}] publication of cluster state version [{}] is still waiting for {}", elapsedTime,
                 publishRequest.getAcceptedState().version(), message);
@@ -256,7 +256,7 @@ public abstract class Publication {
             } else {
                 try {
                     Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
-                        assert applyCommitRequest.isPresent() == false;
+                        assert !applyCommitRequest.isPresent();
                         applyCommitRequest = Optional.of(applyCommit);
                         ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
                         publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum)

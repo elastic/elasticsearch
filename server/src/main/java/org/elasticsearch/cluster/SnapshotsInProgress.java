@@ -315,7 +315,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      */
     public static boolean completed(ObjectContainer<ShardSnapshotStatus> shards) {
         for (ObjectCursor<ShardSnapshotStatus> status : shards) {
-            if (status.value.state().completed == false) {
+            if (!status.value.state().completed) {
                 return false;
             }
         }
@@ -346,7 +346,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.reason = reason;
             this.generation = generation;
             // If the state is failed we have to have a reason for this failure
-            assert state.failed() == false || reason != null;
+            assert !state.failed() || reason != null;
         }
 
         public ShardSnapshotStatus(StreamInput in) throws IOException {

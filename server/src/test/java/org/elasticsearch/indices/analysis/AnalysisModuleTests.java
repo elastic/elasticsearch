@@ -478,7 +478,7 @@ public class AnalysisModuleTests extends ESTestCase {
 
         @Override
         public boolean incrementToken() throws IOException {
-            if (false == input.incrementToken()) {
+            if (!input.incrementToken()) {
                 return false;
             }
             term.resizeBuffer(term.length() + appendMe.length);

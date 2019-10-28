@@ -84,7 +84,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
                         .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<GetIndexTemplatesResponse>(channel) {
                             @Override
                             protected RestStatus getStatus(final GetIndexTemplatesResponse response) {
-                                final boolean templateExists = response.getIndexTemplates().isEmpty() == false;
+                                final boolean templateExists = !response.getIndexTemplates().isEmpty();
                                 return (templateExists || implicitAll) ? OK : NOT_FOUND;
                             }
                         });

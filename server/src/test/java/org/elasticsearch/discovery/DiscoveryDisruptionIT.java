@@ -160,7 +160,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         isolateAllNodes.stopDisrupting();
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        if (state.metaData().hasIndex("test") == false) {
+        if (!state.metaData().hasIndex("test")) {
             fail("index 'test' was lost. current cluster state: " + state);
         }
 

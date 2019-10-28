@@ -79,7 +79,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             }
         ));
 
-        if (methodTypes.containsKey(executeName) == false) {
+        if (!methodTypes.containsKey(executeName)) {
             throw new IllegalArgumentException("Could not find required method [" + executeName + "] in [" + name + "], found " +
                 methods.stream().map(m -> m.name).sorted().collect(Collectors.joining(", ", "[", "]")));
         } else if ((methodTypes.get(executeName).size() != 1)) {

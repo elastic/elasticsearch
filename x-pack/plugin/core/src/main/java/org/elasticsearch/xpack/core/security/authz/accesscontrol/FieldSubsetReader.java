@@ -177,13 +177,13 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
                 Map<String, ?> mapValue = (Map<String, ?>) value;
                 Map<String, Object> filteredValue = filter(mapValue, includeAutomaton, state);
-                if (filteredValue.isEmpty() == false) {
+                if (!filteredValue.isEmpty()) {
                     filtered.put(key, filteredValue);
                 }
             } else if (value instanceof Iterable) {
                 Iterable<?> iterableValue = (Iterable<?>) value;
                 List<Object> filteredValue = filter(iterableValue, includeAutomaton, state);
-                if (filteredValue.isEmpty() == false) {
+                if (!filteredValue.isEmpty()) {
                     filtered.put(key, filteredValue);
                 }
             } else if (includeAutomaton.isAccept(state)) {
@@ -206,7 +206,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
                 filtered.add(filteredValue);
             } else if (value instanceof Iterable) {
                 List<Object> filteredValue = filter((Iterable<?>) value, includeAutomaton, initialState);
-                if (filteredValue.isEmpty() == false) {
+                if (!filteredValue.isEmpty()) {
                     filtered.add(filteredValue);
                 }
             } else if (includeAutomaton.isAccept(initialState)) {
@@ -380,7 +380,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
         FieldNamesTerms(Terms in) throws IOException {
             super(in);
-            assert in.hasFreqs() == false;
+            assert !in.hasFreqs();
             // re-compute the stats for the field to take
             // into account the filtered terms.
             final TermsEnum e = iterator();
@@ -444,7 +444,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
         @Override
         public void seekExact(BytesRef term, TermState state) throws IOException {
-            if (accept(term) == false) {
+            if (!accept(term)) {
                 throw new IllegalStateException("Tried to seek using a TermState from a different reader!");
             }
             in.seekExact(term, state);

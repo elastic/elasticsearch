@@ -56,7 +56,7 @@ public class RolloverStep extends AsyncActionStep {
             return;
         }
 
-        if (indexMetaData.getAliases().containsKey(rolloverAlias) == false) {
+        if (!indexMetaData.getAliases().containsKey(rolloverAlias)) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
                 indexMetaData.getIndex().getName())));

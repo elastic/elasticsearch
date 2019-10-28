@@ -59,7 +59,7 @@ public class AtomicArray<E> {
     }
 
     public final void setOnce(int i, E value) {
-        if (array.compareAndSet(i, null, value) == false) {
+        if (!array.compareAndSet(i, null, value)) {
             throw new IllegalStateException("index [" + i + "] has already been set");
         }
         if (nonNullList != null) { // read first, lighter, and most times it will be null...

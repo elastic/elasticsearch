@@ -238,7 +238,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
                     throw response.getFailure().getCause();
-                } else if (response.isFailed() == false) {
+                } else if (!response.isFailed()) {
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
                 }
             }
@@ -311,7 +311,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public synchronized void addReplica(IndexShard replica) throws IOException {
-            assert shardRoutings().stream().anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) == false :
+            assert !shardRoutings().stream().anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) :
                 "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
             replicas.add(replica);
             if (replicationTargets != null) {
@@ -478,7 +478,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         public synchronized void close() throws Exception {
-            if (closed == false) {
+            if (!closed) {
                 closed = true;
                 try {
                     final List<DocIdSeqNoAndSource> docsOnPrimary = getDocIdAndSeqNos(primary);

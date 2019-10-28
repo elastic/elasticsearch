@@ -85,7 +85,7 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
     }
 
     private static void assertValueClose(double expected, double actual) {
-        if (Double.isInfinite(expected) == false) {
+        if (!Double.isInfinite(expected)) {
             assertThat(expected, closeTo(actual, GEOHASH_TOLERANCE));
         } else {
             assertTrue(Double.isInfinite(actual));
@@ -145,7 +145,7 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
             negRight += between(1, 20);
             break;
         case 7:
-            wrapLongitude = wrapLongitude == false;
+            wrapLongitude = !wrapLongitude;
             break;
         case 8:
             if (metaData == null) {

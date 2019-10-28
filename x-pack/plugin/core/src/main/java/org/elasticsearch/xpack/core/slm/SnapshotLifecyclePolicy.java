@@ -145,7 +145,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         ActionRequestValidationException err = new ActionRequestValidationException();
 
         // ID validation
-        if (Strings.validFileName(id) == false) {
+        if (!Strings.validFileName(id)) {
             err.addValidationError("invalid policy id [" + id + "]: must not contain the following characters " +
                 Strings.INVALID_FILENAME_CHARS);
         }
@@ -161,7 +161,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         // Snapshot name validation
         // We generate a snapshot name here to make sure it validates after applying date math
         final String snapshotName = generateSnapshotName(new ResolverContext());
-        if (Strings.hasText(name) == false) {
+        if (!Strings.hasText(name)) {
             err.addValidationError("invalid snapshot name [" + name + "]: cannot be empty");
         }
         if (snapshotName.contains("#")) {
@@ -170,16 +170,16 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         if (snapshotName.charAt(0) == '_') {
             err.addValidationError("invalid snapshot name [" + name + "]: must not start with '_'");
         }
-        if (snapshotName.toLowerCase(Locale.ROOT).equals(snapshotName) == false) {
+        if (!snapshotName.toLowerCase(Locale.ROOT).equals(snapshotName)) {
             err.addValidationError("invalid snapshot name [" + name + "]: must be lowercase");
         }
-        if (Strings.validFileName(snapshotName) == false) {
+        if (!Strings.validFileName(snapshotName)) {
             err.addValidationError("invalid snapshot name [" + name + "]: must not contain contain the following characters " +
                 Strings.INVALID_FILENAME_CHARS);
         }
 
         // Schedule validation
-        if (Strings.hasText(schedule) == false) {
+        if (!Strings.hasText(schedule)) {
             err.addValidationError("invalid schedule [" + schedule + "]: must not be empty");
         } else {
             try {
@@ -191,7 +191,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         }
 
         if (configuration != null && configuration.containsKey(METADATA_FIELD_NAME)) {
-            if (configuration.get(METADATA_FIELD_NAME) instanceof Map == false) {
+            if (!(configuration.get(METADATA_FIELD_NAME) instanceof Map)) {
                 err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + " [" + configuration.get(METADATA_FIELD_NAME) +
                     "]: must be an object if present");
             } else {
@@ -216,7 +216,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
 
         // Repository validation, validation of whether the repository actually exists happens
         // elsewhere as it requires cluster state
-        if (Strings.hasText(repository) == false) {
+        if (!Strings.hasText(repository)) {
             err.addValidationError("invalid repository name [" + repository + "]: cannot be empty");
         }
 

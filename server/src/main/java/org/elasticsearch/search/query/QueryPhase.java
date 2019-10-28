@@ -193,7 +193,7 @@ public class QueryPhase implements SearchPhase {
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            if (searchContext.queryCollectors().isEmpty() == false) {
+            if (!searchContext.queryCollectors().isEmpty()) {
                 // plug in additional collectors, like aggregations
                 collectors.add(createMultiCollectorContext(searchContext.queryCollectors().values()));
             }
@@ -205,7 +205,7 @@ public class QueryPhase implements SearchPhase {
             }
 
             boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
-                searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
+                !searchContext.timeout().equals(SearchService.NO_TIMEOUT);
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
@@ -273,7 +273,7 @@ public class QueryPhase implements SearchPhase {
             } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
 
-                if (searchContext.request().allowPartialSearchResults() == false) {
+                if (!searchContext.request().allowPartialSearchResults()) {
                     // Can't rethrow TimeExceededException because not serializable
                     throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
                 }
@@ -334,7 +334,7 @@ public class QueryPhase implements SearchPhase {
         final Sort sort = sortAndFormats.sort;
         for (LeafReaderContext ctx : reader.leaves()) {
             Sort indexSort = ctx.reader().getMetaData().getSort();
-            if (indexSort == null || Lucene.canEarlyTerminate(sort, indexSort) == false) {
+            if (indexSort == null || !Lucene.canEarlyTerminate(sort, indexSort)) {
                 return false;
             }
         }

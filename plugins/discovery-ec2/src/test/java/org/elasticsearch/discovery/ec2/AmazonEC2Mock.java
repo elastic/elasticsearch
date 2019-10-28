@@ -148,14 +148,14 @@ public class AmazonEC2Mock extends AbstractAmazonEC2 {
                                 valueFound = true;
                             }
                         }
-                        if (valueFound == false) {
+                        if (!valueFound) {
                             instanceFound = false;
                         }
                     }
                 }
             }
 
-            if (tagFiltered == false || instanceFound) {
+            if (!tagFiltered || instanceFound) {
                 logger.debug("--> instance added");
                 filteredInstances.add(instance);
             } else {

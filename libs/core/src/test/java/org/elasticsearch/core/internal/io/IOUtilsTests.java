@@ -169,7 +169,7 @@ public class IOUtilsTests extends ESTestCase {
                 Path location = locations[i];
                 while (true) {
                     location = Files.createDirectory(location.resolve(randomAlphaOfLength(8)));
-                    if (rarely() == false) {
+                    if (!rarely()) {
                         Files.createTempFile(location, randomAlphaOfLength(8), null);
                         break;
                     }
@@ -188,7 +188,7 @@ public class IOUtilsTests extends ESTestCase {
         }
 
         for (int i = 0; i < numberOfLocations; i++) {
-            if (locationsThrowingException.contains(locations[i]) == false) {
+            if (!locationsThrowingException.contains(locations[i])) {
                 assertFalse(locations[i].toString(), Files.exists(locations[i]));
             }
         }

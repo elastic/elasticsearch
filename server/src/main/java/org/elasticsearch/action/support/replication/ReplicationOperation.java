@@ -156,7 +156,7 @@ public class ReplicationOperation<
         final ShardRouting primaryRouting = primary.routingEntry();
 
         for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
-            if (shard.isSameAllocation(primaryRouting) == false) {
+            if (!shard.isSameAllocation(primaryRouting)) {
                 performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
             }
         }
@@ -194,7 +194,7 @@ public class ReplicationOperation<
                         "[{}] failure while performing [{}] on replica {}, request [{}]",
                         shard.shardId(), opType, shard, replicaRequest), replicaException);
                     // Only report "critical" exceptions - TODO: Reach out to the master node to get the latest shard state then report.
-                    if (TransportActions.isShardNotAvailableException(replicaException) == false) {
+                    if (!TransportActions.isShardNotAvailableException(replicaException)) {
                         RestStatus restStatus = ExceptionsHelper.status(replicaException);
                         shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
                             shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
@@ -224,7 +224,7 @@ public class ReplicationOperation<
             // when the node with the primary shard is gracefully shutting down.
         } else {
             if (Assertions.ENABLED) {
-                if (failure instanceof ShardStateAction.NoLongerPrimaryShardException == false) {
+                if (!(failure instanceof ShardStateAction.NoLongerPrimaryShardException)) {
                     throw new AssertionError("unexpected failure", failure);
                 }
             }

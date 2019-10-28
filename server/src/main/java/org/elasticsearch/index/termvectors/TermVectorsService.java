@@ -178,7 +178,7 @@ public class TermVectorsService  {
 
     private static boolean isValidField(MappedFieldType fieldType) {
         // must be a string
-        if (fieldType instanceof StringFieldType == false) {
+        if (!(fieldType instanceof StringFieldType)) {
             return false;
         }
         // and must be indexed
@@ -264,9 +264,9 @@ public class TermVectorsService  {
         }
         if (source != null) {
             for (String field : fields) {
-                if (values.containsKey(field) == false) {
+                if (!values.containsKey(field)) {
                     List<Object> v = XContentMapValues.extractRawValues(field, source);
-                    if (v.isEmpty() == false) {
+                    if (!v.isEmpty()) {
                         values.put(field, v);
                     }
                 }

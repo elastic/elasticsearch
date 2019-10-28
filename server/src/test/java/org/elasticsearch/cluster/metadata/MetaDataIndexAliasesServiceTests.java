@@ -105,7 +105,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT).build();
         final var addActions = new ArrayList<AliasAction>(length);
         for (int i = 0; i < length; i++) {
-            final String index = randomValueOtherThanMany(v -> indices.add(v) == false, () -> randomAlphaOfLength(8));
+            final String index = randomValueOtherThanMany(v -> !indices.add(v), () -> randomAlphaOfLength(8));
             before = createIndex(before, index);
             addActions.add(new AliasAction.Add(index, "alias-" + index, null, null, null, null));
         }
@@ -172,7 +172,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         final var aliasNames = new HashSet<String>();
         final var addActions = new ArrayList<AliasAction>(length);
         for (int i = 0; i < length; i++) {
-            final String aliasName = randomValueOtherThanMany(v -> aliasNames.add(v) == false, () -> randomAlphaOfLength(8));
+            final String aliasName = randomValueOtherThanMany(v -> !aliasNames.add(v), () -> randomAlphaOfLength(8));
             addActions.add(new AliasAction.Add(index, aliasName, null, null, null, null));
         }
         final ClusterState afterAddingAlias = service.innerExecute(before, addActions);

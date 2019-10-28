@@ -51,7 +51,7 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
         Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
-        if (Files.exists(publicKeyPath) == false) {
+        if (!Files.exists(publicKeyPath)) {
             throw new UserException(ExitCodes.USAGE, publicKeyPath + " does not exist");
         }
 
@@ -63,7 +63,7 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
                     License.fromSource(bytes, XContentType.JSON);
         } else if (options.has(licenseFileOption)) {
             Path licenseSpecPath = parsePath(licenseFileOption.value(options));
-            if (Files.exists(licenseSpecPath) == false) {
+            if (!Files.exists(licenseSpecPath)) {
                 throw new UserException(ExitCodes.USAGE, licenseSpecPath + " does not exist");
             }
             final BytesArray bytes = new BytesArray(Files.readAllBytes(licenseSpecPath));

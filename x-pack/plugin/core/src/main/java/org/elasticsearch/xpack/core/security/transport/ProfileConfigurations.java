@@ -38,7 +38,7 @@ public final class ProfileConfigurations {
             profileConfiguration.put(profileName, configuration);
         }
 
-        assert profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false;
+        assert !profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE);
         profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, defaultConfiguration);
         return profileConfiguration;
     }

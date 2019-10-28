@@ -94,7 +94,7 @@ public class TransportExplainLifecycleAction
             // parse existing phase steps from the phase definition in the index settings
             String phaseDef = lifecycleState.getPhaseDefinition();
             PhaseExecutionInfo phaseExecutionInfo = null;
-            if (Strings.isNullOrEmpty(phaseDef) == false) {
+            if (!Strings.isNullOrEmpty(phaseDef)) {
                 try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
                     phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
@@ -107,8 +107,8 @@ public class TransportExplainLifecycleAction
             final IndexLifecycleExplainResponse indexResponse;
             if (Strings.hasLength(policyName)) {
                 // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
-                if (request.onlyErrors() == false
-                    || (ErrorStep.NAME.equals(lifecycleState.getStep()) || indexLifecycleService.policyExists(policyName) == false)) {
+                if (!request.onlyErrors()
+                    || (ErrorStep.NAME.equals(lifecycleState.getStep()) || !indexLifecycleService.policyExists(policyName))) {
                     Long originationDate = idxSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
                     indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
                         originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate(),
@@ -124,7 +124,7 @@ public class TransportExplainLifecycleAction
                 } else {
                     indexResponse = null;
                 }
-            } else if (request.onlyManaged() == false && request.onlyErrors() == false) {
+            } else if (!request.onlyManaged() && !request.onlyErrors()) {
                 indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             } else {
                 indexResponse = null;

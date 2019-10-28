@@ -154,7 +154,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     }
 
     protected void addDefaultSecurityTransportType(Settings.Builder builder, Settings settings) {
-        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings) == false) {
+        if (!NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
             builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), SecurityField.NAME4);
         }
     }
@@ -185,7 +185,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     protected SecureString nodeClientPassword() {
         return new SecureString(TEST_PASSWORD.toCharArray());
     }
-    
+
     public static void addSSLSettingsForNodePEMFiles(Settings.Builder builder, String prefix, boolean hostnameVerificationEnabled) {
         addSSLSettingsForPEMFiles(builder, prefix,
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",
@@ -302,7 +302,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         addSecureSettings(builder, secureSettings ->
             secureSettings.setString(finalPrefix + "ssl.secure_key_passphrase", password));
 
-        if (trustedCertificates.isEmpty() == false) {
+        if (!trustedCertificates.isEmpty()) {
             builder.put(prefix + "ssl.certificate_authorities",
                     Strings.arrayToCommaDelimitedString(resolvePathsToString(trustedCertificates)));
         }

@@ -213,12 +213,12 @@ public class MonitoringService extends AbstractLifecycleComponent {
 
         @Override
         public void doRun() {
-            if (shouldScheduleExecution() == false) {
+            if (!shouldScheduleExecution()) {
                 logger.debug("monitoring execution is skipped");
                 return;
             }
 
-            if (semaphore.tryAcquire() == false) {
+            if (!semaphore.tryAcquire()) {
                 logger.debug("monitoring execution is skipped until previous execution terminated");
                 return;
             }
@@ -232,7 +232,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
 
                     final Collection<MonitoringDoc> results = new ArrayList<>();
                     for (Collector collector : collectors) {
-                        if (isStarted() == false) {
+                        if (!isStarted()) {
                             // Do not collect more data if the monitoring service is stopping
                             // otherwise some collectors might just fail.
                             return;
@@ -279,7 +279,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
             try {
                 // Block until the lock can be acquired or 10s. The timed try acquire is necessary as there may be a failure that causes
                 // the semaphore to not get released and then the node will hang forever on shutdown
-                if (semaphore.tryAcquire(10L, TimeUnit.SECONDS) == false) {
+                if (!semaphore.tryAcquire(10L, TimeUnit.SECONDS)) {
                     logger.warn("monitoring execution did not complete after waiting for 10s");
                 }
             } catch (InterruptedException e) {

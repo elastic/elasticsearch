@@ -146,7 +146,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 default:
                     throw new AssertionError("unknown type:" + current.opType());
             }
-            if (failure == false) {
+            if (!failure) {
                 expectedLocation = location;
             }
             context.markOperationAsExecuted(result);

@@ -68,7 +68,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
             Map<DiscoveryNode, NodeGatewayStartedShards> foundShards = knownAllocations.values().stream()
                 .flatMap(shardMap -> shardMap.values().stream())
                 .filter(ks -> ks.shardId().equals(shardId))
-                .filter(ks -> ignoreNodes.contains(ks.currentNodeId()) == false)
+                .filter(ks -> !ignoreNodes.contains(ks.currentNodeId()))
                 .filter(ks -> currentNodes.nodeExists(ks.currentNodeId()))
                 .collect(Collectors.toMap(
                     routing -> currentNodes.get(routing.currentNodeId()),

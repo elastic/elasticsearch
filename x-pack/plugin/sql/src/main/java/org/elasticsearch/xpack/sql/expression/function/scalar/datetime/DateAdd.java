@@ -89,7 +89,7 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
 
         if (first().foldable()) {
             String datePartValue = (String) first().fold();
-            if (datePartValue != null && resolveDateTimeField(datePartValue) == false) {
+            if (datePartValue != null && !resolveDateTimeField(datePartValue)) {
                 List<String> similar = findSimilarDateTimeFields(datePartValue);
                 if (similar.isEmpty()) {
                     return new TypeResolution(format(null, "first argument of [{}] must be one of {} or their aliases; found value [{}]",

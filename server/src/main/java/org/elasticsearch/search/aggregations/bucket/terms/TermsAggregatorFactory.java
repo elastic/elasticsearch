@@ -119,11 +119,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
+        if (!collectsFromSingleBucket) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
-        if (InternalOrder.isKeyOrder(order) == false
+        if (!InternalOrder.isKeyOrder(order)
                 && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
@@ -137,7 +137,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 execution = ExecutionMode.fromString(executionHint, deprecationLogger);
             }
             // In some cases, using ordinals is just not supported: override it
-            if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
+            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
                 execution = ExecutionMode.MAP;
             }
             final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, searchContext.searcher()) : -1;
@@ -274,7 +274,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
                 if (factories == AggregatorFactories.EMPTY &&
                         includeExclude == null &&
-                        Aggregator.descendsFromBucketAggregator(parent) == false &&
+                    !Aggregator.descendsFromBucketAggregator(parent) &&
                         ordinalsValuesSource.supportsGlobalOrdinalsMapping() &&
                         // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
                         (COLLECT_SEGMENT_ORDS!= null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
@@ -300,9 +300,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 } else {
                     remapGlobalOrds = true;
                     if (includeExclude == null &&
-                            Aggregator.descendsFromBucketAggregator(parent) == false &&
+                        !Aggregator.descendsFromBucketAggregator(parent) &&
                             (factories == AggregatorFactories.EMPTY ||
-                                (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
+                                (!isAggregationSort(order) && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
                         /**
                          * We don't need to remap global ords iff this aggregator:
                          *    - has no include/exclude rules AND

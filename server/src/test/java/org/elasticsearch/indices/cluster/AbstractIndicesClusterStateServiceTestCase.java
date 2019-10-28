@@ -95,7 +95,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         ConcurrentMap<ShardId, ShardRouting> failedShardsCache = indicesClusterStateService.failedShardsCache;
         RoutingNode localRoutingNode = state.getRoutingNodes().node(state.getNodes().getLocalNodeId());
         if (localRoutingNode != null) {
-            if (enableRandomFailures == false) {
+            if (!enableRandomFailures) {
                 // initializing a shard should succeed when enableRandomFailures is disabled
                 // active shards can be failed if state persistence was disabled in an earlier CS update
                 if (failedShardsCache.values().stream().anyMatch(ShardRouting::initializing)) {
@@ -115,14 +115,14 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                         fail("Shard with id " + shardRouting + " should be removed from indicesService due to disabled state persistence");
                     }
                 } else {
-                    if (failedShard != null && failedShard.isSameAllocation(shardRouting) == false) {
+                    if (failedShard != null && !failedShard.isSameAllocation(shardRouting)) {
                         fail("Shard cache has not been properly cleaned for " + failedShard);
                     }
                     if (shard == null && failedShard == null) {
                         // shard must either be there or there must be a failure
                         fail("Shard with id " + shardRouting + " expected but missing in indicesService and failedShardsCache");
                     }
-                    if (enableRandomFailures == false) {
+                    if (!enableRandomFailures) {
                         if (shard == null && shardRouting.initializing() && failedShard == shardRouting) {
                             // initializing a shard should succeed when enableRandomFailures is disabled
                             fail("Shard with id " + shardRouting + " expected but missing in indicesService " + failedShard);
@@ -136,7 +136,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                         // index metadata has been updated
                         assertThat(indexService.getIndexSettings().getIndexMetaData(), equalTo(indexMetaData));
                         // shard has been created
-                        if (enableRandomFailures == false || failedShard == null) {
+                        if (!enableRandomFailures || failedShard == null) {
                             assertTrue("Shard with id " + shardRouting + " expected but missing in indexService", shard != null);
                             // shard has latest shard routing
                             assertThat(shard.routingEntry(), equalTo(shardRouting));
@@ -172,12 +172,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 if (shardRouting == null) {
                     fail("Shard with id " + persistedShardRouting + " locally exists but missing in routing table");
                 }
-                if (shardRouting.equals(persistedShardRouting) == false) {
+                if (!shardRouting.equals(persistedShardRouting)) {
                     fail("Local shard " + persistedShardRouting + " has stale routing" + shardRouting);
                 }
             }
 
-            if (shardsFound == false) {
+            if (!shardsFound) {
                 // check if we have shards of that index in failedShardsCache
                 // if yes, we might not have cleaned the index as failedShardsCache can be populated by another thread
                 assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(indexService.index())));
@@ -304,7 +304,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public synchronized void removeShard(int shardId, String reason) {
-            if (shards.containsKey(shardId) == false) {
+            if (!shards.containsKey(shardId)) {
                 return;
             }
             HashMap<Integer, MockIndexShard> newShards = new HashMap<>(shards);

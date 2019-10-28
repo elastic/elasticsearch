@@ -92,7 +92,7 @@ class HdfsSecurityContext {
     static Path locateKeytabFile(Environment environment) {
         Path keytabPath = environment.configFile().resolve("repository-hdfs").resolve("krb5.keytab");
         try {
-            if (Files.exists(keytabPath) == false) {
+            if (!Files.exists(keytabPath)) {
                 throw new RuntimeException("Could not locate keytab at [" + keytabPath + "].");
             }
         } catch (SecurityException se) {

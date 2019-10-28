@@ -342,7 +342,7 @@ public enum FieldData {
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                if (values.advanceExact(doc) == false) {
+                if (!values.advanceExact(doc)) {
                     return false;
                 }
                 for (int i = 0; ; ++i) {
@@ -397,7 +397,7 @@ public enum FieldData {
 
             @Override
             public boolean advanceExact(int docID) throws IOException {
-                if (toStringValues.advanceExact(docID) == false) {
+                if (!toStringValues.advanceExact(docID)) {
                     return false;
                 }
                 list.clear();

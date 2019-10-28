@@ -127,14 +127,14 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
                               ActionListener<String> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
-            && mapperService.documentMapper().sourceMapper().isComplete() == false) {
+            && !mapperService.documentMapper().sourceMapper().isComplete()) {
             listener.onFailure(
                 new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
                     "or filters the source"));
             return;
         }
         Directory unwrap = FilterDirectory.unwrap(store.directory());
-        if (unwrap instanceof FSDirectory == false) {
+        if (!(unwrap instanceof FSDirectory)) {
             throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
         }
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
@@ -204,7 +204,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             @Override
             public Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
                 String delegateType = DELEGATE_TYPE.get(metaData.settings());
-                if (Strings.hasLength(delegateType) == false) {
+                if (!Strings.hasLength(delegateType)) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);

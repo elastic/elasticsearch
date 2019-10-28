@@ -38,12 +38,12 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     public void testNulls() throws IOException {
         assertQuery("SELECT NULL", "NULL", "null", null, 0);
     }
-    
+
     public void testBooleanType() throws IOException {
         assertQuery("SELECT TRUE", "TRUE", "boolean", true, 1);
         assertQuery("SELECT FALSE", "FALSE", "boolean", false, 1);
     }
-    
+
     public void testNumericTypes() throws IOException {
         assertQuery("SELECT CAST(3 AS TINYINT)", "CAST(3 AS TINYINT)", "byte", 3, 5);
         assertQuery("SELECT CAST(-123 AS TINYINT)", "CAST(-123 AS TINYINT)", "byte", -123, 5);
@@ -60,11 +60,11 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         assertQuery("SELECT CAST(1234567890123.34 AS FLOAT)", "CAST(1234567890123.34 AS FLOAT)", "double", 1234567890123.34, 25);
         assertQuery("SELECT CAST(-1234567890123.34 AS FLOAT)", "CAST(-1234567890123.34 AS FLOAT)", "double", -1234567890123.34, 25);
     }
-    
+
     public void testTextualType() throws IOException {
         assertQuery("SELECT 'abc123'", "'abc123'", "keyword", "abc123", 32766);
     }
-    
+
     public void testDateTimes() throws IOException {
         assertQuery("SELECT CAST('2019-01-14T12:29:25.000Z' AS DATETIME)", "CAST('2019-01-14T12:29:25.000Z' AS DATETIME)",
             "datetime", "2019-01-14T12:29:25.000Z", 29);
@@ -85,13 +85,13 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         assertQuery("SELECT CAST(-26853765751000 AS TIME)", "CAST(-26853765751000 AS TIME)",
             "time", "12:37:29.000Z", 18);
     }
-    
+
     public void testIPs() throws IOException {
         assertQuery("SELECT CAST('12.13.14.15' AS IP)", "CAST('12.13.14.15' AS IP)", "ip", "12.13.14.15", 0);
         assertQuery("SELECT CAST('2001:0db8:0000:0000:0000:ff00:0042:8329' AS IP)", "CAST('2001:0db8:0000:0000:0000:ff00:0042:8329' AS IP)",
                 "ip", "2001:0db8:0000:0000:0000:ff00:0042:8329", 0);
     }
-    
+
     public void testDateTimeIntervals() throws IOException {
         assertQuery("SELECT INTERVAL '326' YEAR", "INTERVAL '326' YEAR", "interval_year", "P326Y", "+326-0", 7);
         assertQuery("SELECT INTERVAL '50' MONTH", "INTERVAL '50' MONTH", "interval_month", "P50M", "+0-50", 7);
@@ -121,7 +121,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             throws IOException {
         assertQuery(sql, columnName, columnType, columnValue, null, displaySize);
     }
-    
+
     private void assertQuery(String sql, String columnName, String columnType, Object columnValue, Object cliColumnValue, int displaySize)
             throws IOException {
         for (Mode mode : Mode.values()) {
@@ -129,7 +129,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             assertQuery(sql, columnName, columnType, isCliCheck ? cliColumnValue : columnValue, displaySize, mode);
         }
     }
-    
+
     @SuppressWarnings({ "unchecked" })
     private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize, Mode mode)
             throws IOException {
@@ -147,8 +147,8 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         } else {
             assertEquals(2, column.size());
         }
-        
-        List<Object> rows = (ArrayList<Object>) response.get(columnar == true ? "values" : "rows");
+
+        List<Object> rows = (ArrayList<Object>) response.get(columnar ? "values" : "rows");
         assertEquals(1, rows.size());
         List<Object> row = (ArrayList<Object>) rows.get(0);
         assertEquals(1, row.size());
@@ -161,12 +161,12 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             assertEquals(columnValue, row.get(0));
         }
     }
-    
+
     private Map<String, Object> runSql(String mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode) + "}";
         String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
-        
+
         // add a client_id to the request
         if (randomBoolean()) {
             String clientId = randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20));
@@ -190,12 +190,12 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/" + format));
             request.setOptions(options);
         }
-        if ((false == columnar && randomBoolean()) || columnar) {
+        if ((!columnar && randomBoolean()) || columnar) {
             // randomly set the "columnar" parameter, either "true" (non-default) or explicit "false" (the default anyway)
             requestContent = new StringBuilder(requestContent)
                     .insert(requestContent.length() - 1, ",\"columnar\":" + columnar).toString();
         }
-        
+
         // send the query either as body or as request parameter
         if (randomBoolean()) {
             request.setEntity(new StringEntity(requestContent, ContentType.APPLICATION_JSON));

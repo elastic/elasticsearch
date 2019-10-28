@@ -122,7 +122,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             case NONE:
                 return allocation.decision(Decision.NO, NAME, "no allocations are allowed due to %s", setting(enable, usedIndexSetting));
             case NEW_PRIMARIES:
-                if (shardRouting.primary() && shardRouting.active() == false &&
+                if (shardRouting.primary() && !shardRouting.active() &&
                     shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
                     return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
                 } else {
@@ -189,7 +189,7 @@ public class EnableAllocationDecider extends AllocationDecider {
                                                 setting(enable, usedIndexSetting));
                 }
             case REPLICAS:
-                if (shardRouting.primary() == false) {
+                if (!shardRouting.primary()) {
                     return allocation.decision(Decision.YES, NAME, "replica rebalancing is allowed");
                 } else {
                     return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to %s",

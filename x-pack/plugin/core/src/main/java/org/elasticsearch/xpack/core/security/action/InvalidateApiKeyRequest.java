@@ -141,8 +141,8 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(id) == false
-            && Strings.hasText(name) == false && ownedByAuthenticatedUser == false) {
+        if (!Strings.hasText(realmName) && !Strings.hasText(userName) && !Strings.hasText(id)
+            && !Strings.hasText(name) && !ownedByAuthenticatedUser) {
             validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified if " +
                 "[owner] flag is false", validationException);
         }

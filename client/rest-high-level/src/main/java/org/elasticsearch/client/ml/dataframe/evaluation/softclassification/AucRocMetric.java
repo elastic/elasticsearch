@@ -138,7 +138,7 @@ public class AucRocMetric implements EvaluationMetric {
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field(SCORE.getPreferredName(), score);
-            if (curve != null && curve.isEmpty() == false) {
+            if (curve != null && !curve.isEmpty()) {
                 builder.field(CURVE.getPreferredName(), curve);
             }
             builder.endObject();

@@ -140,7 +140,7 @@ public final class GrokPatternCreator {
                                               boolean isFirst, boolean isLast, Collection<String> mustMatchStrings) {
 
         GrokPatternCandidate bestCandidate = null;
-        if (mustMatchStrings.isEmpty() == false) {
+        if (!mustMatchStrings.isEmpty()) {
             for (GrokPatternCandidate candidate : ORDERED_CANDIDATE_GROK_PATTERNS) {
                 if (mustMatchStrings.stream().allMatch(candidate.grok::match)) {
                     bestCandidate = candidate;

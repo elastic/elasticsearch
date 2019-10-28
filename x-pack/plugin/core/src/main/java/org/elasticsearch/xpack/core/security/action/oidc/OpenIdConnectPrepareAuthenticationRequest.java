@@ -89,7 +89,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(realmName) == false && Strings.hasText(issuer) == false) {
+        if (!Strings.hasText(realmName) && !Strings.hasText(issuer)) {
             validationException = addValidationError("one of [realm, issuer] must be provided", null);
         }
         if (Strings.hasText(realmName) && Strings.hasText(issuer)) {

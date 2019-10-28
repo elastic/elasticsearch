@@ -259,10 +259,10 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         }
         if (id != null) builder.field("_id", id);
         // set values only when different from defaults
-        if (requestPositions == false) builder.field("positions", false);
-        if (requestPayloads == false) builder.field("payloads", false);
-        if (requestOffsets == false) builder.field("offsets", false);
-        if (requestFieldStatistics == false) builder.field("field_statistics", false);
+        if (!requestPositions) builder.field("positions", false);
+        if (!requestPayloads) builder.field("payloads", false);
+        if (!requestOffsets) builder.field("offsets", false);
+        if (!requestFieldStatistics) builder.field("field_statistics", false);
         if (requestTermStatistics) builder.field("term_statistics", true);
         if (perFieldAnalyzer != null) builder.field("per_field_analyzer", perFieldAnalyzer);
 

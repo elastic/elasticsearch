@@ -375,13 +375,13 @@ public class FileStructure implements ToXContentObject, Writeable {
             builder.field(HAS_BYTE_ORDER_MARKER.getPreferredName(), hasByteOrderMarker.booleanValue());
         }
         builder.field(FORMAT.getPreferredName(), format);
-        if (multilineStartPattern != null && multilineStartPattern.isEmpty() == false) {
+        if (multilineStartPattern != null && !multilineStartPattern.isEmpty()) {
             builder.field(MULTILINE_START_PATTERN.getPreferredName(), multilineStartPattern);
         }
-        if (excludeLinesPattern != null && excludeLinesPattern.isEmpty() == false) {
+        if (excludeLinesPattern != null && !excludeLinesPattern.isEmpty()) {
             builder.field(EXCLUDE_LINES_PATTERN.getPreferredName(), excludeLinesPattern);
         }
-        if (columnNames != null && columnNames.isEmpty() == false) {
+        if (columnNames != null && !columnNames.isEmpty()) {
             builder.field(COLUMN_NAMES.getPreferredName(), columnNames);
         }
         if (hasHeaderRow != null) {
@@ -396,16 +396,16 @@ public class FileStructure implements ToXContentObject, Writeable {
         if (shouldTrimFields != null) {
             builder.field(SHOULD_TRIM_FIELDS.getPreferredName(), shouldTrimFields.booleanValue());
         }
-        if (grokPattern != null && grokPattern.isEmpty() == false) {
+        if (grokPattern != null && !grokPattern.isEmpty()) {
             builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
         }
-        if (timestampField != null && timestampField.isEmpty() == false) {
+        if (timestampField != null && !timestampField.isEmpty()) {
             builder.field(TIMESTAMP_FIELD.getPreferredName(), timestampField);
         }
-        if (jodaTimestampFormats != null && jodaTimestampFormats.isEmpty() == false) {
+        if (jodaTimestampFormats != null && !jodaTimestampFormats.isEmpty()) {
             builder.field(JODA_TIMESTAMP_FORMATS.getPreferredName(), jodaTimestampFormats);
         }
-        if (javaTimestampFormats != null && javaTimestampFormats.isEmpty() == false) {
+        if (javaTimestampFormats != null && !javaTimestampFormats.isEmpty()) {
             builder.field(JAVA_TIMESTAMP_FORMATS.getPreferredName(), javaTimestampFormats);
         }
         builder.field(NEED_CLIENT_TIMEZONE.getPreferredName(), needClientTimezone);
@@ -413,7 +413,7 @@ public class FileStructure implements ToXContentObject, Writeable {
         if (ingestPipeline != null) {
             builder.field(INGEST_PIPELINE.getPreferredName(), ingestPipeline);
         }
-        if (fieldStats.isEmpty() == false) {
+        if (!fieldStats.isEmpty()) {
             builder.startObject(FIELD_STATS.getPreferredName());
             for (Map.Entry<String, FieldStats> entry : fieldStats.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
@@ -637,7 +637,7 @@ public class FileStructure implements ToXContentObject, Writeable {
                 throw new IllegalArgumentException("A character set must be specified.");
             }
 
-            if (charset.toUpperCase(Locale.ROOT).startsWith("UTF") == false && hasByteOrderMarker != null) {
+            if (!charset.toUpperCase(Locale.ROOT).startsWith("UTF") && hasByteOrderMarker != null) {
                 throw new IllegalArgumentException("A byte order marker is only possible for UTF character sets.");
             }
 
@@ -703,8 +703,8 @@ public class FileStructure implements ToXContentObject, Writeable {
             }
 
             boolean isTimestampFieldSpecified = (timestampField != null);
-            boolean isJodaTimestampFormatsSpecified = (jodaTimestampFormats != null && jodaTimestampFormats.isEmpty() == false);
-            boolean isJavaTimestampFormatsSpecified = (javaTimestampFormats != null && javaTimestampFormats.isEmpty() == false);
+            boolean isJodaTimestampFormatsSpecified = (jodaTimestampFormats != null && !jodaTimestampFormats.isEmpty());
+            boolean isJavaTimestampFormatsSpecified = (javaTimestampFormats != null && !javaTimestampFormats.isEmpty());
 
             if (isTimestampFieldSpecified != isJodaTimestampFormatsSpecified) {
                 throw new IllegalArgumentException(
@@ -716,7 +716,7 @@ public class FileStructure implements ToXContentObject, Writeable {
                     "Timestamp field and Java timestamp formats must both be specified or neither be specified.");
             }
 
-            if (needClientTimezone && isTimestampFieldSpecified == false) {
+            if (needClientTimezone && !isTimestampFieldSpecified) {
                 throw new IllegalArgumentException("Client timezone cannot be needed if there is no timestamp field.");
             }
 

@@ -244,7 +244,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     }
                     final long startTime = snapshotInfo.startTime();
                     final long endTime = snapshotInfo.endTime();
-                    assert endTime >= startTime || (endTime == 0L && snapshotInfo.state().completed() == false)
+                    assert endTime >= startTime || (endTime == 0L && !snapshotInfo.state().completed())
                         : "Inconsistent timestamps found in SnapshotInfo [" + snapshotInfo + "]";
                     builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state,
                         Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState(),

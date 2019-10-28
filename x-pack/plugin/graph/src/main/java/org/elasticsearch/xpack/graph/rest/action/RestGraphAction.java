@@ -74,7 +74,7 @@ public class RestGraphAction extends BaseRestHandler {
         if (request.hasParam(TIMEOUT_FIELD.getPreferredName())) {
             graphRequest.timeout(request.paramAsTime(TIMEOUT_FIELD.getPreferredName(), null));
         }
-        if (false == request.hasContentOrSourceParam()) {
+        if (!request.hasContentOrSourceParam()) {
             throw new ElasticsearchParseException("Body missing for graph request");
         }
 

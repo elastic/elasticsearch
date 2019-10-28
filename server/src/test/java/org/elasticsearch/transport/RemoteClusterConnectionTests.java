@@ -157,7 +157,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             success = true;
             return newService;
         } finally {
-            if (success == false) {
+            if (!success) {
                 newService.close();
             }
         }
@@ -269,9 +269,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                                     latch.countDown();
                                                 } else {
                                                     final String message = x.getMessage();
-                                                    if ((executed.get().getClass() == x.getClass()
+                                                    if (!(executed.get().getClass() == x.getClass()
                                                         && "operation was cancelled reason [connect handler is closed]".equals(message)
-                                                        && message.equals(executed.get().getMessage())) == false) {
+                                                        && message.equals(executed.get().getMessage()))) {
                                                         // we do cancel the operation and that means that if timing allows it, the caller
                                                         // of a blocking call as well as the handler will get the exception from the
                                                         // ExecutionCancelledException concurrently. unless that is the case we fail

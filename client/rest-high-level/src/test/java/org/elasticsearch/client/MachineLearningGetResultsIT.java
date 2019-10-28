@@ -831,7 +831,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
                     machineLearningClient::getOverallBucketsAsync);
 
             assertThat(response.count(), equalTo(240L));
-            assertThat(response.overallBuckets().stream().allMatch(b -> b.isInterim() == false), is(true));
+            assertThat(response.overallBuckets().stream().allMatch(b -> !b.isInterim()), is(true));
         }
         {
             GetOverallBucketsRequest request = new GetOverallBucketsRequest(JOB_ID);

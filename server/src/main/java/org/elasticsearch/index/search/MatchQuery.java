@@ -794,7 +794,7 @@ public class MatchQuery {
         }
 
         private void checkForPositions(String field) {
-            if (hasPositions(fieldType) == false) {
+            if (!hasPositions(fieldType)) {
                 throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
         }

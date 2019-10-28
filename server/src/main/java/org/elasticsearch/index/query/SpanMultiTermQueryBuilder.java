@@ -97,7 +97,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
-                    if (query instanceof MultiTermQueryBuilder == false) {
+                    if (!(query instanceof MultiTermQueryBuilder)) {
                         throw new ParsingException(parser.getTokenLocation(),
                             "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
                     }
@@ -160,13 +160,13 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             }
             if (subQuery instanceof MatchNoDocsQuery) {
                 return new SpanMatchNoDocsQuery(multiTermQueryBuilder.fieldName(), subQuery.toString());
-            } else if (subQuery instanceof MultiTermQuery == false) {
+            } else if (!(subQuery instanceof MultiTermQuery)) {
                 throw new UnsupportedOperationException("unsupported inner query, should be "
                     + MultiTermQuery.class.getName() + " but was " + subQuery.getClass().getName());
             }
             MultiTermQuery multiTermQuery = (MultiTermQuery) subQuery;
             SpanMultiTermQueryWrapper<?> wrapper = new SpanMultiTermQueryWrapper<>(multiTermQuery);
-            if (multiTermQuery.getRewriteMethod() instanceof TopTermsRewrite == false) {
+            if (!(multiTermQuery.getRewriteMethod() instanceof TopTermsRewrite)) {
                 wrapper.setRewriteMethod(new SpanBooleanQueryRewriteWithMaxClause());
             }
             return wrapper;

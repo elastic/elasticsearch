@@ -102,10 +102,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
      */
     public void getRoleDescriptors(Set<String> names, final ActionListener<RoleRetrievalResult> listener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason()));
         } else if (names == null || names.isEmpty()) {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
@@ -160,9 +160,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(false);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
@@ -232,7 +232,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = new HashMap<>(3);
-        if (securityIndex.isAvailable() == false) {
+        if (!securityIndex.isAvailable()) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
@@ -302,10 +302,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             // TODO remove this short circuiting and fix tests that fail without this!
             resultListener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             resultListener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason()));
         } else {
             securityIndex.checkIndexVersionThenExecute(e -> resultListener.onResponse(RoleRetrievalResult.failure(e)),
@@ -354,7 +354,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     @Nullable
     private RoleDescriptor transformRole(GetResponse response) {
-        if (response.isExists() == false) {
+        if (!response.isExists()) {
             return null;
         }
 

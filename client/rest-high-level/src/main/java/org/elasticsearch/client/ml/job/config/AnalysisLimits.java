@@ -123,7 +123,7 @@ public class AnalysisLimits implements ToXContentObject {
             return true;
         }
 
-        if (other instanceof AnalysisLimits == false) {
+        if (!(other instanceof AnalysisLimits)) {
             return false;
         }
 

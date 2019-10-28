@@ -57,8 +57,8 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         if (Strings.isNullOrEmpty(authorizationHeader)) {
             return null;
         }
-        if (authorizationHeader.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, NEGOTIATE_AUTH_HEADER_PREFIX, 0,
-                NEGOTIATE_AUTH_HEADER_PREFIX.length()) == false) {
+        if (!authorizationHeader.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, NEGOTIATE_AUTH_HEADER_PREFIX, 0,
+            NEGOTIATE_AUTH_HEADER_PREFIX.length())) {
             return null;
         }
 

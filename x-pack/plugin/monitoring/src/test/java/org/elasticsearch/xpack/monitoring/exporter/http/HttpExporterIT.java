@@ -401,7 +401,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         assertThat(request.getMethod(), equalTo("GET"));
         final String pathPrefix = basePathToAssertablePrefix(basePath);
-        if (Strings.isEmpty(pathPrefix) == false) {
+        if (!Strings.isEmpty(pathPrefix)) {
             assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/"));
         }
         assertThat(request.getUri().getQuery(), equalTo("filter_path=version.number"));
@@ -464,7 +464,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             assertMonitorVersionQueryString(getRequest.getUri().getQuery(), Collections.emptyMap());
             assertHeaders(getRequest, customHeaders);
 
-            if (alreadyExists == false) {
+            if (!alreadyExists) {
                 final MockRequest putRequest = webServer.takeRequest();
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
@@ -518,13 +518,13 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 request = webServer.takeRequest();
 
                 // GET / PUT if we are allowed to use it
-                if (currentLicenseAllowsWatcher && clusterAlertBlacklist.contains(watch.v1()) == false) {
+                if (currentLicenseAllowsWatcher && !clusterAlertBlacklist.contains(watch.v1())) {
                     assertThat(request.getMethod(), equalTo("GET"));
                     assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_watcher/watch/" + uniqueWatchId));
                     assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                     assertHeaders(request, customHeaders);
 
-                    if (alreadyExists == false) {
+                    if (!alreadyExists) {
                         request = webServer.takeRequest();
 
                         assertThat(request.getMethod(), equalTo("PUT"));

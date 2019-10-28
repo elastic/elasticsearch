@@ -147,7 +147,7 @@ class ScrollDataExtractor implements DataExtractor {
 
         scrollId = searchResponse.getScrollId();
 
-        if (searchResponse.getFailedShards() > 0 && searchHasShardFailure == false) {
+        if (searchResponse.getFailedShards() > 0 && !searchHasShardFailure) {
             LOGGER.debug("[{}] Resetting scroll search after shard failure", context.jobId);
             markScrollAsErrored();
             return initScroll(lastTimestamp == null ? context.start : lastTimestamp);
@@ -168,7 +168,7 @@ class ScrollDataExtractor implements DataExtractor {
                     if (timestamp != null) {
                         if (timestampOnCancel == null) {
                             timestampOnCancel = timestamp;
-                        } else if (timestamp.equals(timestampOnCancel) == false) {
+                        } else if (!timestamp.equals(timestampOnCancel)) {
                             hasNext = false;
                             clearScroll();
                             break;
@@ -189,7 +189,7 @@ class ScrollDataExtractor implements DataExtractor {
         try {
              searchResponse = executeSearchScrollRequest(scrollId);
         } catch (SearchPhaseExecutionException searchExecutionException) {
-            if (searchHasShardFailure == false) {
+            if (!searchHasShardFailure) {
                 LOGGER.debug("[{}] Reinitializing scroll due to SearchPhaseExecutionException", context.jobId);
                 markScrollAsErrored();
                 searchResponse =

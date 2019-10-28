@@ -84,7 +84,7 @@ public class CertGenUtilsTests extends ESTestCase {
     @SuppressForbidden(reason = "need to use getHostName to resolve DNS name and getHostAddress to ensure we resolved the name")
     private boolean isResolvable(InetAddress inetAddress) {
         String hostname = inetAddress.getHostName();
-        return hostname.equals(inetAddress.getHostAddress()) == false;
+        return !hostname.equals(inetAddress.getHostAddress());
     }
 
     public void testIsAnyLocalAddress() throws Exception {

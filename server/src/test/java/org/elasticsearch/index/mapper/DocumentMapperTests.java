@@ -175,7 +175,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
             public void run() {
                 try {
                     barrier.await();
-                    for (int i = 0; i < 200 && stopped.get() == false; i++) {
+                    for (int i = 0; i < 200 && !stopped.get(); i++) {
                         final String fieldName = Integer.toString(i);
                         ParsedDocument doc = documentMapper.parse(new SourceToParse("test",
                                 fieldName,
@@ -196,7 +196,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         updater.start();
         try {
             barrier.await();
-            while(stopped.get() == false) {
+            while(!stopped.get()) {
                 final String fieldName = lastIntroducedFieldName.get();
                 final BytesReference source = new BytesArray("{ \"" + fieldName + "\" : \"test\" }");
                 ParsedDocument parsedDoc = documentMapper.parse(new SourceToParse("test",

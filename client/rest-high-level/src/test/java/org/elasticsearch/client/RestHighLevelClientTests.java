@@ -811,7 +811,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         Map<String, Set<Method>> methods = Arrays.stream(RestHighLevelClient.class.getMethods())
                 .filter(method -> method.getDeclaringClass().equals(RestHighLevelClient.class)
-                        && topLevelMethodsExclusions.contains(method.getName()) == false)
+                        && !topLevelMethodsExclusions.contains(method.getName()))
                 .map(method -> Tuple.tuple(toSnakeCase(method.getName()), method))
                 .flatMap(tuple -> tuple.v2().getReturnType().getName().endsWith("Client")
                         ? getSubClientMethods(tuple.v1(), tuple.v2().getReturnType()) : Stream.of(tuple))
@@ -843,29 +843,29 @@ public class RestHighLevelClientTests extends ESTestCase {
                 } else {
                     assertSyncMethod(method, apiName, booleanReturnMethods);
                     apiUnsupported.remove(apiName);
-                    if (apiSpec.contains(apiName) == false) {
+                    if (!apiSpec.contains(apiName)) {
                         if (deprecatedMethods.contains(apiName)) {
                             assertTrue("method [" + method.getName() + "], api [" + apiName + "] should be deprecated",
                                 method.isAnnotationPresent(Deprecated.class));
                         } else {
                             //TODO xpack api are currently ignored, we need to load xpack yaml spec too
-                            if (apiName.startsWith("xpack.") == false &&
-                                apiName.startsWith("license.") == false &&
-                                apiName.startsWith("machine_learning.") == false &&
-                                apiName.startsWith("rollup.") == false &&
-                                apiName.startsWith("watcher.") == false &&
-                                apiName.startsWith("graph.") == false &&
-                                apiName.startsWith("migration.") == false &&
-                                apiName.startsWith("security.") == false &&
-                                apiName.startsWith("index_lifecycle.") == false &&
-                                apiName.startsWith("ccr.") == false &&
-                                apiName.startsWith("enrich.") == false &&
-                                apiName.startsWith("transform.") == false &&
-                                apiName.endsWith("freeze") == false &&
-                                apiName.endsWith("reload_analyzers") == false &&
+                            if (!apiName.startsWith("xpack.") &&
+                                !apiName.startsWith("license.") &&
+                                !apiName.startsWith("machine_learning.") &&
+                                !apiName.startsWith("rollup.") &&
+                                !apiName.startsWith("watcher.") &&
+                                !apiName.startsWith("graph.") &&
+                                !apiName.startsWith("migration.") &&
+                                !apiName.startsWith("security.") &&
+                                !apiName.startsWith("index_lifecycle.") &&
+                                !apiName.startsWith("ccr.") &&
+                                !apiName.startsWith("enrich.") &&
+                                !apiName.startsWith("transform.") &&
+                                !apiName.endsWith("freeze") &&
+                                !apiName.endsWith("reload_analyzers") &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                                 // can get rid of 7.0's deprecated "getTemplate"
-                                apiName.equals("indices.get_index_template") == false) {
+                                !apiName.equals("indices.get_index_template")) {
                                 apiNotFound.add(apiName);
                             }
                         }

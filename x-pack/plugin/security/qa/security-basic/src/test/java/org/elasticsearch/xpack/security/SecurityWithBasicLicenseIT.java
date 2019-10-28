@@ -114,7 +114,7 @@ public class SecurityWithBasicLicenseIT extends ESRestTestCase {
             assertThat(ObjectPath.evaluate(usage, "security.realms." + realm + ".enabled"), equalTo(true));
         }
         for (String realm : InternalRealms.getConfigurableRealmsTypes()) {
-            if (realm.equals("file") == false && realm.equals("native") == false) {
+            if (!realm.equals("file") && !realm.equals("native")) {
                 assertThat(ObjectPath.evaluate(usage, "security.realms." + realm + ".available"), equalTo(allowAllRealms));
                 assertThat(ObjectPath.evaluate(usage, "security.realms." + realm + ".enabled"), equalTo(false));
             }

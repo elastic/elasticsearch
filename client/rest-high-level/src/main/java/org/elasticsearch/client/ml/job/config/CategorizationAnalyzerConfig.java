@@ -239,7 +239,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
             builder.field(CATEGORIZATION_ANALYZER.getPreferredName(), analyzer);
         } else {
             builder.startObject(CATEGORIZATION_ANALYZER.getPreferredName());
-            if (charFilters.isEmpty() == false) {
+            if (!charFilters.isEmpty()) {
                 builder.startArray(CHAR_FILTERS.getPreferredName());
                 for (NameOrDefinition charFilter : charFilters) {
                     charFilter.toXContent(builder, params);
@@ -249,7 +249,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
             if (tokenizer != null) {
                 builder.field(TOKENIZER.getPreferredName(), tokenizer);
             }
-            if (tokenFilters.isEmpty() == false) {
+            if (!tokenFilters.isEmpty()) {
                 builder.startArray(TOKEN_FILTERS.getPreferredName());
                 for (NameOrDefinition tokenFilter : tokenFilters) {
                     tokenFilter.toXContent(builder, params);

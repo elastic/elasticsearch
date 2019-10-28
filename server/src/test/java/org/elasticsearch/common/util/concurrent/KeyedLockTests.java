@@ -165,7 +165,7 @@ public class KeyedLockTests extends ESTestCase {
             }
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
-                assert connectionLock.isHeldByCurrentThread(curName) == false;
+                assert !connectionLock.isHeldByCurrentThread(curName);
                 Releasable lock;
                 if (randomIntBetween(0, 10) < 4) {
                     int tries = 0;
@@ -185,7 +185,7 @@ public class KeyedLockTests extends ESTestCase {
                 }
                 try (Releasable ignore = lock) {
                     assert connectionLock.isHeldByCurrentThread(curName);
-                    assert connectionLock.isHeldByCurrentThread(curName + "bla") == false;
+                    assert !connectionLock.isHeldByCurrentThread(curName + "bla");
                     if (randomBoolean()) {
                         try (Releasable reentrantIgnored = connectionLock.acquire(curName)) {
                             // just acquire this and make sure we can :)

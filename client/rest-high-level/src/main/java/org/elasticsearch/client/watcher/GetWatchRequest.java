@@ -37,10 +37,10 @@ public final class GetWatchRequest implements Validatable {
         ValidationException exception = new ValidationException();
         if (id == null) {
             exception.addValidationError("watch id is missing");
-        } else if (PutWatchRequest.isValidId(id) == false) {
+        } else if (!PutWatchRequest.isValidId(id)) {
             exception.addValidationError("watch id contains whitespace");
         }
-        if (exception.validationErrors().isEmpty() == false) {
+        if (!exception.validationErrors().isEmpty()) {
             throw exception;
         }
     }

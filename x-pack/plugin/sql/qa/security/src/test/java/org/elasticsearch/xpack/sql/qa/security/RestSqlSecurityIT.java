@@ -144,7 +144,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             @SuppressWarnings("unchecked")
             List<List<String>> rowsNoSecurity = ((List<List<String>>) actual.get("rows"))
                     .stream()
-                    .filter(ls -> ls.get(0).startsWith(".security") == false)
+                    .filter(ls -> !ls.get(0).startsWith(".security"))
                     .collect(Collectors.toList());
             actual.put("rows", rowsNoSecurity);
             assertResponse(expected, actual);
@@ -194,7 +194,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         }
 
         private static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
-            if (false == expected.equals(actual)) {
+            if (!expected.equals(actual)) {
                 NotEqualMessageBuilder message = new NotEqualMessageBuilder();
                 message.compareMaps(actual, expected);
                 fail("Response does not match:\n" + message.toString());

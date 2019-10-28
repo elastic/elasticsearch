@@ -83,7 +83,7 @@ public final class ShardGenerations {
                 final String updatedGeneration = updatedGenerations.get(i);
                 // If we had a previous generation that is different from an updated generation it's obsolete
                 // Since this method assumes only additions and no removals of shards, a null updated generation means no update
-                if (updatedGeneration != null && oldGeneration != null && oldGeneration.equals(updatedGeneration) == false) {
+                if (updatedGeneration != null && oldGeneration != null && !oldGeneration.equals(updatedGeneration)) {
                     obsoleteShardIndices.put(i, oldGeneration);
                 }
             }
@@ -201,7 +201,7 @@ public final class ShardGenerations {
                 Map.Entry::getKey,
                 entry -> {
                     final Set<Integer> shardIds = entry.getValue().keySet();
-                    assert shardIds.isEmpty() == false;
+                    assert !shardIds.isEmpty();
                     final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
                     // Create a list that can hold the highest shard id as index and leave null values for shards that don't have
                     // a map entry.

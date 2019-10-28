@@ -149,7 +149,7 @@ public class IndexNameExpressionResolver {
         }
         MetaData metaData = context.getState().metaData();
         IndicesOptions options = context.getOptions();
-        final boolean failClosed = options.forbidClosedIndices() && options.ignoreUnavailable() == false;
+        final boolean failClosed = options.forbidClosedIndices() && !options.ignoreUnavailable();
         // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
         // option. At some point we should change this, because there shouldn't be a reason why whether a single index
         // or multiple indices are specified yield different behaviour.
@@ -158,7 +158,7 @@ public class IndexNameExpressionResolver {
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);
         }
-        
+
         if (expressions.isEmpty()) {
             if (!options.allowNoIndices()) {
                 IndexNotFoundException infe;
@@ -187,7 +187,7 @@ public class IndexNameExpressionResolver {
                     if (expression.equals(MetaData.ALL)) {
                         infe = new IndexNotFoundException("no indices exist", expression);
                     } else {
-                        infe = new IndexNotFoundException(expression);  
+                        infe = new IndexNotFoundException(expression);
                     }
                     infe.setResources("index_expression", expression);
                     throw infe;
@@ -229,7 +229,7 @@ public class IndexNameExpressionResolver {
                         if (failClosed) {
                             throw new IndexClosedException(index.getIndex());
                         } else {
-                            if (options.forbidClosedIndices() == false && addIndex(index, context)) {
+                            if (!options.forbidClosedIndices() && addIndex(index, context)) {
                                 concreteIndices.add(index.getIndex());
                             }
                         }
@@ -244,7 +244,7 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
+        if (!options.allowNoIndices() && concreteIndices.isEmpty()) {
             IndexNotFoundException infe = new IndexNotFoundException((String)null);
             infe.setResources("index_expression", indexExpressions);
             throw infe;
@@ -253,7 +253,7 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean addIndex(IndexMetaData metaData, Context context) {
-        return (context.options.ignoreThrottled() && IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings())) == false;
+        return !(context.options.ignoreThrottled() && IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings()));
     }
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {
@@ -374,7 +374,7 @@ public class IndexNameExpressionResolver {
             throw new IndexNotFoundException(index);
         }
 
-        if (skipIdentity == false && resolvedExpressions.contains(index)) {
+        if (!skipIdentity && resolvedExpressions.contains(index)) {
             return null;
         }
 
@@ -653,7 +653,7 @@ public class IndexNameExpressionResolver {
         public List<String> resolve(Context context, List<String> expressions) {
             IndicesOptions options = context.getOptions();
             MetaData metaData = context.getState().metaData();
-            if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false) {
+            if (!options.expandWildcardsClosed() && !options.expandWildcardsOpen()) {
                 return expressions;
             }
 
@@ -704,7 +704,7 @@ public class IndexNameExpressionResolver {
                 }
                 if (!Regex.isSimpleMatchPattern(expression)) {
                     //TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
-                    if (options.ignoreUnavailable() == false) {
+                    if (!options.ignoreUnavailable()) {
                         AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
                         if (aliasOrIndex == null) {
                             throw indexNotFoundException(expression);
@@ -728,7 +728,7 @@ public class IndexNameExpressionResolver {
                 } else {
                     result.removeAll(expand);
                 }
-                if (options.allowNoIndices() == false && matches.isEmpty()) {
+                if (!options.allowNoIndices() && matches.isEmpty()) {
                     throw indexNotFoundException(expression);
                 }
                 if (Regex.isSimpleMatchPattern(expression)) {
@@ -751,7 +751,7 @@ public class IndexNameExpressionResolver {
         private static boolean aliasOrIndexExists(IndicesOptions options, MetaData metaData, String expression) {
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
             //treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
-            return aliasOrIndex != null && (options.ignoreAliases() == false || aliasOrIndex.isAlias() == false);
+            return aliasOrIndex != null && (!options.ignoreAliases() || !aliasOrIndex.isAlias());
         }
 
         private static IndexNotFoundException indexNotFoundException(String expression) {
@@ -764,9 +764,9 @@ public class IndexNameExpressionResolver {
             final IndexMetaData.State excludeState;
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
                 excludeState = null;
-            } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed() == false) {
+            } else if (options.expandWildcardsOpen() && !options.expandWildcardsClosed()) {
                 excludeState = IndexMetaData.State.CLOSE;
-            } else if (options.expandWildcardsClosed() && options.expandWildcardsOpen() == false) {
+            } else if (options.expandWildcardsClosed() && !options.expandWildcardsOpen()) {
                 excludeState = IndexMetaData.State.OPEN;
             } else {
                 assert false : "this shouldn't get called if wildcards expand to none";
@@ -780,7 +780,7 @@ public class IndexNameExpressionResolver {
                 // Can only happen if the expressions was initially: '-*'
                 if (context.getOptions().ignoreAliases()) {
                     return metaData.getAliasAndIndexLookup().entrySet().stream()
-                            .filter(e -> e.getValue().isAlias() == false)
+                            .filter(e -> !e.getValue().isAlias())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 } else {
                     return metaData.getAliasAndIndexLookup();
@@ -801,7 +801,7 @@ public class IndexNameExpressionResolver {
             SortedMap<String,AliasOrIndex> subMap = metaData.getAliasAndIndexLookup().subMap(fromPrefix, toPrefix);
             if (context.getOptions().ignoreAliases()) {
                  return subMap.entrySet().stream()
-                        .filter(entry -> entry.getValue().isAlias() == false)
+                        .filter(entry -> !entry.getValue().isAlias())
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             }
             return subMap;
@@ -812,7 +812,7 @@ public class IndexNameExpressionResolver {
             return metaData.getAliasAndIndexLookup()
                 .entrySet()
                 .stream()
-                .filter(e -> context.getOptions().ignoreAliases() == false || e.getValue().isAlias() == false)
+                .filter(e -> !context.getOptions().ignoreAliases() || !e.getValue().isAlias())
                 .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
@@ -873,7 +873,7 @@ public class IndexNameExpressionResolver {
 
         @SuppressWarnings("fallthrough")
         String resolveExpression(String expression, final Context context) {
-            if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
+            if (!expression.startsWith(EXPRESSION_LEFT_BOUND) || !expression.endsWith(EXPRESSION_RIGHT_BOUND)) {
                 return expression;
             }
 

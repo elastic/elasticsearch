@@ -82,7 +82,7 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
         builder.setId(request.param("id"));
         builder.setDebug(WatcherParams.debug(request));
 
-        if (request.hasContent() == false) {
+        if (!request.hasContent()) {
             return builder.request();
         }
 

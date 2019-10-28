@@ -78,24 +78,24 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
 
     @Override
     public void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource) {
-        assert removedReplicaRelocationSource.primary() == false && removedReplicaRelocationSource.isRelocationTarget() :
+        assert !removedReplicaRelocationSource.primary() && removedReplicaRelocationSource.isRelocationTarget() :
             "expected replica relocation target shard " + removedReplicaRelocationSource;
         setChanged();
     }
 
     @Override
     public void replicaPromoted(ShardRouting replicaShard) {
-        assert replicaShard.started() && replicaShard.primary() == false : "expected started replica shard " + replicaShard;
+        assert replicaShard.started() && !replicaShard.primary() : "expected started replica shard " + replicaShard;
         setChanged();
     }
 
     @Override
     public void initializedReplicaReinitialized(ShardRouting oldReplica, ShardRouting reinitializedReplica) {
-        assert oldReplica.initializing() && oldReplica.primary() == false :
+        assert oldReplica.initializing() && !oldReplica.primary() :
             "expected initializing replica shard " + oldReplica;
-        assert reinitializedReplica.initializing() && reinitializedReplica.primary() == false :
+        assert reinitializedReplica.initializing() && !reinitializedReplica.primary() :
             "expected reinitialized replica shard " + reinitializedReplica;
-        assert oldReplica.allocationId().getId().equals(reinitializedReplica.allocationId().getId()) == false :
+        assert !oldReplica.allocationId().getId().equals(reinitializedReplica.allocationId().getId()) :
             "expected allocation id to change for reinitialized replica shard (old: " + oldReplica + " new: " + reinitializedReplica + ")";
         setChanged();
     }

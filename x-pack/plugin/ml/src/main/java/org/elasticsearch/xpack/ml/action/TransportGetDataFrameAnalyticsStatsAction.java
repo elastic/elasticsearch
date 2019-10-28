@@ -178,7 +178,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
     static List<String> determineStoppedTasksIds(List<String> expandedIds, List<Stats> runningTasksStats) {
         Set<String> startedTasksIds = runningTasksStats.stream().map(Stats::getId).collect(Collectors.toSet());
-        return expandedIds.stream().filter(id -> startedTasksIds.contains(id) == false).collect(Collectors.toList());
+        return expandedIds.stream().filter(id -> !startedTasksIds.contains(id)).collect(Collectors.toList());
     }
 
     private void searchStoredProgresses(List<String> configIds, ActionListener<List<StoredProgress>> listener) {

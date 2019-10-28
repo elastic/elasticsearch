@@ -1050,7 +1050,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 final List<String> filteredRoles = randomNonEmptyListOfFilteredNames();
                 // possibly renders list empty
                 filteredRoles.remove(0);
-                if (filteredRoles.isEmpty() == false) {
+                if (!filteredRoles.isEmpty()) {
                     allFilteredRoles.add(new ArrayList<>(filteredRoles));
                 }
                 filteredRoles.add("");
@@ -1327,7 +1327,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 final List<String> filteredIndices = randomNonEmptyListOfFilteredNames();
                 // possibly renders list empty
                 filteredIndices.remove(0);
-                if (filteredIndices.isEmpty() == false) {
+                if (!filteredIndices.isEmpty()) {
                     allFilteredIndices.add(new ArrayList<>(filteredIndices));
                 }
                 filteredIndices.add("");

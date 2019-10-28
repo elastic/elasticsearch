@@ -98,7 +98,7 @@ public class MultiHttpResourceTests extends ESTestCase {
 
         for (int i = 0; i < successful; ++i) {
             final boolean check = randomBoolean();
-            final MockHttpResource resource = new MockHttpResource(owner, randomBoolean(), check, check == false);
+            final MockHttpResource resource = new MockHttpResource(owner, randomBoolean(), check, !check);
 
             resources.add(resource);
         }
@@ -108,7 +108,7 @@ public class MultiHttpResourceTests extends ESTestCase {
 
     private void assertSuccessfulResource(final MockHttpResource resource) {
         assertThat(resource.checked, equalTo(1));
-        if (resource.check == false) {
+        if (!resource.check) {
             assertThat(resource.published, equalTo(1));
         } else {
             assertThat(resource.published, equalTo(0));

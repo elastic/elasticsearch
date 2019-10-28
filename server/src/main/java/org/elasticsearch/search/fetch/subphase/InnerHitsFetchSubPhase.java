@@ -45,7 +45,7 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        if ((context.innerHits() != null && context.innerHits().getInnerHits().size() > 0) == false) {
+        if (!(context.innerHits() != null && context.innerHits().getInnerHits().size() > 0)) {
             return;
         }
 

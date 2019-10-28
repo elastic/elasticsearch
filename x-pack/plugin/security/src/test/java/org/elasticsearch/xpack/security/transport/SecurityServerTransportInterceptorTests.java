@@ -97,7 +97,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                if (!calledWrappedSender.compareAndSet(false, true)) {
                     fail("sender called more than once!");
                 }
                 sendingUser.set(securityContext.getUser());
@@ -125,7 +125,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                if (!calledWrappedSender.compareAndSet(false, true)) {
                     fail("sender called more than once!");
                 }
                 sendingUser.set(securityContext.getUser());
@@ -160,7 +160,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                if (!calledWrappedSender.compareAndSet(false, true)) {
                     fail("sender called more than once!");
                 }
                 sendingUser.set(securityContext.getUser());
@@ -193,7 +193,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                if (!calledWrappedSender.compareAndSet(false, true)) {
                     fail("sender called more than once!");
                 }
                 sendingUser.set(securityContext.getUser());
@@ -229,7 +229,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                if (!calledWrappedSender.compareAndSet(false, true)) {
                     fail("sender called more than once!");
                 }
                 sendingUser.set(securityContext.getUser());
@@ -297,7 +297,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                if (!calledWrappedSender.compareAndSet(false, true)) {
                     fail("sender called more than once!");
                 }
                 sendingUser.set(securityContext.getUser());
@@ -338,7 +338,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                if (!calledWrappedSender.compareAndSet(false, true)) {
                     fail("sender called more than once!");
                 }
                 sendingUser.set(securityContext.getUser());

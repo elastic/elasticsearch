@@ -394,7 +394,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         do {
             logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes());
             ClusterState newState = startInitializingShardsAndReroute(service, clusterState);
-            changed = newState.equals(clusterState) == false;
+            changed = !newState.equals(clusterState);
             clusterState = newState;
             routingNodes = clusterState.getRoutingNodes();
             assertRecoveryNodeVersions(routingNodes);

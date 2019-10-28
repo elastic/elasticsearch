@@ -194,7 +194,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         try {
             super.testMustRewrite();
         } catch (UnsupportedOperationException e) {
-            if (requiresRewrite == false) {
+            if (!requiresRewrite) {
                 throw e;
             }
         }

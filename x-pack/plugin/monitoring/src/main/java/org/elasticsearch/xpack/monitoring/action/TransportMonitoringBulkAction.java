@@ -55,7 +55,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         clusterService.state().blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
 
         // ignore incoming bulk requests when collection is disabled in ES
-        if (monitoringService.isMonitoringActive() == false) {
+        if (!monitoringService.isMonitoringActive()) {
             listener.onResponse(new MonitoringBulkResponse(0, true));
             return;
         }

@@ -25,7 +25,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
 
     protected File getProjectDir(String name) {
         File root = new File("src/testKit/");
-        if (root.exists() == false) {
+        if (!root.exists()) {
             throw new RuntimeException("Could not find resources dir for integration tests. " +
                 "Note that these tests can only be ran by Gradle and are not currently supported by the IDE");
         }
@@ -54,7 +54,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
             assertOutputContains(output, line);
         }
         List<Integer> index = Stream.of(lines).map(line -> output.indexOf(line)).collect(Collectors.toList());
-        if (index.equals(index.stream().sorted().collect(Collectors.toList())) == false) {
+        if (!index.equals(index.stream().sorted().collect(Collectors.toList()))) {
             fail("Expected the following lines to appear in this order:\n" +
                 Stream.of(lines).map(line -> "   - `" + line + "`").collect(Collectors.joining("\n")) +
                 "\nTBut the order was different. Output is:\n\n```" + output + "\n```\n"

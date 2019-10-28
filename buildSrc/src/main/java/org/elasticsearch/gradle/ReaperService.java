@@ -179,7 +179,7 @@ public class ReaperService {
     }
 
     private void ensureReaperAlive() {
-        if (reaperProcess.isAlive() == false) {
+        if (!reaperProcess.isAlive()) {
             throw new IllegalStateException("Reaper process died unexpectedly! Check the log at " + logFile.toString());
         }
     }

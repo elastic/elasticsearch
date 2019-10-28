@@ -194,7 +194,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * that node is part of the cluster or on the coordinating node if the node wasn't part of the cluster.
      */
     void onGetFinishedTaskFromIndex(GetResponse response, ActionListener<GetTaskResponse> listener) throws IOException {
-        if (false == response.isExists()) {
+        if (!response.isExists()) {
             listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", response.getId()));
             return;
         }

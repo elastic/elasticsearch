@@ -46,7 +46,7 @@ class CompositeAggRowSet extends ResultRowSet<BucketExtractor> {
     }
 
     static int remainingData(boolean hasNextPage, int size, int limit) {
-        if (hasNextPage == false) {
+        if (!hasNextPage) {
             return 0;
         } else {
             int remainingLimit = (limit == -1) ? limit : ((limit - size) >= 0 ? (limit - size) : 0);

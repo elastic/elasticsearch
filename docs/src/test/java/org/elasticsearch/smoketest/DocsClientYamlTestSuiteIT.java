@@ -200,7 +200,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             Object previousFirst = null;
             Object previousSecond = null;
             while (firstTokens.hasNext()) {
-                if (false == secondTokens.hasNext()) {
+                if (!secondTokens.hasNext()) {
                     fail(second + " has fewer tokens than " + first + ". "
                         + first + " has [" + firstTokens.next() + "] but " + second + " is out of tokens. "
                         + first + "'s last token was [" + previousFirst + "] and "
@@ -211,7 +211,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 String firstText = (String) firstToken.get("token");
                 String secondText = (String) secondToken.get("token");
                 // Check the text and produce an error message with the utf8 sequence if they don't match.
-                if (false == secondText.equals(firstText)) {
+                if (!secondText.equals(firstText)) {
                     fail("text differs: " + first + " was [" + firstText + "] but " + second + " was [" + secondText
                         + "]. In utf8 those are\n" + new BytesRef(firstText) + " and\n" + new BytesRef(secondText));
                 }

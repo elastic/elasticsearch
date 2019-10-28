@@ -94,7 +94,7 @@ public class ESLoggerUsageChecker {
         throws IOException {
         for (String classDirectory : classDirectories) {
             Path root = Paths.get(classDirectory);
-            if (Files.isDirectory(root) == false) {
+            if (!Files.isDirectory(root)) {
                 throw new IllegalArgumentException(root + " should be an existing directory");
             }
             Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
@@ -204,7 +204,7 @@ public class ESLoggerUsageChecker {
 
         @Override
         public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
-            if (ignoreChecks == false && methodsToCheck.test(name)) {
+            if (!ignoreChecks && methodsToCheck.test(name)) {
                 return new MethodChecker(this.className, access, name, desc, wrongUsageCallback);
             } else {
                 return super.visitMethod(access, name, desc, signature, exceptions);
@@ -233,7 +233,7 @@ public class ESLoggerUsageChecker {
 
         @Override
         public void visitEnd() {
-            if (ignoreChecks == false) {
+            if (!ignoreChecks) {
                 findBadLoggerUsages((MethodNode) mv);
             }
             super.visitEnd();
@@ -261,7 +261,7 @@ public class ESLoggerUsageChecker {
                 if (insn.getOpcode() == Opcodes.INVOKEINTERFACE) {
                     MethodInsnNode methodInsn = (MethodInsnNode) insn;
                     if (Type.getObjectType(methodInsn.owner).equals(LOGGER_CLASS)) {
-                        if (LOGGER_METHODS.contains(methodInsn.name) == false) {
+                        if (!LOGGER_METHODS.contains(methodInsn.name)) {
                             continue;
                         }
 
@@ -359,7 +359,7 @@ public class ESLoggerUsageChecker {
         private void checkArrayArgs(MethodNode methodNode, Frame<BasicValue> logMessageFrame, Frame<BasicValue> arraySizeFrame,
                                     int lineNumber, MethodInsnNode methodInsn, int messageIndex, int arrayIndex) {
             BasicValue arraySizeObject = getStackValue(arraySizeFrame, methodInsn, arrayIndex);
-            if (arraySizeObject instanceof ArraySizeBasicValue == false) {
+            if (!(arraySizeObject instanceof ArraySizeBasicValue)) {
                 wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
                     "Could not determine size of array"));
                 return;
@@ -405,7 +405,7 @@ public class ESLoggerUsageChecker {
                                                                        int lineNumber, MethodInsnNode methodInsn, int messageIndex,
                                                                        int argsSize) {
             BasicValue logMessageLengthObject = getStackValue(logMessageFrame, methodInsn, messageIndex);
-            if (logMessageLengthObject instanceof PlaceHolderStringBasicValue == false) {
+            if (!(logMessageLengthObject instanceof PlaceHolderStringBasicValue)) {
                 if (argsSize > 0) {
                     wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
                         "First argument must be a string constant so that we can statically ensure proper place holder usage"));
@@ -535,7 +535,7 @@ public class ESLoggerUsageChecker {
         @Override
         public BasicValue merge(BasicValue value1, BasicValue value2) {
             if (value1 instanceof PlaceHolderStringBasicValue && value2 instanceof PlaceHolderStringBasicValue
-                && value1.equals(value2) == false) {
+                && !value1.equals(value2)) {
                 PlaceHolderStringBasicValue c1 = (PlaceHolderStringBasicValue) value1;
                 PlaceHolderStringBasicValue c2 = (PlaceHolderStringBasicValue) value2;
                 return new PlaceHolderStringBasicValue(Math.min(c1.minValue, c2.minValue), Math.max(c1.maxValue, c2.maxValue));

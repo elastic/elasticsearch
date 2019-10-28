@@ -46,7 +46,7 @@ public class PutMappingRequestTests extends AbstractXContentTestCase<PutMappingR
     protected PutMappingRequest doParseInstance(XContentParser parser) throws IOException {
         PutMappingRequest request = new PutMappingRequest();
         Map<String, Object> map = parser.map();
-        if (map.isEmpty() == false) {
+        if (!map.isEmpty()) {
             request.source(map);
         }
         return request;

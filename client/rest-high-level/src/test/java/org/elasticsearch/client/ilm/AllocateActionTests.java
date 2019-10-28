@@ -50,7 +50,7 @@ public class AllocateActionTests extends AbstractXContentTestCase<AllocateAction
             excludes = randomBoolean() ? null : Collections.emptyMap();
         }
         Map<String, String> requires;
-        if (hasAtLeastOneMap == false || randomBoolean()) {
+        if (!hasAtLeastOneMap || randomBoolean()) {
             requires = randomMap(1, 100);
         } else {
             requires = randomBoolean() ? null : Collections.emptyMap();
@@ -73,7 +73,7 @@ public class AllocateActionTests extends AbstractXContentTestCase<AllocateAction
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // this whole structure expects to be maps of strings, so more complex objects would just mess that up.
         // setting it this way allows for new fields at the root
-        return (field) -> field.isEmpty() == false;
+        return (field) -> !field.isEmpty();
     }
 
     public void testAllMapsNullOrEmpty() {

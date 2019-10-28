@@ -152,7 +152,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
             for (int docId = childDocsIter.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = childDocsIter.nextDoc()) {
-                if (liveDocs != null && liveDocs.get(docId) == false) {
+                if (liveDocs != null && !liveDocs.get(docId)) {
                     continue;
                 }
                 if (globalOrdinals.advanceExact(docId)) {

@@ -66,7 +66,7 @@ public class ColumnInfo implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (table != null && table.isEmpty() == false) {
+        if (table != null && !table.isEmpty()) {
             builder.field("table", table);
         }
         builder.field("name", name);

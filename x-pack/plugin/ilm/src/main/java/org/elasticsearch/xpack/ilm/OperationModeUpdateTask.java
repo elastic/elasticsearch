@@ -56,7 +56,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             return currentState;
         }
         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(ilmMode) == false) {
+        if (currentMetadata != null && !currentMetadata.getOperationMode().isValidChange(ilmMode)) {
             return currentState;
         } else if (currentMetadata == null) {
             currentMetadata = IndexLifecycleMetadata.EMPTY;
@@ -69,7 +69,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             newMode = currentMetadata.getOperationMode();
         }
 
-        if (newMode.equals(ilmMode) == false) {
+        if (!newMode.equals(ilmMode)) {
             logger.info("updating ILM operation mode to {}", newMode);
         }
         return ClusterState.builder(currentState)
@@ -84,7 +84,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             return currentState;
         }
         SnapshotLifecycleMetadata currentMetadata = currentState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(slmMode) == false) {
+        if (currentMetadata != null && !currentMetadata.getOperationMode().isValidChange(slmMode)) {
             return currentState;
         } else if (currentMetadata == null) {
             currentMetadata = SnapshotLifecycleMetadata.EMPTY;
@@ -97,7 +97,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             newMode = currentMetadata.getOperationMode();
         }
 
-        if (newMode.equals(slmMode) == false) {
+        if (!newMode.equals(slmMode)) {
             logger.info("updating SLM operation mode to {}", newMode);
         }
         return ClusterState.builder(currentState)

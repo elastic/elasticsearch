@@ -127,7 +127,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (IllegalStateException e) {
-                if (e.getMessage().equals("thread was not started") == false) {
+                if (!e.getMessage().equals("thread was not started")) {
                     throw e;
                 }
                 // ignore since the thread was never started

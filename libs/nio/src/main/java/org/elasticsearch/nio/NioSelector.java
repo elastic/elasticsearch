@@ -94,7 +94,7 @@ public class NioSelector implements Closeable {
     }
 
     public boolean isOpen() {
-        return isClosed.get() == false;
+        return !isClosed.get();
     }
 
     public boolean isRunning() {
@@ -238,11 +238,11 @@ public class NioSelector implements Closeable {
             }
 
             if (channelContext.isConnectComplete()) {
-                if (channelContext.selectorShouldClose() == false) {
+                if (!channelContext.selectorShouldClose()) {
                     if ((ops & SelectionKey.OP_WRITE) != 0) {
                         handleWrite(channelContext);
                     }
-                    if (channelContext.selectorShouldClose() == false && (ops & SelectionKey.OP_READ) != 0) {
+                    if (!channelContext.selectorShouldClose() && (ops & SelectionKey.OP_READ) != 0) {
                         handleRead(channelContext);
                     }
                 }
@@ -289,7 +289,7 @@ public class NioSelector implements Closeable {
             writeToChannel(writeOperation);
         } else {
             queuedWrites.offer(writeOperation);
-            if (isOpen() == false) {
+            if (!isOpen()) {
                 boolean wasRemoved = queuedWrites.remove(writeOperation);
                 if (wasRemoved) {
                     writeOperation.getListener().accept(null, new ClosedSelectorException());
@@ -303,7 +303,7 @@ public class NioSelector implements Closeable {
     public void queueChannelClose(NioChannel channel) {
         ChannelContext<?> context = channel.getContext();
         assert context.getSelector() == this : "Must schedule a channel for closure with its selector";
-        if (isOnCurrentThread() == false) {
+        if (!isOnCurrentThread()) {
             channelsToClose.offer(context);
             ensureSelectorOpenForEnqueuing(channelsToClose, context);
             wakeup();
@@ -320,7 +320,7 @@ public class NioSelector implements Closeable {
      */
     public void scheduleForRegistration(NioChannel channel) {
         ChannelContext<?> context = channel.getContext();
-        if (isOnCurrentThread() == false) {
+        if (!isOnCurrentThread()) {
             channelsToRegister.add(context);
             ensureSelectorOpenForEnqueuing(channelsToRegister, context);
             wakeup();
@@ -341,7 +341,7 @@ public class NioSelector implements Closeable {
         assertOnSelectorThread();
         SocketChannelContext context = writeOperation.getChannel();
 
-        if (context.isOpen() == false) {
+        if (!context.isOpen()) {
             executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
         } else if (context.getSelectionKey() == null) {
             // This should very rarely happen. The only times a channel is exposed outside the event loop,
@@ -350,7 +350,7 @@ public class NioSelector implements Closeable {
         } else {
             // If the channel does not currently have anything that is ready to flush, we should flush after
             // the write operation is queued.
-            boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
+            boolean shouldFlushAfterQueuing = !context.readyForFlush();
             try {
                 context.queueWriteOperation(writeOperation);
             } catch (Exception e) {
@@ -361,7 +361,7 @@ public class NioSelector implements Closeable {
             if (shouldFlushAfterQueuing) {
                 // We only attempt the write if the connect process is complete and the context is not
                 // signalling that it should be closed.
-                if (context.isConnectComplete() && context.selectorShouldClose() == false) {
+                if (context.isConnectComplete() && !context.selectorShouldClose()) {
                     handleWrite(context);
                 }
                 eventHandler.postHandling(context);
@@ -401,7 +401,7 @@ public class NioSelector implements Closeable {
     }
 
     private void wakeup() {
-        assert isOnCurrentThread() == false;
+        assert !isOnCurrentThread();
         if (wokenUp.compareAndSet(false, true)) {
             selector.wakeup();
         }
@@ -426,7 +426,7 @@ public class NioSelector implements Closeable {
     private void attemptConnect(SocketChannelContext context, boolean connectEvent) {
         try {
             eventHandler.handleConnect(context);
-            if (connectEvent && context.isConnectComplete() == false) {
+            if (connectEvent && !context.isConnectComplete()) {
                 eventHandler.connectException(context, new IOException("Received OP_CONNECT but connect failed"));
             }
         } catch (Exception e) {
@@ -508,7 +508,7 @@ public class NioSelector implements Closeable {
      * @param <O> the object type
      */
     private <O> void ensureSelectorOpenForEnqueuing(ConcurrentLinkedQueue<O> queue, O objectAdded) {
-        if (isOpen() == false) {
+        if (!isOpen()) {
             if (queue.remove(objectAdded)) {
                 throw new IllegalStateException("selector is already closed");
             }

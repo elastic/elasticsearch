@@ -154,7 +154,7 @@ public class CompositeRolesStore {
             final long invalidationCounter = numInvalidation.get();
             roleDescriptors(roleNames, ActionListener.wrap(
                     rolesRetrievalResult -> {
-                        final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
+                        final boolean missingRoles = !rolesRetrievalResult.getMissingRoles().isEmpty();
                         if (missingRoles) {
                             logger.debug(() -> new ParameterizedMessage("Could not find roles with names {}",
                                     rolesRetrievalResult.getMissingRoles()));
@@ -164,7 +164,7 @@ public class CompositeRolesStore {
                             effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors();
                         } else {
                             effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors().stream()
-                                    .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
+                                    .filter((rd) -> !rd.isUsingDocumentOrFieldLevelSecurity())
                                     .collect(Collectors.toSet());
                         }
                         logger.trace(() -> new ParameterizedMessage("Exposing effective role descriptors [{}] for role names [{}]",
@@ -216,7 +216,7 @@ public class CompositeRolesStore {
             }, roleActionListener::onFailure));
         } else {
             Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
-            if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+            if (isAnonymousEnabled && !anonymousUser.equals(user)) {
                 if (anonymousUser.roles().length == 0) {
                     throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
                 }
@@ -308,7 +308,7 @@ public class CompositeRolesStore {
                     listener.onResponse(rolesResult);
                 }, listener::onFailure), threadContext);
 
-        final Predicate<RoleRetrievalResult> iterationPredicate = result -> roleNames.isEmpty() == false;
+        final Predicate<RoleRetrievalResult> iterationPredicate = result -> !roleNames.isEmpty();
         new IteratingActionListener<>(descriptorsListener, (rolesProvider, providerListener) -> {
             // try to resolve descriptors with role provider
             rolesProvider.accept(roleNames, ActionListener.wrap(result -> {
@@ -427,7 +427,7 @@ public class CompositeRolesStore {
 
     public void invalidate(Set<String> roles) {
         numInvalidation.incrementAndGet();
-        roleCacheHelper.removeKeysIf(key -> Sets.haveEmptyIntersection(key.names, roles) == false);
+        roleCacheHelper.removeKeysIf(key -> !Sets.haveEmptyIntersection(key.names, roles));
         roles.forEach(negativeLookupCache::invalidate);
     }
 

@@ -115,7 +115,7 @@ public class ApiKeyService {
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.api_key.hashing.algorithm", "pbkdf2", Function.identity(), v -> {
-        if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+        if (!Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
                 Hasher.getAvailableAlgoStoredHash().toString());
         } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
@@ -250,7 +250,7 @@ public class ApiKeyService {
 
         // Save role_descriptors
         builder.startObject("role_descriptors");
-        if (keyRoles != null && keyRoles.isEmpty() == false) {
+        if (keyRoles != null && !keyRoles.isEmpty()) {
             for (RoleDescriptor descriptor : keyRoles) {
                 builder.field(descriptor.getName(),
                     (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
@@ -407,7 +407,7 @@ public class ApiKeyService {
                                    ActionListener<AuthenticationResult> listener) {
         final String docType = (String) source.get("doc_type");
         final Boolean invalidated = (Boolean) source.get("api_key_invalidated");
-        if ("api_key".equals(docType) == false) {
+        if (!"api_key".equals(docType)) {
             listener.onResponse(
                 AuthenticationResult.unsuccessful("document [" + docId + "] is [" + docType + "] not an api key", null));
         } else if (invalidated == null) {
@@ -558,10 +558,10 @@ public class ApiKeyService {
     }
 
     private void ensureEnabled() {
-        if (licenseState.isApiKeyServiceAllowed() == false) {
+        if (!licenseState.isApiKeyServiceAllowed()) {
             throw LicenseUtils.newComplianceException("api keys");
         }
-        if (enabled == false) {
+        if (!enabled) {
             throw new IllegalStateException("api keys are not enabled");
         }
     }
@@ -624,8 +624,8 @@ public class ApiKeyService {
     public void invalidateApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
                                   ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
-        if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
-            && Strings.hasText(apiKeyId) == false) {
+        if (!Strings.hasText(realmName) && !Strings.hasText(username) && !Strings.hasText(apiKeyName)
+            && !Strings.hasText(apiKeyId)) {
             logger.trace("none of the parameters [api key id, api key name, username, realm name] were specified for invalidation");
             invalidateListener
                 .onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
@@ -690,9 +690,9 @@ public class ApiKeyService {
                                                                    boolean filterOutInvalidatedKeys, boolean filterOutExpiredKeys,
                                                                    ActionListener<Collection<ApiKey>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
+        } else if (!frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));

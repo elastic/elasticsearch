@@ -44,7 +44,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        if (Files.exists(env.pluginsFile()) == false) {
+        if (!Files.exists(env.pluginsFile())) {
             throw new IOException("Plugins directory missing: " + env.pluginsFile());
         }
 
@@ -65,7 +65,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
         PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
-        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+        if (!info.getElasticsearchVersion().equals(Version.CURRENT)) {
             terminal.errorPrintln("WARNING: plugin [" + info.getName() + "] was built for Elasticsearch version " + info.getVersion() +
                 " but version " + Version.CURRENT + " is required");
         }

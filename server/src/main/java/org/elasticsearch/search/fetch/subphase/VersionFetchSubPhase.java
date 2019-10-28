@@ -34,8 +34,8 @@ import java.util.Comparator;
 public final class VersionFetchSubPhase implements FetchSubPhase {
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        if (context.version() == false ||
-            (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false)) {
+        if (!context.version() ||
+            (context.storedFieldsContext() != null && !context.storedFieldsContext().fetchFields())) {
             return;
         }
 

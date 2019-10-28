@@ -70,7 +70,7 @@ public final class IfConfig {
             // addresses: v4 first, then v6
             List<InterfaceAddress> addresses = nic.getInterfaceAddresses();
             for (InterfaceAddress address : addresses) {
-                if (address.getAddress() instanceof Inet6Address == false) {
+                if (!(address.getAddress() instanceof Inet6Address)) {
                     msg.append(INDENT);
                     msg.append(formatAddress(address));
                     msg.append(System.lineSeparator());

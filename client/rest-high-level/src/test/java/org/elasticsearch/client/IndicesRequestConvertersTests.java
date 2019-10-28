@@ -948,12 +948,12 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Request request = IndicesRequestConverters.getAlias(getAliasesRequest);
         StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
 
-        if (false == CollectionUtils.isEmpty(indices)) {
+        if (!CollectionUtils.isEmpty(indices)) {
             expectedEndpoint.add(String.join(",", indices));
         }
         expectedEndpoint.add("_alias");
 
-        if (false == CollectionUtils.isEmpty(aliases)) {
+        if (!CollectionUtils.isEmpty(aliases)) {
             expectedEndpoint.add(String.join(",", aliases));
         }
 

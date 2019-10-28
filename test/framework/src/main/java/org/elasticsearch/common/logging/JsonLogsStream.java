@@ -88,7 +88,7 @@ public class JsonLogsStream {
 
         @Override
         public boolean hasNext() {
-            return parser.isClosed() == false;
+            return !parser.isClosed();
         }
 
         @Override
@@ -108,7 +108,7 @@ public class JsonLogsStream {
 
         @Override
         public boolean hasNext() {
-            return parser.isClosed() == false;
+            return !parser.isClosed();
         }
 
         @Override

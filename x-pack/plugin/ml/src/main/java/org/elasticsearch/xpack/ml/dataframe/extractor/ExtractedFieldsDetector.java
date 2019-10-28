@@ -113,7 +113,7 @@ public class ExtractedFieldsDetector {
         }
 
         Map<String, FieldCapabilities> indexToFieldCaps = fieldCapabilitiesResponse.getField(resultsField);
-        if (indexToFieldCaps != null && indexToFieldCaps.isEmpty() == false) {
+        if (indexToFieldCaps != null && !indexToFieldCaps.isEmpty()) {
             throw ExceptionsHelper.badRequestException(
                 "A field that matches the {}.{} [{}] already exists; please set a different {}",
                 DataFrameAnalyticsConfig.DEST.getPreferredName(),
@@ -127,7 +127,7 @@ public class ExtractedFieldsDetector {
         Iterator<String> fieldsIterator = fields.iterator();
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
-            if (hasCompatibleType(field) == false) {
+            if (!hasCompatibleType(field)) {
                 fieldsIterator.remove();
             }
         }
@@ -211,7 +211,7 @@ public class ExtractedFieldsDetector {
                 throw ExceptionsHelper.badRequestException("no mappings could be found for field [{}]", field);
             }
 
-            if (hasCompatibleType(field) == false) {
+            if (!hasCompatibleType(field)) {
                 throw ExceptionsHelper.badRequestException("field [{}] has unsupported type {}. Supported types are {}.", field,
                     fieldCaps.keySet(), getSupportedTypes());
             }
@@ -222,13 +222,13 @@ public class ExtractedFieldsDetector {
         List<RequiredField> requiredFields = config.getAnalysis().getRequiredFields();
         for (RequiredField requiredField : requiredFields) {
             Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(requiredField.getName());
-            if (fields.contains(requiredField.getName()) == false || fieldCaps == null || fieldCaps.isEmpty()) {
+            if (!fields.contains(requiredField.getName()) || fieldCaps == null || fieldCaps.isEmpty()) {
                 List<String> requiredFieldNames = requiredFields.stream().map(RequiredField::getName).collect(Collectors.toList());
                 throw ExceptionsHelper.badRequestException("required field [{}] is missing; analysis requires fields {}",
                     requiredField.getName(), requiredFieldNames);
             }
             Set<String> fieldTypes = fieldCaps.keySet();
-            if (requiredField.getTypes().containsAll(fieldTypes) == false) {
+            if (!requiredField.getTypes().containsAll(fieldTypes)) {
                 throw ExceptionsHelper.badRequestException("invalid types {} for required field [{}]; expected types are {}",
                     fieldTypes, requiredField.getName(), requiredField.getTypes());
             }

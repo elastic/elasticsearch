@@ -85,7 +85,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 // get fields
-                if (includeDocument(doc) == true) {
+                if (includeDocument(doc)) {
                     stats = bigArrays.grow(stats, bucket + 1);
                     RunningStats stat = stats.get(bucket);
                     // add document fields to correlation stats

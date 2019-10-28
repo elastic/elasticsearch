@@ -77,7 +77,7 @@ public class DeflateCompressor implements Compressor {
             }
             len += read;
         }
-        if (len != HEADER.length || Arrays.equals(headerBytes, HEADER) == false) {
+        if (len != HEADER.length || !Arrays.equals(headerBytes, HEADER)) {
             throw new IllegalArgumentException("Input stream is not compressed with DEFLATE!");
         }
 

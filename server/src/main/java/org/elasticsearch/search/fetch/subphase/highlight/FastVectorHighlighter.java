@@ -73,7 +73,7 @@ public class FastVectorHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         MappedFieldType fieldType = highlighterContext.fieldType;
 
-        if (canHighlight(fieldType) == false) {
+        if (!canHighlight(fieldType)) {
             throw new IllegalArgumentException("the field [" + highlighterContext.fieldName +
                 "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }

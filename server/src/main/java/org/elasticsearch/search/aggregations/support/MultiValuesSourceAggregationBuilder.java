@@ -98,7 +98,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     protected MultiValuesSourceAggregationBuilder(StreamInput in, ValueType targetValueType)
         throws IOException {
         super(in);
-        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
+        assert !serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
         this.targetValueType = targetValueType;
         read(in);
     }
@@ -234,7 +234,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         MultiValuesSourceAggregationBuilder other = (MultiValuesSourceAggregationBuilder) obj;
         return Objects.equals(this.fields, other.fields)

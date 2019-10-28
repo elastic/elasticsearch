@@ -35,7 +35,7 @@ public class FlattenedMapperPlugin extends Plugin implements MapperPlugin, Actio
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        if (enabled == false) {
+        if (!enabled) {
             return emptyMap();
         }
         return singletonMap(FlatObjectFieldMapper.CONTENT_TYPE, new FlatObjectFieldMapper.TypeParser());

@@ -72,9 +72,9 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
             int lineNum = 0;
             for (String line : ruleList) {
                 // ignore comments
-                if (line.startsWith("#") == false) {
+                if (!line.startsWith("#")) {
                     String[] values = CSVUtil.parse(line);
-                    if (dup.add(values[0]) == false) {
+                    if (!dup.add(values[0])) {
                         throw new IllegalArgumentException("Found duplicate term [" + values[0] + "] in user dictionary " +
                             "at line [" + lineNum + "]");
                     }

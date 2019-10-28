@@ -105,7 +105,7 @@ public class ScriptScoreQuery extends Query {
             @Override
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                 Explanation subQueryExplanation = subQueryWeight.explain(context, doc);
-                if (subQueryExplanation.isMatch() == false) {
+                if (!subQueryExplanation.isMatch()) {
                     return subQueryExplanation;
                 }
                 ExplanationHolder explanationHolder = new ExplanationHolder();
@@ -113,7 +113,7 @@ public class ScriptScoreQuery extends Query {
                 int newDoc = scorer.iterator().advance(doc);
                 assert doc == newDoc; // subquery should have already matched above
                 float score = scorer.score();
-                
+
                 Explanation explanation = explanationHolder.get(score, needsScore ? subQueryExplanation : null);
                 if (explanation == null) {
                     // no explanation provided by user; give a simple one
@@ -125,14 +125,14 @@ public class ScriptScoreQuery extends Query {
                         explanation = Explanation.match(score, desc);
                     }
                 }
-                
+
                 if (minScore != null && minScore > explanation.getValue().floatValue()) {
                     explanation = Explanation.noMatch("Score value is too low, expected at least " + minScore +
                         " but got " + explanation.getValue(), explanation);
                 }
                 return explanation;
             }
-            
+
             private Scorer makeScriptScorer(Scorer subQueryScorer, LeafReaderContext context,
                                             ExplanationHolder explanation) throws IOException {
                 final ScoreScript scoreScript = scriptBuilder.newInstance(context);

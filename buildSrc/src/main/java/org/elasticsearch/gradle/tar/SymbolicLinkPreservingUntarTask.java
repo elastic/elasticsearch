@@ -108,7 +108,7 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
 
                 final Path destination = destinationPath.resolve(relativePath);
                 final Path parent = destination.getParent();
-                if (Files.exists(parent) == false) {
+                if (!Files.exists(parent)) {
                     Files.createDirectories(parent);
                 }
                 if (entry.isDirectory()) {
@@ -122,7 +122,7 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
                         tar.transferTo(fos);
                     }
                 }
-                if (entry.isSymbolicLink() == false) {
+                if (!entry.isSymbolicLink()) {
                     // check if the underlying file system supports POSIX permissions
                     final PosixFileAttributeView view = Files.getFileAttributeView(destination, PosixFileAttributeView.class);
                     if (view != null) {

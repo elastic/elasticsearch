@@ -129,7 +129,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         boolean useDefault = randomBoolean();
         boolean enabled = true;
         Settings.Builder settings = Settings.builder().put(commonSettings);
-        if (useDefault == false) {
+        if (!useDefault) {
             enabled = randomBoolean();
             settings.put("xpack.ml.enabled", enabled);
         }

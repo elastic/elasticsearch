@@ -295,7 +295,7 @@ public class Node implements Closeable {
                 Constants.JVM_VERSION);
             logger.info("JVM home [{}]", System.getProperty("java.home"));
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-            if (Build.CURRENT.isProductionRelease() == false) {
+            if (!Build.CURRENT.isProductionRelease()) {
                 logger.warn(
                     "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
                     Build.CURRENT.getQualifiedVersion());
@@ -877,7 +877,7 @@ public class Node implements Closeable {
      */
     // synchronized to prevent running concurrently with close()
     public synchronized boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
-        if (lifecycle.closed() == false) {
+        if (!lifecycle.closed()) {
             // We don't want to shutdown the threadpool or interrupt threads on a node that is not
             // closed yet.
             throw new IllegalStateException("Call close() first");
@@ -889,7 +889,7 @@ public class Node implements Closeable {
         if (terminated) {
             // All threads terminated successfully. Because search, recovery and all other operations
             // that run on shards run in the threadpool, indices should be effectively closed by now.
-            if (nodeService.awaitClose(0, TimeUnit.MILLISECONDS) == false) {
+            if (!nodeService.awaitClose(0, TimeUnit.MILLISECONDS)) {
                 throw new IllegalStateException("Some shards are still open after the threadpool terminated. " +
                         "Something is leaking index readers or store references.");
             }

@@ -130,7 +130,7 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
 
         public CalendarInterval(DateHistogramInterval interval) {
             this.interval = interval;
-            if (DATE_FIELD_UNITS.contains(interval.toString()) == false) {
+            if (!DATE_FIELD_UNITS.contains(interval.toString())) {
                 throw new IllegalArgumentException("The supplied interval [" + interval + "] could not be parsed " +
                     "as a calendar interval.");
             }

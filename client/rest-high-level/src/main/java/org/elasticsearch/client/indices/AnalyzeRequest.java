@@ -314,7 +314,7 @@ public class AnalyzeRequest implements Validatable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("text", text);
-        if (Strings.isNullOrEmpty(analyzer) == false) {
+        if (!Strings.isNullOrEmpty(analyzer)) {
             builder.field("analyzer", analyzer);
         }
         if (tokenizer != null) {
@@ -326,7 +326,7 @@ public class AnalyzeRequest implements Validatable, ToXContentObject {
         if (charFilters.size() > 0) {
             builder.field("char_filter", charFilters);
         }
-        if (Strings.isNullOrEmpty(field) == false) {
+        if (!Strings.isNullOrEmpty(field)) {
             builder.field("field", field);
         }
         if (explain) {
@@ -335,7 +335,7 @@ public class AnalyzeRequest implements Validatable, ToXContentObject {
         if (attributes.length > 0) {
             builder.field("attributes", attributes);
         }
-        if (Strings.isNullOrEmpty(normalizer) == false) {
+        if (!Strings.isNullOrEmpty(normalizer)) {
             builder.field("normalizer", normalizer);
         }
         return builder.endObject();

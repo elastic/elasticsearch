@@ -371,13 +371,13 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     "currently writing bytes [{}], [{}] shards with non-zero indexing buffer", new ByteSizeValue(totalBytesUsed),
                     INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
 
-                while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
+                while (totalBytesUsed > indexingBuffer.getBytes() && !queue.isEmpty()) {
                     ShardAndBytesUsed largest = queue.poll();
                     logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer",
                         largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
                     writeIndexingBufferAsync(largest.shard);
                     totalBytesUsed -= largest.bytesUsed;
-                    if (doThrottle && throttled.contains(largest.shard) == false) {
+                    if (doThrottle && !throttled.contains(largest.shard)) {
                         logger.info("now throttling indexing for shard [{}]: segment writing can't keep up", largest.shard.shardId());
                         throttled.add(largest.shard);
                         activateThrottling(largest.shard);
@@ -385,7 +385,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                 }
             }
 
-            if (doThrottle == false) {
+            if (!doThrottle) {
                 for(IndexShard shard : throttled) {
                     logger.info("stop throttling indexing for shard [{}]", shard.shardId());
                     deactivateThrottling(shard);

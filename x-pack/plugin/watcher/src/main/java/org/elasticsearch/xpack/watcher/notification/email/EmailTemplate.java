@@ -124,12 +124,12 @@ public class EmailTemplate implements ToXContentObject {
 
         String htmlWarnings = "";
         String textWarnings = "";
-        if(warnings.isEmpty() == false){
+        if(!warnings.isEmpty()){
             StringBuilder textWarningBuilder = new StringBuilder();
             StringBuilder htmlWarningBuilder = new StringBuilder();
             warnings.forEach(w ->
             {
-                if(Strings.isNullOrEmpty(w) == false) {
+                if(!Strings.isNullOrEmpty(w)) {
                     textWarningBuilder.append(w).append("\n");
                     htmlWarningBuilder.append(w).append("<br>");
                 }
@@ -149,7 +149,7 @@ public class EmailTemplate implements ToXContentObject {
             builder.htmlBody(renderedHtml);
         }
 
-        if(htmlBody == null && textBody == null && Strings.isNullOrEmpty(textWarnings) == false){
+        if(htmlBody == null && textBody == null && !Strings.isNullOrEmpty(textWarnings)){
             builder.textBody(textWarnings);
         }
 
@@ -455,7 +455,7 @@ public class EmailTemplate implements ToXContentObject {
         static void validateEmailAddresses(TextTemplate ... emails) {
             for (TextTemplate emailTemplate : emails) {
                 // no mustache, do validation
-                if (emailTemplate.isUsingMustache() == false) {
+                if (!emailTemplate.isUsingMustache()) {
                     String email = emailTemplate.getTemplate();
                     try {
                         for (Email.Address address : Email.AddressList.parse(email)) {

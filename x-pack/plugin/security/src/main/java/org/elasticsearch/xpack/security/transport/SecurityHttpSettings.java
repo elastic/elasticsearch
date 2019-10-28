@@ -15,7 +15,7 @@ public final class SecurityHttpSettings {
     private SecurityHttpSettings() {}
 
     public static void overrideSettings(Settings.Builder settingsBuilder, Settings settings) {
-        if (HTTP_SSL_ENABLED.get(settings) && SETTING_HTTP_COMPRESSION.exists(settings) == false) {
+        if (HTTP_SSL_ENABLED.get(settings) && !SETTING_HTTP_COMPRESSION.exists(settings)) {
             settingsBuilder.put(SETTING_HTTP_COMPRESSION.getKey(), false);
         }
     }

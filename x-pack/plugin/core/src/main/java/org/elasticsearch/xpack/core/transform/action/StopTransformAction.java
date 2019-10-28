@@ -167,7 +167,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             Request other = (Request) obj;
 
             // the base class does not implement equals, therefore we need to compare timeout ourselves
-            if (Objects.equals(this.getTimeout(), other.getTimeout()) == false) {
+            if (!Objects.equals(this.getTimeout(), other.getTimeout())) {
                 return false;
             }
 

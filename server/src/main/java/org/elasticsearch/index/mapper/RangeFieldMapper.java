@@ -94,7 +94,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public Builder docValues(boolean docValues) {
-            if (docValues == true) {
+            if (docValues) {
                 throw new IllegalArgumentException("field [" + name + "] does not currently support " + TypeParsers.DOC_VALUES);
             }
             return super.docValues(docValues);
@@ -135,9 +135,9 @@ public class RangeFieldMapper extends FieldMapper {
             DateFormatter formatter = fieldType().dateTimeFormatter;
             if (fieldType().rangeType == RangeType.DATE) {
                 boolean hasPatternChanged = Strings.hasLength(builder.pattern) &&
-                    Objects.equals(builder.pattern, formatter.pattern()) == false;
+                    !Objects.equals(builder.pattern, formatter.pattern());
 
-                if (hasPatternChanged || Objects.equals(builder.locale, formatter.locale()) == false) {
+                if (hasPatternChanged || !Objects.equals(builder.locale, formatter.locale())) {
                     fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
                 }
             } else if (pattern != null) {
@@ -398,7 +398,7 @@ public class RangeFieldMapper extends FieldMapper {
         boolean docValued = fieldType.hasDocValues();
         boolean stored = fieldType.stored();
         fields.addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
-        if (docValued == false && (indexed || stored)) {
+        if (!docValued && (indexed || stored)) {
             createFieldNamesField(context, fields);
         }
     }
@@ -418,7 +418,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         if (fieldType().rangeType == RangeType.DATE
                 && (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().pattern().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()) == false))) {
+                && !fieldType().dateTimeFormatter().pattern().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())))) {
             builder.field("format", fieldType().dateTimeFormatter().pattern());
         }
         if (fieldType().rangeType == RangeType.DATE

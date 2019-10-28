@@ -57,7 +57,7 @@ public final class InvalidateTokenRequest implements Validatable, ToXContentObje
                     throw new IllegalArgumentException("Either access token or refresh token is required when neither realm name or " +
                         "username are specified");
                 }
-            } else if (Strings.isNullOrEmpty(refreshToken) == false) {
+            } else if (!Strings.isNullOrEmpty(refreshToken)) {
                 throw new IllegalArgumentException("Cannot supply both access token and refresh token");
             }
         }

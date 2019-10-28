@@ -31,7 +31,7 @@ public class NoImportAnnotationParser implements WhitelistAnnotationParser {
 
     @Override
     public Object parse(Map<String, String> arguments) {
-        if (arguments.isEmpty() == false) {
+        if (!arguments.isEmpty()) {
             throw new IllegalArgumentException("unexpected parameters for [@no_import] annotation, found " + arguments);
         }
 

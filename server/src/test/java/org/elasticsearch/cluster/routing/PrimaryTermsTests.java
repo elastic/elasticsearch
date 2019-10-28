@@ -113,7 +113,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         final List<ShardRouting> startedShards = clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING);
         logger.info("start primary shards for index [{}]: {} ", index, startedShards);
         ClusterState rerouteResult = startShardsAndReroute(allocationService, clusterState, startedShards);
-        boolean changed = rerouteResult.equals(clusterState) == false;
+        boolean changed = !rerouteResult.equals(clusterState);
         applyRerouteResult(rerouteResult);
         return changed;
     }

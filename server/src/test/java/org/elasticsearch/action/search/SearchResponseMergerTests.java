@@ -675,7 +675,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchHit hit = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE));
 
             float score = Float.NaN;
-            if (Float.isNaN(maxScore) == false) {
+            if (!Float.isNaN(maxScore)) {
                 score = (maxScore - j) * scoreFactor;
                 hit.score(score);
             }

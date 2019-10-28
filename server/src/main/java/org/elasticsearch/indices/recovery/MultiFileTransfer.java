@@ -114,7 +114,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
                 final Tuple<StoreFileMetaData, Request> request = readAheadRequest != null ? readAheadRequest : getNextRequest();
                 readAheadRequest = null;
                 if (request == null) {
-                    assert currentFile == null && remainingFiles.hasNext() == false;
+                    assert currentFile == null && !remainingFiles.hasNext();
                     if (requestSeqIdTracker.getMaxSeqNo() == requestSeqIdTracker.getProcessedCheckpoint()) {
                         onCompleted(null);
                     }

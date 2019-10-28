@@ -46,7 +46,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
             // our build is configured to only include this module in the package distributions
             assert isPackageDistribution : buildType;
         }
-        if (isPackageDistribution == false) {
+        if (!isPackageDistribution) {
             logger.debug("disabling sd_notify as the build type [{}] is not a package distribution", buildType);
             enabled = false;
             return;
@@ -56,7 +56,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
             enabled = false;
             return;
         }
-        if (Boolean.TRUE.toString().equals(esSDNotify) == false && Boolean.FALSE.toString().equals(esSDNotify) == false) {
+        if (!Boolean.TRUE.toString().equals(esSDNotify) && !Boolean.FALSE.toString().equals(esSDNotify)) {
             throw new RuntimeException("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]");
         }
         enabled = Boolean.TRUE.toString().equals(esSDNotify);
@@ -68,7 +68,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public void onNodeStarted() {
-        if (enabled == false) {
+        if (!enabled) {
             return;
         }
         final int rc = sd_notify(0, "READY=1");
@@ -81,7 +81,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public void close() {
-        if (enabled == false) {
+        if (!enabled) {
             return;
         }
         final int rc = sd_notify(0, "STOPPING=1");

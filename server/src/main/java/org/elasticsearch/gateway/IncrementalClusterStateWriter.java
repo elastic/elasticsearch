@@ -130,7 +130,7 @@ public class IncrementalClusterStateWriter {
     }
 
     private void writeManifest(AtomicClusterStateWriter writer, Manifest manifest) throws WriteStateException {
-        if (manifest.equals(previousManifest) == false) {
+        if (!manifest.equals(previousManifest)) {
             writer.writeManifestAndCleanup("changed", manifest);
         }
     }
@@ -155,7 +155,7 @@ public class IncrementalClusterStateWriter {
     }
 
     private long writeGlobalState(AtomicClusterStateWriter writer, MetaData newMetaData) throws WriteStateException {
-        if (incrementalWrite == false || MetaData.isGlobalStateEquals(previousClusterState.metaData(), newMetaData) == false) {
+        if (!incrementalWrite || !MetaData.isGlobalStateEquals(previousClusterState.metaData(), newMetaData)) {
             return writer.writeGlobalState("changed", newMetaData);
         }
         return previousManifest.getGlobalGeneration();
@@ -195,7 +195,7 @@ public class IncrementalClusterStateWriter {
             IndexMetaData newIndexMetaData = newMetaData.getIndexSafe(index);
             IndexMetaData previousIndexMetaData = previousMetaData == null ? null : previousMetaData.index(index);
 
-            if (previouslyWrittenIndices.containsKey(index) == false || previousIndexMetaData == null) {
+            if (!previouslyWrittenIndices.containsKey(index) || previousIndexMetaData == null) {
                 actions.add(new WriteNewIndexMetaData(newIndexMetaData));
             } else if (previousIndexMetaData.getVersion() != newIndexMetaData.getVersion()) {
                 actions.add(new WriteChangedIndexMetaData(previousIndexMetaData, newIndexMetaData));
@@ -282,7 +282,7 @@ public class IncrementalClusterStateWriter {
         }
 
         long writeGlobalState(String reason, MetaData metaData) throws WriteStateException {
-            assert finished == false : FINISHED_MSG;
+            assert !finished : FINISHED_MSG;
             try {
                 rollbackCleanupActions.add(() -> metaStateService.cleanupGlobalState(previousManifest.getGlobalGeneration()));
                 long generation = metaStateService.writeGlobalState(reason, metaData);
@@ -295,7 +295,7 @@ public class IncrementalClusterStateWriter {
         }
 
         long writeIndex(String reason, IndexMetaData metaData) throws WriteStateException {
-            assert finished == false : FINISHED_MSG;
+            assert !finished : FINISHED_MSG;
             try {
                 Index index = metaData.getIndex();
                 Long previousGeneration = previousManifest.getIndexGenerations().get(index);
@@ -315,7 +315,7 @@ public class IncrementalClusterStateWriter {
         }
 
         void writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
-            assert finished == false : FINISHED_MSG;
+            assert !finished : FINISHED_MSG;
             try {
                 metaStateService.writeManifestAndCleanup(reason, manifest);
                 commitCleanupActions.forEach(Runnable::run);
@@ -325,7 +325,7 @@ public class IncrementalClusterStateWriter {
                 // because if the Manifest was actually written to disk and its deletion fails it will reference these new metadata files.
                 // On master-eligible nodes a dirty WriteStateException here is fatal to the node since we no longer really have any idea
                 // what the state on disk is and the only sensible response is to start again from scratch.
-                if (e.isDirty() == false) {
+                if (!e.isDirty()) {
                     rollback();
                 }
                 throw e;

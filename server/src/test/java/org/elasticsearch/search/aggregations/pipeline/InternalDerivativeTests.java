@@ -63,7 +63,7 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
     @Override
     protected void assertFromXContent(InternalDerivative derivative, ParsedAggregation parsedAggregation) {
         ParsedDerivative parsed = ((ParsedDerivative) parsedAggregation);
-        if (Double.isInfinite(derivative.getValue()) == false && Double.isNaN(derivative.getValue()) == false) {
+        if (!Double.isInfinite(derivative.getValue()) && !Double.isNaN(derivative.getValue())) {
             assertEquals(derivative.getValue(), parsed.value(), Double.MIN_VALUE);
             assertEquals(derivative.getValueAsString(), parsed.getValueAsString());
         } else {

@@ -184,7 +184,7 @@ public final class SFunction extends AStatement {
         List<Object> description = new ArrayList<>();
         description.add(rtnTypeStr);
         description.add(name);
-        if (false == (paramTypeStrs.isEmpty() && paramNameStrs.isEmpty())) {
+        if (!(paramTypeStrs.isEmpty() && paramNameStrs.isEmpty())) {
             description.add(joinWithName("Args", pairwiseToString(paramTypeStrs, paramNameStrs), emptyList()));
         }
         return multilineToString(description, block.statements);

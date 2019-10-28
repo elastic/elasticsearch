@@ -183,7 +183,7 @@ public class FileUtils {
     }
 
     public static void logAllLogs(Path logsDir, Logger logger) {
-        if (Files.exists(logsDir) == false) {
+        if (!Files.exists(logsDir)) {
             logger.warn("Can't show logs from directory {} as it doesn't exists", logsDir);
             return;
         }
@@ -191,7 +191,7 @@ public class FileUtils {
         try (Stream<Path> fileStream = Files.list(logsDir)) {
             fileStream
                 // gc logs are verbose and not useful in this context
-                .filter(file -> file.getFileName().toString().startsWith("gc.log") == false)
+                .filter(file -> !file.getFileName().toString().startsWith("gc.log"))
                 .forEach(file -> {
                 logger.info("=== Contents of `{}` ({}) ===", file, file.toAbsolutePath());
                 try (Stream<String> stream = Files.lines(file)) {

@@ -83,7 +83,7 @@ public class AutodetectParams {
             return true;
         }
 
-        if (other instanceof AutodetectParams == false) {
+        if (!(other instanceof AutodetectParams)) {
             return false;
         }
 

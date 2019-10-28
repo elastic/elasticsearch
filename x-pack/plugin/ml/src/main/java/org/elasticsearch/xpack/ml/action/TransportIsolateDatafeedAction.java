@@ -55,10 +55,10 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
     protected IsolateDatafeedAction.Response newResponse(IsolateDatafeedAction.Request request, List<IsolateDatafeedAction.Response> tasks,
                                                          List<TaskOperationFailure> taskOperationFailures,
                                                          List<FailedNodeException> failedNodeExceptions) {
-        if (taskOperationFailures.isEmpty() == false) {
+        if (!taskOperationFailures.isEmpty()) {
             throw org.elasticsearch.ExceptionsHelper
                     .convertToElastic(taskOperationFailures.get(0).getCause());
-        } else if (failedNodeExceptions.isEmpty() == false) {
+        } else if (!failedNodeExceptions.isEmpty()) {
             throw org.elasticsearch.ExceptionsHelper
                     .convertToElastic(failedNodeExceptions.get(0));
         } else {

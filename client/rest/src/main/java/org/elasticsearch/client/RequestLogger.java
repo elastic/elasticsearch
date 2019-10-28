@@ -125,7 +125,7 @@ final class RequestLogger {
             if (enclosingRequest.getEntity() != null) {
                 requestLine += " -d '";
                 HttpEntity entity = enclosingRequest.getEntity();
-                if (entity.isRepeatable() == false) {
+                if (!entity.isRepeatable()) {
                     entity = new BufferedHttpEntity(enclosingRequest.getEntity());
                     enclosingRequest.setEntity(entity);
                 }
@@ -147,7 +147,7 @@ final class RequestLogger {
         responseLine.append("\n#");
         HttpEntity entity = httpResponse.getEntity();
         if (entity != null) {
-            if (entity.isRepeatable() == false) {
+            if (!entity.isRepeatable()) {
                 entity = new BufferedHttpEntity(entity);
             }
             httpResponse.setEntity(entity);

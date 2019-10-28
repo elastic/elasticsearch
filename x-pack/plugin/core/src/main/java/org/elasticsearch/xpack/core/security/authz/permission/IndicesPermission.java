@@ -139,10 +139,10 @@ public final class IndicesPermission {
         final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
-            if (false == allowRestrictedIndices && false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(forIndexPattern)) {
+            if (!allowRestrictedIndices && !RestrictedIndicesNames.RESTRICTED_NAMES.contains(forIndexPattern)) {
                 checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, RestrictedIndicesNames.NAMES_AUTOMATON);
             }
-            if (false == Operations.isEmpty(checkIndexAutomaton)) {
+            if (!Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedIndexPrivilegesAutomaton = null;
                 for (Group group : groups) {
                     final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group,
@@ -248,7 +248,7 @@ public final class IndicesPermission {
             String index = entry.getKey();
             DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
             final Set<BytesReference> roleQueries;
-            if (permissions != null && permissions.isAllowAll() == false) {
+            if (permissions != null && !permissions.isAllowAll()) {
                 roleQueries = unmodifiableSet(permissions.queries);
             } else {
                 roleQueries = null;
@@ -256,7 +256,7 @@ public final class IndicesPermission {
 
             final FieldPermissions fieldPermissions;
             final Set<FieldPermissions> indexFieldPermissions = fieldPermissionsByIndex.get(index);
-            if (indexFieldPermissions != null && indexFieldPermissions.isEmpty() == false) {
+            if (indexFieldPermissions != null && !indexFieldPermissions.isEmpty()) {
                 fieldPermissions = indexFieldPermissions.size() == 1 ? indexFieldPermissions.iterator().next() :
                         fieldPermissionsCache.getFieldPermissions(indexFieldPermissions);
             } else {
@@ -316,7 +316,7 @@ public final class IndicesPermission {
         private boolean check(String action, String index) {
             assert index != null;
             return check(action) && indexNameMatcher.test(index)
-                    && (allowRestrictedIndices || (false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)));
+                    && (allowRestrictedIndices || (!RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)));
         }
 
         boolean hasQuery() {
@@ -351,13 +351,13 @@ public final class IndicesPermission {
             final Predicate<String> predicate;
             if (restrictedIndices.isEmpty()) {
                 predicate = indexMatcher(ordinaryIndices)
-                    .and(index -> false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index));
+                    .and(index -> !RestrictedIndicesNames.RESTRICTED_NAMES.contains(index));
             } else if (ordinaryIndices.isEmpty()) {
                 predicate = indexMatcher(restrictedIndices);
             } else {
                 predicate = indexMatcher(restrictedIndices)
                     .or(indexMatcher(ordinaryIndices)
-                         .and(index -> false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)));
+                         .and(index -> !RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)));
             }
             return predicate;
         }
@@ -369,7 +369,7 @@ public final class IndicesPermission {
         private boolean allowAll = false;
 
         private void addAll(Set<BytesReference> query) {
-            if (allowAll == false) {
+            if (!allowAll) {
                 if (queries == null) {
                     queries = new HashSet<>();
                 }

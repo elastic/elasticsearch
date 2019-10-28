@@ -94,7 +94,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         boolean includeUpper = randomBoolean();
         Object from = nextFrom();
         Object to = nextTo(from);
-        if (includeLower == false && includeUpper == false) {
+        if (!includeLower && !includeUpper) {
             // need to increase once more, otherwise interval is empty because edge values are exclusive
             to = nextTo(to);
         }
@@ -162,7 +162,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
             assertThat(((IndexOrDocValuesQuery) rangeQuery).getIndexQuery(), instanceOf(MatchNoDocsQuery.class));
     }
-    
+
     /**
      * check that we catch cases where the user specifies larger "from" than "to" value, not counting the include upper/lower settings
      */
@@ -231,7 +231,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
             xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null);
     }
-    
+
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
         RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);

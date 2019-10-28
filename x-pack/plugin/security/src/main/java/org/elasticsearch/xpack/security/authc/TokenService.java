@@ -415,7 +415,7 @@ public final class TokenService {
      */
     private void getUserTokenFromId(String userTokenId, Version tokenVersion, ActionListener<UserToken> listener) {
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
-        if (tokensIndex.isAvailable() == false) {
+        if (!tokensIndex.isAvailable()) {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
         } else {
@@ -432,7 +432,7 @@ public final class TokenService {
                                 if (accessTokenSource == null) {
                                     onFailure.accept(new IllegalStateException(
                                         "token document is missing the access_token field"));
-                                } else if (accessTokenSource.containsKey("user_token") == false) {
+                                } else if (!accessTokenSource.containsKey("user_token")) {
                                     onFailure.accept(new IllegalStateException(
                                         "token document is missing the user_token field"));
                                 } else {
@@ -667,9 +667,9 @@ public final class TokenService {
                 idsOfOlderTokens.add(userToken.getId());
             }
         }
-        if (false == idsOfOlderTokens.isEmpty()) {
+        if (!idsOfOlderTokens.isEmpty()) {
             indexInvalidation(idsOfOlderTokens, securityMainIndex, backoff, srcPrefix, previousResult, ActionListener.wrap(newResult -> {
-                if (false == idsOfRecentTokens.isEmpty()) {
+                if (!idsOfRecentTokens.isEmpty()) {
                     // carry-over result of the invalidation for the tokens security index
                     indexInvalidation(idsOfRecentTokens, securityTokensIndex, backoff, srcPrefix, newResult, listener);
                 } else {
@@ -746,7 +746,7 @@ public final class TokenService {
                                 }
                             }
                         }
-                        if (retryTokenDocIds.isEmpty() == false && backoff.hasNext()) {
+                        if (!retryTokenDocIds.isEmpty() && backoff.hasNext()) {
                             logger.debug("failed to invalidate [{}] tokens out of [{}], retrying to invalidate these too",
                                     retryTokenDocIds.size(), tokenIds.size());
                             final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(invalidated,
@@ -756,7 +756,7 @@ public final class TokenService {
                                             srcPrefix, incompleteResult, listener));
                             client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                         } else {
-                            if (retryTokenDocIds.isEmpty() == false) {
+                            if (!retryTokenDocIds.isEmpty()) {
                                 logger.warn("failed to invalidate [{}] tokens out of [{}] after all retries", retryTokenDocIds.size(),
                                         tokenIds.size());
                                 for (String retryTokenDocId : retryTokenDocIds) {
@@ -868,10 +868,10 @@ public final class TokenService {
             }
         };
         final SecurityIndexManager frozenTokensIndex = tokensIndexManager.freeze();
-        if (frozenTokensIndex.indexExists() == false) {
+        if (!frozenTokensIndex.indexExists()) {
             logger.warn("index [{}] does not exist therefore refresh token cannot be validated", frozenTokensIndex.aliasName());
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
-        } else if (frozenTokensIndex.isAvailable() == false) {
+        } else if (!frozenTokensIndex.isAvailable()) {
             logger.debug("index [{}] is not available to find token from refresh token, retrying", frozenTokensIndex.aliasName());
             maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
         } else {
@@ -1148,11 +1148,11 @@ public final class TokenService {
      */
     private static Optional<ElasticsearchSecurityException> checkClientCanRefresh(RefreshTokenStatus refreshToken,
                                                                                   Authentication clientAuthentication) {
-        if (clientAuthentication.getUser().principal().equals(refreshToken.getAssociatedUser()) == false) {
+        if (!clientAuthentication.getUser().principal().equals(refreshToken.getAssociatedUser())) {
             logger.warn("Token was originally created by [{}] but [{}] attempted to refresh it", refreshToken.getAssociatedUser(),
                     clientAuthentication.getUser().principal());
             return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-        } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
+        } else if (!clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm())) {
             logger.warn("[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
                     refreshToken.getAssociatedUser(), refreshToken.getAssociatedRealm(),
                     clientAuthentication.getAuthenticatedBy().getName());
@@ -1319,11 +1319,11 @@ public final class TokenService {
         final SecurityIndexManager frozenTokensIndex = securityTokensIndex.freeze();
         if (frozenTokensIndex.indexExists()) {
             // an existing tokens index always contains tokens (if available and version allows)
-            if (false == frozenTokensIndex.isAvailable()) {
+            if (!frozenTokensIndex.isAvailable()) {
                 listener.onFailure(frozenTokensIndex.getUnavailableReason());
                 return;
             }
-            if (false == frozenTokensIndex.isIndexUpToDate()) {
+            if (!frozenTokensIndex.isIndexUpToDate()) {
                 listener.onFailure(new IllegalStateException(
                         "Index [" + frozenTokensIndex.aliasName() + "] is not on the current version. Features relying on the index"
                                 + " will not be available until the upgrade API is run on the index"));
@@ -1334,13 +1334,13 @@ public final class TokenService {
         final SecurityIndexManager frozenMainIndex = securityMainIndex.freeze();
         if (frozenMainIndex.indexExists()) {
             // main security index _might_ contain tokens if the tokens index has been created recently
-            if (false == frozenTokensIndex.indexExists() || frozenTokensIndex.getCreationTime()
+            if (!frozenTokensIndex.indexExists() || frozenTokensIndex.getCreationTime()
                     .isAfter(clock.instant().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
-                if (false == frozenMainIndex.isAvailable()) {
+                if (!frozenMainIndex.isAvailable()) {
                     listener.onFailure(frozenMainIndex.getUnavailableReason());
                     return;
                 }
-                if (false == frozenMainIndex.isIndexUpToDate()) {
+                if (!frozenMainIndex.isIndexUpToDate()) {
                     listener.onFailure(new IllegalStateException(
                             "Index [" + frozenMainIndex.aliasName() + "] is not on the current version. Features relying on the index"
                                     + " will not be available until the upgrade API is run on the index"));
@@ -1421,7 +1421,7 @@ public final class TokenService {
         final String hashedRefreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
             ((Map<String, Object>) source.get("access_token")).get("user_token");
-        if (null != filter && filter.test(userTokenSource) == false) {
+        if (null != filter && !filter.test(userTokenSource)) {
             return null;
         }
         final UserToken userToken = UserToken.fromSourceMap(userTokenSource);
@@ -1437,7 +1437,7 @@ public final class TokenService {
     }
 
     private static String getTokenIdFromDocumentId(String docId) {
-        if (docId.startsWith(TOKEN_DOC_ID_PREFIX) == false) {
+        if (!docId.startsWith(TOKEN_DOC_ID_PREFIX)) {
             throw new IllegalStateException("TokenDocument ID [" + docId + "] has unexpected value");
         } else {
             return docId.substring(TOKEN_DOC_ID_PREFIX.length());
@@ -1449,10 +1449,10 @@ public final class TokenService {
     }
 
     private void ensureEnabled() {
-        if (licenseState.isTokenServiceAllowed() == false) {
+        if (!licenseState.isTokenServiceAllowed()) {
             throw LicenseUtils.newComplianceException("security tokens");
         }
-        if (enabled == false) {
+        if (!enabled) {
             throw new IllegalStateException("security tokens are not enabled");
         }
     }
@@ -1481,7 +1481,7 @@ public final class TokenService {
             return;
         }
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(userToken.getVersion());
-        if (tokensIndex.indexExists() == false) {
+        if (!tokensIndex.indexExists()) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
             logger.warn("failed to validate access token because the index [" + tokensIndex.aliasName() + "] doesn't exist");
             listener.onResponse(null);
@@ -1890,7 +1890,7 @@ public final class TokenService {
                 logger.debug("prune key {} ", value.getKeyHash());
             }
         }
-        assert map.isEmpty() == false;
+        assert !map.isEmpty();
         assert map.containsKey(keyCache.currentTokenKeyHash);
         return newTokenMetaData(keyCache.currentTokenKeyHash, map.values());
     }
@@ -1922,13 +1922,13 @@ public final class TokenService {
             secureRandom.nextBytes(saltArr);
             KeyAndCache keyAndCache = new KeyAndCache(key, new BytesKey(saltArr));
             maxTimestamp = Math.max(keyAndCache.keyAndTimestamp.getTimestamp(), maxTimestamp);
-            if (keyCache.cache.containsKey(keyAndCache.getKeyHash()) == false) {
+            if (!keyCache.cache.containsKey(keyAndCache.getKeyHash())) {
                 map.put(keyAndCache.getKeyHash(), keyAndCache);
             } else {
                 map.put(keyAndCache.getKeyHash(), keyCache.get(keyAndCache.getKeyHash())); // maintain the cache we already have
             }
         }
-        if (map.containsKey(currentUsedKeyHash) == false) {
+        if (!map.containsKey(currentUsedKeyHash)) {
             // this won't leak any secrets it's only exposing the current set of hashes
             throw new IllegalStateException("Current key is not in the map: " + map.keySet() + " key: " + currentUsedKeyHash);
         }
@@ -2027,7 +2027,7 @@ public final class TokenService {
             }
 
             TokenMetaData custom = event.state().custom(TokenMetaData.TYPE);
-            if (custom != null && custom.equals(getTokenMetaData()) == false) {
+            if (custom != null && !custom.equals(getTokenMetaData())) {
                 logger.info("refresh keys");
                 try {
                     refreshMetaData(custom);
@@ -2250,11 +2250,11 @@ public final class TokenService {
             if (clientInfo == null) {
                 throw new IllegalStateException("token document is missing the \"client\" field");
             }
-            if (false == clientInfo.containsKey("user")) {
+            if (!clientInfo.containsKey("user")) {
                 throw new IllegalStateException("token document is missing the \"client.user\" field");
             }
             final String associatedUser = (String) clientInfo.get("user");
-            if (false == clientInfo.containsKey("realm")) {
+            if (!clientInfo.containsKey("realm")) {
                 throw new IllegalStateException("token document is missing the \"client.realm\" field");
             }
             final String associatedRealm = (String) clientInfo.get("realm");

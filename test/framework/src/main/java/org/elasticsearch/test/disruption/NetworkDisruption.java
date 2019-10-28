@@ -91,7 +91,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
      * ensures the cluster is healthy after the disruption
      */
     public void ensureHealthy(InternalTestCluster cluster) {
-        assert activeDisruption == false;
+        assert !activeDisruption;
         ensureNodeCount(cluster);
         ensureFullyConnectedCluster(cluster);
     }
@@ -167,7 +167,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
             if (disruptedLinks.nodes().contains(node1)) {
                 for (String node2 : nodes2) {
                     if (disruptedLinks.nodes().contains(node2)) {
-                        if (node1.equals(node2) == false) {
+                        if (!node1.equals(node2)) {
                             if (disruptedLinks.disrupt(node1, node2)) {
                                 consumer.accept(transport(node1), transport(node2));
                             }
@@ -235,8 +235,8 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
             super(nodesSideOne, nodesSideTwo);
             this.nodesSideOne = nodesSideOne;
             this.nodesSideTwo = nodesSideTwo;
-            assert nodesSideOne.isEmpty() == false;
-            assert nodesSideTwo.isEmpty() == false;
+            assert !nodesSideOne.isEmpty();
+            assert !nodesSideTwo.isEmpty();
             assert Sets.haveEmptyIntersection(nodesSideOne, nodesSideTwo);
         }
 
@@ -317,10 +317,10 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
             this.bridgeNode = bridgeNode;
             this.nodesSideOne = nodesSideOne;
             this.nodesSideTwo = nodesSideTwo;
-            assert nodesSideOne.isEmpty() == false;
-            assert nodesSideTwo.isEmpty() == false;
+            assert !nodesSideOne.isEmpty();
+            assert !nodesSideTwo.isEmpty();
             assert Sets.haveEmptyIntersection(nodesSideOne, nodesSideTwo);
-            assert nodesSideOne.contains(bridgeNode) == false && nodesSideTwo.contains(bridgeNode) == false;
+            assert !nodesSideOne.contains(bridgeNode) && !nodesSideTwo.contains(bridgeNode);
         }
 
         public static Bridge random(Random random, String... nodes) {
@@ -333,7 +333,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
             Set<String> nodesSideOne = new HashSet<>();
             Set<String> nodesSideTwo = new HashSet<>();
             for (String node : nodes) {
-                if (node.equals(bridgeNode) == false) {
+                if (!node.equals(bridgeNode)) {
                     if (nodesSideOne.isEmpty()) {
                         nodesSideOne.add(node);
                     } else if (nodesSideTwo.isEmpty()) {

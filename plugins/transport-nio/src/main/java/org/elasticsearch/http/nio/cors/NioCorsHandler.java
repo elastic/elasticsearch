@@ -146,7 +146,7 @@ public class NioCorsHandler extends ChannelDuplexHandler {
     }
 
     private static boolean isSameOrigin(final String origin, final String host) {
-        if (Strings.isNullOrEmpty(host) == false) {
+        if (!Strings.isNullOrEmpty(host)) {
             // strip protocol from origin
             final String originDomain = SCHEME_PATTERN.matcher(origin).replaceFirst("");
             if (host.equals(originDomain)) {

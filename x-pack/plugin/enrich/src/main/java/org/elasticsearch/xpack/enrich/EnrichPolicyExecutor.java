@@ -66,7 +66,7 @@ public class EnrichPolicyExecutor {
 
     private void tryLockingPolicy(String policyName) {
         policyLocks.lockPolicy(policyName);
-        if (policyExecutionPermits.tryAcquire() == false) {
+        if (!policyExecutionPermits.tryAcquire()) {
             // Release policy lock, and throw a different exception
             policyLocks.releasePolicy(policyName);
             throw new EsRejectedExecutionException("Policy execution failed. Policy execution for [" + policyName + "] would exceed " +

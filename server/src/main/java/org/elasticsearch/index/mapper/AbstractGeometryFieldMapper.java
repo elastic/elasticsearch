@@ -247,7 +247,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                     iterator.remove();
                 }
             }
-            if (parsedDeprecatedParameters == false) {
+            if (!parsedDeprecatedParameters) {
                 params.remove(DEPRECATED_PARAMETERS_KEY);
             }
             Builder builder = newBuilder(name, params);
@@ -441,7 +441,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            if (ignoreMalformed.value() == false) {
+            if (!ignoreMalformed.value()) {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
                     fieldType().typeName());
             }

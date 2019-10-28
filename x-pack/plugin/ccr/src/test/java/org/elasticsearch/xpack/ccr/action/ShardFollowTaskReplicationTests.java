@@ -149,12 +149,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 boolean hasPromotion = false;
                 for (int i = 0; i < batches; i++) {
                     docCount += leaderGroup.indexDocs(between(1, 5));
-                    if (leaderGroup.getReplicas().isEmpty() == false && randomInt(100) < 5) {
+                    if (!leaderGroup.getReplicas().isEmpty() && randomInt(100) < 5) {
                         IndexShard closingReplica = randomFrom(leaderGroup.getReplicas());
                         leaderGroup.removeReplica(closingReplica);
                         closingReplica.close("test", false);
                         closingReplica.store().close();
-                    } else if (leaderGroup.getReplicas().isEmpty() == false && rarely()) {
+                    } else if (!leaderGroup.getReplicas().isEmpty() && rarely()) {
                         IndexShard newPrimary = randomFrom(leaderGroup.getReplicas());
                         leaderGroup.promoteReplicaToPrimary(newPrimary).get();
                         hasPromotion = true;
@@ -169,7 +169,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 int expectedDoc = docCount;
                 assertBusy(() -> followerGroup.assertAllEqual(expectedDoc));
                 shardFollowTask.markAsCompleted();
-                assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, hasPromotion == false);
+                assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, !hasPromotion);
             }
         }
     }
@@ -350,7 +350,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
         }) {
             group.startAll();
-            while (operations.isEmpty() == false) {
+            while (!operations.isEmpty()) {
                 List<Translog.Operation> bulkOps = randomSubsetOf(between(1, operations.size()), operations);
                 operations.removeAll(bulkOps);
                 BulkShardOperationsRequest bulkRequest = new BulkShardOperationsRequest(group.getPrimary().shardId(),
@@ -502,7 +502,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             protected synchronized void onOperationsFetched(Translog.Operation[] operations) {
                 super.onOperationsFetched(operations);
                 for (Translog.Operation operation : operations) {
-                    if (fetchOperations.add(operation.seqNo()) == false) {
+                    if (!fetchOperations.add(operation.seqNo())) {
                         throw new AssertionError("Operation [" + operation + " ] was fetched already");
                     }
                 }

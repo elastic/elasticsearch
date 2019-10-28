@@ -99,7 +99,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         final AtomicBoolean stopReconnecting = new AtomicBoolean();
         final Thread reconnectionThread = new Thread(() -> {
-            while (stopReconnecting.get() == false) {
+            while (!stopReconnecting.get()) {
                 final PlainActionFuture<Void> future = new PlainActionFuture<>();
                 service.ensureConnections(() -> future.onResponse(null));
                 future.actionGet();
@@ -113,14 +113,14 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             for (int iteration = 0; iteration < 3; iteration++) {
 
                 final boolean isDisrupting = randomBoolean();
-                if (isDisrupting == false) {
+                if (!isDisrupting) {
                     // if the previous iteration was a disrupting one then there could still be some pending disconnections which would
                     // prevent us from asserting that all nodes are connected in this iteration without this call.
                     ensureConnections(service);
                 }
                 final AtomicBoolean stopDisrupting = new AtomicBoolean();
                 final Thread disruptionThread = new Thread(() -> {
-                    while (isDisrupting && stopDisrupting.get() == false) {
+                    while (isDisrupting && !stopDisrupting.get()) {
                         transportService.disconnectFromNode(randomFrom(allNodes));
                     }
                 }, "disruption thread " + iteration);
@@ -130,7 +130,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 final PlainActionFuture<Void> future = new PlainActionFuture<>();
                 service.connectToNodes(nodes, () -> future.onResponse(null));
                 future.actionGet();
-                if (isDisrupting == false) {
+                if (!isDisrupting) {
                     assertConnected(transportService, nodes);
                 }
                 service.disconnectFromNodesExcept(nodes);

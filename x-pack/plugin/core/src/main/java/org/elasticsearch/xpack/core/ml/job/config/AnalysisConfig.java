@@ -495,7 +495,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
 
         private void verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet() {
-            if (Strings.isNullOrEmpty(summaryCountFieldName) == false &&
+            if (!Strings.isNullOrEmpty(summaryCountFieldName) &&
                     detectors.stream().anyMatch(d -> DetectorFunction.METRIC.equals(d.getFunction()))) {
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, DetectorFunction.METRIC));
@@ -539,7 +539,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 throw ExceptionsHelper.badRequestException(CATEGORIZATION_FIELD_NAME.getPreferredName()
                         + " must be set for " + ML_CATEGORY_FIELD + " to be available");
             }
-            if (categorizationFieldName != null && isMlCategoryUsed == false) {
+            if (categorizationFieldName != null && !isMlCategoryUsed) {
                 throw ExceptionsHelper.badRequestException(CATEGORIZATION_FIELD_NAME.getPreferredName()
                         + " is set but " + ML_CATEGORY_FIELD + " is not used in any detector by/over/partition field");
             }

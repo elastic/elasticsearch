@@ -130,7 +130,7 @@ public class MockNioTransport extends TcpTransport {
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         } finally {
-            if (success == false) {
+            if (!success) {
                 doStop();
             }
         }
@@ -166,7 +166,7 @@ public class MockNioTransport extends TcpTransport {
 
         // make sure we maintain at least the types that are supported by this profile even if we only use a single channel for them.
         builder.addConnections(3, allTypesWithConnection.toArray(new TransportRequestOptions.Type[0]));
-        if (allTypesWithoutConnection.isEmpty() == false) {
+        if (!allTypesWithoutConnection.isEmpty()) {
             builder.addConnections(0, allTypesWithoutConnection.toArray(new TransportRequestOptions.Type[0]));
         }
         builder.setHandshakeTimeout(connectionProfile.getHandshakeTimeout());
@@ -209,7 +209,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
-            MockSocketChannel nioChannel = new MockSocketChannel(isClient == false, profileName, channel);
+            MockSocketChannel nioChannel = new MockSocketChannel(!isClient, profileName, channel);
             IntFunction<Page> pageSupplier = (length) -> {
                 if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
                     return new Page(ByteBuffer.allocate(length), () -> {});
@@ -396,7 +396,7 @@ public class MockNioTransport extends TcpTransport {
                     }
                 }
             }
-            if (stopped == false) {
+            if (!stopped) {
                 threadPool.scheduleUnlessShuttingDown(CHECK_INTERVAL, ThreadPool.Names.GENERIC, this::logLongRunningExecutions);
             }
         }

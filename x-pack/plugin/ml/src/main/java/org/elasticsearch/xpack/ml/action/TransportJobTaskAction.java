@@ -50,7 +50,7 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         // node running the job task.
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
-        if (jobTask == null || jobTask.isAssigned() == false) {
+        if (jobTask == null || !jobTask.isAssigned()) {
             String message = "Cannot perform requested action because job [" + jobId + "] is not open";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
         } else {
@@ -73,9 +73,9 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         // not ideal, but throwing exceptions here works, because higher up the stack there is a try-catch block delegating to
         // the actionlistener's onFailure
         if (tasks.isEmpty()) {
-            if (taskOperationFailures.isEmpty() == false) {
+            if (!taskOperationFailures.isEmpty()) {
                 throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
-            } else if (failedNodeExceptions.isEmpty() == false) {
+            } else if (!failedNodeExceptions.isEmpty()) {
                 throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
             } else {
                 throw new IllegalStateException("No errors or response");

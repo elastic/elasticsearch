@@ -67,7 +67,7 @@ public class TestFixtureExtension {
 
     private Optional<String> findOtherProjectUsingService(String serviceName) {
         return this.project.getRootProject().getAllprojects().stream()
-            .filter(p -> p.equals(this.project) == false)
+            .filter(p -> !p.equals(this.project))
             .filter(p -> p.getExtensions().findByType(TestFixtureExtension.class) != null)
             .map(project -> project.getExtensions().getByType(TestFixtureExtension.class))
             .flatMap(ext -> ext.serviceToProjectUseMap.entrySet().stream())
@@ -81,7 +81,7 @@ public class TestFixtureExtension {
         if (fixtureProject == null) {
             throw new IllegalArgumentException("Could not find test fixture " + fixtureProject);
         }
-        if (fixtureProject.file(TestFixturesPlugin.DOCKER_COMPOSE_YML).exists() == false) {
+        if (!fixtureProject.file(TestFixturesPlugin.DOCKER_COMPOSE_YML).exists()) {
             throw new IllegalArgumentException(
                 "Project " + path + " is not a valid test fixture: missing " + TestFixturesPlugin.DOCKER_COMPOSE_YML
             );

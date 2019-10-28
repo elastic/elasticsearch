@@ -112,7 +112,7 @@ public final class SnapshotMatchers {
                 Translog.Operation op;
                 int i;
                 for (i = 0, op = snapshot.next(); op != null && i < expectedOps.length; i++, op = snapshot.next()) {
-                    if (expectedOps[i].equals(op) == false) {
+                    if (!expectedOps[i].equals(op)) {
                         failureMsg = "position [" + i + "] expected [" + expectedOps[i] + "] but found [" + op + "]";
                         return false;
                     }
@@ -166,10 +166,10 @@ public final class SnapshotMatchers {
             try {
                 List<Translog.Operation> actualOps = drainAll(snapshot);
                 notFoundOps = expectedOps.stream()
-                    .filter(o -> actualOps.contains(o) == false)
+                    .filter(o -> !actualOps.contains(o))
                     .collect(Collectors.toList());
                 notExpectedOps = actualOps.stream()
-                    .filter(o -> expectedOps.contains(o) == false)
+                    .filter(o -> !expectedOps.contains(o))
                     .collect(Collectors.toList());
                 return notFoundOps.isEmpty() && notExpectedOps.isEmpty();
             } catch (IOException ex) {
@@ -179,12 +179,12 @@ public final class SnapshotMatchers {
 
         @Override
         protected void describeMismatchSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
-            if (notFoundOps.isEmpty() == false) {
+            if (!notFoundOps.isEmpty()) {
                 mismatchDescription
                     .appendText("not found ").appendValueList("[", ", ", "]", notFoundOps);
             }
-            if (notExpectedOps.isEmpty() == false) {
-                if (notFoundOps.isEmpty() == false) {
+            if (!notExpectedOps.isEmpty()) {
+                if (!notFoundOps.isEmpty()) {
                     mismatchDescription.appendText("; ");
                 }
                 mismatchDescription
@@ -219,7 +219,7 @@ public final class SnapshotMatchers {
                     seqNoList.add(op.seqNo());
                 }
                 for (long i = minSeqNo; i <= maxSeqNo; i++) {
-                    if (seqNoList.contains(i) == false) {
+                    if (!seqNoList.contains(i)) {
                         notFoundSeqNo.add(i);
                     }
                 }

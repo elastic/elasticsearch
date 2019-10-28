@@ -63,7 +63,7 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     public void setVendor(final String vendor) {
-        if (ALLOWED_VENDORS.contains(vendor) == false) {
+        if (!ALLOWED_VENDORS.contains(vendor)) {
             throw new IllegalArgumentException("unknown vendor [" + vendor + "] for jdk [" + name + "], must be one of " + ALLOWED_VENDORS);
         }
         this.vendor.set(vendor);
@@ -74,7 +74,7 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     public void setVersion(String version) {
-        if (VERSION_PATTERN.matcher(version).matches() == false) {
+        if (!VERSION_PATTERN.matcher(version).matches()) {
             throw new IllegalArgumentException("malformed version [" + version + "] for jdk [" + name + "]");
         }
         this.version.set(version);
@@ -85,7 +85,7 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     public void setPlatform(String platform) {
-        if (ALLOWED_PLATFORMS.contains(platform) == false) {
+        if (!ALLOWED_PLATFORMS.contains(platform)) {
             throw new IllegalArgumentException(
                 "unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS);
         }
@@ -113,13 +113,13 @@ public class Jdk implements Buildable, Iterable<File> {
 
     // internal, make this jdks configuration unmodifiable
     void finalizeValues() {
-        if (version.isPresent() == false) {
+        if (!version.isPresent()) {
             throw new IllegalArgumentException("version not specified for jdk [" + name + "]");
         }
-        if (platform.isPresent() == false) {
+        if (!platform.isPresent()) {
             throw new IllegalArgumentException("platform not specified for jdk [" + name + "]");
         }
-        if (vendor.isPresent() == false) {
+        if (!vendor.isPresent()) {
             throw new IllegalArgumentException("vendor not specified for jdk [" + name + "]");
         }
         version.finalizeValue();

@@ -100,7 +100,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getHeaders());
             case 7:
                 return new TaskInfo(info.getTaskId(), info.getType(), info.getAction(), info.getDescription(), info.getStatus(),
-                    info.getStartTime(), info.getRunningTimeNanos(), info.isCancellable() == false, info.getParentTaskId(),
+                    info.getStartTime(), info.getRunningTimeNanos(), !info.isCancellable(), info.getParentTaskId(),
                     info.getHeaders());
             case 8:
                 TaskId parentId = new TaskId(info.getParentTaskId().getNodeId() + randomAlphaOfLength(5), info.getParentTaskId().getId());

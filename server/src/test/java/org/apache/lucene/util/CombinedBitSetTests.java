@@ -77,7 +77,7 @@ public class CombinedBitSetTests extends ESTestCase {
     private void and(BitSet set1, BitSet set2) {
         int next = 0;
         while (next < set1.length() && (next = set1.nextSetBit(next)) != DocIdSetIterator.NO_MORE_DOCS) {
-            if (set2.get(next) == false) {
+            if (!set2.get(next)) {
                 set1.clear(next);
             }
             next += 1;
@@ -100,7 +100,7 @@ public class CombinedBitSetTests extends ESTestCase {
         for (int i = 0; i < numBitsSet; ++i) {
             while (true) {
                 final int o = random().nextInt(numBits);
-                if (set.get(o) == false) {
+                if (!set.get(o)) {
                     set.set(o);
                     break;
                 }

@@ -369,7 +369,7 @@ public class AllocationService {
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, fixedClusterState,
             clusterInfoService.getClusterInfo(), currentNanoTime());
         reroute(allocation);
-        if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
+        if (fixedClusterState == clusterState && !allocation.routingNodesChanged()) {
             return clusterState;
         }
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
@@ -389,7 +389,7 @@ public class AllocationService {
 
     private boolean hasDeadNodes(RoutingAllocation allocation) {
         for (RoutingNode routingNode : allocation.routingNodes()) {
-            if (allocation.nodes().getDataNodes().containsKey(routingNode.nodeId()) == false) {
+            if (!allocation.nodes().getDataNodes().containsKey(routingNode.nodeId())) {
                 return true;
             }
         }
@@ -397,7 +397,7 @@ public class AllocationService {
     }
 
     private void reroute(RoutingAllocation allocation) {
-        assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
+        assert !hasDeadNodes(allocation) : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metaData(), allocation.nodes()).isEmpty() :
             "auto-expand replicas out of sync with number of nodes in the cluster";
 
@@ -431,7 +431,7 @@ public class AllocationService {
     }
 
     private void applyStartedShards(RoutingAllocation routingAllocation, List<ShardRouting> startedShardEntries) {
-        assert startedShardEntries.isEmpty() == false : "non-empty list of started shard entries expected";
+        assert !startedShardEntries.isEmpty() : "non-empty list of started shard entries expected";
         RoutingNodes routingNodes = routingAllocation.routingNodes();
         for (ShardRouting startedShard : startedShardEntries) {
             assert startedShard.initializing() : "only initializing shards can be started";

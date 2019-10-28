@@ -668,17 +668,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(response.getApiKeyInfos().length, equalTo(expectedNumberOfApiKeys));
         List<String> expectedIds = responses.stream().filter(o -> validApiKeyIds.contains(o.getId())).map(o -> o.getId())
                 .collect(Collectors.toList());
-        List<String> actualIds = Arrays.stream(response.getApiKeyInfos()).filter(o -> o.isInvalidated() == false).map(o -> o.getId())
+        List<String> actualIds = Arrays.stream(response.getApiKeyInfos()).filter(o -> !o.isInvalidated()).map(o -> o.getId())
                 .collect(Collectors.toList());
         assertThat(actualIds, containsInAnyOrder(expectedIds.toArray(Strings.EMPTY_ARRAY)));
         List<String> expectedNames = responses.stream().filter(o -> validApiKeyIds.contains(o.getId())).map(o -> o.getName())
                 .collect(Collectors.toList());
-        List<String> actualNames = Arrays.stream(response.getApiKeyInfos()).filter(o -> o.isInvalidated() == false).map(o -> o.getName())
+        List<String> actualNames = Arrays.stream(response.getApiKeyInfos()).filter(o -> !o.isInvalidated()).map(o -> o.getName())
                 .collect(Collectors.toList());
         assertThat(actualNames, containsInAnyOrder(expectedNames.toArray(Strings.EMPTY_ARRAY)));
         Set<String> expectedUsernames = (validApiKeyIds.isEmpty()) ? Collections.emptySet()
                 : Set.of(user);
-        Set<String> actualUsernames = Arrays.stream(response.getApiKeyInfos()).filter(o -> o.isInvalidated() == false)
+        Set<String> actualUsernames = Arrays.stream(response.getApiKeyInfos()).filter(o -> !o.isInvalidated())
                 .map(o -> o.getUsername()).collect(Collectors.toSet());
         assertThat(actualUsernames, containsInAnyOrder(expectedUsernames.toArray(Strings.EMPTY_ARRAY)));
         if (invalidatedApiKeyIds != null) {

@@ -427,7 +427,7 @@ final class QueryAnalyzer {
             }
         }
 
-                    if (success == false) {
+                    if (!success) {
             // No clauses could be extracted
                         if (uqe != null) {
 
@@ -499,7 +499,7 @@ final class QueryAnalyzer {
             }
             msm += resultMsm;
 
-            if (result.verified == false
+            if (!result.verified
                 // If some inner extractions are optional, the result can't be verified
                 || result.minimumShouldMatch < result.extractions.size()) {
                 verified = false;
@@ -547,7 +547,7 @@ final class QueryAnalyzer {
         Set<QueryExtraction> terms = new HashSet<>();
         for (int i = 0; i < disjunctions.size(); i++) {
             Result subResult = disjunctions.get(i);
-            if (subResult.verified == false
+            if (!subResult.verified
                     // one of the sub queries requires more than one term to match, we can't
                     // verify it with a single top-level min_should_match
                     || subResult.minimumShouldMatch > 1
@@ -561,12 +561,12 @@ final class QueryAnalyzer {
             }
             int resultMsm = subResult.minimumShouldMatch;
             for (QueryExtraction extraction : subResult.extractions) {
-                if (terms.add(extraction) == false) {
+                if (!terms.add(extraction)) {
                     verified = false;
                     hasDuplicateTerms = true;
                 }
             }
-            if (hasRangeExtractions == false) {
+            if (!hasRangeExtractions) {
                 hasRangeExtractions = subResult.extractions.stream().anyMatch(qe -> qe.range != null);
             }
             clauses.add(resultMsm);
@@ -576,7 +576,7 @@ final class QueryAnalyzer {
         int msm = 0;
         // Having ranges would mean we need to juggle with the msm and that complicates this logic a lot,
         // so for now lets not do it.
-        if (hasRangeExtractions == false) {
+        if (!hasRangeExtractions) {
             // Figure out what the combined msm is for this disjunction:
             // (sum the lowest required clauses, otherwise we're too strict and queries may not match)
             clauses = clauses.stream()
@@ -646,7 +646,7 @@ final class QueryAnalyzer {
         }
 
         boolean isMatchNoDocs() {
-            return matchAllDocs == false && extractions.isEmpty();
+            return !matchAllDocs && extractions.isEmpty();
         }
     }
 

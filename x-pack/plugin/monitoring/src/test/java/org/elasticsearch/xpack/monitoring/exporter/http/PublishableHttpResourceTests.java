@@ -350,10 +350,10 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
 
-        if (shouldReplace || expected == true) {
+        if (shouldReplace || expected) {
             verify(response).getStatusLine();
             verify(response).getEntity();
-        } else if (expected == false) {
+        } else if (!expected) {
             verify(response).getStatusLine();
         } else { // expected == null
             verify(response).getStatusLine();
@@ -410,8 +410,8 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         if (expected != null) {
             // invert expected to keep the same value
-            when(responseChecker.apply(response)).thenReturn(false == expected);
-            when(dneResponseChecker.apply(response)).thenReturn(false == expected);
+            when(responseChecker.apply(response)).thenReturn(!expected);
+            when(dneResponseChecker.apply(response)).thenReturn(!expected);
         }
 
         resource.checkForResource(client, listener, logger, resourceBasePath, resourceName, resourceType, owner, ownerType,

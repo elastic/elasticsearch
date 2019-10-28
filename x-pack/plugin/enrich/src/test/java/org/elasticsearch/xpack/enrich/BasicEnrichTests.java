@@ -276,7 +276,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             String key;
             do {
                 key = randomAlphaOfLength(16);
-            } while (keys.add(key) == false);
+            } while (!keys.add(key));
 
             for (int doc = 0; doc < numDocsPerKey; doc++) {
                 IndexRequest indexRequest = new IndexRequest(SOURCE_INDEX_NAME);

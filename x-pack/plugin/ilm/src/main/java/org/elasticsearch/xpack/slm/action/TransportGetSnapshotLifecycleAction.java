@@ -84,7 +84,7 @@ public class TransportGetSnapshotLifecycleAction extends
                     Map<String, Object> meta = entry.userMetadata();
                     if (meta == null ||
                         meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) == null ||
-                        (meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
+                        (!(meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) instanceof String))) {
                         continue;
                     }
 

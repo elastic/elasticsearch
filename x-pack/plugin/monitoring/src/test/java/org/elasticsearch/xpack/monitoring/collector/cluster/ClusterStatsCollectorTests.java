@@ -240,7 +240,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final boolean securitySettingDefined = settings.build().hasValue(XPackSettings.SECURITY_ENABLED.getKey());
         assertThat(document.getClusterNeedsTLSEnabled(),
                    equalTo(mode == License.OperationMode.TRIAL && securitySettingDefined && securityEnabled
-                           && transportTLSEnabled == false));
+                           && !transportTLSEnabled));
 
         assertThat(document.getClusterStats(), notNullValue());
         assertThat(document.getClusterStats().getStatus(), equalTo(clusterStatus));

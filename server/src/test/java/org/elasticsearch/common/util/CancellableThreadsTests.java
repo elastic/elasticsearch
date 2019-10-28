@@ -218,14 +218,14 @@ public class CancellableThreadsTests extends ESTestCase {
             assertThat(interrupted[plan.id], equalTo(plan.presetInterrupt));
         }
         assertThat(invokeTimes.longValue(),
-            equalTo(Arrays.stream(plans).filter(p -> p.exceptBeforeCancel == false && p.exitBeforeCancel == false).count()));
+            equalTo(Arrays.stream(plans).filter(p -> !p.exceptBeforeCancel && !p.exitBeforeCancel).count()));
         if (throwInOnCancel) {
             expectThrows(ThrowOnCancelException.class, cancellableThreads::checkForCancel);
         } else {
             expectThrows(ExecutionCancelledException.class, cancellableThreads::checkForCancel);
         }
         assertThat(invokeTimes.longValue(),
-            equalTo(Arrays.stream(plans).filter(p -> p.exceptBeforeCancel == false && p.exitBeforeCancel == false).count() + 1));
+            equalTo(Arrays.stream(plans).filter(p -> !p.exceptBeforeCancel && !p.exitBeforeCancel).count() + 1));
     }
 
 }

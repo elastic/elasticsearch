@@ -58,7 +58,7 @@ final class ExpandSearchPhase extends SearchPhase {
         final SearchRequest searchRequest = context.getRequest();
         return searchRequest.source() != null &&
             searchRequest.source().collapse() != null &&
-            searchRequest.source().collapse().getInnerHits().isEmpty() == false;
+            !searchRequest.source().collapse().getInnerHits().isEmpty();
     }
 
     @Override

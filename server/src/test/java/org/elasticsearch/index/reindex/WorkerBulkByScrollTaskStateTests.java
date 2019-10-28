@@ -173,7 +173,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
             Runnable test = () -> {
                 try {
                     int rethrottles = 0;
-                    while (false == done.get()) {
+                    while (!done.get()) {
                         float requestsPerSecond = (float) randomDoubleBetween(0, originalRequestsPerSecond * 2, true);
                         workerState.rethrottle(requestsPerSecond);
                         rethrottles += 1;

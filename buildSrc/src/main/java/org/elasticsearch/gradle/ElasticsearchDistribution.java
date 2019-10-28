@@ -232,7 +232,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
         if (getType() == Type.ARCHIVE) {
             // defaults for archive, set here instead of via convention so integ-test-zip can verify they are not set
-            if (platform.isPresent() == false) {
+            if (!platform.isPresent()) {
                 platform.set(CURRENT_PLATFORM);
             }
         } else { // rpm, deb or docker
@@ -242,10 +242,10 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             }
         }
 
-        if (flavor.isPresent() == false) {
+        if (!flavor.isPresent()) {
             flavor.set(Flavor.DEFAULT);
         }
-        if (bundledJdk.isPresent() == false) {
+        if (!bundledJdk.isPresent()) {
             bundledJdk.set(true);
         }
 

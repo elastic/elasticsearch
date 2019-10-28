@@ -103,7 +103,7 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
                 return new ClusterShardHealth(instance.getShardId(), instance.getStatus(),
                         instance.getActiveShards(), instance.getRelocatingShards(),
                         instance.getInitializingShards(), instance.getUnassignedShards(),
-                        instance.isPrimaryActive() == false);
+                    !instance.isPrimaryActive());
             default:
                 throw new UnsupportedOperationException();
         }

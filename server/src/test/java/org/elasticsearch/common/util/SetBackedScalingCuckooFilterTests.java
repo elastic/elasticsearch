@@ -106,7 +106,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
         int incorrect = 0;
         for (Long v : values) {
-            if (filter.mightContain(v) == false) {
+            if (!filter.mightContain(v)) {
                 incorrect += 1;
             }
         }
@@ -156,7 +156,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
         int incorrect = 0;
         for (Long v : values) {
-            if (filter.mightContain(v) == false) {
+            if (!filter.mightContain(v)) {
                 incorrect += 1;
             }
         }
@@ -180,7 +180,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
         incorrect = 0;
         for (Long v : values2) {
-            if (filter2.mightContain(v) == false) {
+            if (!filter2.mightContain(v)) {
                 incorrect += 1;
             }
         }
@@ -191,12 +191,12 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
         filter.merge(filter2);
         incorrect = 0;
         for (Long v : values) {
-            if (filter.mightContain(v) == false) {
+            if (!filter.mightContain(v)) {
                 incorrect += 1;
             }
         }
         for (Long v : values2) {
-            if (filter.mightContain(v) == false) {
+            if (!filter.mightContain(v)) {
                 incorrect += 1;
             }
         }

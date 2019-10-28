@@ -53,7 +53,7 @@ public final class AuthorizationUtils {
      */
     public static boolean shouldReplaceUserWithSystem(ThreadContext threadContext, String action) {
         // the action must be internal OR the thread context must be a system context.
-        if (threadContext.isSystemContext() == false && isInternalAction(action) == false) {
+        if (!threadContext.isSystemContext() && !isInternalAction(action)) {
             return false;
         }
 
@@ -68,7 +68,7 @@ public final class AuthorizationUtils {
         // originating action that is not a internal action. We verify that there must be a originating action as an
         // internal action should never be called by user code from a client
         final String originatingAction = threadContext.getTransient(AuthorizationService.ORIGINATING_ACTION_KEY);
-        if (originatingAction != null && isInternalAction(originatingAction) == false) {
+        if (originatingAction != null && !isInternalAction(originatingAction)) {
             return true;
         }
 

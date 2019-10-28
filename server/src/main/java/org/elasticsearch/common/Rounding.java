@@ -231,7 +231,7 @@ public abstract class Rounding implements Writeable {
             this.unit = unit;
             this.timeZone = timeZone;
             this.unitRoundsToMidnight = this.unit.field.getBaseUnit().getDuration().toMillis() > 3600000L;
-            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() == true ?
+            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() ?
                 timeZone.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000 : TZ_OFFSET_NON_FIXED;
         }
 
@@ -322,7 +322,7 @@ public abstract class Rounding implements Writeable {
 
             // Now work out what localMidnight actually means
             final List<ZoneOffset> currentOffsets = timeZone.getRules().getValidOffsets(localMidnight);
-            if (currentOffsets.isEmpty() == false) {
+            if (!currentOffsets.isEmpty()) {
                 // There is at least one midnight on this day, so choose the first
                 final ZoneOffset firstOffset = currentOffsets.get(0);
                 final OffsetDateTime offsetMidnight = localMidnight.atOffset(firstOffset);
@@ -336,17 +336,17 @@ public abstract class Rounding implements Writeable {
         }
 
         private Instant truncateAsLocalTime(Instant instant, final ZoneRules rules) {
-            assert unitRoundsToMidnight == false : "truncateAsLocalTime should not be called if unitRoundsToMidnight";
+            assert !unitRoundsToMidnight : "truncateAsLocalTime should not be called if unitRoundsToMidnight";
 
             LocalDateTime localDateTime = LocalDateTime.ofInstant(instant, timeZone);
             final LocalDateTime truncatedLocalDateTime = truncateLocalDateTime(localDateTime);
             final List<ZoneOffset> currentOffsets = rules.getValidOffsets(truncatedLocalDateTime);
 
-            if (currentOffsets.isEmpty() == false) {
+            if (!currentOffsets.isEmpty()) {
                 // at least one possibilities - choose the latest one that's still no later than the input time
                 for (int offsetIndex = currentOffsets.size() - 1; offsetIndex >= 0; offsetIndex--) {
                     final Instant result = truncatedLocalDateTime.atOffset(currentOffsets.get(offsetIndex)).toInstant();
-                    if (result.isAfter(instant) == false) {
+                    if (!result.isAfter(instant)) {
                         return result;
                     }
                 }
@@ -450,7 +450,7 @@ public abstract class Rounding implements Writeable {
                 throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval;
             this.timeZone = timeZone;
-            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() == true ?
+            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() ?
                 timeZone.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000 : TZ_OFFSET_NON_FIXED;
         }
 
@@ -485,7 +485,7 @@ public abstract class Rounding implements Writeable {
 
             // Now work out what roundedLocalDateTime actually means
             final List<ZoneOffset> currentOffsets = timeZone.getRules().getValidOffsets(roundedLocalDateTime);
-            if (currentOffsets.isEmpty() == false) {
+            if (!currentOffsets.isEmpty()) {
                 // There is at least one instant with the desired local time. In general the desired result is
                 // the latest rounded time that's no later than the input time, but this could involve rounding across
                 // a timezone transition, which may yield the wrong result
@@ -499,7 +499,7 @@ public abstract class Rounding implements Writeable {
                         return round(previousTransition.getInstant().toEpochMilli() - 1);
                     }
 
-                    if (utcInstant.isBefore(offsetTime.toInstant()) == false) {
+                    if (!utcInstant.isBefore(offsetTime.toInstant())) {
                         return offsetInstant.toEpochMilli();
                     }
                 }

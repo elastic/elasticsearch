@@ -236,7 +236,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         // But we can assert the data feed has stopped after the request returns.
         Runnable stopDataFeed = () -> {
             StopDatafeedAction.Response stopJobResponse = stopDatafeed(datafeedId);
-            if (stopJobResponse.isStopped() == false) {
+            if (!stopJobResponse.isStopped()) {
                 exceptions.put(Thread.currentThread().getId(), new AssertionError("Job is not stopped"));
             }
 
@@ -264,7 +264,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             threads[i].join();
         }
 
-        if (exceptions.isEmpty() == false) {
+        if (!exceptions.isEmpty()) {
             throw exceptions.values().iterator().next();
         }
     }

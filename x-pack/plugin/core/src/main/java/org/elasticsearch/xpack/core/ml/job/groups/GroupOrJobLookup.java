@@ -45,7 +45,7 @@ public class GroupOrJobLookup {
             if (oldGroup == null) {
                 groupOrJobLookup.put(groupName, new GroupOrJob.Group(Collections.singletonList(job)));
             } else {
-                if (oldGroup.isGroup() == false) {
+                if (!oldGroup.isGroup()) {
                     throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, groupName));
                 }
                 List<Job> groupJobs = new ArrayList<>(oldGroup.jobs());
@@ -77,7 +77,7 @@ public class GroupOrJobLookup {
         @Override
         protected Set<String> nameSet() {
             return groupOrJobLookup.values().stream()
-                    .filter(groupOrJob -> groupOrJob.isGroup() == false)
+                    .filter(groupOrJob -> !groupOrJob.isGroup())
                     .map(groupOrJob -> groupOrJob.jobs().get(0).getId())
                     .collect(Collectors.toSet());
         }

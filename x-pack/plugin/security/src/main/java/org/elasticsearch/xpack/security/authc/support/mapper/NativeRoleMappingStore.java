@@ -122,7 +122,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
      * <em>package private</em> for unit testing
      */
     protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-        if (securityIndex.isIndexUpToDate() == false) {
+        if (!securityIndex.isIndexUpToDate()) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -177,7 +177,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private <Request, Result> void modifyMapping(String name, CheckedBiConsumer<Request, ActionListener<Result>, Exception> inner,
                                                  Request request, ActionListener<Result> listener) {
-        if (securityIndex.isIndexUpToDate() == false) {
+        if (!securityIndex.isIndexUpToDate()) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -224,9 +224,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (!frozenSecurityIndex.indexExists()) {
             listener.onResponse(false);
-        } else if (securityIndex.isAvailable() == false) {
+        } else if (!securityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
@@ -306,7 +306,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
      * </ul>
      */
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        if (securityIndex.isAvailable() == false) {
+        if (!securityIndex.isAvailable()) {
             reportStats(listener, Collections.emptyList());
         } else {
             getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));

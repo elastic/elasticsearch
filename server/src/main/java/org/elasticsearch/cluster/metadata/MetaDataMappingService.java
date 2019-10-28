@@ -134,7 +134,7 @@ public class MetaDataMappingService {
                     logger.debug("{} ignoring task [{}] - index meta data doesn't match task uuid", index, task);
                 }
             }
-            if (hasTaskWithRightUUID == false) {
+            if (!hasTaskWithRightUUID) {
                 continue;
             }
 
@@ -183,7 +183,7 @@ public class MetaDataMappingService {
             }
 
             // if a single type is not up-to-date, re-send everything
-            if (updatedTypes.isEmpty() == false) {
+            if (!updatedTypes.isEmpty()) {
                 logger.warn("[{}] re-syncing mappings with cluster state because of types [{}]", index, updatedTypes);
                 dirty = true;
                 if (mapper != null) {
@@ -221,7 +221,7 @@ public class MetaDataMappingService {
                     try {
                         for (Index index : request.indices()) {
                             final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
-                            if (indexMapperServices.containsKey(indexMetaData.getIndex()) == false) {
+                            if (!indexMapperServices.containsKey(indexMetaData.getIndex())) {
                                 MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation

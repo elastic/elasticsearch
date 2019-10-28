@@ -172,7 +172,7 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
     private void writeControlCodeFollowedByTimeRange(String code, String start, String end)
             throws IOException {
         StringBuilder message = new StringBuilder(code);
-        if (start.isEmpty() == false) {
+        if (!start.isEmpty()) {
             message.append(start);
             message.append(' ');
             message.append(end);

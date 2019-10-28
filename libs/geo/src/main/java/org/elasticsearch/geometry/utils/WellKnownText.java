@@ -173,7 +173,7 @@ public class WellKnownText {
 
                 private void visitPoint(double lon, double lat, double alt) {
                     sb.append(lon).append(SPACE).append(lat);
-                    if (Double.isNaN(alt) == false) {
+                    if (!Double.isNaN(alt)) {
                         sb.append(SPACE).append(alt);
                     }
                 }
@@ -331,7 +331,7 @@ public class WellKnownText {
         if (isNumberNext(stream)) {
             alts.add(nextNumber(stream));
         }
-        if (alts.isEmpty() == false && alts.size() != lons.size()) {
+        if (!alts.isEmpty() && alts.size() != lons.size()) {
             throw new ParseException("coordinate dimensions do not match: " + tokenString(stream), stream.lineno());
         }
     }
@@ -431,13 +431,13 @@ public class WellKnownText {
      * the first set of coordinates (lat, lon and alt if available) are added to the end of the arrays.
      */
     private void closeLinearRingIfCoerced(ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts) {
-        if (coerce && lats.isEmpty() == false && lons.isEmpty() == false) {
+        if (coerce && !lats.isEmpty() && !lons.isEmpty()) {
             int last = lats.size() - 1;
             if (!lats.get(0).equals(lats.get(last)) || !lons.get(0).equals(lons.get(last)) ||
-                (alts.isEmpty() == false && !alts.get(0).equals(alts.get(last)))) {
+                (!alts.isEmpty() && !alts.get(0).equals(alts.get(last)))) {
                 lons.add(lons.get(0));
                 lats.add(lats.get(0));
-                if (alts.isEmpty() == false) {
+                if (!alts.isEmpty()) {
                     alts.add(alts.get(0));
                 }
             }
@@ -482,7 +482,7 @@ public class WellKnownText {
         double lat = nextNumber(stream);
         double radius = nextNumber(stream);
         double alt = Double.NaN;
-        if (isNumberNext(stream) == true) {
+        if (isNumberNext(stream)) {
             alt = nextNumber(stream);
         }
         Circle circle = new Circle(lon, lat, alt, radius);
@@ -560,7 +560,7 @@ public class WellKnownText {
     }
 
     private String nextComma(StreamTokenizer stream) throws IOException, ParseException {
-        if (nextWord(stream).equals(COMMA) == true) {
+        if (nextWord(stream).equals(COMMA)) {
             return COMMA;
         }
         throw new ParseException("expected " + COMMA + " but found: " + tokenString(stream), stream.lineno());

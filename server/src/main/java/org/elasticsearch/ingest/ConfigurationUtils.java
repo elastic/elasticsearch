@@ -420,7 +420,7 @@ public final class ConfigurationUtils {
 
             try {
                 Processor processor = factory.create(processorFactories, tag, config);
-                if (config.isEmpty() == false) {
+                if (!config.isEmpty()) {
                     throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
                         type, Arrays.toString(config.keySet().toArray()));
                 }

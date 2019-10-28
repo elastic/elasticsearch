@@ -185,7 +185,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
         }
 
         public TrainedModelDefinition build() {
-            if (preProcessors != null && preProcessors.size() > 1 && processorsInOrder == false) {
+            if (preProcessors != null && preProcessors.size() > 1 && !processorsInOrder) {
                 throw new IllegalArgumentException("preprocessors must be an array of preprocessor objects");
             }
             return new TrainedModelDefinition(this.trainedModel, this.preProcessors, this.input);

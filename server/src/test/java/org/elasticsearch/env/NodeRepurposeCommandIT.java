@@ -121,7 +121,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         Matcher<String> matcher = allOf(
             containsString(NodeRepurposeCommand.noMasterMessage(1, expectedShardCount, expectedIndexCount)),
             not(contains(NodeRepurposeCommand.PRE_V7_MESSAGE)),
-            NodeRepurposeCommandTests.conditionalNot(containsString(indexUUID), verbose == false));
+            NodeRepurposeCommandTests.conditionalNot(containsString(indexUUID), !verbose));
         NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher,
             verbose);
     }

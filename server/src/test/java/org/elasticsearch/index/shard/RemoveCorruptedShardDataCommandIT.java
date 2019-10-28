@@ -421,7 +421,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         }
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).setActiveOnly(false).get();
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get(indexName).stream()
-            .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
+            .filter(recoveryState -> !recoveryState.getPrimary()).findFirst().get();
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
         // Ensure that the global checkpoint and local checkpoint are restored from the max seqno of the last commit.
         final SeqNoStats seqNoStats = getSeqNoStats(indexName, 0);
@@ -518,7 +518,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).setActiveOnly(false).get();
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get(indexName).stream()
-            .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
+            .filter(recoveryState -> !recoveryState.getPrimary()).findFirst().get();
         // the replica translog was disabled so it doesn't know what hte global checkpoint is and thus can't do ops based recovery
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
         // Ensure that the global checkpoint and local checkpoint are restored from the max seqno of the last commit.

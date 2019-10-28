@@ -96,7 +96,7 @@ public class BulkByScrollTask extends CancellableTask {
      * set as a leader for slice subtasks
      */
     public TaskInfo taskInfoGivenSubtaskInfo(String localNodeId, List<TaskInfo> sliceInfo) {
-        if (isLeader() == false) {
+        if (!isLeader()) {
             throw new IllegalStateException("This task is not set to be a leader of other slice subtasks");
         }
 
@@ -594,7 +594,7 @@ public class BulkByScrollTask extends CancellableTask {
                 builder.field(CANCELED_FIELD, reasonCancelled);
             }
             builder.humanReadableField(THROTTLED_UNTIL_RAW_FIELD, THROTTLED_UNTIL_HR_FIELD, throttledUntil);
-            if (false == sliceStatuses.isEmpty()) {
+            if (!sliceStatuses.isEmpty()) {
                 builder.startArray(SLICES_FIELD);
                 for (StatusOrException slice : sliceStatuses) {
                     if (slice == null) {
@@ -710,7 +710,7 @@ public class BulkByScrollTask extends CancellableTask {
                 builder.append(",canceled=").append(reasonCancelled);
             }
             builder.append(",throttledUntil=").append(throttledUntil);
-            if (false == sliceStatuses.isEmpty()) {
+            if (!sliceStatuses.isEmpty()) {
                 builder.append(",workers=").append(sliceStatuses);
             }
         }

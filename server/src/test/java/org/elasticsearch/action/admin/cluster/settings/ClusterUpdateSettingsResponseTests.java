@@ -43,7 +43,7 @@ public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestC
         int i = randomIntBetween(0, 2);
         switch(i) {
             case 0:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged() == false,
+                return new ClusterUpdateSettingsResponse(!response.isAcknowledged(),
                         response.transientSettings, response.persistentSettings);
             case 1:
                 return new ClusterUpdateSettingsResponse(response.isAcknowledged(), mutateSettings(response.transientSettings),

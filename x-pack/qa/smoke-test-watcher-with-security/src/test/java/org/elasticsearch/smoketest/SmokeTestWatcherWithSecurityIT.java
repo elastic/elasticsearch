@@ -313,7 +313,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 builder.startObject("query").startObject("bool").startArray("must");
                 builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
                         .endObject();
-                if (Strings.isNullOrEmpty(state) == false) {
+                if (!Strings.isNullOrEmpty(state)) {
                     builder.startObject().startObject("term").startObject("state").field("value", state).endObject().endObject()
                             .endObject();
                 }

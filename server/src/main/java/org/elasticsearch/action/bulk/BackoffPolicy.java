@@ -240,7 +240,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
 
         @Override
         public TimeValue next() {
-            if (false == delegate.hasNext()) {
+            if (!delegate.hasNext()) {
                 throw new NoSuchElementException();
             }
             onBackoff.run();

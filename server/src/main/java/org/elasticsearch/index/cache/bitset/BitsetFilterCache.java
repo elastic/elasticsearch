@@ -135,7 +135,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
         final IndexReader.CacheKey coreCacheReader = cacheHelper.getKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
-        if (indexSettings.getIndex().equals(shardId.getIndex()) == false) {
+        if (!indexSettings.getIndex().equals(shardId.getIndex())) {
             // insanity
             throw new IllegalStateException("Trying to load bit set for index " + shardId.getIndex()
                     + " with cache of index " + indexSettings.getIndex());
@@ -225,7 +225,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
         @Override
         public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
-            if (indexSettings.getIndex().equals(indexShard.indexSettings().getIndex()) == false) {
+            if (!indexSettings.getIndex().equals(indexShard.indexSettings().getIndex())) {
                 // this is from a different index
                 return TerminationHandle.NO_WAIT;
             }

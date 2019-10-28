@@ -265,7 +265,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             final Map<String, Object> source = hit.getSourceAsMap();
 
-            assertTrue(source != null && source.isEmpty() == false);
+            assertTrue(source != null && !source.isEmpty());
 
             final String timestamp = (String) source.get("timestamp");
             final String type = (String) source.get("type");
@@ -292,7 +292,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
             @SuppressWarnings("unchecked")
             Map<String, Object> sourceNode = (Map<String, Object>) source.get("source_node");
-            if ("shards".equals(type) == false) {
+            if (!"shards".equals(type)) {
                 assertNotNull("document is missing source_node field", sourceNode);
             }
         }

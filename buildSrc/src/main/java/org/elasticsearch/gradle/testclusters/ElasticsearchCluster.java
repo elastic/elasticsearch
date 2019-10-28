@@ -398,7 +398,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     @Internal
     public boolean isProcessAlive() {
-        return nodes.stream().noneMatch(node -> node.isProcessAlive() == false);
+        return nodes.stream().noneMatch(node -> !node.isProcessAlive());
     }
 
     public ElasticsearchNode singleNode() {
@@ -423,7 +423,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     getFirstNode().configureHttpWait(wait);
                 }
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();
-                if (getFirstNode().getCredentials().isEmpty() == false) {
+                if (!getFirstNode().getCredentials().isEmpty()) {
                     wait.setUsername(credentials.get(0).get("useradd"));
                     wait.setPassword(credentials.get(0).get("-p"));
                 }

@@ -128,7 +128,7 @@ public class HttpClient implements Closeable {
                 boolean isRedirected = super.isRedirected(request, response, context);
                 if (isRedirected) {
                     String host = response.getHeaders("Location")[0].getValue();
-                    if (isWhitelisted(host) == false) {
+                    if (!isWhitelisted(host)) {
                         throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
                             HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
                     }
@@ -139,7 +139,7 @@ public class HttpClient implements Closeable {
         });
 
         clientBuilder.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
-            if (request instanceof HttpRequestWrapper == false) {
+            if (!(request instanceof HttpRequestWrapper)) {
                 throw new ElasticsearchException("unable to check request [{}/{}] for white listing", request,
                     request.getClass().getName());
             }
@@ -152,7 +152,7 @@ public class HttpClient implements Closeable {
                 host = wrapper.getOriginal().getRequestLine().getUri();
             }
 
-            if (isWhitelisted(host) == false) {
+            if (!isWhitelisted(host)) {
                 throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
                     HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
             }
@@ -190,14 +190,14 @@ public class HttpClient implements Closeable {
         internalRequest.setHeader(HttpHeaders.ACCEPT_CHARSET, StandardCharsets.UTF_8.name());
 
         // headers
-        if (request.headers().isEmpty() == false) {
+        if (!request.headers().isEmpty()) {
             for (Map.Entry<String, String> entry : request.headers.entrySet()) {
                 internalRequest.setHeader(entry.getKey(), entry.getValue());
             }
         }
 
         // BWC - hack for input requests made to elasticsearch that do not provide the right content-type header!
-        if (request.hasBody() && internalRequest.containsHeader("Content-Type") == false) {
+        if (request.hasBody() && !internalRequest.containsHeader("Content-Type")) {
             XContentType xContentType = XContentFactory.xContentType(request.body());
             if (xContentType != null) {
                 internalRequest.setHeader("Content-Type", xContentType.mediaType());
@@ -280,13 +280,13 @@ public class HttpClient implements Closeable {
      * @param request   The request parsed into the HTTP client
      */
     static void setProxy(RequestConfig.Builder config, HttpRequest request, HttpProxy configuredProxy) {
-        if (request.proxy != null && request.proxy.equals(HttpProxy.NO_PROXY) == false) {
+        if (request.proxy != null && !request.proxy.equals(HttpProxy.NO_PROXY)) {
             // if a proxy scheme is configured use this, but fall back to the same than the request in case there was no special
             // configuration given
             String scheme = request.proxy.getScheme() != null ? request.proxy.getScheme().scheme() : Scheme.HTTP.scheme();
             HttpHost proxy = new HttpHost(request.proxy.getHost(), request.proxy.getPort(), scheme);
             config.setProxy(proxy);
-        } else if (HttpProxy.NO_PROXY.equals(configuredProxy) == false) {
+        } else if (!HttpProxy.NO_PROXY.equals(configuredProxy)) {
             HttpHost proxy = new HttpHost(configuredProxy.getHost(), configuredProxy.getPort(), configuredProxy.getScheme().scheme());
             config.setProxy(proxy);
         }
@@ -333,7 +333,7 @@ public class HttpClient implements Closeable {
                 for (int i = 0; i < pathParts.length; i++) {
                     String part = pathParts[i];
                     boolean isLast = i == pathParts.length - 1;
-                    if (Strings.isEmpty(part) == false) {
+                    if (!Strings.isEmpty(part)) {
                         unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8.name()));
                         // if the passed URL ends with a slash, adding an empty string to the
                         // unescaped paths will ensure the slash will be added back

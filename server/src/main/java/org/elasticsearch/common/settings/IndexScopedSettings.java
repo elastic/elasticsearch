@@ -196,7 +196,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     @Override
     protected void validateSettingKey(Setting setting) {
-        if (setting.getKey().startsWith("index.") == false) {
+        if (!setting.getKey().startsWith("index.")) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "] must start with [index.]");
         }
         super.validateSettingKey(setting);

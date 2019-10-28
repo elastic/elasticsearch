@@ -38,7 +38,7 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
         // We only want to make progress if all shards of the shrunk index are
         // active
         boolean indexExists = clusterState.metaData().index(shrunkIndexPrefix + index.getName()) != null;
-        if (indexExists == false) {
+        if (!indexExists) {
             return new Result(false, new Info(false, -1, false));
         }
         boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(clusterState, shrunkIndexPrefix + index.getName());
@@ -91,9 +91,9 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
             this.actualShards = actualShards;
             this.shrunkIndexExists = shrunkIndexExists;
             this.allShardsActive = allShardsActive;
-            if (shrunkIndexExists == false) {
+            if (!shrunkIndexExists) {
                 message = "Waiting for shrunk index to be created";
-            } else if (allShardsActive == false) {
+            } else if (!allShardsActive) {
                 message = "Waiting for all shard copies to be active";
             } else {
                 message = "";

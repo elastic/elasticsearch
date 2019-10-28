@@ -121,7 +121,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void stop() {
         logger.trace("ML memory tracker stop called");
         // We never terminate the phaser
-        assert stopPhaser.isTerminated() == false;
+        assert !stopPhaser.isTerminated();
         // If there are no registered parties or no unarrived parties then there is a flaw
         // in the register/arrive/unregister logic in another method that uses the phaser
         assert stopPhaser.getRegisteredParties() > 0;
@@ -178,7 +178,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public Long getJobMemoryRequirement(String taskName, String id) {
 
-        if (isMaster == false) {
+        if (!isMaster) {
             return null;
         }
 
@@ -244,7 +244,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public void refreshAnomalyDetectorJobMemoryAndAllOthers(String jobId, ActionListener<Long> listener) {
 
-        if (isMaster == false) {
+        if (!isMaster) {
             listener.onResponse(null);
             return;
         }
@@ -264,7 +264,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public void addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(String id, long mem, ActionListener<Void> listener) {
 
-        if (isMaster == false) {
+        if (!isMaster) {
             listener.onResponse(null);
             return;
         }
@@ -294,7 +294,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         ActionListener<Void> refreshComplete = ActionListener.wrap(aVoid -> {
             lastUpdateTime = Instant.now();
             synchronized (fullRefreshCompletionListeners) {
-                assert fullRefreshCompletionListeners.isEmpty() == false;
+                assert !fullRefreshCompletionListeners.isEmpty();
                 for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                     listener.onResponse(null);
                 }
@@ -303,7 +303,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         },
         e -> {
             synchronized (fullRefreshCompletionListeners) {
-                assert fullRefreshCompletionListeners.isEmpty() == false;
+                assert !fullRefreshCompletionListeners.isEmpty();
                 for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                     listener.onFailure(e);
                 }
@@ -376,7 +376,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      *                 if it cannot be calculated.
      */
     public void refreshAnomalyDetectorJobMemory(String jobId, ActionListener<Long> listener) {
-        if (isMaster == false) {
+        if (!isMaster) {
             listener.onResponse(null);
             return;
         }

@@ -31,8 +31,8 @@ public class IngestDocumentMatcher {
      * @param docB second document to compare
      */
     public static void assertIngestDocument(IngestDocument docA, IngestDocument docB) {
-        if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true) &&
-            deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
+        if (!(deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true) &&
+            deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false))) {
             throw new AssertionError("Expected [" + docA + "] but received [" + docB + "].");
         }
     }
@@ -40,7 +40,7 @@ public class IngestDocumentMatcher {
     private static boolean deepEquals(Object a, Object b, boolean isIngestMeta) {
         if (a instanceof Map) {
             Map<?, ?> mapA = (Map<?, ?>) a;
-            if (b instanceof Map == false) {
+            if (!(b instanceof Map)) {
                 return false;
             }
             Map<?, ?> mapB = (Map<?, ?>) b;
@@ -50,15 +50,15 @@ public class IngestDocumentMatcher {
             for (Map.Entry<?, ?> entry : mapA.entrySet()) {
                 Object key = entry.getKey();
                 // Don't compare the timestamp of ingest metadata since it will differ between executions
-                if ((isIngestMeta && "timestamp".equals(key)) == false
-                    && deepEquals(entry.getValue(), mapB.get(key), false) == false) {
+                if (!(isIngestMeta && "timestamp".equals(key))
+                    && !deepEquals(entry.getValue(), mapB.get(key), false)) {
                     return false;
                 }
             }
             return true;
         } else if (a instanceof List) {
             List<?> listA = (List<?>) a;
-            if (b instanceof List == false) {
+            if (!(b instanceof List)) {
                 return false;
             }
             List<?> listB = (List<?>) b;
@@ -68,7 +68,7 @@ public class IngestDocumentMatcher {
             }
             for (int i = 0; i < countA; i++) {
                 Object value = listA.get(i);
-                if (deepEquals(value, listB.get(i), false) == false) {
+                if (!deepEquals(value, listB.get(i), false)) {
                     return false;
                 }
             }

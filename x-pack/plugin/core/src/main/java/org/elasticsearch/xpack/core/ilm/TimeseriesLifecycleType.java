@@ -69,7 +69,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
             Phase phase = phases.get(phaseName);
             if (phase != null) {
                 Map<String, LifecycleAction> actions = phase.getActions();
-                if (actions.containsKey(UnfollowAction.NAME) == false
+                if (!actions.containsKey(UnfollowAction.NAME)
                     && (actions.containsKey(RolloverAction.NAME) || actions.containsKey(ShrinkAction.NAME))) {
                     Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
                     actionMap.put(UnfollowAction.NAME, new UnfollowAction());
@@ -84,7 +84,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
     @Override
     public String getNextPhaseName(String currentPhaseName, Map<String, Phase> phases) {
         int index = VALID_PHASES.indexOf(currentPhaseName);
-        if (index < 0 && "new".equals(currentPhaseName) == false) {
+        if (index < 0 && !"new".equals(currentPhaseName)) {
             throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
         } else {
             // Find the next phase after `index` that exists in `phases` and return it
@@ -185,11 +185,11 @@ public class TimeseriesLifecycleType implements LifecycleType {
     @Override
     public void validate(Collection<Phase> phases) {
         phases.forEach(phase -> {
-            if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
+            if (!ALLOWED_ACTIONS.containsKey(phase.getName())) {
                 throw new IllegalArgumentException("Timeseries lifecycle does not support phase [" + phase.getName() + "]");
             }
             phase.getActions().forEach((actionName, action) -> {
-                if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
+                if (!ALLOWED_ACTIONS.get(phase.getName()).contains(actionName)) {
                     throw new IllegalArgumentException("invalid action [" + actionName + "] " +
                         "defined in phase [" + phase.getName() +"]");
                 }

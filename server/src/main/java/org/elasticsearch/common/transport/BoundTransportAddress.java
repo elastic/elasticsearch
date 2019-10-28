@@ -78,7 +78,7 @@ public class BoundTransportAddress implements Writeable {
         StringBuilder builder = new StringBuilder("publish_address {");
         String hostString = publishAddress.address().getHostString();
         String publishAddressString = publishAddress.toString();
-        if (InetAddresses.isInetAddress(hostString) == false) {
+        if (!InetAddresses.isInetAddress(hostString)) {
             publishAddressString = hostString + '/' + publishAddress.toString();
         }
         builder.append(publishAddressString);

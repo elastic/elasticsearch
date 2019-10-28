@@ -155,7 +155,7 @@ public class NioSelectorGroup implements NioGroup {
 
     private static void startSelectors(Iterable<NioSelector> selectors, ThreadFactory threadFactory) {
         for (NioSelector selector : selectors) {
-            if (selector.isRunning() == false) {
+            if (!selector.isRunning()) {
                 threadFactory.newThread(selector::runLoop).start();
                 try {
                     selector.isRunningFuture().get();
@@ -174,7 +174,7 @@ public class NioSelectorGroup implements NioGroup {
     }
 
     private void ensureOpen() {
-        if (isOpen.get() == false) {
+        if (!isOpen.get()) {
             throw new IllegalStateException("NioGroup is closed.");
         }
     }

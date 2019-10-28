@@ -63,7 +63,7 @@ public class ActionWrapper implements ToXContentObject {
                          @Nullable ExecutableTransform<Transform, Transform.Result> transform,
                          ExecutableAction<? extends Action> action,
                          @Nullable String path,
-                         @Nullable Integer maxIterations) {        
+                         @Nullable Integer maxIterations) {
         this.id = id;
         this.condition = condition;
         this.throttler = throttler;
@@ -126,7 +126,7 @@ public class ActionWrapper implements ToXContentObject {
         if (condition != null) {
             try {
                 conditionResult = condition.execute(ctx);
-                if (conditionResult.met() == false) {
+                if (!conditionResult.met()) {
                     ctx.watch().status().actionStatus(id).resetAckStatus(ZonedDateTime.now(ZoneOffset.UTC));
                     return new ActionWrapperResult(id, conditionResult, null,
                                                     new Action.Result.ConditionFailed(action.type(), "condition not met. skipping"));
@@ -279,7 +279,7 @@ public class ActionWrapper implements ToXContentObject {
                     .field(transform.type(), transform, params)
                     .endObject();
         }
-        if (Strings.isEmpty(path) == false) {
+        if (!Strings.isEmpty(path)) {
             builder.field(WatchField.FOREACH.getPreferredName(), path);
             builder.field(WatchField.MAX_ITERATIONS.getPreferredName(), maxIterations);
         }

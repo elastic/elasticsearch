@@ -44,7 +44,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
         if (agg1.isMapped() == agg2.isMapped()) {
             return 0;
-        } else if (agg1.isMapped() && agg2.isMapped() == false) {
+        } else if (agg1.isMapped() && !agg2.isMapped()) {
             return -1;
         } else {
             return 1;

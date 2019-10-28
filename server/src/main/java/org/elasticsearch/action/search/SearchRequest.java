@@ -260,7 +260,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 if (source.size() == 0) {
                     validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
                 }
-                if (source.rescores() != null && source.rescores().isEmpty() == false) {
+                if (source.rescores() != null && !source.rescores().isEmpty()) {
                     validationException =
                         addValidationError("using [rescore] is not allowed in a scroll context", validationException);
                 }

@@ -35,7 +35,7 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
-        if (context.sourceRequested() == false) {
+        if (!context.sourceRequested()) {
             return;
         }
         final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
@@ -53,7 +53,7 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
         }
 
         // If this is a parent document and there are no source filters, then add the source as-is.
-        if (nestedHit == false && containsFilters(fetchSourceContext) == false) {
+        if (!nestedHit && !containsFilters(fetchSourceContext)) {
             hitContext.hit().sourceRef(source.internalSourceRef());
             return;
         }

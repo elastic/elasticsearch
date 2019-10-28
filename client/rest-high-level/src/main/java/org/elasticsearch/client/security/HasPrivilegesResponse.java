@@ -56,7 +56,7 @@ public final class HasPrivilegesResponse {
             Map<String, T> map = (Map<String, T>) argument;
             if (depth == 0) {
                 map.values().stream()
-                    .filter(val -> (val instanceof Boolean) == false)
+                    .filter(val -> !(val instanceof Boolean))
                     .forEach(val -> {
                         throw new IllegalArgumentException("Map value [" + val + "] in [" + map + "] is not a Boolean");
                     });

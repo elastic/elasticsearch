@@ -70,7 +70,7 @@ public class ClusterAlertsUtilTests extends ESTestCase {
             assertThat(watch, containsString(watchId));
             assertThat(watch, containsString(String.valueOf(ClusterAlertsUtil.LAST_UPDATED_VERSION)));
 
-            if ("elasticsearch_nodes".equals(watchId) == false) {
+            if (!"elasticsearch_nodes".equals(watchId)) {
                 assertThat(watch, containsString(clusterUuid + "_" + watchId));
             }
 
@@ -97,7 +97,7 @@ public class ClusterAlertsUtilTests extends ESTestCase {
             }
         }
 
-        final Set<String> unknownIds = blacklist.stream().filter(id -> watchIds.contains(id) == false).collect(Collectors.toSet());
+        final Set<String> unknownIds = blacklist.stream().filter(id -> !watchIds.contains(id)).collect(Collectors.toSet());
         final String unknownIdsString = String.join(", ", unknownIds);
 
         final SettingsException exception =

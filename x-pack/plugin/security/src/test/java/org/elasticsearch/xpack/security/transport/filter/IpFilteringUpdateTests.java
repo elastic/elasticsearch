@@ -35,7 +35,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {
-        return httpEnabled == false;
+        return !httpEnabled;
     }
 
     @Override

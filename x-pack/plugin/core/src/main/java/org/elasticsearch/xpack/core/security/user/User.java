@@ -55,7 +55,7 @@ public class User implements ToXContentObject {
         this.fullName = fullName;
         this.email = email;
         this.enabled = enabled;
-        assert (authenticatedUser == null || authenticatedUser.isRunAs() == false) : "the authenticated user should not be a run_as user";
+        assert (authenticatedUser == null || !authenticatedUser.isRunAs()) : "the authenticated user should not be a run_as user";
         this.authenticatedUser = authenticatedUser;
     }
 
@@ -136,7 +136,7 @@ public class User implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o instanceof User == false) return false;
+        if (!(o instanceof User)) return false;
 
         User user = (User) o;
 
@@ -191,7 +191,7 @@ public class User implements ToXContentObject {
 
     public static User readFrom(StreamInput input) throws IOException {
         final boolean isInternalUser = input.readBoolean();
-        assert isInternalUser == false: "should always return false. Internal users should use the InternalUserSerializationHelper";
+        assert !isInternalUser : "should always return false. Internal users should use the InternalUserSerializationHelper";
         final String username = input.readString();
         return partialReadFrom(username, input);
     }

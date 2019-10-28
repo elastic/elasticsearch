@@ -217,7 +217,7 @@ public class HasPrivilegesResponseTests extends ESTestCase {
                 return new HasPrivilegesResponse("_" + request.getUsername(), request.hasAllRequested(),
                     request.getClusterPrivileges(), request.getIndexPrivileges(), request.getApplicationPrivileges());
             case 2:
-                return new HasPrivilegesResponse(request.getUsername(), request.hasAllRequested() == false,
+                return new HasPrivilegesResponse(request.getUsername(), !request.hasAllRequested(),
                     request.getClusterPrivileges(), request.getIndexPrivileges(), request.getApplicationPrivileges());
             case 3:
                 return new HasPrivilegesResponse(request.getUsername(), request.hasAllRequested(),

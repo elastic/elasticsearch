@@ -229,15 +229,15 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 validationException
                     = addValidationError("tokenizer/analyze should be null if normalizer is specified", validationException);
             }
-            if (analyzer != null && (tokenizer != null || charFilters.isEmpty() == false || tokenFilters.isEmpty() == false)) {
+            if (analyzer != null && (tokenizer != null || !charFilters.isEmpty() || !tokenFilters.isEmpty())) {
                 validationException
                     = addValidationError("cannot define extra components on a named analyzer", validationException);
             }
-            if (normalizer != null && (tokenizer != null || charFilters.isEmpty() == false || tokenFilters.isEmpty() == false)) {
+            if (normalizer != null && (tokenizer != null || !charFilters.isEmpty() || !tokenFilters.isEmpty())) {
                 validationException
                     = addValidationError("cannot define extra components on a named normalizer", validationException);
             }
-            if (field != null && (tokenizer != null || charFilters.isEmpty() == false || tokenFilters.isEmpty() == false)) {
+            if (field != null && (tokenizer != null || !charFilters.isEmpty() || !tokenFilters.isEmpty())) {
                 validationException
                     = addValidationError("cannot define extra components on a field-specific analyzer", validationException);
             }

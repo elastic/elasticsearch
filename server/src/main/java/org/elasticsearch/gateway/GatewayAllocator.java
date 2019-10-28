@@ -180,7 +180,7 @@ public class GatewayAllocator {
 
     private boolean hasNewNodes(DiscoveryNodes nodes) {
         for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getDataNodes()) {
-            if (lastSeenEphemeralIds.contains(node.value.getEphemeralId()) == false) {
+            if (!lastSeenEphemeralIds.contains(node.value.getEphemeralId())) {
                 return true;
             }
         }

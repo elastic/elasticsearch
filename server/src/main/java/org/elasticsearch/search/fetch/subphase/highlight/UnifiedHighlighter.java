@@ -112,7 +112,7 @@ public class UnifiedHighlighter implements Highlighter {
             } else {
                 // ignore terms that targets the _id field since they use a different encoding
                 // that is not compatible with utf8
-                highlighter.setFieldMatcher(name -> IdFieldMapper.NAME.equals(name) == false);
+                highlighter.setFieldMatcher(name -> !IdFieldMapper.NAME.equals(name));
             }
 
             Snippet[] fieldSnippets = highlighter.highlightField(highlighterContext.fieldName,

@@ -94,7 +94,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
                 assertSuccessAuthenticationResult(expectedUser, outToken, result);
             } else {
                 assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.TERMINATE)));
-                if (throwExceptionForInvalidTicket == false) {
+                if (!throwExceptionForInvalidTicket) {
                     assertThat(result.getException(), is(instanceOf(ElasticsearchSecurityException.class)));
                     final List<String> wwwAuthnHeader = ((ElasticsearchSecurityException) result.getException())
                             .getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);

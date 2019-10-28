@@ -134,7 +134,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 terminal.println("The passwords will be randomly generated and printed to the console.");
                 boolean shouldContinue = terminal.promptYesNo("Please confirm that you would like to continue", false);
                 terminal.println("\n");
-                if (shouldContinue == false) {
+                if (!shouldContinue) {
                     throw new UserException(ExitCodes.OK, "User cancelled operation");
                 }
             }
@@ -180,7 +180,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 terminal.println("You will be prompted to enter passwords as the process progresses.");
                 boolean shouldContinue = terminal.promptYesNo("Please confirm that you would like to continue", false);
                 terminal.println("\n");
-                if (shouldContinue == false) {
+                if (!shouldContinue) {
                     throw new UserException(ExitCodes.OK, "User cancelled operation");
                 }
             }
@@ -201,7 +201,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     continue;
                 }
                 try (SecureString password2 = new SecureString(terminal.readSecret("Reenter password for [" + user + "]: "))) {
-                    if (password1.equals(password2) == false) {
+                    if (!password1.equals(password2)) {
                         terminal.errorPrintln("Passwords do not match.");
                         terminal.errorPrintln("Try again.");
                         password1.close();
@@ -278,7 +278,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         private void setShouldPrompt(OptionSet options) {
             String optionalNoPrompt = noPromptOption.value(options);
             if (options.has(noPromptOption)) {
-                shouldPrompt = optionalNoPrompt != null && Booleans.parseBoolean(optionalNoPrompt) == false;
+                shouldPrompt = optionalNoPrompt != null && !Booleans.parseBoolean(optionalNoPrompt);
             } else {
                 shouldPrompt = true;
             }
@@ -314,14 +314,14 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     terminal.errorPrintln("");
                     terminal.errorPrintln("Unexpected response code [" + httpCode + "] from calling GET " + route.toString());
                     XPackSecurityFeatureConfig xPackSecurityFeatureConfig = getXPackSecurityConfig(terminal);
-                    if (xPackSecurityFeatureConfig.isAvailable == false) {
+                    if (!xPackSecurityFeatureConfig.isAvailable) {
                         terminal.errorPrintln("It doesn't look like the X-Pack security feature is available on this Elasticsearch node.");
                         terminal.errorPrintln("Please check if you have installed a license that allows access to " +
                             "X-Pack Security feature.");
                         terminal.errorPrintln("");
                         throw new UserException(ExitCodes.CONFIG, "X-Pack Security is not available.");
                     }
-                    if (xPackSecurityFeatureConfig.isEnabled == false) {
+                    if (!xPackSecurityFeatureConfig.isEnabled) {
                         terminal.errorPrintln("It doesn't look like the X-Pack security feature is enabled on this Elasticsearch node.");
                         terminal.errorPrintln("Please check if you have enabled X-Pack security in your elasticsearch.yml " +
                             "configuration file.");
@@ -439,7 +439,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             terminal.errorPrintln("");
             if (shouldPrompt) {
                 final boolean keepGoing = terminal.promptYesNo("Do you want to continue with the password setup process", false);
-                if (keepGoing == false) {
+                if (!keepGoing) {
                     throw new UserException(ExitCodes.OK, "User cancelled operation");
                 }
                 terminal.println("");

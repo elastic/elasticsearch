@@ -101,7 +101,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected void confirm(Terminal terminal, String msg) {
         terminal.println(msg);
         String text = terminal.readText("Confirm [y/N] ");
-        if (text.equalsIgnoreCase("y") == false) {
+        if (!text.equalsIgnoreCase("y")) {
             throw new ElasticsearchException(ABORTED_BY_USER_MSG);
         }
     }

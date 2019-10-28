@@ -99,7 +99,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
 
                 points.add(new LatLonDocValuesField(FIELD_NAME, lat, lng));
                 String hash = hashAsString(lng, lat, precision);
-                if (distinctHashesPerDoc.contains(hash) == false) {
+                if (!distinctHashesPerDoc.contains(hash)) {
                     expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0) + 1);
                 }
                 distinctHashesPerDoc.add(hash);

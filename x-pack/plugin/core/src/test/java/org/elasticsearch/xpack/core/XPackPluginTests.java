@@ -72,7 +72,7 @@ public class XPackPluginTests extends ESTestCase {
         assertEquals(XPackPlugin.nodesNotReadyForXPackCustomMetadata(clusterState).isEmpty(), nodesCompatible);
         assertEquals(XPackPlugin.isReadyForXPackCustomMetadata(clusterState), compatible);
 
-        if (compatible == false) {
+        if (!compatible) {
             IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> XPackPlugin.checkReadyForXPackCustomMetadata(clusterState));
             assertThat(e.getMessage(), containsString("The following nodes are not ready yet for enabling x-pack custom metadata:"));

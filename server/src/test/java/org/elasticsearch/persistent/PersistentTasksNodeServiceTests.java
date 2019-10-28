@@ -126,7 +126,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             for (int i = 0; i < randomInt(5); i++) {
                 tasks.addTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("other_" + i),
                         new Assignment("other_node_" + randomInt(nonLocalNodesCount), "test assignment on other node"));
-                if (added == false && randomBoolean()) {
+                if (!added && randomBoolean()) {
                     added = true;
                     tasks.addTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("this_param"),
                             new Assignment("this_node", "test assignment on this node"));
@@ -134,7 +134,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             }
         }
 
-        if (added == false) {
+        if (!added) {
             logger.info("No local node action was added");
         }
 

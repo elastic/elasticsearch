@@ -725,7 +725,7 @@ final class BootstrapChecks {
     static class DiscoveryConfiguredCheck implements BootstrapCheck {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (DiscoveryModule.ZEN2_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())) == false) {
+            if (!DiscoveryModule.ZEN2_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings()))) {
                 return BootstrapCheckResult.success();
             }
             if (ClusterBootstrapService.discoveryIsConfigured(context.settings())) {

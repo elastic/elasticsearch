@@ -53,7 +53,7 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
 
     @Override
     public TokenFilterFactory getSynonymFilter() {
-        if (preserveOriginal == false) {
+        if (!preserveOriginal) {
             return this;
         } else {
             // See https://issues.apache.org/jira/browse/LUCENE-7536 for the reasoning

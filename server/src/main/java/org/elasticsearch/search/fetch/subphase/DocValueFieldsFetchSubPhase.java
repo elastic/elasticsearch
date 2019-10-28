@@ -70,7 +70,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             if (context.docValueFieldsContext() == null) {
                 context.docValueFieldsContext(new DocValueFieldsContext(
                         Collections.singletonList(new FieldAndFormat(name, null))));
-            } else if (context.docValueFieldsContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
+            } else if (!context.docValueFieldsContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals)) {
                 context.docValueFieldsContext().fields().add(new FieldAndFormat(name, null));
             }
         }

@@ -54,7 +54,7 @@ public class SnapshotHistoryStore {
      * @param item The entry to index
      */
     public void putAsync(SnapshotHistoryItem item) {
-        if (slmHistoryEnabled == false) {
+        if (!slmHistoryEnabled) {
             logger.trace("not recording snapshot history item because [{}] is [false]: [{}]",
                 SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), item);
             return;
@@ -129,7 +129,7 @@ public class SnapshotHistoryStore {
                 // The alias does not have a write index, so we can't index into it
                 andThen.onFailure(new IllegalStateException("SLM history alias [" + SLM_HISTORY_ALIAS + "does not have a write index"));
             }
-        } else if (slmHistory.isAlias() == false) {
+        } else if (!slmHistory.isAlias()) {
             // This is not an alias, error out
             andThen.onFailure(new IllegalStateException("SLM history alias [" + SLM_HISTORY_ALIAS +
                 "] already exists as concrete index"));

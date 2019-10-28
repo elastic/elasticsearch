@@ -104,7 +104,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
         // If the driver is ready for application writes, we can attempt to proceed with any queued writes.
         FlushOperation unencryptedFlush;
-        while (pendingChannelFlush() == false && (unencryptedFlush = getPendingFlush()) != null) {
+        while (!pendingChannelFlush() && (unencryptedFlush = getPendingFlush()) != null) {
             if (unencryptedFlush.isFullyFlushed()) {
                 currentFlushOperationComplete();
             } else {
@@ -113,7 +113,7 @@ public final class SSLChannelContext extends SocketChannelContext {
                     // outbound write buffer.
                     sslDriver.write(unencryptedFlush);
                     SSLOutboundBuffer outboundBuffer = sslDriver.getOutboundBuffer();
-                    if (outboundBuffer.hasEncryptedBytesToFlush() == false) {
+                    if (!outboundBuffer.hasEncryptedBytesToFlush()) {
                         break;
                     }
                     encryptedFlushes.addLast(outboundBuffer.buildNetworkFlushOperation());
@@ -176,7 +176,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     @Override
     public boolean selectorShouldClose() {
-        return closeNow() || (sslDriver.isClosed() && pendingChannelFlush() == false);
+        return closeNow() || (sslDriver.isClosed() && !pendingChannelFlush());
     }
 
     @Override
@@ -218,7 +218,7 @@ public final class SSLChannelContext extends SocketChannelContext {
     }
 
     private boolean pendingChannelFlush() {
-        return encryptedFlushes.isEmpty() == false;
+        return !encryptedFlushes.isEmpty();
     }
 
     private static class CloseNotifyOperation implements WriteOperation {

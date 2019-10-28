@@ -43,16 +43,16 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
     private final List<String> enrichFields;
 
     public PutPolicyRequest(String name, String type, List<String> indices, String matchField, List<String> enrichFields) {
-        if (Strings.hasLength(name) == false) {
+        if (!Strings.hasLength(name)) {
             throw new IllegalArgumentException("name must be a non-null and non-empty string");
         }
-        if (Strings.hasLength(type) == false) {
+        if (!Strings.hasLength(type)) {
             throw new IllegalArgumentException("type must be a non-null and non-empty string");
         }
         if (indices == null || indices.isEmpty()) {
             throw new IllegalArgumentException("indices must be specified");
         }
-        if (Strings.hasLength(matchField) == false) {
+        if (!Strings.hasLength(matchField)) {
             throw new IllegalArgumentException("matchField must be a non-null and non-empty string");
         }
         if (enrichFields == null || enrichFields.isEmpty()) {

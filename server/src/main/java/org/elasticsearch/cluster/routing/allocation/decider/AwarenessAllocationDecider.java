@@ -136,7 +136,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         int shardCount = indexMetaData.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
-            if (node.node().getAttributes().containsKey(awarenessAttribute) == false) {
+            if (!node.node().getAttributes().containsKey(awarenessAttribute)) {
                 return allocation.decision(Decision.NO, NAME,
                     "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
                     awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
@@ -160,7 +160,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             if (moveToNode) {
                 if (shardRouting.assignedToNode()) {
                     String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
-                    if (node.nodeId().equals(nodeId) == false) {
+                    if (!node.nodeId().equals(nodeId)) {
                         // we work on different nodes, move counts around
                         shardPerAttribute.putOrAdd(allocation.routingNodes().node(nodeId).node().getAttributes().get(awarenessAttribute),
                                 0, -1);
@@ -175,7 +175,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
             if (fullValues != null) {
                 for (String fullValue : fullValues) {
-                    if (shardPerAttribute.containsKey(fullValue) == false) {
+                    if (!shardPerAttribute.containsKey(fullValue)) {
                         numberOfAttributes++;
                     }
                 }

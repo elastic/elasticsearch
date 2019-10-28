@@ -248,7 +248,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false) {
+        if (!enabled) {
             return Collections.emptyList();
         }
 
@@ -340,12 +340,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                         .filter(BulkItemResponse::isFailed)
                         .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
-                    if (triggeredFailures.isEmpty() == false) {
+                    if (!triggeredFailures.isEmpty()) {
                         String failure = triggeredFailures.values().stream().collect(Collectors.joining(", "));
                         logger.error("triggered watches could not be deleted {}, failure [{}]",
                             triggeredFailures.keySet(), Strings.substring(failure, 0, 2000));
                     }
-                    if (historyFailures.isEmpty() == false) {
+                    if (!historyFailures.isEmpty()) {
                         String failure = historyFailures.values().stream().collect(Collectors.joining(", "));
                         logger.error("watch history could not be written {}, failure [{}]",
                             historyFailures.keySet(), Strings.substring(failure, 0, 2000));
@@ -356,7 +356,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                         .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
                         .filter(r -> r.getVersion() > 1)
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
-                    if (overwrittenIds.isEmpty() == false) {
+                    if (!overwrittenIds.isEmpty()) {
                         String failure = overwrittenIds.values().stream().collect(Collectors.joining(", "));
                         logger.info("overwrote watch history entries {}, possible second execution of a triggered watch, failure [{}]",
                             overwrittenIds.keySet(), Strings.substring(failure, 0, 2000));
@@ -533,7 +533,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.WATCHER, WatcherUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.WATCHER, WatcherInfoTransportAction.class);
-        if (false == enabled) {
+        if (!enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(new ActionHandler<>(PutWatchAction.INSTANCE, TransportPutWatchAction.class),
@@ -552,7 +552,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        if (false == enabled) {
+        if (!enabled) {
             return emptyList();
         }
         return Arrays.asList(
@@ -568,7 +568,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public void onIndexModule(IndexModule module) {
-        if (enabled == false) {
+        if (!enabled) {
             return;
         }
 
@@ -664,7 +664,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         }
         IOUtils.closeWhileHandlingException(httpClient);
         try {
-            if (enabled && bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
+            if (enabled && !bulkProcessor.awaitClose(10, TimeUnit.SECONDS)) {
                 logger.warn("failed to properly close watcher bulk processor");
             }
         } catch (InterruptedException e) {
@@ -677,7 +677,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      */
     @Override
     public void reload(Settings settings) {
-        if (enabled == false) {
+        if (!enabled) {
             return;
         }
         reloadableServices.forEach(s -> s.reload(settings));

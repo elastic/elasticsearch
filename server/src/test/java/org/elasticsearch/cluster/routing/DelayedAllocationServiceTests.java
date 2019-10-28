@@ -143,7 +143,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         final List<ShardRouting> allShards = clusterState.getRoutingTable().allShards("test");
         // we need to find the node with the replica otherwise we will not reroute
         for (ShardRouting shardRouting : allShards) {
-            if (shardRouting.primary() == false) {
+            if (!shardRouting.primary()) {
                 nodeId = shardRouting.currentNodeId();
                 break;
             }
@@ -235,7 +235,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         // find replica of short_delay
         ShardRouting shortDelayReplica = null;
         for (ShardRouting shardRouting : clusterState.getRoutingTable().allShards("short_delay")) {
-            if (shardRouting.primary() == false) {
+            if (!shardRouting.primary()) {
                 shortDelayReplica = shardRouting;
                 break;
             }
@@ -245,7 +245,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         // find replica of long_delay
         ShardRouting longDelayReplica = null;
         for (ShardRouting shardRouting : clusterState.getRoutingTable().allShards("long_delay")) {
-            if (shardRouting.primary() == false) {
+            if (!shardRouting.primary()) {
                 longDelayReplica = shardRouting;
                 break;
             }
@@ -390,7 +390,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         assertFalse("no shards should be unassigned", clusterState.getRoutingNodes().unassigned().size() > 0);
         String nodeIdOfFooReplica = null;
         for (ShardRouting shardRouting : clusterState.getRoutingTable().allShards("foo")) {
-            if (shardRouting.primary() == false) {
+            if (!shardRouting.primary()) {
                 nodeIdOfFooReplica = shardRouting.currentNodeId();
                 break;
             }
@@ -433,7 +433,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             // node leaves with replica shard of index bar that has shorter delay
             String nodeIdOfBarReplica = null;
             for (ShardRouting shardRouting : stateWithDelayedShard.getRoutingTable().allShards("bar")) {
-                if (shardRouting.primary() == false) {
+                if (!shardRouting.primary()) {
                     nodeIdOfBarReplica = shardRouting.currentNodeId();
                     break;
                 }

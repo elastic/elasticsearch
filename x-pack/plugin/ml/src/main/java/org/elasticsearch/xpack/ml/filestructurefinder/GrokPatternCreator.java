@@ -248,9 +248,9 @@ public final class GrokPatternCreator {
         snippets = adjustForPunctuation(snippets);
 
         GrokPatternCandidate bestCandidate = null;
-        if (snippets.isEmpty() == false) {
+        if (!snippets.isEmpty()) {
             GrokPatternCandidate kvCandidate = new KeyValueGrokPatternCandidate();
-            if (ignoreKeyValueCandidate == false && kvCandidate.matchesAll(snippets)) {
+            if (!ignoreKeyValueCandidate && kvCandidate.matchesAll(snippets)) {
                 bestCandidate = kvCandidate;
             } else {
                 ignoreKeyValueCandidate = true;
@@ -287,7 +287,7 @@ public final class GrokPatternCreator {
      */
     Collection<String> adjustForPunctuation(Collection<String> snippets) {
 
-        assert snippets.isEmpty() == false;
+        assert !snippets.isEmpty();
 
         StringBuilder commonInitialPunctuation = new StringBuilder();
 
@@ -376,7 +376,7 @@ public final class GrokPatternCreator {
             }
         }
 
-        if (wildcardRequiredIfNonMatchFound && others.stream().anyMatch(s -> s.isEmpty() == false)) {
+        if (wildcardRequiredIfNonMatchFound && others.stream().anyMatch(s -> !s.isEmpty())) {
             patternBuilder.append(".*?");
         }
     }
@@ -575,7 +575,7 @@ public final class GrokPatternCreator {
                     isFirst = false;
                 } else {
                     candidateNames.removeIf(candidateName ->
-                        Pattern.compile("\\b" + candidateName + "=[\\w.-]+").matcher(snippet).find() == false);
+                        !Pattern.compile("\\b" + candidateName + "=[\\w.-]+").matcher(snippet).find());
                 }
                 if (candidateNames.isEmpty()) {
                     break;
@@ -675,7 +675,7 @@ public final class GrokPatternCreator {
 
         public boolean matchesAll(Collection<String> sampleMessages, TimeoutChecker timeoutChecker) {
             for (String sampleMessage : sampleMessages) {
-                if (grok.match(sampleMessage) == false) {
+                if (!grok.match(sampleMessage)) {
                     return false;
                 }
                 timeoutChecker.check("full message Grok pattern matching");
@@ -723,7 +723,7 @@ public final class GrokPatternCreator {
                         FileStructureUtils.guessScalarMapping(explanation, fieldName, valuesForField.getValue(), timeoutChecker);
                     timeoutChecker.check("mapping determination");
                     // Exclude the time field because that will be dropped and replaced with @timestamp
-                    if (mappings != null && fieldName.equals(timeField) == false) {
+                    if (mappings != null && !fieldName.equals(timeField)) {
                         mappings.put(fieldName, mapping);
                     }
                     if (fieldStats != null) {

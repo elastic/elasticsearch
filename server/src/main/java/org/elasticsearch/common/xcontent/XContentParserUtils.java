@@ -45,7 +45,7 @@ public final class XContentParserUtils {
     public static void ensureFieldName(XContentParser parser, Token token, String fieldName) throws IOException {
         ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
         String currentName = parser.currentName();
-        if (currentName.equals(fieldName) == false) {
+        if (!currentName.equals(fieldName)) {
             String message = "Failed to parse object: expecting field with name [%s] but found [%s]";
             throw new ParsingException(parser.getTokenLocation(), String.format(Locale.ROOT, message, fieldName, currentName));
         }

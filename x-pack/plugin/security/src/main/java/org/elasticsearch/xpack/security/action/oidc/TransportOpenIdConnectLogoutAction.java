@@ -108,17 +108,17 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
         if (realm == null) {
             throw new ElasticsearchSecurityException("Authenticating realm {} does not exist", ref.getName());
         }
-        if (realm instanceof OpenIdConnectRealm == false) {
+        if (!(realm instanceof OpenIdConnectRealm)) {
             throw new IllegalArgumentException("Access token is not valid for an OpenID Connect realm");
         }
     }
 
     private Object getFromMetadata(Map<String, Object> metadata, String key) {
-        if (metadata.containsKey(key) == false) {
+        if (!metadata.containsKey(key)) {
             throw new ElasticsearchSecurityException("Authentication token does not have OpenID Connect metadata [{}]", key);
         }
         Object value = metadata.get(key);
-        if (null != value && value instanceof String == false) {
+        if (null != value && !(value instanceof String)) {
             throw new ElasticsearchSecurityException("In authentication token, OpenID Connect metadata [{}] is [{}] rather than " +
                 "String", key, value.getClass());
         }

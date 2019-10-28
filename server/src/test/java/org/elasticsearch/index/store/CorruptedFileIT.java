@@ -685,7 +685,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private static boolean isPerSegmentFile(String fileName) {
-        return isPerCommitFile(fileName) == false;
+        return !isPerCommitFile(fileName);
     }
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {

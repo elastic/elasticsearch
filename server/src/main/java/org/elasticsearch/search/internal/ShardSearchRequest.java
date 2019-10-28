@@ -191,13 +191,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         aliasFilter.writeTo(out);
         out.writeFloat(indexBoost);
-        if (asKey == false) {
+        if (!asKey) {
             out.writeVLong(nowInMillis);
         }
         out.writeOptionalBoolean(requestCache);
         out.writeOptionalString(clusterAlias);
         out.writeBoolean(allowPartialSearchResults);
-        if (asKey == false) {
+        if (!asKey) {
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
         }

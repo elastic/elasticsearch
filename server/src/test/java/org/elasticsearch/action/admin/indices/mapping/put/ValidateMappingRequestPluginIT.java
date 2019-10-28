@@ -43,7 +43,7 @@ public class ValidateMappingRequestPluginIT extends ESSingleNodeTestCase {
         public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
             return Collections.singletonList((request, state, indices) -> {
                 for (Index index : indices) {
-                    if (allowedOrigins.getOrDefault(index.getName(), Collections.emptySet()).contains(request.origin()) == false) {
+                    if (!allowedOrigins.getOrDefault(index.getName(), Collections.emptySet()).contains(request.origin())) {
                         return Optional.of(
                                 new IllegalStateException("not allowed: index[" + index.getName() + "] origin[" + request.origin() + "]"));
                     }

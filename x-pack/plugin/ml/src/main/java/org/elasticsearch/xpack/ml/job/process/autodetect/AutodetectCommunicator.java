@@ -299,7 +299,7 @@ public class AutodetectCommunicator implements Closeable {
             autodetectResultProcessor.clearAwaitingFlush(flushId);
         }
 
-        if (processKilled == false) {
+        if (!processKilled) {
             LOGGER.debug("[{}] Initial flush completed, waiting until renormalizer is idle.", job.getId());
             // We also have to wait for the normalizer to become idle so that we block
             // clients from querying results in the middle of normalization.

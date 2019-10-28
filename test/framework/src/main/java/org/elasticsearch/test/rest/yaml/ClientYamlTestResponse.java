@@ -153,7 +153,7 @@ public class ClientYamlTestResponse {
             //is_true: '' means the response had no body but the client returned true (caused by 200)
             //is_false: '' means the response had no body but the client returned false (caused by 404)
             if ("".equals(path) && HttpHead.METHOD_NAME.equals(response.getRequestLine().getMethod())) {
-                return isError() == false;
+                return !isError();
             }
             return null;
         }

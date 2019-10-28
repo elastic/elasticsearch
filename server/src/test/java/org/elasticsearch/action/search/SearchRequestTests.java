@@ -189,7 +189,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(),
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
-        mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
+        mutators.add(() -> mutation.setCcsMinimizeRoundtrips(!searchRequest.isCcsMinimizeRoundtrips()));
         randomFrom(mutators).run();
         return mutation;
     }

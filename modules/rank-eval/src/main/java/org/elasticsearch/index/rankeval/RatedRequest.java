@@ -134,7 +134,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         // check that not two documents with same _index/id are specified
         Set<DocumentKey> docKeys = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
-            if (docKeys.add(doc.getKey()) == false) {
+            if (!docKeys.add(doc.getKey())) {
                 String docKeyToString = doc.getKey().toString().replaceAll("\n", "").replaceAll("  ", " ");
                 throw new IllegalArgumentException(
                         "Found duplicate rated document key [" + docKeyToString + "] in evaluation request [" + id + "]");
@@ -288,14 +288,14 @@ public class RatedRequest implements Writeable, ToXContentObject {
         if (this.templateId != null) {
             builder.field(TEMPLATE_ID_FIELD.getPreferredName(), this.templateId);
         }
-        if (this.params.isEmpty() == false) {
+        if (!this.params.isEmpty()) {
             builder.startObject(PARAMS_FIELD.getPreferredName());
             for (Entry<String, Object> entry : this.params.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
         }
-        if (this.summaryFields.isEmpty() == false) {
+        if (!this.summaryFields.isEmpty()) {
             builder.startArray(FIELDS_FIELD.getPreferredName());
             for (String field : this.summaryFields) {
                 builder.value(field);

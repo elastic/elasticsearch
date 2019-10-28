@@ -81,7 +81,7 @@ public class FileUserPasswdStore {
         if (hash == null) {
             return AuthenticationResult.notHandled();
         }
-        if (Hasher.verifyHash(password, hash) == false) {
+        if (!Hasher.verifyHash(password, hash)) {
             return AuthenticationResult.unsuccessful("Password authentication failed for " + username, null);
         }
         return AuthenticationResult.success(user.get());
@@ -122,7 +122,7 @@ public class FileUserPasswdStore {
         }
         logger.trace("reading users file [{}]...", path.toAbsolutePath());
 
-        if (Files.exists(path) == false) {
+        if (!Files.exists(path)) {
             return null;
         }
 
@@ -135,7 +135,7 @@ public class FileUserPasswdStore {
 
         Map<String, char[]> users = new HashMap<>();
 
-        final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) == false;
+        final boolean allowReserved = !XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         int lineNr = 0;
         for (String line : lines) {
             lineNr++;

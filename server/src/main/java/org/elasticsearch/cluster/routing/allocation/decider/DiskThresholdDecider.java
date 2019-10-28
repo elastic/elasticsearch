@@ -166,11 +166,11 @@ public class DiskThresholdDecider extends AllocationDecider {
         // flag that determines whether the low threshold checks below can be skipped. We use this for a primary shard that is freshly
         // allocated and empty.
         boolean skipLowThresholdChecks = shardRouting.primary() &&
-            shardRouting.active() == false && shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
+            !shardRouting.active() && shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
 
         // checks for exact byte comparisons
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()) {
-            if (skipLowThresholdChecks == false) {
+            if (!skipLowThresholdChecks) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("less than the required {} free bytes threshold ({} free) on node {}, preventing allocation",
                             diskThresholdSettings.getFreeBytesThresholdLow(), freeBytesValue, node.nodeId());
@@ -212,7 +212,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         // checks for percentage comparisons
         if (freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdLow()) {
             // If the shard is a replica or is a non-empty primary, check the low threshold
-            if (skipLowThresholdChecks == false) {
+            if (!skipLowThresholdChecks) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("more than the allowed {} used disk threshold ({} used) on node [{}], preventing allocation",
                             Strings.format1Decimals(usedDiskThresholdLow, "%"),
@@ -292,7 +292,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (shardRouting.currentNodeId().equals(node.nodeId()) == false) {
+        if (!shardRouting.currentNodeId().equals(node.nodeId())) {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
         final ClusterInfo clusterInfo = allocation.clusterInfo();
@@ -312,7 +312,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (logger.isTraceEnabled()) {
             logger.trace("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
         }
-        if (dataPath == null || usage.getPath().equals(dataPath) == false) {
+        if (dataPath == null || !usage.getPath().equals(dataPath)) {
             return allocation.decision(Decision.YES, NAME,
                     "this shard is not allocated on the most utilized disk and can remain");
         }
@@ -410,7 +410,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     private Decision earlyTerminate(RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
-        if (diskThresholdSettings.isEnabled() == false) {
+        if (!diskThresholdSettings.isEnabled()) {
             return allocation.decision(Decision.YES, NAME, "the disk threshold decider is disabled");
         }
 
@@ -448,7 +448,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     public static long getExpectedShardSize(ShardRouting shard, long defaultValue, ClusterInfo clusterInfo, MetaData metaData,
                                             RoutingTable routingTable) {
         final IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
-        if (indexMetaData.getResizeSourceIndex() != null && shard.active() == false &&
+        if (indexMetaData.getResizeSourceIndex() != null && !shard.active() &&
             shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in
             // the worst case

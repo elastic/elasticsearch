@@ -84,10 +84,10 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
             if (securityEnabled) {
                 // ensure that keytab exists
                 Path kt = PathUtils.get(kerberosKeytabLocation);
-                if (Files.exists(kt) == false) {
+                if (!Files.exists(kt)) {
                     throw new IllegalStateException("Could not locate keytab at " + kerberosKeytabLocation);
                 }
-                if (Files.isReadable(kt) != true) {
+                if (!Files.isReadable(kt)) {
                     throw new IllegalStateException("Could not read keytab at " + kerberosKeytabLocation);
                 }
                 logger.info("Keytab Length: " + Files.readAllBytes(kt).length);

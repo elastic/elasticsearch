@@ -153,7 +153,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
             String destinationFieldName = parser.currentName();
-            if (validAggMatcher.reset(destinationFieldName).matches() == false) {
+            if (!validAggMatcher.reset(destinationFieldName).matches()) {
                 throw new ParsingException(parser.getTokenLocation(), "Invalid group name [" + destinationFieldName
                         + "]. Group names can contain any character except '[', ']', and '>'");
             }

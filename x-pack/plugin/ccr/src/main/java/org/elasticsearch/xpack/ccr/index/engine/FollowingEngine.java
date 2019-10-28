@@ -47,10 +47,10 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     private static EngineConfig validateEngineConfig(final EngineConfig engineConfig) {
-        if (CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(engineConfig.getIndexSettings().getSettings()) == false) {
+        if (!CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(engineConfig.getIndexSettings().getSettings())) {
             throw new IllegalArgumentException("a following engine can not be constructed for a non-following index");
         }
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled() == false) {
+        if (!engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             throw new IllegalArgumentException("a following engine requires soft deletes to be enabled");
         }
         return engineConfig;

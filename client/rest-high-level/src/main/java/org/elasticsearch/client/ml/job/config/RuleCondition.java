@@ -94,7 +94,7 @@ public class RuleCondition implements ToXContentObject {
             return true;
         }
 
-        if (obj instanceof RuleCondition == false) {
+        if (!(obj instanceof RuleCondition)) {
             return false;
         }
 

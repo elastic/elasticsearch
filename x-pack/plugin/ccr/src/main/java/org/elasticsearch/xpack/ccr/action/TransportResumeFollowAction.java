@@ -116,7 +116,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     protected void masterOperation(Task task, final ResumeFollowAction.Request request,
                                    ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) throws Exception {
-        if (ccrLicenseChecker.isCcrAllowed() == false) {
+        if (!ccrLicenseChecker.isCcrAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
@@ -197,7 +197,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         }
         String leaderIndexUUID = leaderIndex.getIndex().getUUID();
         String recordedLeaderIndexUUID = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
-        if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
+        if (!leaderIndexUUID.equals(recordedLeaderIndexUUID)) {
             throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" +
                 leaderIndexUUID + "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
         }
@@ -207,17 +207,17 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         for (int i = 0; i < leaderIndexHistoryUUID.length; i++) {
             String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs[i];
             String actualLeaderIndexHistoryUUID = leaderIndexHistoryUUID[i];
-            if (recordedLeaderIndexHistoryUUID.equals(actualLeaderIndexHistoryUUID) == false) {
+            if (!recordedLeaderIndexHistoryUUID.equals(actualLeaderIndexHistoryUUID)) {
                 throw new IllegalArgumentException("leader shard [" + request.getFollowerIndex() + "][" + i + "] should reference [" +
                     recordedLeaderIndexHistoryUUID + "] as history uuid but instead reference [" + actualLeaderIndexHistoryUUID +
                     "] as history uuid");
             }
         }
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndex.getSettings()) == false) {
+        if (!IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndex.getSettings())) {
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
                 "] does not have soft deletes enabled");
         }
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followIndex.getSettings()) == false) {
+        if (!IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followIndex.getSettings())) {
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
                 "] does not have soft deletes enabled");
         }
@@ -232,14 +232,14 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         if (leaderIndex.getState() != IndexMetaData.State.OPEN || followIndex.getState() != IndexMetaData.State.OPEN) {
             throw new IllegalArgumentException("leader and follow index must be open");
         }
-        if (CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(followIndex.getSettings()) == false) {
+        if (!CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(followIndex.getSettings())) {
             throw new IllegalArgumentException("the following index [" + request.getFollowerIndex() + "] is not ready " +
                     "to follow; the setting [" + CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey() + "] must be enabled.");
         }
         // Make a copy, remove settings that are allowed to be different and then compare if the settings are equal.
         Settings leaderSettings = filter(leaderIndex.getSettings());
         Settings followerSettings = filter(followIndex.getSettings());
-        if (leaderSettings.equals(followerSettings) == false) {
+        if (!leaderSettings.equals(followerSettings)) {
             throw new IllegalArgumentException("the leader index setting[" + leaderSettings + "] and follower index settings [" +
                 followerSettings + "] must be identical");
         }

@@ -434,7 +434,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             for (int i = 0; i < constructorArgs.length; i++) {
                 if (constructorArgs[i] != null) continue;
                 ConstructorArgInfo arg = constructorArgInfos.get(i);
-                if (false == arg.required) continue;
+                if (!arg.required) continue;
                 if (message == null) {
                     message = new StringBuilder("Required [").append(arg.field);
                 } else {
@@ -450,7 +450,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * use of ConstructingObjectParser. You should be using ObjectParser instead. Since this is more of a programmer error and the
              * parser ought to still work we just assert this.
              */
-            assert false == constructorArgInfos.isEmpty() : "[" + objectParser.getName() + "] must configure at least one constructor "
+            assert !constructorArgInfos.isEmpty() : "[" + objectParser.getName() + "] must configure at least one constructor "
                         + "argument. If it doesn't have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug "
                         + "in the parser declaration.";
             // All missing constructor arguments were optional. Just build the target and return it.

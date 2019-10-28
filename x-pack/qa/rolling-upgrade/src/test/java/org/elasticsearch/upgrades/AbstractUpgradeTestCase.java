@@ -98,11 +98,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             final List<String> templates = Streams.readAllLines(catResponse.getEntity().getContent());
 
             final List<String> missingTemplates = expectedTemplates.stream()
-                .filter(each -> templates.contains(each) == false)
+                .filter(each -> !templates.contains(each))
                 .collect(Collectors.toList());
 
             // While it's possible to use a Hamcrest matcher for this, the failure is much less legible.
-            if (missingTemplates.isEmpty() == false) {
+            if (!missingTemplates.isEmpty()) {
                 fail("Some expected templates are missing: " + missingTemplates + ". The templates that exist are: " + templates + "");
             }
         });

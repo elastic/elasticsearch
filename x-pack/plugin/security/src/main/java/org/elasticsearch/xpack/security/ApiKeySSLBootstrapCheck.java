@@ -21,7 +21,7 @@ public final class ApiKeySSLBootstrapCheck implements BootstrapCheck {
     public BootstrapCheckResult check(BootstrapContext context) {
         final Boolean httpsEnabled = XPackSettings.HTTP_SSL_ENABLED.get(context.settings());
         final Boolean apiKeyServiceEnabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(context.settings());
-        if (httpsEnabled == false && apiKeyServiceEnabled) {
+        if (!httpsEnabled && apiKeyServiceEnabled) {
             final String message = String.format(
                     Locale.ROOT,
                     "HTTPS is required in order to use the API key service; "

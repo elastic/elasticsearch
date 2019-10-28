@@ -76,11 +76,11 @@ public class LifecyclePolicy implements ToXContentObject {
      */
     public LifecyclePolicy(String name, Map<String, Phase> phases) {
        phases.values().forEach(phase -> {
-            if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
+            if (!ALLOWED_ACTIONS.containsKey(phase.getName())) {
                 throw new IllegalArgumentException("Lifecycle does not support phase [" + phase.getName() + "]");
             }
             phase.getActions().forEach((actionName, action) -> {
-                if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
+                if (!ALLOWED_ACTIONS.get(phase.getName()).contains(actionName)) {
                     throw new IllegalArgumentException("invalid action [" + actionName + "] " +
                         "defined in phase [" + phase.getName() +"]");
                 }

@@ -121,13 +121,13 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected void registerJob(Job.Builder job) {
-        if (jobs.add(job) == false) {
+        if (!jobs.add(job)) {
             throw new IllegalArgumentException("job [" + job.getId() + "] is already registered");
         }
     }
 
     protected void registerDatafeed(DatafeedConfig datafeed) {
-        if (datafeeds.add(datafeed) == false) {
+        if (!datafeeds.add(datafeed)) {
             throw new IllegalArgumentException("datafeed [" + datafeed.getId() + "] is already registered");
         }
     }

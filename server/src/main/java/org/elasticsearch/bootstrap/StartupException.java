@@ -80,7 +80,7 @@ final class StartupException extends RuntimeException {
             }
 
             // print the root cause message, only if it differs!
-            if (cause != originalCause && (message.equals(cause.toString()) == false)) {
+            if (cause != originalCause && (!message.equals(cause.toString()))) {
                 consumer.accept("Likely root cause: " + cause);
             }
 
@@ -110,7 +110,7 @@ final class StartupException extends RuntimeException {
         }
         // if its a guice exception, the whole thing really will not be in the log, its megabytes.
         // refer to the hack in bootstrap, where we don't log it
-        if (originalCause instanceof CreationException == false) {
+        if (!(originalCause instanceof CreationException)) {
             consumer.accept("Refer to the log for complete error details.");
         }
     }

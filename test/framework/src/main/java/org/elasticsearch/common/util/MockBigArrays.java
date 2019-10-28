@@ -281,7 +281,7 @@ public class MockBigArrays extends BigArrays {
         }
 
         public void close() {
-            if (originalRelease.compareAndSet(null, new AssertionError()) == false) {
+            if (!originalRelease.compareAndSet(null, new AssertionError())) {
                 throw new IllegalStateException("Double release. Original release attached as cause", originalRelease.get());
             }
             ACQUIRED_ARRAYS.remove(this);

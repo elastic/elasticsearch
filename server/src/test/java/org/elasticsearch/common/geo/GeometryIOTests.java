@@ -95,7 +95,7 @@ public class GeometryIOTests extends ESTestCase {
         if (geometry.type() == ShapeType.GEOMETRYCOLLECTION) {
             GeometryCollection<?> collection = (GeometryCollection<?>) geometry;
             for (Geometry g : collection) {
-                if (shapeSupported(g) == false) {
+                if (!shapeSupported(g)) {
                     return false;
                 }
             }

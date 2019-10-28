@@ -157,13 +157,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 BytesRef typeBytes = new BytesRef(type);
                 if (lowerTerm != null) {
                     int comp = indexedValueForSearch(lowerTerm).compareTo(typeBytes);
-                    if (comp > 0 || (comp == 0 && includeLower == false)) {
+                    if (comp > 0 || (comp == 0 && !includeLower)) {
                         result = new MatchNoDocsQuery("[_type] was lexicographically smaller than lower bound of range");
                     }
                 }
                 if (upperTerm != null) {
                     int comp = indexedValueForSearch(upperTerm).compareTo(typeBytes);
-                    if (comp < 0 || (comp == 0 && includeUpper == false)) {
+                    if (comp < 0 || (comp == 0 && !includeUpper)) {
                         result = new MatchNoDocsQuery("[_type] was lexicographically greater than upper bound of range");
                     }
                 }
@@ -229,7 +229,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public boolean equals(Object obj) {
-            if (sameClassAs(obj) == false) {
+            if (!sameClassAs(obj)) {
                 return false;
             }
             TypesQuery that = (TypesQuery) obj;

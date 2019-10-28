@@ -30,7 +30,7 @@ public interface RestRequestFilter {
      */
     default RestRequest getFilteredRequest(RestRequest restRequest) throws IOException {
         Set<String> fields = getFilteredFields();
-        if (restRequest.hasContent() && fields.isEmpty() == false) {
+        if (restRequest.hasContent() && !fields.isEmpty()) {
             return new RestRequest(restRequest) {
 
                 private BytesReference filteredBytes = null;

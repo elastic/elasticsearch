@@ -360,8 +360,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
-        if (useDefaultNumberOfShards == false
-                && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
+        if (!useDefaultNumberOfShards
+                && !testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards")) {
             final Request request = new Request("PUT", "/_template/global");
             request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
             adminClient().performRequest(request);

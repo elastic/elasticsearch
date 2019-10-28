@@ -77,7 +77,7 @@ public class LongGCDisruptionTests extends ESTestCase {
                 // at least one locked and one none lock thread
                 final boolean lockedExec = (i < 9 && randomBoolean()) || i == 0;
                 threads[i] = new Thread(() -> {
-                    while (stop.get() == false) {
+                    while (!stop.get()) {
                         if (lockedExec) {
                             lockedExecutor.executeLocked(() -> {
                                 try {
@@ -134,7 +134,7 @@ public class LongGCDisruptionTests extends ESTestCase {
         try {
             for (int i = 0; i < threads.length; i++) {
                 threads[i] = new Thread(() -> {
-                    for (int iter = 0; stop.get() == false; iter++) {
+                    for (int iter = 0; !stop.get(); iter++) {
                         if (iter % 2 == 0) {
                             lockedExecutor.executeLocked(yieldAndIncrement);
                         } else {
@@ -183,7 +183,7 @@ public class LongGCDisruptionTests extends ESTestCase {
                 return 10L;
             }
         };
-        if (disruption.isBlockDetectionSupported() == false) {
+        if (!disruption.isBlockDetectionSupported()) {
             return;
         }
         final AtomicBoolean stop = new AtomicBoolean();
@@ -197,7 +197,7 @@ public class LongGCDisruptionTests extends ESTestCase {
                 // at least one locked and one none lock thread
                 final boolean lockedExec = (i < 4 && randomBoolean()) || i == 0;
                 Thread thread = new Thread(() -> {
-                    while (stop.get() == false) {
+                    while (!stop.get()) {
                         if (lockedExec) {
                             lockedExecutor.executeLocked(() -> {
                                 try {
@@ -223,7 +223,7 @@ public class LongGCDisruptionTests extends ESTestCase {
                 // at least one locked and one none lock thread
                 final boolean lockedExec = (i < 4 && randomBoolean()) || i == 0;
                 Thread thread = new Thread(() -> {
-                    while (stop.get() == false) {
+                    while (!stop.get()) {
                         if (lockedExec) {
                             lockedExecutor.executeLocked(() -> {
                                 ops.incrementAndGet();

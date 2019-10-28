@@ -120,7 +120,7 @@ public interface TestClusterConfiguration {
             while (
                 System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)
             ) {
-                if (context.isProcessAlive() == false) {
+                if (!context.isProcessAlive()) {
                     throw new TestClustersException(
                         "process was found dead while waiting for " + description + ", " + this
                     );
@@ -137,7 +137,7 @@ public interface TestClusterConfiguration {
                     lastException = e;
                 }
             }
-            if (conditionMet == false) {
+            if (!conditionMet) {
                 String message = "`" + context + "` failed to wait for " + description + " after " +
                     nodeUpTimeout + " " + nodeUpTimeoutUnit;
                 if (lastException == null) {
@@ -147,7 +147,7 @@ public interface TestClusterConfiguration {
                     Throwable cause = lastException;
                     int ident = 2;
                     while (cause != null) {
-                        if (cause.getMessage() != null && cause.getMessage().isEmpty() == false) {
+                        if (cause.getMessage() != null && !cause.getMessage().isEmpty()) {
                             extraCause += "\n" + " ".repeat(ident) + cause.getMessage();
                             ident += 2;
                         }

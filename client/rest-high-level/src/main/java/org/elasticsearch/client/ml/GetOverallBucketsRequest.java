@@ -206,7 +206,7 @@ public class GetOverallBucketsRequest implements Validatable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (jobIds.isEmpty() == false) {
+        if (!jobIds.isEmpty()) {
             builder.field(Job.ID.getPreferredName(), Strings.collectionToCommaDelimitedString(jobIds));
         }
         if (topN != null) {

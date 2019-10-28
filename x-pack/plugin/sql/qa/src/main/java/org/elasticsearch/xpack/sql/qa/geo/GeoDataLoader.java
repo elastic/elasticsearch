@@ -145,7 +145,7 @@ public class GeoDataLoader {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(readFromJarUrl(dataSet), StandardCharsets.UTF_8))) {
             String line = reader.readLine();
             while(line != null) {
-                if (line.trim().startsWith("//") == false) {
+                if (!line.trim().startsWith("//")) {
                     builder.append(line);
                     builder.append('\n');
                 }

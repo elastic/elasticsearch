@@ -96,7 +96,7 @@ final class PemUtils {
     public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
         try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
             String line = bReader.readLine();
-            while (null != line && line.startsWith(HEADER) == false) {
+            while (null != line && !line.startsWith(HEADER)) {
                 line = bReader.readLine();
             }
             if (null == line) {
@@ -145,11 +145,11 @@ final class PemUtils {
             }
             line = bReader.readLine();
         }
-        if (null == line || OPENSSL_EC_PARAMS_FOOTER.equals(line.trim()) == false) {
+        if (null == line || !OPENSSL_EC_PARAMS_FOOTER.equals(line.trim())) {
             throw new IOException("Malformed PEM file, EC Parameters footer is missing");
         }
         // Verify that the key starts with the correct header before passing it to parseOpenSslEC
-        if (OPENSSL_EC_HEADER.equals(bReader.readLine()) == false) {
+        if (!OPENSSL_EC_HEADER.equals(bReader.readLine())) {
             throw new IOException("Malformed PEM file, EC Key header is missing");
         }
         return bReader;
@@ -169,11 +169,11 @@ final class PemUtils {
             }
             line = bReader.readLine();
         }
-        if (null == line || OPENSSL_DSA_PARAMS_FOOTER.equals(line.trim()) == false) {
+        if (null == line || !OPENSSL_DSA_PARAMS_FOOTER.equals(line.trim())) {
             throw new IOException("Malformed PEM file, DSA Parameters footer is missing");
         }
         // Verify that the key starts with the correct header before passing it to parseOpenSslDsa
-        if (OPENSSL_DSA_HEADER.equals(bReader.readLine()) == false) {
+        if (!OPENSSL_DSA_HEADER.equals(bReader.readLine())) {
             throw new IOException("Malformed PEM file, DSA Key header is missing");
         }
         return bReader;
@@ -198,7 +198,7 @@ final class PemUtils {
             sb.append(line.trim());
             line = bReader.readLine();
         }
-        if (null == line || PKCS8_FOOTER.equals(line.trim()) == false) {
+        if (null == line || !PKCS8_FOOTER.equals(line.trim())) {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
         byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
@@ -235,7 +235,7 @@ final class PemUtils {
             }
             line = bReader.readLine();
         }
-        if (null == line || OPENSSL_EC_FOOTER.equals(line.trim()) == false) {
+        if (null == line || !OPENSSL_EC_FOOTER.equals(line.trim())) {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
         byte[] keyBytes = possiblyDecryptPKCS1Key(pemHeaders, sb.toString(), passwordSupplier);
@@ -274,7 +274,7 @@ final class PemUtils {
             }
             line = bReader.readLine();
         }
-        if (null == line || PKCS1_FOOTER.equals(line.trim()) == false) {
+        if (null == line || !PKCS1_FOOTER.equals(line.trim())) {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
         byte[] keyBytes = possiblyDecryptPKCS1Key(pemHeaders, sb.toString(), passwordSupplier);
@@ -313,7 +313,7 @@ final class PemUtils {
             }
             line = bReader.readLine();
         }
-        if (null == line || OPENSSL_DSA_FOOTER.equals(line.trim()) == false) {
+        if (null == line || !OPENSSL_DSA_FOOTER.equals(line.trim())) {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
         byte[] keyBytes = possiblyDecryptPKCS1Key(pemHeaders, sb.toString(), passwordSupplier);
@@ -343,7 +343,7 @@ final class PemUtils {
             sb.append(line.trim());
             line = bReader.readLine();
         }
-        if (null == line || PKCS8_ENCRYPTED_FOOTER.equals(line.trim()) == false) {
+        if (null == line || !PKCS8_ENCRYPTED_FOOTER.equals(line.trim())) {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
         byte[] keyBytes = Base64.getDecoder().decode(sb.toString());

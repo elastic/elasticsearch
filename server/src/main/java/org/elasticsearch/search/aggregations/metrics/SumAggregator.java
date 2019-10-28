@@ -83,7 +83,7 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
                     double compensation = compensations.get(bucket);
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        if (Double.isFinite(value) == false) {
+                        if (!Double.isFinite(value)) {
                             sum += value;
                         } else if (Double.isFinite(sum)) {
                             double corrected = value - compensation;

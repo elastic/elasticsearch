@@ -58,10 +58,10 @@ public final class PidFile {
     static PidFile create(Path path, boolean deleteOnExit, long pid) throws IOException {
         Path parent = path.getParent();
         if (parent != null) {
-            if (Files.exists(parent) && Files.isDirectory(parent) == false) {
+            if (Files.exists(parent) && !Files.isDirectory(parent)) {
                 throw new IllegalArgumentException(parent + " exists but is not a directory");
             }
-            if (Files.exists(parent) == false) {
+            if (!Files.exists(parent)) {
                 // only do this if it doesn't exists we get a better exception further down
                 // if there are security issues etc. this also doesn't work if the parent exists
                 // and is a soft-link like on many linux systems /var/run can be a link and that should
@@ -69,7 +69,7 @@ public final class PidFile {
                 Files.createDirectories(parent);
             }
         }
-        if (Files.exists(path) && Files.isRegularFile(path) == false) {
+        if (Files.exists(path) && !Files.isRegularFile(path)) {
             throw new IllegalArgumentException(path + " exists but is not a regular file");
         }
 

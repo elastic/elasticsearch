@@ -49,14 +49,14 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String text = randomAlphaOfLength(20);
         boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean();          // enable _source at index level
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         createIndexWithFieldTypeAndProperties("text", null, explicitSourceSetting ? indexProps : null);
         index("{\"text_field\":\"" + text + "\"}");
-        
-        if (explicitSourceSetting == false || enableSource == true) {
+
+        if (!explicitSourceSetting || enableSource) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(
                     columnInfo("plain", "text_field", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
@@ -80,10 +80,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreAbove = randomBoolean();
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreAbove) {
             fieldProps = new HashMap<>(1);
@@ -91,10 +91,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             fieldProp.put("ignore_above", 10);
             fieldProps.put("keyword_field", fieldProp);
         }
-        
+
         createIndexWithFieldTypeAndProperties("keyword", fieldProps, explicitSourceSetting ? indexProps : null);
         index("{\"keyword_field\":\"" + keyword + "\"}");
-        
+
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
                 columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)
@@ -111,15 +111,15 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testFractionsForNonFloatingPointTypes() throws IOException {
         String floatingPointNumber = "123.456";
         String fieldType = randomFrom("long", "integer", "short", "byte");
-        
+
         createIndexWithFieldTypeAndProperties(fieldType, null, null);
         index("{\"" + fieldType + "_field\":\"" + floatingPointNumber + "\"}");
-        
+
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
                 columnInfo("plain", fieldType + "_field", fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)
         ));
-        
+
         // because "coerce" is true, a "123.456" floating point number STRING should be converted to 123, no matter the numeric field type
         expected.put("rows", singletonList(singletonList(123)));
         assertResponse(expected, runSql("SELECT " + fieldType + "_field FROM test"));
@@ -135,7 +135,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String floatingPointNumber = "123.456";
         String fieldType = randomFrom("double", "float", "half_float", "scaled_float");
         boolean isScaledFloat = fieldType == "scaled_float";
-        
+
         Map<String, Map<String, Object>> fieldProps = null;
         if (isScaledFloat) {
             fieldProps = new HashMap<>(1);
@@ -143,16 +143,16 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             fieldProp.put("scaling_factor", 10);            // scaling_factor is required for "scaled_float"
             fieldProps.put(fieldType + "_field", fieldProp);
         }
-        
+
         createIndexWithFieldTypeAndProperties(fieldType, fieldProps, null);
         // important here is to pass floatingPointNumber as a string: "float_field": "123.456"
         index("{\"" + fieldType + "_field\":\"" + floatingPointNumber + "\"}");
-        
+
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
                 columnInfo("plain", fieldType + "_field", fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)
         ));
-        
+
         // because "coerce" is true, a "123.456" floating point number STRING should be converted to 123.456 as number
         // and converted to 123.5 for "scaled_float" type
         expected.put("rows", singletonList(singletonList(
@@ -203,7 +203,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         // Integers for short and byte values
         testField("byte", ((Number) randomByte()).intValue());
     }
-    
+
     private void testField(String fieldType, Object value) throws IOException {
         String fieldName = fieldType + "_field";
         String query = "SELECT " + fieldName + " FROM test";
@@ -211,10 +211,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreMalformed = randomBoolean();       // ignore_malformed is true, thus test a non-number value
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
             fieldProps = new HashMap<>(1);
@@ -224,11 +224,11 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             fieldProps.put(fieldName, fieldProp);
             actualValue = "\"foo\"";
         }
-        
+
         createIndexWithFieldTypeAndProperties(fieldType, fieldProps, explicitSourceSetting ? indexProps : null);
         index("{\"" + fieldName + "\":" + actualValue + "}");
 
-        if (explicitSourceSetting == false || enableSource == true) {
+        if (!explicitSourceSetting || enableSource) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(
                     columnInfo("plain", fieldName, fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)
@@ -251,18 +251,18 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean();          // enable _source at index level
         boolean asString = randomBoolean();              // pass true or false as string "true" or "false
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         createIndexWithFieldTypeAndProperties("boolean", null, explicitSourceSetting ? indexProps : null);
         if (asString) {
             index("{\"boolean_field\":\"" + booleanField + "\"}");
         } else {
             index("{\"boolean_field\":" + booleanField + "}");
         }
-        
-        if (explicitSourceSetting == false || enableSource == true) {
+
+        if (!explicitSourceSetting || enableSource) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(
                     columnInfo("plain", "boolean_field", "boolean", JDBCType.BOOLEAN, Integer.MAX_VALUE)
@@ -285,14 +285,14 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String ipField = "192.168.1.1";
         boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean();          // enable _source at index level
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         createIndexWithFieldTypeAndProperties("ip", null, explicitSourceSetting ? indexProps : null);
         index("{\"ip_field\":\"" + ipField + "\"}");
-        
-        if (explicitSourceSetting == false || enableSource == true) {
+
+        if (!explicitSourceSetting || enableSource) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(
                     columnInfo("plain", "ip_field", "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)
@@ -319,7 +319,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testAliasFromDocValueField() throws IOException {
         String keyword = randomAlphaOfLength(20);
-        
+
         createIndexWithFieldTypeAndAlias("keyword", null, null);
         index("{\"keyword_field\":\"" + keyword + "\"}");
 
@@ -348,7 +348,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testAliasFromSourceField() throws IOException {
         String text = randomAlphaOfLength(20);
-        
+
         createIndexWithFieldTypeAndAlias("text", null, null);
         index("{\"text_field\":\"" + text + "\"}");
 
@@ -377,7 +377,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testAliasAggregatableFromSourceField() throws IOException {
         int number = randomInt();
-        
+
         createIndexWithFieldTypeAndAlias("integer", null, null);
         index("{\"integer_field\":" + number + "}");
 
@@ -411,10 +411,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String fieldName = "text_field";
         String subFieldName = "text_field.keyword_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         Map<String, Map<String, Object>> subFieldsProps = null;
         if (ignoreAbove) {
             subFieldsProps = new HashMap<>(1);
@@ -422,11 +422,11 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             fieldProp.put("ignore_above", 10);
             subFieldsProps.put(subFieldName, fieldProp);
         }
-        
+
         createIndexWithFieldTypeAndSubFields("text", null, explicitSourceSetting ? indexProps : null, subFieldsProps, "keyword");
         index("{\"" + fieldName + "\":\"" + text + "\"}");
 
-        if (explicitSourceSetting == false || enableSource == true) {
+        if (!explicitSourceSetting || enableSource) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(
                     columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
@@ -437,7 +437,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             assertResponse(expected, runSql(query));
         } else {
             expectSourceDisabledError(query);
-            
+
             // even if the _source is disabled, selecting only the keyword sub-field should work as expected
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(
@@ -469,10 +469,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String fieldName = "text_field";
         String subFieldName = "text_field.integer_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName +" FROM test";
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         Map<String, Map<String, Object>> subFieldsProps = null;
         if (ignoreMalformed) {
             subFieldsProps = new HashMap<>(1);
@@ -482,11 +482,11 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             subFieldsProps.put(subFieldName, fieldProp);
             actualValue = "foo";
         }
-        
+
         createIndexWithFieldTypeAndSubFields("text", null, explicitSourceSetting ? indexProps : null, subFieldsProps, "integer");
         index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
 
-        if (explicitSourceSetting == false || enableSource == true) {
+        if (!explicitSourceSetting || enableSource) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(
                     columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
@@ -526,10 +526,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String fieldName = "integer_field";
         String subFieldName = "integer_field." + (isKeyword ? "keyword_subfield" : "text_subfield");
         String query = "SELECT " + fieldName + "," + subFieldName +" FROM test";
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
             fieldProps = new HashMap<>(1);
@@ -539,12 +539,12 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             fieldProps.put(fieldName, fieldProp);
             actualValue = "foo";
         }
-        
+
         createIndexWithFieldTypeAndSubFields("integer", fieldProps, explicitSourceSetting ? indexProps : null, null,
                 isKeyword ? "keyword" : "text");
         index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
 
-        if (explicitSourceSetting == false || enableSource == true) {
+        if (!explicitSourceSetting || enableSource) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(
                     columnInfo("plain", fieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
@@ -575,7 +575,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             expectSourceDisabledError("SELECT " + fieldName + " FROM test");
         }
     }
-    
+
     /*
      *    "integer_field": {
      *       "type": "integer",
@@ -590,7 +590,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testIntegerFieldWithByteSubfield() throws IOException {
         boolean isByte = randomBoolean();
-        Integer number = isByte == true ? randomByte() : randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
+        Integer number = isByte ? randomByte() : randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
         boolean explicitSourceSetting = randomBoolean();   // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean();            // enable _source at index level
         boolean rootIgnoreMalformed = randomBoolean();     // root field ignore_malformed
@@ -598,10 +598,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String fieldName = "integer_field";
         String subFieldName = "integer_field.byte_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         Map<String, Map<String, Object>> fieldProps = null;
         if (rootIgnoreMalformed) {
             fieldProps = new HashMap<>(1);
@@ -616,7 +616,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             fieldProp.put("ignore_malformed", true);
             subFieldProps.put(subFieldName, fieldProp);
         }
-        
+
         createIndexWithFieldTypeAndSubFields("integer", fieldProps, explicitSourceSetting ? indexProps : null, subFieldProps, "byte");
         index("{\"" + fieldName + "\":" + number + "}");
 
@@ -625,15 +625,15 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                 columnInfo("plain", fieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
                 columnInfo("plain", subFieldName, "byte", JDBCType.TINYINT, Integer.MAX_VALUE)
         ));
-        if (explicitSourceSetting == false || enableSource == true) {
-            if (isByte == true || subFieldIgnoreMalformed == true) {
+        if (!explicitSourceSetting || enableSource) {
+            if (isByte || subFieldIgnoreMalformed) {
                 expected.put("rows", singletonList(Arrays.asList(number, isByte ? number : null)));
             } else {
                 expected.put("rows", Collections.emptyList());
             }
             assertResponse(expected, runSql(query));
         } else {
-            if (isByte == true || subFieldIgnoreMalformed == true) {
+            if (isByte || subFieldIgnoreMalformed) {
                 expectSourceDisabledError(query);
             } else {
                 expected.put("rows", Collections.emptyList());
@@ -656,7 +656,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testByteFieldWithIntegerSubfield() throws IOException {
         boolean isByte = randomBoolean();
-        Integer number = isByte == true ? randomByte() : randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
+        Integer number = isByte ? randomByte() : randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
         boolean explicitSourceSetting = randomBoolean();   // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean();            // enable _source at index level
         boolean rootIgnoreMalformed = randomBoolean();     // root field ignore_malformed
@@ -664,10 +664,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String fieldName = "byte_field";
         String subFieldName = "byte_field.integer_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-        
+
         Map<String, Object> indexProps = new HashMap<>(1);
         indexProps.put("_source", enableSource);
-        
+
         Map<String, Map<String, Object>> fieldProps = null;
         if (rootIgnoreMalformed) {
             fieldProps = new HashMap<>(1);
@@ -682,7 +682,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             fieldProp.put("ignore_malformed", true);
             subFieldProps.put(subFieldName, fieldProp);
         }
-        
+
         createIndexWithFieldTypeAndSubFields("byte", fieldProps, explicitSourceSetting ? indexProps : null, subFieldProps, "integer");
         index("{\"" + fieldName + "\":" + number + "}");
 
@@ -691,15 +691,15 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                 columnInfo("plain", fieldName, "byte", JDBCType.TINYINT, Integer.MAX_VALUE),
                 columnInfo("plain", subFieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
         ));
-        if (explicitSourceSetting == false || enableSource == true) {
-            if (isByte == true || rootIgnoreMalformed == true) {
+        if (!explicitSourceSetting || enableSource) {
+            if (isByte || rootIgnoreMalformed) {
                 expected.put("rows", singletonList(Arrays.asList(isByte ? number : null, number)));
             } else {
                 expected.put("rows", Collections.emptyList());
             }
             assertResponse(expected, runSql(query));
         } else {
-            if (isByte == true || rootIgnoreMalformed == true) {
+            if (isByte || rootIgnoreMalformed) {
                 expectSourceDisabledError(query);
             } else {
                 expected.put("rows", Collections.emptyList());
@@ -714,27 +714,27 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             return Collections.emptyMap();
         }, containsString("unable to fetch fields from _source field: _source is disabled in the mappings for index [test]"));
     }
-    
+
     private void createIndexWithFieldTypeAndAlias(String type, Map<String, Map<String, Object>> fieldProps,
             Map<String, Object> indexProps) throws IOException {
         createIndexWithFieldTypeAndProperties(type, fieldProps, indexProps, true, false, null);
     }
-    
+
     private void createIndexWithFieldTypeAndProperties(String type, Map<String, Map<String, Object>> fieldProps,
             Map<String, Object> indexProps) throws IOException {
         createIndexWithFieldTypeAndProperties(type, fieldProps, indexProps, false, false, null);
     }
-    
+
     private void createIndexWithFieldTypeAndSubFields(String type, Map<String, Map<String, Object>> fieldProps,
             Map<String, Object> indexProps, Map<String, Map<String, Object>> subFieldsProps,
             String... subFieldsTypes) throws IOException {
         createIndexWithFieldTypeAndProperties(type, fieldProps, indexProps, false, true, subFieldsProps, subFieldsTypes);
     }
-    
+
     private void createIndexWithFieldTypeAndProperties(String type, Map<String, Map<String, Object>> fieldProps,
             Map<String, Object> indexProps, boolean withAlias, boolean withSubFields, Map<String, Map<String, Object>> subFieldsProps,
             String... subFieldsTypes) throws IOException {
-        Request request = new Request("PUT", "/test");      
+        Request request = new Request("PUT", "/test");
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
 
         index.startObject("mappings"); {
@@ -757,7 +757,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                             index.field(prop.getKey(), prop.getValue());
                         }
                     }
-                    
+
                     if (withSubFields) {
                         index.startObject("fields");
                             for (String subFieldType : subFieldsTypes) {
@@ -776,7 +776,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                     }
                 }
                 index.endObject();
-                
+
                 if (withAlias) {
                     // create two aliases - one within a hierarchy, the other just a simple field w/o hierarchy
                     index.startObject(fieldName + "_alias"); {
@@ -799,23 +799,23 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         request.setJsonEntity(Strings.toString(index));
         client().performRequest(request);
     }
-    
+
     private Request buildRequest(String query) {
         Request request = new Request("POST", RestSqlTestCase.SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("pretty", "true");
         request.setEntity(new StringEntity("{\"query\":\"" + query + "\",\"mode\":\"plain\"}", ContentType.APPLICATION_JSON));
-        
+
         return request;
     }
-    
+
     private Map<String, Object> runSql(String query) throws IOException {
         Response response = client().performRequest(buildRequest(query));
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
     }
-    
+
     private JDBCType jdbcTypeFor(String esType) {
         switch(esType) {
             case "long":

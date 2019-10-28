@@ -116,7 +116,7 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     }
 
     public static CumulativeCardinalityPipelineAggregationBuilder parse(String aggName, XContentParser parser) {
-        if (AnalyticsPlugin.getLicenseState().isDataScienceAllowed() == false) {
+        if (!AnalyticsPlugin.getLicenseState().isDataScienceAllowed()) {
             throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
         }
 
@@ -135,7 +135,7 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         CumulativeCardinalityPipelineAggregationBuilder other = (CumulativeCardinalityPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format);
     }

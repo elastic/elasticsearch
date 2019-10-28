@@ -63,7 +63,7 @@ public final class CombinedBitSet extends BitSet implements Bits {
     public int prevSetBit(int index) {
         assert index >= 0 && index < length : "index=" + index + ", numBits=" + length();
         int prev = first.prevSetBit(index);
-        while (prev != -1 && second.get(prev) == false) {
+        while (prev != -1 && !second.get(prev)) {
             if (prev == 0) {
                 return -1;
             }
@@ -76,7 +76,7 @@ public final class CombinedBitSet extends BitSet implements Bits {
     public int nextSetBit(int index) {
         assert index >= 0 && index < length : "index=" + index + " numBits=" + length();
         int next = first.nextSetBit(index);
-        while (next != DocIdSetIterator.NO_MORE_DOCS && second.get(next) == false) {
+        while (next != DocIdSetIterator.NO_MORE_DOCS && !second.get(next)) {
             if (next == length() - 1) {
                 return DocIdSetIterator.NO_MORE_DOCS;
             }

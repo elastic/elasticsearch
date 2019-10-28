@@ -204,7 +204,7 @@ public final class NodeEnvironment  implements Closeable {
                 for (int dirIndex = 0; dirIndex < dataPaths.length; dirIndex++) {
                     Path dataDir = dataPaths[dirIndex];
                     Path dir = subPathMapping.apply(dataDir);
-                    if (pathFunction.apply(dir) == false) {
+                    if (!pathFunction.apply(dir)) {
                         continue;
                     }
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
@@ -292,8 +292,8 @@ public final class NodeEnvironment  implements Closeable {
                 assertCanWrite();
             }
 
-            if (DiscoveryNode.isDataNode(settings) == false) {
-                if (DiscoveryNode.isMasterNode(settings) == false) {
+            if (!DiscoveryNode.isDataNode(settings)) {
+                if (!DiscoveryNode.isMasterNode(settings)) {
                     ensureNoIndexMetaData(nodePaths);
                 }
 
@@ -304,7 +304,7 @@ public final class NodeEnvironment  implements Closeable {
 
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 close();
             }
         }
@@ -330,17 +330,17 @@ public final class NodeEnvironment  implements Closeable {
                         if (Files.isDirectory(nodeLockIdPath) && fileName.chars().allMatch(Character::isDigit)) {
                             int nodeLockId = Integer.parseInt(fileName);
                             nodeLockIds.add(nodeLockId);
-                        } else if (FileSystemUtils.isDesktopServicesStore(nodeLockIdPath) == false) {
+                        } else if (!FileSystemUtils.isDesktopServicesStore(nodeLockIdPath)) {
                             throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
                                 nodeLockIdPath);
                         }
                     }
                 }
 
-                if (nodeLockIds.isEmpty() == false) {
+                if (!nodeLockIds.isEmpty()) {
                     upgradeNeeded = true;
 
-                    if (nodeLockIds.equals(Arrays.asList(0)) == false) {
+                    if (!nodeLockIds.equals(Arrays.asList(0))) {
                         throw new IllegalStateException("data path " + nodesFolderPath + " cannot be upgraded automatically because it " +
                             "contains data from nodes with ordinals " + nodeLockIds + ", due to previous use of the now obsolete " +
                             "[node.max_local_storage_nodes] setting. Please check the breaking changes docs for the current version of " +
@@ -350,7 +350,7 @@ public final class NodeEnvironment  implements Closeable {
             }
         }
 
-        if (upgradeNeeded == false) {
+        if (!upgradeNeeded) {
             logger.trace("data folder upgrade not required");
             return false;
         }
@@ -387,8 +387,8 @@ public final class NodeEnvironment  implements Closeable {
                         if (FileSystemUtils.isDesktopServicesStore(subFolderPath)) {
                             // ignore
                         } else if (FileSystemUtils.isAccessibleDirectory(subFolderPath, logger)) {
-                            if (fileName.equals(INDICES_FOLDER) == false && // indices folder
-                                fileName.equals(MetaDataStateFormat.STATE_DIR_NAME) == false) { // global metadata & node state folder
+                            if (!fileName.equals(INDICES_FOLDER) && // indices folder
+                                !fileName.equals(MetaDataStateFormat.STATE_DIR_NAME)) { // global metadata & node state folder
                                 throw new IllegalStateException("unexpected folder encountered during data folder upgrade: " +
                                     subFolderPath);
                             }
@@ -398,8 +398,8 @@ public final class NodeEnvironment  implements Closeable {
                                     targetSubFolderPath);
                             }
                             folderNames.add(fileName);
-                        } else if (fileName.equals(NODE_LOCK_FILENAME) == false &&
-                                   fileName.equals(TEMP_FILE_NAME) == false) {
+                        } else if (!fileName.equals(NODE_LOCK_FILENAME) &&
+                            !fileName.equals(TEMP_FILE_NAME)) {
                             throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
                                 subFolderPath);
                         }
@@ -465,7 +465,7 @@ public final class NodeEnvironment  implements Closeable {
             for (NodePath nodePath : nodePaths) {
                 FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
                 String mount = fsPath.getMount();
-                if (allMounts.contains(mount) == false) {
+                if (!allMounts.contains(mount)) {
                     allMounts.add(mount);
                     String type = fsPath.getType();
                     if (type != null) {
@@ -628,11 +628,11 @@ public final class NodeEnvironment  implements Closeable {
                 // the shard directory because it was created again as a result of a metadata read action concurrently.
                 try (DirectoryStream<Path> children = Files.newDirectoryStream(leftOver)) {
                     Iterator<Path> iter = children.iterator();
-                    if (iter.hasNext() == false) {
+                    if (!iter.hasNext()) {
                         return true;
                     }
                     Path maybeState = iter.next();
-                    if (iter.hasNext() || maybeState.equals(leftOver.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+                    if (iter.hasNext() || !maybeState.equals(leftOver.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
                         return true;
                     }
                     try (DirectoryStream<Path> stateChildren = Files.newDirectoryStream(maybeState)) {
@@ -719,7 +719,7 @@ public final class NodeEnvironment  implements Closeable {
             }
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 logger.trace("unable to lock all shards for index {}", index);
                 IOUtils.closeWhileHandlingException(allLocks);
             }
@@ -769,13 +769,13 @@ public final class NodeEnvironment  implements Closeable {
                 acquired = true;
             }
         }
-        if (acquired == false) {
+        if (!acquired) {
             boolean success = false;
             try {
                 shardLock.acquire(lockTimeoutMS, details);
                 success = true;
             } finally {
-                if (success == false) {
+                if (!success) {
                     shardLock.decWaitCount();
                 }
             }
@@ -1001,7 +1001,7 @@ public final class NodeEnvironment  implements Closeable {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
                 for (Path index : stream) {
                     final String fileName = index.getFileName().toString();
-                    if (excludeIndexPathIdsPredicate.test(fileName) == false && Files.isDirectory(index)) {
+                    if (!excludeIndexPathIdsPredicate.test(fileName) && Files.isDirectory(index)) {
                         indexFolders.add(fileName);
                     }
                 }
@@ -1159,7 +1159,7 @@ public final class NodeEnvironment  implements Closeable {
 
     private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
         List<Path> shardDataPaths = collectShardDataPaths(nodePaths);
-        if (shardDataPaths.isEmpty() == false) {
+        if (!shardDataPaths.isEmpty()) {
             throw new IllegalStateException("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false, but has shard data: "
@@ -1171,7 +1171,7 @@ public final class NodeEnvironment  implements Closeable {
 
     private void ensureNoIndexMetaData(final NodePath[] nodePaths) throws IOException {
         List<Path> indexMetaDataPaths = collectIndexMetaDataPaths(nodePaths);
-        if (indexMetaDataPaths.isEmpty() == false) {
+        if (!indexMetaDataPaths.isEmpty()) {
             throw new IllegalStateException("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false and "

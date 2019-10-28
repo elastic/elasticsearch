@@ -103,7 +103,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         // invalid "keystore" file should be present in the config dir
         try (InputStream keystore = ReloadSecureSettingsIT.class.getResourceAsStream("invalid.txt.keystore")) {
-            if (Files.exists(environment.configFile()) == false) {
+            if (!Files.exists(environment.configFile())) {
                 Files.createDirectory(environment.configFile());
             }
             Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configFile()), StandardCopyOption.REPLACE_EXISTING);

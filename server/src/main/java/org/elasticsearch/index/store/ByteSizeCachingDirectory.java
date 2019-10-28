@@ -95,7 +95,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
 
             @Override
             protected boolean needsRefresh() {
-                if (super.needsRefresh() == false) {
+                if (!super.needsRefresh()) {
                     // The size was computed recently, don't recompute
                     return false;
                 }

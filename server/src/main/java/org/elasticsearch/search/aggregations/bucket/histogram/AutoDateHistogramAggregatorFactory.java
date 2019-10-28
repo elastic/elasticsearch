@@ -61,7 +61,7 @@ public final class AutoDateHistogramAggregatorFactory
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
+        if (!collectsFromSingleBucket) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         return createAggregator(valuesSource, searchContext, parent, pipelineAggregators, metaData);

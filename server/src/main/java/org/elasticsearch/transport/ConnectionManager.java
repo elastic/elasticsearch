@@ -113,7 +113,7 @@ public class ConnectionManager implements Closeable {
             return;
         }
 
-        if (connectingRefCounter.tryIncRef() == false) {
+        if (!connectingRefCounter.tryIncRef()) {
             listener.onFailure(new IllegalStateException("connection manager is closed"));
             return;
         }

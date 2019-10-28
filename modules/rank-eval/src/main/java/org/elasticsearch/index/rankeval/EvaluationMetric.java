@@ -76,7 +76,7 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
      * Filter {@link RatedSearchHit}s that do not have a rating.
      */
     static List<DocumentKey> filterUnratedDocuments(List<RatedSearchHit> ratedHits) {
-        return ratedHits.stream().filter(hit -> hit.getRating().isPresent() == false)
+        return ratedHits.stream().filter(hit -> !hit.getRating().isPresent())
                 .map(hit -> new DocumentKey(hit.getSearchHit().getIndex(), hit.getSearchHit().getId())).collect(Collectors.toList());
     }
 

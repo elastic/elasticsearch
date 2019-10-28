@@ -97,7 +97,7 @@ public class PathTrie<T> {
         private void updateKeyWithNamedWildcard(String key) {
             this.key = key;
             String newNamedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
-            if (namedWildcard != null && newNamedWildcard.equals(namedWildcard) == false) {
+            if (namedWildcard != null && !newNamedWildcard.equals(namedWildcard)) {
                 throw new IllegalArgumentException("Trying to use conflicting wildcard names for same path: "
                     + namedWildcard + " and " + newNamedWildcard);
             }
@@ -229,7 +229,7 @@ public class PathTrie<T> {
                 }
             } else {
                 if (index + 1 == path.length && node.value == null && children.get(wildcard) != null
-                        && EXPLICIT_OR_ROOT_WILDCARD.contains(trieMatchingMode) == false) {
+                        && !EXPLICIT_OR_ROOT_WILDCARD.contains(trieMatchingMode)) {
                     /*
                      * If we are at the end of the path, the current node does not have a value but
                      * there is a child wildcard node, use the child wildcard node.
@@ -365,7 +365,7 @@ public class PathTrie<T> {
 
             @Override
             public T next() {
-                if (hasNext() == false) {
+                if (!hasNext()) {
                     throw new NoSuchElementException("called next() without validating hasNext()! no more modes available");
                 }
                 return retrieve(path, paramSupplier.get(), TrieMatchingMode.values()[mode++]);

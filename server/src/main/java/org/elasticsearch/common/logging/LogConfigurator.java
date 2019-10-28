@@ -190,7 +190,7 @@ public class LogConfigurator {
                 }
                 // Hack the new pattern into place
                 for (String name : properties.stringPropertyNames()) {
-                    if (false == name.endsWith(".pattern")) continue;
+                    if (!name.endsWith(".pattern")) continue;
                     // Null is weird here but we can't do anything with it so ignore it
                     String value = properties.getProperty(name);
                     if (value == null) continue;
@@ -200,8 +200,8 @@ public class LogConfigurator {
                      * Patterns without a marker are sufficiently customized
                      * that we don't have an opinion about them.
                      */
-                    if (false == value.contains("%marker")) continue;
-                    if (false == value.contains("%node_name")) {
+                    if (!value.contains("%marker")) continue;
+                    if (!value.contains("%node_name")) {
                         locationsWithDeprecatedPatterns.add(source.getLocation());
                         properties.setProperty(name, value.replace("%marker", "[%node_name]%marker "));
                     }
@@ -262,7 +262,7 @@ public class LogConfigurator {
         }
         Loggers.LOG_LEVEL_SETTING.getAllConcreteSettings(settings)
             // do not set a log level for a logger named level (from the default log setting)
-            .filter(s -> s.getKey().equals(Loggers.LOG_DEFAULT_LEVEL_SETTING.getKey()) == false).forEach(s -> {
+            .filter(s -> !s.getKey().equals(Loggers.LOG_DEFAULT_LEVEL_SETTING.getKey())).forEach(s -> {
             final Level level = s.get(settings);
             Loggers.setLevel(LogManager.getLogger(s.getKey().substring("logger.".length())), level);
         });

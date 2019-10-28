@@ -211,8 +211,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {
-        if (events.contains(AUTHENTICATION_SUCCESS) && eventFilterPolicyRegistry.ignorePredicate()
-                .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
+        if (events.contains(AUTHENTICATION_SUCCESS) && !eventFilterPolicyRegistry.ignorePredicate()
+            .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty()))) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
@@ -233,8 +233,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationSuccess(String requestId, String realm, User user, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
@@ -257,8 +257,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void anonymousAccessDenied(String requestId, String action, TransportMessage message) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
@@ -278,7 +278,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void anonymousAccessDenied(String requestId, RestRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
-                && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
+                && !eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY)) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
@@ -297,8 +297,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
@@ -318,7 +318,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void authenticationFailed(String requestId, RestRequest request) {
-        if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
+        if (events.contains(AUTHENTICATION_FAILED) && !eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY)) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
@@ -337,8 +337,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
@@ -357,8 +357,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
-        if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate()
-                .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty())) == false) {
+        if (events.contains(AUTHENTICATION_FAILED) && !eventFilterPolicyRegistry.ignorePredicate()
+            .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty()))) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
@@ -378,8 +378,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
@@ -400,8 +400,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
-        if (events.contains(REALM_AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate()
-                .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty())) == false) {
+        if (events.contains(REALM_AUTHENTICATION_FAILED) && !eventFilterPolicyRegistry.ignorePredicate()
+            .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty()))) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
@@ -423,10 +423,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                               AuthorizationInfo authorizationInfo) {
         final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
-        if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
+        if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((!isSystem) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(msg);
-            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
+                Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_granted")
@@ -456,9 +456,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             eventType = SYSTEM_ACCESS_GRANTED;
         }
         if (events.contains(eventType)) {
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(effectiveRealmName(authentication)),
-                            Optional.of(authorizationInfo), Optional.ofNullable(indices))) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(effectiveRealmName(authentication)),
+                    Optional.of(authorizationInfo), Optional.ofNullable(indices)))) {
                 final LogEntryBuilder logEntryBuilder = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, eventType == ACCESS_DENIED ? "access_denied" : "access_granted")
@@ -490,8 +490,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                              AuthorizationInfo authorizationInfo) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
+                Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_denied")
@@ -512,7 +512,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void tamperedRequest(String requestId, RestRequest request) {
-        if (events.contains(TAMPERED_REQUEST) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
+        if (events.contains(TAMPERED_REQUEST) && !eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY)) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
@@ -531,8 +531,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void tamperedRequest(String requestId, String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
@@ -553,8 +553,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void tamperedRequest(String requestId, User user, String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.empty(), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.empty(), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
@@ -574,7 +574,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
-        if (events.contains(CONNECTION_GRANTED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
+        if (events.contains(CONNECTION_GRANTED) && !eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY)) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "connection_granted")
@@ -592,7 +592,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
-        if (events.contains(CONNECTION_DENIED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
+        if (events.contains(CONNECTION_DENIED) && !eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY)) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "connection_denied")
@@ -613,8 +613,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                              AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
+                Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_granted")
@@ -638,8 +638,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
+            if (!eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
+                Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices))) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
@@ -661,8 +661,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)
-                && eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                        Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), Optional.empty())) == false) {
+                && !eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
+            Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), Optional.empty()))) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
@@ -1073,7 +1073,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     void updateLocalNodeInfo(DiscoveryNode newLocalNode) {
         // check if local node changed
         final EntryCommonFields localNodeInfo = this.entryCommonFields;
-        if (localNodeInfo.localNode == null || localNodeInfo.localNode.equals(newLocalNode) == false) {
+        if (localNodeInfo.localNode == null || !localNodeInfo.localNode.equals(newLocalNode)) {
             // no need to synchronize, called only from the cluster state applier thread
             this.entryCommonFields = this.entryCommonFields.withNewLocalNode(newLocalNode);
         }

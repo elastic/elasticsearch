@@ -92,11 +92,11 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
 
     private void checkPrivilegeName(ApplicationPrivilegeDescriptor privilege, String applicationName, String providedName) {
         final String privilegeName = privilege.getName();
-        if (Strings.isNullOrEmpty(applicationName) == false && applicationName.equals(privilege.getApplication()) == false) {
+        if (!Strings.isNullOrEmpty(applicationName) && !applicationName.equals(privilege.getApplication())) {
             throw new IllegalArgumentException("privilege application [" + privilege.getApplication()
                 + "] in source does not match the provided application [" + applicationName + "]");
         }
-        if (Strings.isNullOrEmpty(providedName) == false && providedName.equals(privilegeName) == false) {
+        if (!Strings.isNullOrEmpty(providedName) && !providedName.equals(privilegeName)) {
             throw new IllegalArgumentException("privilege name [" + privilegeName
                 + "] in source does not match the provided name [" + providedName + "]");
         }

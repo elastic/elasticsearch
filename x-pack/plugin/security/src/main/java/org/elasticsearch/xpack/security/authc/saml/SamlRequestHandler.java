@@ -172,7 +172,7 @@ public class SamlRequestHandler {
             }
         };
         final List<Credential> credentials = idp.getSigningCredentials();
-        if (credentials.stream().anyMatch(predicate) == false) {
+        if (!credentials.stream().anyMatch(predicate)) {
             throw samlSignatureException(credentials, signatureText);
         }
     }
@@ -221,7 +221,7 @@ public class SamlRequestHandler {
             throw samlException("Element {} ({}) has no issuer, but expected [{}]",
                     parent.getElementQName(), text(parent, 16), idp.getEntityId());
         }
-        if (idp.getEntityId().equals(issuer.getValue()) == false) {
+        if (!idp.getEntityId().equals(issuer.getValue())) {
             throw samlException("SAML Issuer [{}] does not match expected value [{}]", issuer.getValue(), idp.getEntityId());
         }
     }
@@ -310,7 +310,7 @@ public class SamlRequestHandler {
         }
         final Instant now = now();
         final Instant pastNow = now.minusMillis(this.maxSkew.millis());
-        if (pastNow.isBefore(toInstant(notOnOrAfter)) == false) {
+        if (!pastNow.isBefore(toInstant(notOnOrAfter))) {
             throw samlException("Rejecting SAML assertion because [{}] is on/after [{}]", pastNow, notOnOrAfter);
         }
     }

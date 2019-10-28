@@ -483,7 +483,7 @@ public final class Verifier {
 
         expressions.forEach(e -> e.forEachUp(c -> {
             EsField.Exact exact = c.getExactInfo();
-            if (exact.hasExact() == false) {
+            if (!exact.hasExact()) {
                 localFailures.add(fail(c, "Field [{}] of data type [{}] cannot be used for grouping; {}", c.sourceText(),
                         c.dataType().typeName, exact.errorMsg()));
                 onlyExact.set(Boolean.FALSE);
@@ -537,7 +537,7 @@ public final class Verifier {
             }));
 
             a.groupings().forEach(e -> {
-                if (Functions.isGrouping(e) == false) {
+                if (!Functions.isGrouping(e)) {
                     e.collectFirstChildren(c -> {
                         if (Functions.isGrouping(c)) {
                             localFailures.add(fail(c,
@@ -638,7 +638,7 @@ public final class Verifier {
         // (since otherwise exp might match the function argument which would be incorrect)
         final Expression exp = e;
         if (e.children().isEmpty()) {
-            if (Expressions.match(groupings, c -> exp.semanticEquals(exp instanceof Attribute ? Expressions.attribute(c) : c)) == false) {
+            if (!Expressions.match(groupings, c -> exp.semanticEquals(exp instanceof Attribute ? Expressions.attribute(c) : c))) {
                 missing.put(exp, source);
             }
             return true;
@@ -658,7 +658,7 @@ public final class Verifier {
             Aggregate a = (Aggregate) p;
             a.aggregates().forEach(agg -> agg.forEachDown(e -> {
                 if (a.groupings().size() == 0
-                        || Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.functionEquals((Function) g)) == false) {
+                        || !Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.functionEquals((Function) g))) {
                     localFailures.add(fail(e, "[{}] needs to be part of the grouping", Expressions.name(e)));
                 }
                 else {
@@ -684,7 +684,7 @@ public final class Verifier {
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
-            if ((filter.child() instanceof Aggregate) == false) {
+            if (!(filter.child() instanceof Aggregate)) {
                 filter.condition().forEachDown(e -> {
                     if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
                         localFailures.add(
@@ -790,8 +790,8 @@ public final class Verifier {
     private static void checkPivot(LogicalPlan p, Set<Failure> localFailures) {
         p.forEachDown(pv -> {
             // check only exact fields are used inside PIVOTing
-            if (onlyExactFields(combine(pv.groupingSet(), pv.column()), localFailures) == false
-                    || onlyRawFields(pv.groupingSet(), localFailures) == false) {
+            if (!onlyExactFields(combine(pv.groupingSet(), pv.column()), localFailures)
+                    || !onlyRawFields(pv.groupingSet(), localFailures)) {
                 // if that is not the case, no need to do further validation since the declaration is fundamentally wrong
                 return;
             }
@@ -801,14 +801,14 @@ public final class Verifier {
             for (NamedExpression v : pv.values()) {
                 // check all values are foldable
                 Expression ex = v instanceof Alias ? ((Alias) v).child() : v;
-                if (ex instanceof Literal == false) {
+                if (!(ex instanceof Literal)) {
                     localFailures.add(fail(v, "Non-literal [{}] found inside PIVOT values", v.name()));
                 }
                 else if (ex.foldable() && ex.fold() == null) {
                     localFailures.add(fail(v, "Null not allowed as a PIVOT value", v.name()));
                 }
                 // and that their type is compatible with that of the column
-                else if (DataTypes.areTypesCompatible(colType, v.dataType()) == false) {
+                else if (!DataTypes.areTypesCompatible(colType, v.dataType())) {
                     localFailures.add(fail(v, "Literal [{}] of type [{}] does not match type [{}] of PIVOT column [{}]", v.name(),
                             v.dataType().typeName, colType.typeName, pv.column().sourceText()));
                 }

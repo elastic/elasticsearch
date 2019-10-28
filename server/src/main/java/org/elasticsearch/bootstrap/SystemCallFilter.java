@@ -259,7 +259,7 @@ final class SystemCallFilter {
         // also, some of these security features get backported to old versions, checking kernel version here is a big no-no!
         final Arch arch = ARCHITECTURES.get(Constants.OS_ARCH);
         boolean supported = Constants.LINUX && arch != null;
-        if (supported == false) {
+        if (!supported) {
             throw new UnsupportedOperationException("seccomp unavailable: '" + Constants.OS_ARCH + "' architecture unsupported");
         }
 
@@ -449,7 +449,7 @@ final class SystemCallFilter {
     private static void macImpl(Path tmpFile) throws IOException {
         // first be defensive: we can give nice errors this way, at the very least.
         boolean supported = Constants.MAC_OS_X;
-        if (supported == false) {
+        if (!supported) {
             throw new IllegalStateException("bug: should not be trying to initialize seatbelt for an unsupported OS");
         }
 
@@ -519,7 +519,7 @@ final class SystemCallFilter {
     static void solarisImpl() {
         // first be defensive: we can give nice errors this way, at the very least.
         boolean supported = Constants.SUN_OS;
-        if (supported == false) {
+        if (!supported) {
             throw new IllegalStateException("bug: should not be trying to initialize priv_set for an unsupported OS");
         }
 
@@ -547,7 +547,7 @@ final class SystemCallFilter {
 
     static void bsdImpl() {
         boolean supported = Constants.FREE_BSD || OPENBSD || Constants.MAC_OS_X;
-        if (supported == false) {
+        if (!supported) {
             throw new IllegalStateException("bug: should not be trying to initialize RLIMIT_NPROC for an unsupported OS");
         }
 

@@ -79,13 +79,13 @@ public final class KeyValueProcessor extends AbstractProcessor {
             if (excludeKeys == null) {
                 keyFilter = key -> true;
             } else {
-                keyFilter = key -> excludeKeys.contains(key) == false;
+                keyFilter = key -> !excludeKeys.contains(key);
             }
         } else {
             if (excludeKeys == null) {
                 keyFilter = includeKeys::contains;
             } else {
-                keyFilter = key -> includeKeys.contains(key) && excludeKeys.contains(key) == false;
+                keyFilter = key -> includeKeys.contains(key) && !excludeKeys.contains(key);
             }
         }
         final String fieldPathPrefix;

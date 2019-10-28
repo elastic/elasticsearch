@@ -330,7 +330,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         ScriptedMetricAggregationBuilder other = (ScriptedMetricAggregationBuilder) obj;
         return Objects.equals(initScript, other.initScript)
             && Objects.equals(mapScript, other.mapScript)

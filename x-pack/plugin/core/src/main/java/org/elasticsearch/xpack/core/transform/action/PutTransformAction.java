@@ -91,12 +91,12 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             } catch (InvalidIndexNameException ex) {
                 validationException = addValidationError(ex.getMessage(), validationException);
             }
-            if (TransformStrings.isValidId(config.getId()) == false) {
+            if (!TransformStrings.isValidId(config.getId())) {
                 validationException = addValidationError(
                     TransformMessages.getMessage(TransformMessages.INVALID_ID, TransformField.ID.getPreferredName(), config.getId()),
                     validationException);
             }
-            if (TransformStrings.hasValidLengthForId(config.getId()) == false) {
+            if (!TransformStrings.hasValidLengthForId(config.getId())) {
                 validationException = addValidationError(
                     TransformMessages.getMessage(TransformMessages.ID_TOO_LONG, TransformStrings.ID_LENGTH_LIMIT),
                     validationException);

@@ -97,7 +97,7 @@ public class ClientYamlTestSuite {
                 }
             }
             ClientYamlTestSection testSection = ClientYamlTestSection.parse(parser);
-            if (testSections.add(testSection) == false) {
+            if (!testSections.add(testSection)) {
                 throw new ParsingException(testSection.getLocation(), "duplicate test section [" + testSection.getName() + "]");
             }
         }
@@ -146,7 +146,7 @@ public class ClientYamlTestSuite {
         errors = Stream.concat(errors, testSections.stream()
             .flatMap(section -> validateExecutableSections(section.getExecutableSections(), section, setupSection, teardownSection)));
         String errorMessage = errors.collect(Collectors.joining(",\n"));
-        if (errorMessage.isEmpty() == false) {
+        if (!errorMessage.isEmpty()) {
             throw new IllegalArgumentException(getPath() + ":\n" + errorMessage);
         }
     }
@@ -157,8 +157,8 @@ public class ClientYamlTestSuite {
 
         Stream<String> errors = sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
-            .filter(section -> false == section.getExpectedWarningHeaders().isEmpty())
-            .filter(section -> false == hasSkipFeature("warnings", testSection, setupSection, teardownSection))
+            .filter(section -> !section.getExpectedWarningHeaders().isEmpty())
+            .filter(section -> !hasSkipFeature("warnings", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [do] with a [warnings] section " +
                 "without a corresponding [\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] " +
                 "section can skip the test at line [" + section.getLocation().lineNumber + "]");
@@ -166,22 +166,22 @@ public class ClientYamlTestSuite {
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
             .filter(section -> NodeSelector.ANY != section.getApiCallSection().getNodeSelector())
-            .filter(section -> false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection))
+            .filter(section -> !hasSkipFeature("node_selector", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [do] with a [node_selector] " +
                 "section without a corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the " +
                 "[node_selector] section can skip the test at line [" + section.getLocation().lineNumber + "]"));
 
         errors = Stream.concat(errors, sections.stream()
             .filter(section -> section instanceof ContainsAssertion)
-            .filter(section -> false == hasSkipFeature("contains", testSection, setupSection, teardownSection))
+            .filter(section -> !hasSkipFeature("contains", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [contains] assertion " +
                 "without a corresponding [\"skip\": \"features\": \"contains\"] so runners that do not support the " +
                 "[contains] assertion can skip the test at line [" + section.getLocation().lineNumber + "]"));
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
-            .filter(section -> false == section.getApiCallSection().getHeaders().isEmpty())
-            .filter(section -> false == hasSkipFeature("headers", testSection, setupSection, teardownSection))
+            .filter(section -> !section.getApiCallSection().getHeaders().isEmpty())
+            .filter(section -> !hasSkipFeature("headers", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [do] with a [headers] section without a corresponding "
                 + "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at " +
                 "line [" + section.getLocation().lineNumber + "]"));

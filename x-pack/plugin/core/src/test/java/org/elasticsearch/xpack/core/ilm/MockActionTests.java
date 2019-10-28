@@ -46,7 +46,7 @@ public class MockActionTests extends AbstractActionTestCase<MockAction> {
                 steps.add(new MockStep(randomStepKey(), null));
             }
         } else {
-            safe = safe == false;
+            safe = !safe;
         }
         return new MockAction(steps, safe);
     }

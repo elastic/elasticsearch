@@ -61,7 +61,7 @@ public class MetricAggScriptPlugin extends MockScriptPlugin {
     protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
         Function<Map<String, Object>, Integer> getInc = vars -> {
-            if (vars == null || vars.containsKey("inc") == false) {
+            if (vars == null || !vars.containsKey("inc")) {
                 return 0;
             } else {
                 return ((Number) vars.get("inc")).intValue();

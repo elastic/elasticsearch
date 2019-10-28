@@ -191,10 +191,10 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
      *             are not finite.
      */
     public HistogramAggregationBuilder extendedBounds(double minBound, double maxBound) {
-        if (Double.isFinite(minBound) == false) {
+        if (!Double.isFinite(minBound)) {
             throw new IllegalArgumentException("minBound must be finite, got: " + minBound);
         }
-        if (Double.isFinite(maxBound) == false) {
+        if (!Double.isFinite(maxBound)) {
             throw new IllegalArgumentException("maxBound must be finite, got: " + maxBound);
         }
         if (maxBound < minBound) {
@@ -319,7 +319,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         HistogramAggregationBuilder other = (HistogramAggregationBuilder) obj;
         return Objects.equals(order, other.order)
             && Objects.equals(keyed, other.keyed)

@@ -150,7 +150,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean forceMove() {
         checkDecisionState();
-        return canRemain() == false && allocationDecision == AllocationDecision.YES;
+        return !canRemain() && allocationDecision == AllocationDecision.YES;
     }
 
     /**
@@ -245,7 +245,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             }
         } else {
             // it was a decision to force move the shard
-            assert canRemain() == false;
+            assert !canRemain();
             if (allocationDecision == AllocationDecision.YES) {
                 explanation = "shard cannot remain on this node and is force-moved to another node";
             } else if (allocationDecision == AllocationDecision.THROTTLED) {
@@ -267,7 +267,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             builder.endObject();
         }
         builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
-        if (canRemain() == false && canRemainDecision.getDecisions().isEmpty() == false) {
+        if (!canRemain() && !canRemainDecision.getDecisions().isEmpty()) {
             builder.startArray("can_remain_decisions");
             canRemainDecision.toXContent(builder, params);
             builder.endArray();
@@ -275,7 +275,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         if (clusterRebalanceDecision != null) {
             AllocationDecision rebalanceDecision = AllocationDecision.fromDecisionType(clusterRebalanceDecision.type());
             builder.field("can_rebalance_cluster", rebalanceDecision);
-            if (rebalanceDecision != AllocationDecision.YES && clusterRebalanceDecision.getDecisions().isEmpty() == false) {
+            if (rebalanceDecision != AllocationDecision.YES && !clusterRebalanceDecision.getDecisions().isEmpty()) {
                 builder.startArray("can_rebalance_cluster_decisions");
                 clusterRebalanceDecision.toXContent(builder, params);
                 builder.endArray();
@@ -294,10 +294,10 @@ public final class MoveDecision extends AbstractAllocationDecision {
 
     @Override
     public boolean equals(Object other) {
-        if (super.equals(other) == false) {
+        if (!super.equals(other)) {
             return false;
         }
-        if (other instanceof MoveDecision == false) {
+        if (!(other instanceof MoveDecision)) {
             return false;
         }
         MoveDecision that = (MoveDecision) other;

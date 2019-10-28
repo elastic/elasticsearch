@@ -103,7 +103,7 @@ public class DnRoleMapper implements UserRoleMapper {
 
         logger.trace("reading realm [{}/{}] role mappings file [{}]...", realmType, realmName, path.toAbsolutePath());
 
-        if (Files.exists(path) == false) {
+        if (!Files.exists(path)) {
             final ParameterizedMessage message = new ParameterizedMessage(
                     "Role mapping file [{}] for realm [{}] does not exist.",
                     path.toAbsolutePath(), realmName);

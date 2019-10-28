@@ -197,7 +197,7 @@ public final class Automatons {
     }
 
     private static Cache<Object, Automaton> buildCache(Settings settings) {
-        if (CACHE_ENABLED.get(settings) == false) {
+        if (!CACHE_ENABLED.get(settings)) {
             return null;
         }
         return CacheBuilder.<Object, Automaton>builder()

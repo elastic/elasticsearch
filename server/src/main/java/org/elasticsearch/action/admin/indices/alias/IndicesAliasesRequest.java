@@ -290,7 +290,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 throw new IllegalArgumentException("[indices] can't be empty");
             }
             for (String index : indices) {
-                if (false == Strings.hasLength(index)) {
+                if (!Strings.hasLength(index)) {
                     throw new IllegalArgumentException("[indices] can't contain empty string");
                 }
             }
@@ -302,7 +302,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
          * Set the index this action is operating on.
          */
         public AliasActions index(String index) {
-            if (false == Strings.hasLength(index)) {
+            if (!Strings.hasLength(index)) {
                 throw new IllegalArgumentException("[index] can't be empty string");
             }
             this.indices = new String[] {index};
@@ -320,7 +320,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 throw new IllegalArgumentException("[aliases] can't be empty");
             }
             for (String alias : aliases) {
-                if (false == Strings.hasLength(alias)) {
+                if (!Strings.hasLength(alias)) {
                     throw new IllegalArgumentException("[aliases] can't contain empty string");
                 }
             }
@@ -336,7 +336,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (type == AliasActions.Type.REMOVE_INDEX) {
                 throw new IllegalArgumentException("[alias] is unsupported for [" + type + "]");
             }
-            if (false == Strings.hasLength(alias)) {
+            if (!Strings.hasLength(alias)) {
                 throw new IllegalArgumentException("[alias] can't be empty string");
             }
             this.aliases = new String[] {alias};
@@ -475,18 +475,18 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (0 != aliases.length) {
                 builder.array(ALIASES.getPreferredName(), aliases);
             }
-            if (false == Strings.isEmpty(filter)) {
+            if (!Strings.isEmpty(filter)) {
                 try (InputStream stream = new BytesArray(filter).streamInput()) {
                     builder.rawField(FILTER.getPreferredName(), stream, XContentType.JSON);
                 }
             }
-            if (false == Strings.isEmpty(routing)) {
+            if (!Strings.isEmpty(routing)) {
                 builder.field(ROUTING.getPreferredName(), routing);
             }
-            if (false == Strings.isEmpty(indexRouting)) {
+            if (!Strings.isEmpty(indexRouting)) {
                 builder.field(INDEX_ROUTING.getPreferredName(), indexRouting);
             }
-            if (false == Strings.isEmpty(searchRouting)) {
+            if (!Strings.isEmpty(searchRouting)) {
                 builder.field(SEARCH_ROUTING.getPreferredName(), searchRouting);
             }
             if (null != writeIndex) {

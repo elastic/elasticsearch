@@ -102,7 +102,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (obj instanceof RuleCondition == false) {
+        if (!(obj instanceof RuleCondition)) {
             return false;
         }
 

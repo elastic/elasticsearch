@@ -264,7 +264,7 @@ public final class GeoPoint implements ToXContentFragment {
     }
 
     public static double assertZValue(final boolean ignoreZValue, double zValue) {
-        if (ignoreZValue == false) {
+        if (!ignoreZValue) {
             throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [{}] "
                 + "parameter is [{}]", zValue, IGNORE_Z_VALUE, ignoreZValue);
         }

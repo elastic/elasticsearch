@@ -124,7 +124,7 @@ public class ReadOnlyEngine extends Engine {
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
                 success = true;
             } finally {
-                if (success == false) {
+                if (!success) {
                     IOUtils.close(reader, indexWriterLock, store::decRef);
                 }
             }
@@ -314,7 +314,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
                                                 boolean requiredFullRange) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled() == false) {
+        if (!engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
         }
         return readHistoryOperations(source, mapperService, fromSeqNo);

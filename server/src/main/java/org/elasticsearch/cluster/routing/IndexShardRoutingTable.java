@@ -322,7 +322,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
                 final String nodeId = entry.getKey();
                 final Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
-                if (nodeId.equals(minNodeId) == false && maybeStats.isPresent()) {
+                if (!nodeId.equals(minNodeId) && maybeStats.isPresent()) {
                     final ResponseCollectorService.ComputedNodeStats stats = maybeStats.get();
                     final int updatedQueue = (minStats.queueSize + stats.queueSize) / 2;
                     final long updatedResponse = (long) (minStats.responseTime + stats.responseTime) / 2;
@@ -609,11 +609,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             Set<String> nodes = new HashSet<>();
             for (ShardRouting shard : shards) {
                 if (shard.assignedToNode()) {
-                    if (nodes.add(shard.currentNodeId()) == false) {
+                    if (!nodes.add(shard.currentNodeId())) {
                         return false;
                     }
                     if (shard.relocating()) {
-                        if (nodes.add(shard.relocatingNodeId()) == false) {
+                        if (!nodes.add(shard.relocatingNodeId())) {
                             return false;
                         }
                     }

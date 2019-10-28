@@ -55,7 +55,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return new Result(false, null);
         }
-        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
+        if (!ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName())) {
             logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
                     getKey().getAction(), index.getName());
             return new Result(false, new Info(idxMeta.getNumberOfReplicas(), -1, false));
@@ -74,7 +74,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
                 boolean canRemainOnCurrentNode = ALLOCATION_DECIDERS
                         .canRemain(shardRouting, clusterState.getRoutingNodes().node(currentNodeId), allocation)
                         .type() == Decision.Type.YES;
-                if (canRemainOnCurrentNode == false || shardRouting.started() == false) {
+                if (!canRemainOnCurrentNode || !shardRouting.started()) {
                     allocationPendingAllShards++;
                 }
             }
@@ -130,7 +130,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
             this.actualReplicas = actualReplicas;
             this.numberShardsLeftToAllocate = numberShardsLeftToAllocate;
             this.allShardsActive = allShardsActive;
-            if (allShardsActive == false) {
+            if (!allShardsActive) {
                 message = "Waiting for all shard copies to be active";
             } else {
                 message = "Waiting for [" + numberShardsLeftToAllocate + "] shards "

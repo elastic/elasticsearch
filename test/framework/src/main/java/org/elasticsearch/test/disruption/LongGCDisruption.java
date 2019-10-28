@@ -69,7 +69,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 suspendedThreads = ConcurrentHashMap.newKeySet();
 
                 final String currentThreadName = Thread.currentThread().getName();
-                assert isDisruptedNodeThread(currentThreadName) == false :
+                assert !isDisruptedNodeThread(currentThreadName) :
                     "current thread match pattern. thread name: " + currentThreadName + ", node: " + disruptedNode;
                 // we spawn a background thread to protect against deadlock which can happen
                 // if there are shared resources between caller thread and suspended threads
@@ -129,17 +129,17 @@ public class LongGCDisruption extends SingleNodeDisruption {
                     blockDetectionThread = new Thread(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
-                            if (e instanceof InterruptedException == false) {
+                            if (!(e instanceof InterruptedException)) {
                                 throw new AssertionError("unexpected exception in blockDetectionThread", e);
                             }
                         }
 
                         @Override
                         protected void doRun() throws Exception {
-                            while (Thread.currentThread().isInterrupted() == false) {
+                            while (!Thread.currentThread().isInterrupted()) {
                                 ThreadInfo[] threadInfos = threadBean.dumpAllThreads(true, true);
                                 for (ThreadInfo threadInfo : threadInfos) {
-                                    if (isDisruptedNodeThread(threadInfo.getThreadName()) == false &&
+                                    if (!isDisruptedNodeThread(threadInfo.getThreadName()) &&
                                         threadInfo.getLockOwnerName() != null &&
                                         isDisruptedNodeThread(threadInfo.getLockOwnerName())) {
 
@@ -163,7 +163,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 }
                 success = true;
             } finally {
-                if (success == false) {
+                if (!success) {
                     stopBlockDetection();
                     // resume threads if failed
                     resumeThreads(suspendedThreads);

@@ -171,13 +171,13 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(targetIndexSettings)) {
             // if we have a source index with 1 shards it's legal to set this
             final boolean splitFromSingleShards = resizeRequest.getResizeType() == ResizeType.SPLIT && metaData.getNumberOfShards() == 1;
-            if (splitFromSingleShards == false) {
+            if (!splitFromSingleShards) {
                 throw new IllegalArgumentException("cannot provide index.number_of_routing_shards on resize");
             }
         }
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(metaData.getSettings()) &&
             IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(targetIndexSettings) &&
-            IndexSettings.INDEX_SOFT_DELETES_SETTING.get(targetIndexSettings) == false) {
+            !IndexSettings.INDEX_SOFT_DELETES_SETTING.get(targetIndexSettings)) {
             throw new IllegalArgumentException("Can't disable [index.soft_deletes.enabled] setting on resize");
         }
         String cause = resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT) + "_index";

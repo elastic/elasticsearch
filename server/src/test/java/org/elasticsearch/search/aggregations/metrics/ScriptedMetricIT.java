@@ -96,7 +96,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             scripts.put("state.list.add(1)", vars ->
                     aggScript(vars, state -> {
                         // Lazily populate state.list for tests without an init script
-                        if (state.containsKey("list") == false) {
+                        if (!state.containsKey("list")) {
                             state.put("list", new ArrayList());
                         }
 
@@ -119,7 +119,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             scripts.put("state.list.add(vars.multiplier)", vars ->
                     aggScript(vars, state -> {
                         // Lazily populate state.list for tests without an init script
-                        if (state.containsKey("list") == false) {
+                        if (!state.containsKey("list")) {
                             state.put("list", new ArrayList());
                         }
 

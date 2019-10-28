@@ -54,7 +54,7 @@ class UserAttributeGroupsResolver implements GroupsResolver {
         } else {
             searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, Math.toIntExact(timeout.seconds()),
                     ignoreReferralErrors, ActionListener.wrap((entry) -> {
-                        if (entry == null || entry.hasAttribute(attribute) == false) {
+                        if (entry == null || !entry.hasAttribute(attribute)) {
                             listener.onResponse(List.of());
                         } else {
                             listener.onResponse(List.of(entry.getAttributeValues(attribute)));

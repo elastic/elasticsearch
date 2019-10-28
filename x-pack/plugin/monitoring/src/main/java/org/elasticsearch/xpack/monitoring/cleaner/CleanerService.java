@@ -108,7 +108,7 @@ public class CleanerService extends AbstractLifecycleComponent {
      */
     public void setGlobalRetention(TimeValue globalRetention) {
         // notify the user that their setting will be ignored until they get the right license
-        if (licenseState.isUpdateRetentionAllowed() == false) {
+        if (!licenseState.isUpdateRetentionAllowed()) {
             logger.warn("[{}] setting will be ignored until an appropriate license is applied", MonitoringField.HISTORY_DURATION.getKey());
         }
 
@@ -165,7 +165,7 @@ public class CleanerService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRunInLifecycle() throws Exception {
-            if (licenseState.isMonitoringAllowed() == false) {
+            if (!licenseState.isMonitoringAllowed()) {
                 logger.debug("cleaning service is disabled due to invalid license");
                 return;
             }
@@ -221,7 +221,7 @@ public class CleanerService extends AbstractLifecycleComponent {
          * stopped.
          */
         public void cancel() {
-            if (cancellable != null && cancellable.isCancelled() == false) {
+            if (cancellable != null && !cancellable.isCancelled()) {
                 cancellable.cancel();
             }
         }
@@ -250,7 +250,7 @@ public class CleanerService extends AbstractLifecycleComponent {
                 .atStartOfDay(now.getZone())
                 .plusHours(1);
             // if it's not after now, then it needs to be the next day!
-            if (next.isAfter(now) == false) {
+            if (!next.isAfter(now)) {
                 next = next.plusDays(1);
             }
             return TimeValue.timeValueMillis(Duration.between(now, next).toMillis());

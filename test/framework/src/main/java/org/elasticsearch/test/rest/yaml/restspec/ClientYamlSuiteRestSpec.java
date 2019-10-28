@@ -103,7 +103,7 @@ public class ClientYamlSuiteRestSpec {
                 } else {
                     ClientYamlSuiteRestApi restApi = restApiParser.parse(jsonFile.toString(), parser);
                     String expectedApiName = filename.substring(0, filename.lastIndexOf('.'));
-                    if (restApi.getName().equals(expectedApiName) == false) {
+                    if (!restApi.getName().equals(expectedApiName)) {
                         throw new IllegalArgumentException("found api [" + restApi.getName() + "] in [" + jsonFile.toString() + "]. " +
                             "Each api is expected to have the same name as the file that defines it.");
                     }

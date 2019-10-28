@@ -109,7 +109,7 @@ public class RestGetSourceAction extends BaseRestHandler {
             final String index = response.getIndex();
             final String id = response.getId();
 
-            if (response.isExists() == false) {
+            if (!response.isExists()) {
                 throw new ResourceNotFoundException("Document not found [" + index + "]/[" + id + "]");
             } else if (response.isSourceEmpty()) {
                 throw new ResourceNotFoundException("Source not found [" + index + "]/[" + id + "]");

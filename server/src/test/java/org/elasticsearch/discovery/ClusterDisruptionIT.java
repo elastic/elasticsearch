@@ -454,7 +454,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertBusy(() -> {
             for (String masterNode : allMasterEligibleNodes) {
                 final ClusterState masterState = internalCluster().clusterService(masterNode).state();
-                assertTrue("index not deleted on " + masterNode, masterState.metaData().hasIndex(idxName) == false);
+                assertTrue("index not deleted on " + masterNode, !masterState.metaData().hasIndex(idxName));
             }
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
@@ -473,7 +473,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         Set<String> ackedDocs = ConcurrentCollections.newConcurrentSet();
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
-                while (stopped.get() == false && docID.get() < 5000) {
+                while (!stopped.get() && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
                     try {
                         IndexResponse response = client().prepareIndex(index).setId(id)

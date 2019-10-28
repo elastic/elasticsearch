@@ -117,7 +117,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         } else {
             useRoutingPartition = randomBoolean();
         }
-        if (useRouting && useMixedRouting == false && useRoutingPartition) {
+        if (useRouting && !useMixedRouting && useRoutingPartition) {
             int numRoutingShards = MetaDataCreateIndexService.calculateNumRoutingShards(secondSplitShards, Version.CURRENT)-1;
             settings.put("index.routing_partition_size",
                 randomIntBetween(1, numRoutingShards));
@@ -191,7 +191,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                 .put("index.number_of_replicas", 0)
                 .put("index.number_of_shards", firstSplitShards)
                 .putNull("index.blocks.write");
-        if (sourceShards == 1 && useRoutingPartition == false && randomBoolean()) { // try to set it if we have a source index with 1 shard
+        if (sourceShards == 1 && !useRoutingPartition && randomBoolean()) { // try to set it if we have a source index with 1 shard
             firstSplitSettingsBuilder.put("index.number_of_routing_shards", secondSplitShards);
         }
         assertAcked(client().admin().indices().prepareResizeIndex("source", "first_split")
@@ -423,7 +423,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             final int size = docs > 0 ? 2 * docs : 1;
             assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
 
-            if (createWithReplicas == false) {
+            if (!createWithReplicas) {
                 // bump replicas
                 client().admin().indices().prepareUpdateSettings("target")
                     .setSettings(Settings.builder()

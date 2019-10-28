@@ -147,7 +147,7 @@ public final class RestClientBuilder {
         }
 
         String cleanPathPrefix = pathPrefix;
-        if (cleanPathPrefix.startsWith("/") == false) {
+        if (!cleanPathPrefix.startsWith("/")) {
             cleanPathPrefix = "/" + cleanPathPrefix;
         }
 

@@ -228,12 +228,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             if (isExclusivelyTargetingCurrentVersionCluster()) {
                 // absolute equality required in expected and actual.
                 Set<String> actual = new HashSet<>(warnings);
-                return false == requiredSameVersionClusterWarnings.equals(actual);
+                return !requiredSameVersionClusterWarnings.equals(actual);
             } else {
                 // Some known warnings can safely be ignored
                 for (String actualWarning : warnings) {
-                    if (false == allowedWarnings.contains(actualWarning) &&
-                        false == requiredSameVersionClusterWarnings.contains(actualWarning)) {
+                    if (!allowedWarnings.contains(actualWarning) &&
+                        !requiredSameVersionClusterWarnings.contains(actualWarning)) {
                         return true;
                     }
                 }
@@ -279,7 +279,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 @Override
                 public boolean warningsShouldFailRequest(List<String> warnings) {
                     for (String warning : warnings) {
-                        if(warning.startsWith("[types removal]") == false) {
+                        if(!warning.startsWith("[types removal]")) {
                             //Something other than a types removal message - return true
                             return true;
                         }
@@ -302,7 +302,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @After
     public final void cleanUpCluster() throws Exception {
-        if (preserveClusterUponCompletion() == false) {
+        if (!preserveClusterUponCompletion()) {
             ensureNoInitializingShards();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
@@ -480,7 +480,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
         // for a bulk to finish against a non-existing index (and then fail tests)
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
+        if (hasXPack && !preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
             waitForPendingRollupTasks();
         }
@@ -507,13 +507,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             inProgressSnapshots.set(wipeSnapshots());
         }
 
-        if (preserveIndicesUponCompletion() == false) {
+        if (!preserveIndicesUponCompletion()) {
             // wipe indices
             wipeAllIndices();
         }
 
         // wipe index templates
-        if (preserveTemplatesUponCompletion() == false) {
+        if (!preserveTemplatesUponCompletion()) {
             if (hasXPack) {
                 /*
                  * Delete only templates that xpack doesn't automatically
@@ -524,7 +524,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 Request request = new Request("GET", "_cat/templates");
                 request.addParameter("h", "name");
                 String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
-                if (false == "".equals(templates)) {
+                if (!"".equals(templates)) {
                     for (String template : templates.split("\n")) {
                         if (isXPackTemplate(template)) continue;
                         if ("".equals(template)) {
@@ -541,11 +541,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // wipe cluster settings
-        if (preserveClusterSettings() == false) {
+        if (!preserveClusterSettings()) {
             wipeClusterSettings();
         }
 
-        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
+        if (hasXPack && !preserveILMPoliciesUponCompletion()) {
             deleteAllILMPolicies();
         }
 
@@ -578,7 +578,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             String repoName = repo.getKey();
             Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
             String repoType = (String) repoSpec.get("type");
-            if (false == preserveSnapshotsUponCompletion() && repoType.equals("fs")) {
+            if (!preserveSnapshotsUponCompletion() && repoType.equals("fs")) {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
                 Request listRequest = new Request("GET", "/_snapshot/" + repoName + "/_all");
                 listRequest.addParameter("ignore_unavailable", "true");
@@ -595,14 +595,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
-                    if (SnapshotState.valueOf((String) snapshotInfo.get("state")).completed() == false) {
+                    if (!SnapshotState.valueOf((String) snapshotInfo.get("state")).completed()) {
                         inProgressSnapshots.computeIfAbsent(repoName, key -> new ArrayList<>()).add(snapshotInfo);
                     }
                     logger.debug("wiping snapshot [{}/{}]", repoName, name);
                     adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + name));
                 }
             }
-            if (preserveReposUponCompletion() == false) {
+            if (!preserveReposUponCompletion()) {
                 logger.debug("wiping snapshot repository [{}]", repoName);
                 adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
             }
@@ -674,7 +674,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void waitForPendingRollupTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
+        waitForPendingTasks(adminClient(), taskName -> !taskName.startsWith("xpack/rollup/job"));
     }
 
     private static void deleteAllILMPolicies() throws IOException {
@@ -756,7 +756,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             try {
                 Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
                 List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
-                if (false == tasks.isEmpty()) {
+                if (!tasks.isEmpty()) {
                     StringBuilder message = new StringBuilder("there are still running tasks:");
                     for (Object task: tasks) {
                         message.append('\n').append(task.toString());
@@ -990,10 +990,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     @SuppressWarnings("unchecked")
     protected static Map<String, Object> getAlias(final String index, final String alias) throws IOException {
         String endpoint = "/_alias";
-        if (false == Strings.isEmpty(index)) {
+        if (!Strings.isEmpty(index)) {
             endpoint = index + endpoint;
         }
-        if (false == Strings.isEmpty(alias)) {
+        if (!Strings.isEmpty(alias)) {
             endpoint = endpoint + "/" + alias;
         }
         Map<String, Object> getAliasResponse = getAsMap(endpoint);

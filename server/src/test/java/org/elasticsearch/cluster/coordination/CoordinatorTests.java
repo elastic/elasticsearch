@@ -974,8 +974,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             // fail join validation on a majority of nodes in the initial configuration
             randomValueOtherThanMany(nodes ->
-                    cluster.initialConfiguration.hasQuorum(
-                        nodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getId).collect(Collectors.toSet())) == false,
+                    !cluster.initialConfiguration.hasQuorum(
+                        nodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getId).collect(Collectors.toSet())),
                 () -> randomSubsetOf(cluster.clusterNodes))
                 .forEach(cn -> cn.extraJoinValidators.add((discoveryNode, clusterState) -> {
                     throw new IllegalArgumentException("join validation failed");
@@ -1347,7 +1347,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build()) : cn);
             cluster.stabilise();
 
-            if (chosenNodeIsLeader == false) {
+            if (!chosenNodeIsLeader) {
                 assertThat("term did not change", cluster.getAnyNode().coordinator.getCurrentTerm(), is(termBeforeRestart));
             }
 

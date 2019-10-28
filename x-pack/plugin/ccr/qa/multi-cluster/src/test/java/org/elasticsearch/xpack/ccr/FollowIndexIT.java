@@ -66,7 +66,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     }
 
     public void testFollowNonExistingLeaderIndex() throws Exception {
-        if ("follow".equals(targetCluster) == false) {
+        if (!"follow".equals(targetCluster)) {
             logger.info("skipping test, waiting for target cluster [follow]" );
             return;
         }

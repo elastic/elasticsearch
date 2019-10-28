@@ -272,7 +272,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             ));
             final XContentBuilder builder = privilege.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), true);
             assertThat(request.source(), equalTo(BytesReference.bytes(builder)));
-            final boolean created = privilege.getName().equals("user") == false;
+            final boolean created = !privilege.getName().equals("user");
             indexListener.onResponse(new IndexResponse(
                 new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i),
                 request.id(), 1, 1, 1, created
@@ -312,7 +312,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             DeleteRequest request = deletes.get(i);
             assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
             assertThat(request.id(), equalTo("application-privilege_app1:" + name));
-            final boolean found = name.equals("p2") == false;
+            final boolean found = !name.equals("p2");
             deleteListener.onResponse(new DeleteResponse(
                 new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i),
                 request.id(), 1, 1, 1, found

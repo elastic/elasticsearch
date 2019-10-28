@@ -357,7 +357,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (includeRequestBody && Strings.hasLength(expectedMessage)) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
         }
-        if (params.isEmpty() == false) {
+        if (!params.isEmpty()) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "foo=bar");
         }
         opaqueId(threadContext, checkedFields);
@@ -399,7 +399,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (includeRequestBody && Strings.hasLength(expectedMessage)) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
         }
-        if (params.isEmpty() == false) {
+        if (!params.isEmpty()) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "bar=baz");
         }
         opaqueId(threadContext, checkedFields);
@@ -484,7 +484,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (includeRequestBody && Strings.hasLength(expectedMessage)) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
         }
-        if (params.isEmpty() == false) {
+        if (!params.isEmpty()) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "_param=baz");
         }
         opaqueId(threadContext, checkedFields);
@@ -651,7 +651,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (includeRequestBody && Strings.hasLength(expectedMessage)) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
         }
-        if (params.isEmpty() == false) {
+        if (!params.isEmpty()) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "_param=baz");
         }
         opaqueId(threadContext, checkedFields);
@@ -921,7 +921,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (includeRequestBody && Strings.hasLength(expectedMessage)) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
         }
-        if (params.isEmpty() == false) {
+        if (!params.isEmpty()) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "foo=bar&evac=true");
         }
         if (user.isRunAs()) {

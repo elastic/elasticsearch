@@ -248,7 +248,7 @@ public class AzureStorageService {
             result.onResponse(null);
         }
         result.actionGet();
-        if (exceptions.isEmpty() == false) {
+        if (!exceptions.isEmpty()) {
             final IOException ex = new IOException("Deleting directory [" + path + "] failed");
             exceptions.forEach(ex::addSuppressed);
             throw ex;

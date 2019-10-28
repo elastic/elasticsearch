@@ -58,12 +58,12 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     }
 
     boolean hitsExecutionNeeded(SearchContext context) { // for testing
-        return context.highlight() != null && locatePercolatorQuery(context.query()).isEmpty() == false;
+        return context.highlight() != null && !locatePercolatorQuery(context.query()).isEmpty();
     }
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        if (hitsExecutionNeeded(context) == false) {
+        if (!hitsExecutionNeeded(context)) {
             return;
         }
         List<PercolateQuery> percolateQueries = locatePercolatorQuery(context.query());
@@ -145,7 +145,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             List<PercolateQuery> percolateQueries = new ArrayList<>();
             for (BooleanClause clause : ((BooleanQuery) query).clauses()) {
                 List<PercolateQuery> result = locatePercolatorQuery(clause.getQuery());
-                if (result.isEmpty() == false) {
+                if (!result.isEmpty()) {
                     percolateQueries.addAll(result);
                 }
             }
@@ -154,7 +154,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             List<PercolateQuery> percolateQueries = new ArrayList<>();
             for (Query disjunct : ((DisjunctionMaxQuery) query).getDisjuncts()) {
                 List<PercolateQuery> result = locatePercolatorQuery(disjunct);
-                if (result.isEmpty() == false) {
+                if (!result.isEmpty()) {
                     percolateQueries.addAll(result);
                 }
             }

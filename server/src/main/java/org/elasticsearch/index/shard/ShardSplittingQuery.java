@@ -89,7 +89,7 @@ final class ShardSplittingQuery extends Query {
                     // this is the common case - no partitioning and no _routing values
                     // in this case we also don't do anything special with regards to nested docs since we basically delete
                     // by ID and parent and nested all have the same id.
-                    assert indexMetaData.isRoutingPartitionedIndex() == false;
+                    assert !indexMetaData.isRoutingPartitionedIndex();
                     findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, bitSet::set);
                 } else {
                     final BitSet parentBitSet;
@@ -137,7 +137,7 @@ final class ShardSplittingQuery extends Query {
                             findSplitDocs(RoutingFieldMapper.NAME, ref -> false, leafReader, maybeWrapConsumer.apply(hasRoutingValue::set));
                             IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
                             findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, docId -> {
-                                if (hasRoutingValue.get(docId) == false) {
+                                if (!hasRoutingValue.get(docId)) {
                                     bitSetConsumer.accept(docId);
                                 }
                             });
@@ -203,7 +203,7 @@ final class ShardSplittingQuery extends Query {
         BytesRef idTerm;
         PostingsEnum postingsEnum = null;
         while ((idTerm = iterator.next()) != null) {
-            if (includeInShard.test(idTerm) == false) {
+            if (!includeInShard.test(idTerm)) {
                 postingsEnum = iterator.postings(postingsEnum);
                 int doc;
                 while ((doc = postingsEnum.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {

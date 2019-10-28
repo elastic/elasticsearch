@@ -108,7 +108,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                             Resource resource = parse(parser);
                             String id = extractIdFromResource(resource);
                             // Do not include a resource with the same ID twice
-                            if (foundResourceIds.contains(id) == false) {
+                            if (!foundResourceIds.contains(id)) {
                                 docs.add(resource);
                                 foundResourceIds.add(id);
                             }
@@ -139,7 +139,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
 
         // If the resourceId is not _all or *, we should see if it is a comma delimited string with wild-cards
         // e.g. id1,id2*,id3
-        if (Strings.isAllOrWildcard(tokens) == false) {
+        if (!Strings.isAllOrWildcard(tokens)) {
             BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
             List<String> terms = new ArrayList<>();
             for (String token : tokens) {
@@ -149,11 +149,11 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                     terms.add(token);
                 }
             }
-            if (terms.isEmpty() == false) {
+            if (!terms.isEmpty()) {
                 shouldQueries.should(QueryBuilders.termsQuery(resourceIdField, terms));
             }
 
-            if (shouldQueries.should().isEmpty() == false) {
+            if (!shouldQueries.should().isEmpty()) {
                 boolQuery.filter(shouldQueries);
             }
         }

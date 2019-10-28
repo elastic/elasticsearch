@@ -66,7 +66,7 @@ public class HighlightPhase implements FetchSubPhase {
 
             if (highlight.forceSource(field)) {
                 SourceFieldMapper sourceFieldMapper = context.getMapperService().documentMapper().sourceMapper();
-                if (sourceFieldMapper.enabled() == false) {
+                if (!sourceFieldMapper.enabled()) {
                     throw new IllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight
                         + " but _source is disabled");
                 }
@@ -88,8 +88,8 @@ public class HighlightPhase implements FetchSubPhase {
                 // If the field was explicitly given we assume that whoever issued the query knew
                 // what they were doing and try to highlight anyway.
                 if (fieldNameContainsWildcards) {
-                    if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false &&
-                        fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
+                    if (!fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) &&
+                        !fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                         continue;
                     }
                 }
@@ -110,7 +110,7 @@ public class HighlightPhase implements FetchSubPhase {
                 HighlighterContext highlighterContext = new HighlighterContext(fieldType.name(),
                     field, fieldType, shardTarget, context, highlight, hitContext, highlightQuery);
 
-                if ((highlighter.canHighlight(fieldType) == false) && fieldNameContainsWildcards) {
+                if ((!highlighter.canHighlight(fieldType)) && fieldNameContainsWildcards) {
                     // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight
                     continue;
                 }

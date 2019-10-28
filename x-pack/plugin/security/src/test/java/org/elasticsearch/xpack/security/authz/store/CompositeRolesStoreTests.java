@@ -303,7 +303,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final int numberOfTimesToCall = scaledRandomIntBetween(0, 32);
         final boolean getSuperuserRole = randomBoolean()
-                && roleName.equals(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()) == false;
+                && !roleName.equals(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         final Set<String> names = getSuperuserRole ? Sets.newHashSet(roleName, ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
                 : Collections.singleton(roleName);
         for (int i = 0; i < numberOfTimesToCall; i++) {

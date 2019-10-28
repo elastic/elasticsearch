@@ -50,7 +50,7 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
         LicensesMetaData oldLicensesMetaData = oldState.metaData().custom(LicensesMetaData.TYPE);
         logger.debug("started self generated trial license: {}", oldLicensesMetaData);
 
-        if (request.isAcknowledged() == false) {
+        if (!request.isAcknowledged()) {
             listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.NEED_ACKNOWLEDGEMENT,
                     ACK_MESSAGES, ACKNOWLEDGEMENT_HEADER));
         } else if (oldLicensesMetaData == null || oldLicensesMetaData.isEligibleForTrial()) {
@@ -65,7 +65,7 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         LicensesMetaData currentLicensesMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
 
-        if (request.isAcknowledged() == false) {
+        if (!request.isAcknowledged()) {
             return currentState;
         } else if (currentLicensesMetaData == null || currentLicensesMetaData.isEligibleForTrial()) {
             long issueDate = clock.millis();

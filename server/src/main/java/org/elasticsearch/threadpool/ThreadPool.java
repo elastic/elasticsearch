@@ -210,7 +210,7 @@ public class ThreadPool implements Scheduler, Closeable {
                 executors
                         .values()
                         .stream()
-                        .filter(holder -> holder.info.getName().equals("same") == false)
+                        .filter(holder -> !holder.info.getName().equals("same"))
                         .map(holder -> holder.info)
                         .collect(Collectors.toList());
         this.threadPoolInfo = new ThreadPoolInfo(infos);
@@ -741,7 +741,7 @@ public class ThreadPool implements Scheduler, Closeable {
     }
 
     public static boolean assertNotScheduleThread(String reason) {
-        assert Thread.currentThread().getName().contains("scheduler") == false :
+        assert !Thread.currentThread().getName().contains("scheduler") :
             "Expected current thread [" + Thread.currentThread() + "] to not be the scheduler thread. Reason: [" + reason + "]";
         return true;
     }
@@ -753,8 +753,8 @@ public class ThreadPool implements Scheduler, Closeable {
         assert stackTraceElements[1].getMethodName().equals("assertCurrentMethodIsNotCalledRecursively") : stackTraceElements[1];
         final StackTraceElement testingMethod = stackTraceElements[2];
         for (int i = 3; i < stackTraceElements.length; i++) {
-            assert stackTraceElements[i].getClassName().equals(testingMethod.getClassName()) == false
-                || stackTraceElements[i].getMethodName().equals(testingMethod.getMethodName()) == false :
+            assert !stackTraceElements[i].getClassName().equals(testingMethod.getClassName())
+                || !stackTraceElements[i].getMethodName().equals(testingMethod.getMethodName()) :
                 testingMethod.getClassName() + "#" + testingMethod.getMethodName() + " is called recursively";
         }
         return true;

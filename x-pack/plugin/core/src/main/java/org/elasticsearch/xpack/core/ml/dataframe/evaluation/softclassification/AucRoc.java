@@ -354,7 +354,7 @@ public class AucRoc implements SoftClassificationMetric {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("score", score);
-            if (curve.isEmpty() == false) {
+            if (!curve.isEmpty()) {
                 builder.field("curve", curve);
             }
             builder.endObject();

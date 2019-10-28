@@ -178,13 +178,13 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private void checkPropertyRequiresIndexScope(final EnumSet<Property> properties, final Property property) {
-        if (properties.contains(property) && properties.contains(Property.IndexScope) == false) {
+        if (properties.contains(property) && !properties.contains(Property.IndexScope)) {
             throw new IllegalArgumentException("non-index-scoped setting [" + key + "] can not have property [" + property + "]");
         }
     }
 
     private void checkPropertyRequiresNodeScope(final EnumSet<Property> properties, final Property property) {
-        if (properties.contains(property) && properties.contains(Property.NodeScope) == false) {
+        if (properties.contains(property) && !properties.contains(Property.NodeScope)) {
             throw new IllegalArgumentException("non-node-scoped setting [" + key + "] can not have property [" + property + "]");
         }
     }
@@ -406,7 +406,7 @@ public class Setting<T> implements ToXContentObject {
     public boolean exists(final Settings settings) {
         SecureSettings secureSettings = settings.getSecureSettings();
         return settings.keySet().contains(getKey()) &&
-            (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false);
+            (secureSettings == null || !secureSettings.getSettingNames().contains(getKey()));
     }
 
     /**
@@ -468,7 +468,7 @@ public class Setting<T> implements ToXContentObject {
      * @param defaultSettings the default settings object to diff against
      */
     public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-        if (exists(source) == false) {
+        if (!exists(source)) {
             builder.put(getKey(), getRaw(defaultSettings));
         }
     }
@@ -649,7 +649,7 @@ public class Setting<T> implements ToXContentObject {
             public boolean hasChanged(Settings current, Settings previous) {
                 Settings currentSettings = get(current);
                 Settings previousSettings = get(previous);
-                return currentSettings.equals(previousSettings) == false;
+                return !currentSettings.equals(previousSettings);
             }
 
             @Override
@@ -742,7 +742,7 @@ public class Setting<T> implements ToXContentObject {
 
                 @Override
                 public boolean hasChanged(Settings current, Settings previous) {
-                    return current.filter(k -> match(k)).equals(previous.filter(k -> match(k))) == false;
+                    return !current.filter(k -> match(k)).equals(previous.filter(k -> match(k)));
                 }
 
                 @Override
@@ -933,14 +933,14 @@ public class Setting<T> implements ToXContentObject {
             Set<String> leftGroup = get(source).keySet();
             Settings defaultGroup = get(defaultSettings);
 
-            builder.put(Settings.builder().put(defaultGroup.filter(k -> leftGroup.contains(k) == false), false)
+            builder.put(Settings.builder().put(defaultGroup.filter(k -> !leftGroup.contains(k)), false)
                     .normalizePrefix(getKey()).build(), false);
         }
 
         @Override
         public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, Logger logger,
                                                                           Consumer<Settings> validator) {
-            if (isDynamic() == false) {
+            if (!isDynamic()) {
                 throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
             }
             final Setting<?> setting = this;
@@ -950,7 +950,7 @@ public class Setting<T> implements ToXContentObject {
                 public boolean hasChanged(Settings current, Settings previous) {
                     Settings currentSettings = get(current);
                     Settings previousSettings = get(previous);
-                    return currentSettings.equals(previousSettings) == false;
+                    return !currentSettings.equals(previousSettings);
                 }
 
                 @Override
@@ -1001,10 +1001,10 @@ public class Setting<T> implements ToXContentObject {
         public boolean hasChanged(Settings current, Settings previous) {
             final String newValue = getRaw(current);
             final String value = getRaw(previous);
-            assert isGroupSetting() == false : "group settings must override this method";
+            assert !isGroupSetting() : "group settings must override this method";
             assert value != null : "value was null but can't be unless default is null which is invalid";
 
-            return value.equals(newValue) == false;
+            return !value.equals(newValue);
         }
 
         @Override
@@ -1411,7 +1411,7 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-            if (exists(source) == false) {
+            if (!exists(source)) {
                 List<String> asList = defaultSettings.getAsList(getKey(), null);
                 if (asList == null) {
                     builder.putList(getKey(), defaultStringValue.apply(defaultSettings));
@@ -1641,7 +1641,7 @@ public class Setting<T> implements ToXContentObject {
     public static final class GroupKey extends SimpleKey {
         public GroupKey(String key) {
             super(key);
-            if (key.endsWith(".") == false) {
+            if (!key.endsWith(".")) {
                 throw new IllegalArgumentException("key must end with a '.'");
             }
         }
@@ -1683,7 +1683,7 @@ public class Setting<T> implements ToXContentObject {
             assert prefix != null || suffix != null: "Either prefix or suffix must be non-null";
 
             this.prefix = prefix;
-            if (prefix.endsWith(".") == false) {
+            if (!prefix.endsWith(".")) {
                 throw new IllegalArgumentException("prefix must end with a '.'");
             }
             this.suffix = suffix;
@@ -1705,7 +1705,7 @@ public class Setting<T> implements ToXContentObject {
          */
         String getConcreteString(String key) {
             Matcher matcher = pattern.matcher(key);
-            if (matcher.matches() == false) {
+            if (!matcher.matches()) {
                 throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
             }
             return matcher.group(1);
@@ -1716,7 +1716,7 @@ public class Setting<T> implements ToXContentObject {
          */
         String getNamespace(String key) {
             Matcher matcher = pattern.matcher(key);
-            if (matcher.matches() == false) {
+            if (!matcher.matches()) {
                 throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
             }
             return matcher.group(2);

@@ -107,7 +107,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         }
         InternalHistogram.Bucket b = buckets.get(buckets.size() - 1);
         newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
-        
+
         InternalHistogram newHistogram = histogram.create(newBuckets);
         newHistogram.doReduce(Arrays.asList(newHistogram, histogram2), new InternalAggregation.ReduceContext(null, null, false));
     }
@@ -126,7 +126,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             if (expectedCounts.isEmpty() && emptyBucketInfo.minBound <= emptyBucketInfo.maxBound) {
                 expectedCounts.put(minBound, 0L);
             }
-            if (expectedCounts.isEmpty() == false) {
+            if (!expectedCounts.isEmpty()) {
                 Double nextKey = expectedCounts.firstKey();
                 while (nextKey < expectedCounts.lastKey()) {
                     expectedCounts.putIfAbsent(nextKey, 0L);

@@ -118,7 +118,7 @@ public abstract class SslConfigurationLoader {
      */
     public SslConfigurationLoader(String settingPrefix) {
         this.settingPrefix = settingPrefix == null ? "" : settingPrefix;
-        if (this.settingPrefix.isEmpty() == false && this.settingPrefix.endsWith(".") == false) {
+        if (!this.settingPrefix.isEmpty() && !this.settingPrefix.endsWith(".")) {
             throw new IllegalArgumentException("Setting prefix [" + settingPrefix + "] must be blank or end in '.'");
         }
         this.defaultTrustConfig = new DefaultJdkTrustConfig();
@@ -242,7 +242,7 @@ public abstract class SslConfigurationLoader {
             throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE_AUTHORITIES + "] and [" +
                 settingPrefix + TRUSTSTORE_PATH + "]");
         }
-        if (verificationMode.isCertificateVerificationEnabled() == false) {
+        if (!verificationMode.isCertificateVerificationEnabled()) {
             return TrustEverythingConfig.TRUST_EVERYTHING;
         }
         if (certificateAuthorities != null) {

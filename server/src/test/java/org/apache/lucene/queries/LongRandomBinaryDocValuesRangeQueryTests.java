@@ -114,7 +114,7 @@ public class LongRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDo
         @Override
         protected boolean isWithin(Range o) {
             LongTestRange other = (LongTestRange)o;
-            if ((this.min >= other.min && this.max <= other.max) == false) {
+            if (!(this.min >= other.min && this.max <= other.max)) {
                 // not within:
                 return false;
             }
@@ -124,7 +124,7 @@ public class LongRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDo
         @Override
         protected boolean contains(Range o) {
             LongTestRange other = (LongTestRange) o;
-            if ((this.min <= other.min && this.max >= other.max) == false) {
+            if (!(this.min <= other.min && this.max >= other.max)) {
                 // not contains:
                 return false;
             }

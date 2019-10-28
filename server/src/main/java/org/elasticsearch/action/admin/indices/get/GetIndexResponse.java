@@ -266,7 +266,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     builder.endObject();
 
                     Settings defaultIndexSettings = defaultSettings.get(index);
-                    if (defaultIndexSettings != null && defaultIndexSettings.isEmpty() == false) {
+                    if (defaultIndexSettings != null && !defaultIndexSettings.isEmpty()) {
                         builder.startObject("defaults");
                         defaultIndexSettings.toXContent(builder, params);
                         builder.endObject();

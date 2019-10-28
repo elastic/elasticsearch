@@ -91,7 +91,7 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
             }
             break;
         case 3:
-            keyed = keyed == false;
+            keyed = !keyed;
             break;
         case 4:
             if (metaData == null) {

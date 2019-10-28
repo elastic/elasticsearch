@@ -164,7 +164,7 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
     }
 
     private RealmConfig getConfig(Settings settings) {
-        if (settings.hasValue("path.home") == false) {
+        if (!settings.hasValue("path.home")) {
             settings = Settings.builder().put(settings).put("path.home", createTempDir()).build();
         }
         return new RealmConfig(REALM_IDENTIFIER, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));

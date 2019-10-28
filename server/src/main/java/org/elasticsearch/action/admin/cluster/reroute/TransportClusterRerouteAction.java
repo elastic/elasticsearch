@@ -156,7 +156,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request,
                 ActionListener.map(listener,
                     response -> {
-                        if (request.dryRun() == false) {
+                        if (!request.dryRun()) {
                             response.getExplanations().getYesDecisionMessages().forEach(logger::info);
                         }
                         return response;

@@ -184,7 +184,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 throw new IllegalArgumentException("Composite source cannot be null");
             }
             boolean unique = names.add(source.name());
-            if (unique == false) {
+            if (!unique) {
                 duplicates.add(source.name());
             }
         });
@@ -218,7 +218,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
             Comparable[] values = new Comparable[sources.size()];
             for (int i = 0; i < sources.size(); i++) {
                 String sourceName = sources.get(i).name();
-                if (after.containsKey(sourceName) == false) {
+                if (!after.containsKey(sourceName)) {
                     throw new IllegalArgumentException("Missing value for [after." + sources.get(i).name() + "]");
                 }
                 Object obj = after.get(sourceName);
@@ -264,7 +264,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         CompositeAggregationBuilder other = (CompositeAggregationBuilder) obj;
         return size == other.size &&
             Objects.equals(sources, other.sources) &&

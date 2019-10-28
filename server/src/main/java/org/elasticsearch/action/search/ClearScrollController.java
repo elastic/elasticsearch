@@ -126,7 +126,7 @@ final class ClearScrollController implements Runnable {
             freedSearchContexts.incrementAndGet();
         }
         if (expectedOps.countDown()) {
-            boolean succeeded = hasFailed.get() == false;
+            boolean succeeded = !hasFailed.get();
             listener.onResponse(new ClearScrollResponse(succeeded, freedSearchContexts.get()));
         }
     }

@@ -172,7 +172,7 @@ public final class MergePolicyConfig {
         double reclaimDeletesWeight = indexSettings.getValue(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING);
         double deletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING);
         this.mergesEnabled = indexSettings.getSettings().getAsBoolean(INDEX_MERGE_ENABLED, true);
-        if (mergesEnabled == false) {
+        if (!mergesEnabled) {
             logger.warn("[{}] is set to false, this should only be used in tests and can cause serious problems in production" +
                 " environments", INDEX_MERGE_ENABLED);
         }

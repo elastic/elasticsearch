@@ -245,7 +245,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
             // last check fails
             whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_ingest/pipeline/")), first, exception);
-            if (successfulFirst == false) {
+            if (!successfulFirst) {
                 whenSuccessfulPutPipelines(1);
             }
 

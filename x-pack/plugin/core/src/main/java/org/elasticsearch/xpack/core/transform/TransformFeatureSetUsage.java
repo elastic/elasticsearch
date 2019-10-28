@@ -47,7 +47,7 @@ public class TransformFeatureSetUsage extends Usage {
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        if (transformCountByState.isEmpty() == false) {
+        if (!transformCountByState.isEmpty()) {
             builder.startObject(TransformField.TRANSFORMS.getPreferredName());
             long all = 0L;
             for (Entry<String, Long> entry : transformCountByState.entrySet()) {

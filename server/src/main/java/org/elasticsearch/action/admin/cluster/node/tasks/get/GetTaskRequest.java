@@ -104,7 +104,7 @@ public class GetTaskRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (false == getTaskId().isSet()) {
+        if (!getTaskId().isSet()) {
             validationException = addValidationError("task id is required", validationException);
         }
         return validationException;

@@ -94,7 +94,7 @@ public class JiraIssueTests extends ESTestCase {
         final boolean equals = randomBoolean();
 
         final Map<String, Object> fields = new HashMap<>(issue1.getFields());
-        if (equals == false) {
+        if (!equals) {
             if (fields.isEmpty()) {
                 fields.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
             } else {

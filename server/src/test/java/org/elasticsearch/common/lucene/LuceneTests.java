@@ -179,7 +179,7 @@ public class LuceneTests extends ESTestCase {
         Lucene.cleanLuceneIndex(dir);
         if (dir.listAll().length > 0) {
             for (String file : dir.listAll()) {
-                if (file.startsWith("extra") == false) {
+                if (!file.startsWith("extra")) {
                     assertEquals(file, "write.lock");
                 }
             }

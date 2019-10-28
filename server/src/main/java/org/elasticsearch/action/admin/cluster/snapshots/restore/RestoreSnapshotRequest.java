@@ -557,7 +557,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                         throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                     }
             } else {
-                if (IndicesOptions.isIndicesOptions(name) == false) {
+                if (!IndicesOptions.isIndicesOptions(name)) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
                 }
             }
@@ -588,14 +588,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         builder.field("include_aliases", includeAliases);
         if (settings != null) {
             builder.startObject("settings");
-            if (settings.isEmpty() == false) {
+            if (!settings.isEmpty()) {
                 settings.toXContent(builder, params);
             }
             builder.endObject();
         }
         if (indexSettings != null) {
             builder.startObject("index_settings");
-            if (indexSettings.isEmpty() == false) {
+            if (!indexSettings.isEmpty()) {
                 indexSettings.toXContent(builder, params);
             }
             builder.endObject();

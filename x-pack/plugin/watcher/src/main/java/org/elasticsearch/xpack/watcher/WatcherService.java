@@ -112,7 +112,7 @@ public class WatcherService {
     public boolean validate(ClusterState state) {
         // template check makes only sense for non existing indices, we could refine this
         boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
-        if (hasValidWatcherTemplates == false) {
+        if (!hasValidWatcherTemplates) {
             logger.debug("missing watcher index templates, not starting watcher service");
             return false;
         }
@@ -124,7 +124,7 @@ public class WatcherService {
             UpgradeField.checkInternalIndexFormat(watcherIndexMetaData);
         boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetaData == null ||
             UpgradeField.checkInternalIndexFormat(triggeredWatchesIndexMetaData);
-        if (isIndexInternalFormatTriggeredWatchIndex == false || isIndexInternalFormatWatchIndex == false) {
+        if (!isIndexInternalFormatTriggeredWatchIndex || !isIndexInternalFormatWatchIndex) {
             logger.warn("not starting watcher, upgrade API run required: .watches[{}], .triggered_watches[{}]",
                 isIndexInternalFormatWatchIndex, isIndexInternalFormatTriggeredWatchIndex);
             return false;
@@ -132,7 +132,7 @@ public class WatcherService {
 
         try {
             boolean storesValid = TriggeredWatchStore.validate(state) && HistoryStore.validate(state);
-            if (storesValid == false) {
+            if (!storesValid) {
                 return false;
             }
 
@@ -244,7 +244,7 @@ public class WatcherService {
         if (processedClusterStateVersion.get() == state.getVersion()) {
             executionService.unPause();
             triggerService.start(watches);
-            if (triggeredWatches.isEmpty() == false) {
+            if (!triggeredWatches.isEmpty()) {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
             logger.debug("watch service has been reloaded, reason [{}]", reason);
@@ -333,7 +333,7 @@ public class WatcherService {
                     Optional<ShardRouting> correspondingShardOptional = localShards.stream()
                         .filter(sr -> sr.shardId().equals(hit.getShard().getShardId()))
                         .findFirst();
-                    if (correspondingShardOptional.isPresent() == false) {
+                    if (!correspondingShardOptional.isPresent()) {
                         continue;
                     }
                     ShardRouting correspondingShard = correspondingShardOptional.get();
@@ -342,7 +342,7 @@ public class WatcherService {
                     int bucket = shardAllocationIds.indexOf(correspondingShard.allocationId().getId());
                     String id = hit.getId();
 
-                    if (parseWatchOnThisNode(hit.getId(), shardAllocationIds.size(), bucket) == false) {
+                    if (!parseWatchOnThisNode(hit.getId(), shardAllocationIds.size(), bucket)) {
                         continue;
                     }
 

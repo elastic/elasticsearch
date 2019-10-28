@@ -188,7 +188,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
 
             for (DiscoveryNode node : state.getNodes()) {
-                if (node.isDataNode() && node.getName().equals(targetNode) == false) {
+                if (node.isDataNode() && !node.getName().equals(targetNode)) {
                     final TransportService sourceTransportService = internalCluster().getInstance(TransportService.class, node.getName());
                     targetTransportService.addSendBehavior(sourceTransportService, sendBehavior);
                 }

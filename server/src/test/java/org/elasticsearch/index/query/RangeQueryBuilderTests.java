@@ -139,16 +139,16 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             final Query expectedQuery;
             if (context.getMapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-            } else if (context.getMapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
+            } else if (!context.getMapperService().fullName(queryBuilder.fieldName()).omitNorms()) {
                 expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
             }
             assertThat(query, equalTo(expectedQuery));
-        } else if (expectedFieldName.equals(DATE_FIELD_NAME) == false &&
-                        expectedFieldName.equals(INT_FIELD_NAME) == false &&
-                        expectedFieldName.equals(DATE_RANGE_FIELD_NAME) == false &&
-                        expectedFieldName.equals(INT_RANGE_FIELD_NAME) == false) {
+        } else if (!expectedFieldName.equals(DATE_FIELD_NAME) &&
+            !expectedFieldName.equals(INT_FIELD_NAME) &&
+            !expectedFieldName.equals(DATE_RANGE_FIELD_NAME) &&
+            !expectedFieldName.equals(INT_RANGE_FIELD_NAME)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
             assertThat(termRangeQuery.getField(), equalTo(expectedFieldName));
@@ -188,7 +188,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 minLong = Long.MIN_VALUE;
             } else {
                 minLong = min.longValue();
-                if (queryBuilder.includeLower() == false && minLong != Long.MAX_VALUE) {
+                if (!queryBuilder.includeLower() && minLong != Long.MAX_VALUE) {
                     minLong++;
                 }
             }
@@ -196,7 +196,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 maxLong = Long.MAX_VALUE;
             } else {
                 maxLong = max.longValue();
-                if (queryBuilder.includeUpper() == false && maxLong != Long.MIN_VALUE) {
+                if (!queryBuilder.includeUpper() && maxLong != Long.MIN_VALUE) {
                     maxLong--;
                 }
             }
@@ -212,7 +212,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 minInt = Integer.MIN_VALUE;
             } else {
                 minInt = min.intValue();
-                if (queryBuilder.includeLower() == false && minInt != Integer.MAX_VALUE) {
+                if (!queryBuilder.includeLower() && minInt != Integer.MAX_VALUE) {
                     minInt++;
                 }
             }
@@ -220,7 +220,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 maxInt = Integer.MAX_VALUE;
             } else {
                 maxInt = max.intValue();
-                if (queryBuilder.includeUpper() == false && maxInt != Integer.MIN_VALUE) {
+                if (!queryBuilder.includeUpper() && maxInt != Integer.MIN_VALUE) {
                     maxInt--;
                 }
             }

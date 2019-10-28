@@ -70,7 +70,7 @@ public class ScriptClassInfo {
             if (m.getName().startsWith("needs") && m.getReturnType() == boolean.class && m.getParameterTypes().length == 0) {
                 needsMethods.add(new org.objectweb.asm.commons.Method(m.getName(), NEEDS_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
             }
-            if (m.getName().startsWith("get") && m.getName().equals("getClass") == false && Modifier.isStatic(m.getModifiers()) == false) {
+            if (m.getName().startsWith("get") && !m.getName().equals("getClass") && !Modifier.isStatic(m.getModifiers())) {
                 getReturns.add(
                     definitionTypeForClass(painlessLookup, m.getReturnType(), componentType -> "[" + m.getName() + "] has unknown return " +
                         "type [" + componentType.getName() + "]. Painless can only support getters with return types that are " +
@@ -206,7 +206,7 @@ public class ScriptClassInfo {
             throw new IllegalArgumentException("Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                     + "names of the method arguments but [" + iface.getName() + "] doesn't have one.", e);
         }
-        if (false == argumentNamesField.getType().equals(String[].class)) {
+        if (!argumentNamesField.getType().equals(String[].class)) {
             throw new IllegalArgumentException("Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                     + "names of the method arguments but [" + iface.getName() + "] doesn't have one.");
         }

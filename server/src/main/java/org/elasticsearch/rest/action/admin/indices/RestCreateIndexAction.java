@@ -79,8 +79,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     static Map<String, Object> prepareMappings(Map<String, Object> source, boolean includeTypeName) {
         if (includeTypeName
-            || source.containsKey("mappings") == false
-            || (source.get("mappings") instanceof Map) == false) {
+            || !source.containsKey("mappings")
+            || !(source.get("mappings") instanceof Map)) {
             return source;
         }
 

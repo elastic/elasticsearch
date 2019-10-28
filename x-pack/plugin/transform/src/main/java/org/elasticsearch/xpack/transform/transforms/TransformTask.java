@@ -320,7 +320,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             return;
         }
 
-        if (taskState.get() == TransformTaskState.FAILED && force == false) {
+        if (taskState.get() == TransformTaskState.FAILED && !force) {
             throw new ElasticsearchStatusException(
                 TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM,
                     getTransformId(),
@@ -333,7 +333,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         boolean wasFailed = taskState.compareAndSet(TransformTaskState.FAILED, TransformTaskState.STARTED);
         // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after).
         // if it is false, stop immediately
-        if (shouldStopAtCheckpoint == false ||
+        if (!shouldStopAtCheckpoint ||
             // If state was in a failed state, we should stop immediately as we will never reach the next checkpoint
             wasFailed ||
             // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
@@ -351,7 +351,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     @Override
     public synchronized void triggered(Event event) {
         // Ignore if event is not for this job
-        if (event.getJobName().equals(schedulerJobName()) == false)  {
+        if (!event.getJobName().equals(schedulerJobName()))  {
             return;
         }
 

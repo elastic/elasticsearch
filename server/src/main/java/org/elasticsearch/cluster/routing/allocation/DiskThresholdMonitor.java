@@ -106,7 +106,7 @@ public class DiskThresholdMonitor {
 
     public void onNewInfo(ClusterInfo info) {
 
-        if (checkInProgress.compareAndSet(false, true) == false) {
+        if (!checkInProgress.compareAndSet(false, true)) {
             logger.info("skipping monitor as a check is already in progress");
             return;
         }
@@ -188,7 +188,7 @@ public class DiskThresholdMonitor {
 
                 final boolean wasUnderLowThreshold = nodesOverLowThreshold.add(node);
                 final boolean wasOverHighThreshold = nodesOverHighThreshold.remove(node);
-                assert (wasUnderLowThreshold && wasOverHighThreshold) == false;
+                assert !(wasUnderLowThreshold && wasOverHighThreshold);
 
                 if (wasUnderLowThreshold) {
                     logger.info("low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
@@ -276,11 +276,11 @@ public class DiskThresholdMonitor {
         final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
             .spliterator(), false)
             .map(c -> c.key)
-            .filter(index -> indicesNotToAutoRelease.contains(index) == false)
+            .filter(index -> !indicesNotToAutoRelease.contains(index))
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .collect(Collectors.toSet());
 
-        if (indicesToAutoRelease.isEmpty() == false) {
+        if (!indicesToAutoRelease.isEmpty()) {
             logger.info("releasing read-only block on indices " + indicesToAutoRelease
                 + " since they are now allocated to nodes with sufficient disk space");
             updateIndicesReadOnly(indicesToAutoRelease, listener, false);
@@ -289,7 +289,7 @@ public class DiskThresholdMonitor {
         }
 
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
-        if (indicesToMarkReadOnly.isEmpty() == false) {
+        if (!indicesToMarkReadOnly.isEmpty()) {
             updateIndicesReadOnly(indicesToMarkReadOnly, listener, true);
         } else {
             listener.onResponse(null);
@@ -305,7 +305,7 @@ public class DiskThresholdMonitor {
     private void markNodesMissingUsageIneligibleForRelease(RoutingNodes routingNodes, ImmutableOpenMap<String, DiskUsage> usages,
                                                            Set<String> indicesToMarkIneligibleForAutoRelease) {
         for (RoutingNode routingNode : routingNodes) {
-            if (usages.containsKey(routingNode.nodeId()) == false) {
+            if (!usages.containsKey(routingNode.nodeId())) {
                 for (ShardRouting routing : routingNode) {
                     String indexName = routing.index().getName();
                     indicesToMarkIneligibleForAutoRelease.add(indexName);
@@ -338,7 +338,7 @@ public class DiskThresholdMonitor {
 
     private static void cleanUpRemovedNodes(ObjectLookupContainer<String> nodesToKeep, Set<String> nodesToCleanUp) {
         for (String node : nodesToCleanUp) {
-            if (nodesToKeep.contains(node) == false) {
+            if (!nodesToKeep.contains(node)) {
                 nodesToCleanUp.remove(node);
             }
         }

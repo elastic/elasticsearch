@@ -35,7 +35,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public abstract class InternalMappedSignificantTerms<
-            A extends InternalMappedSignificantTerms<A, B>, 
+            A extends InternalMappedSignificantTerms<A, B>,
             B extends InternalSignificantTerms.Bucket<B>>
         extends InternalSignificantTerms<A, B> {
 
@@ -112,7 +112,7 @@ public abstract class InternalMappedSignificantTerms<
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalMappedSignificantTerms<?, ?> that = (InternalMappedSignificantTerms<?, ?>) obj;
         return Objects.equals(format, that.format)

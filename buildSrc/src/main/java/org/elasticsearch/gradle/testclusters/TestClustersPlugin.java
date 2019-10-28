@@ -119,7 +119,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             new TaskActionListener() {
                 @Override
                 public void beforeActions(Task task) {
-                    if (task instanceof TestClustersAware == false) {
+                    if (!(task instanceof TestClustersAware)) {
                         return;
                     }
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
@@ -138,7 +138,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             new TaskExecutionListener() {
                 @Override
                 public void afterExecute(Task task, TaskState state) {
-                    if (task instanceof TestClustersAware == false) {
+                    if (!(task instanceof TestClustersAware)) {
                         return;
                     }
                     // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been

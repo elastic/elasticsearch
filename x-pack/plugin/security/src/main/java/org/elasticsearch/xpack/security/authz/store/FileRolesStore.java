@@ -182,7 +182,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                         if (ReservedRolesStore.isReserved(descriptor.getName())) {
                             logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                     descriptor.getName());
-                        } else if (flsDlsLicensed == false && descriptor.isUsingDocumentOrFieldLevelSecurity()) {
+                        } else if (!flsDlsLicensed && descriptor.isUsingDocumentOrFieldLevelSecurity()) {
                             logger.warn("role [{}] uses document and/or field level security, which is not enabled by the current license" +
                                     ". this role will be ignored", descriptor.getName());
                             // we still put the role in the map to avoid unnecessary negative lookups
@@ -257,7 +257,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                         return null;
                     }
 
-                    if (resolvePermissions == false) {
+                    if (!resolvePermissions) {
                         return new RoleDescriptor(roleName, null, null, null);
                     }
 
@@ -308,7 +308,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         String roleName = descriptor.getName();
         // first check if FLS/DLS is enabled on the role...
         if (descriptor.isUsingDocumentOrFieldLevelSecurity()) {
-            if (XPackSettings.DLS_FLS_ENABLED.get(settings) == false) {
+            if (!XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 logger.error("invalid role definition [{}] in roles file [{}]. document and field level security is not " +
                     "enabled. set [{}] to [true] in the configuration file. skipping role...", roleName, path
                     .toAbsolutePath(), XPackSettings.DLS_FLS_ENABLED.getKey());

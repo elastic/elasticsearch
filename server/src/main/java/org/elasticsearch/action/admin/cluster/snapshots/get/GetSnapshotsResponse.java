@@ -190,7 +190,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
      * Returns true if there is a least one failed response.
      */
     public boolean isFailed() {
-        return failedResponses.isEmpty() == false;
+        return !failedResponses.isEmpty();
     }
 
     @Override
@@ -251,7 +251,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 }
             }
 
-            if (failedResponses.isEmpty() == false) {
+            if (!failedResponses.isEmpty()) {
                 throw failedResponses.values().iterator().next();
             }
         }

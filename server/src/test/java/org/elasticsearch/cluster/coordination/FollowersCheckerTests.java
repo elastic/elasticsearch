@@ -304,7 +304,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 deterministicTaskQueue.scheduleNow(new Runnable() {
                     @Override
                     public void run() {
-                        if (node.equals(otherNode) == false) {
+                        if (!node.equals(otherNode)) {
                             // other nodes are ok
                             handleResponse(requestId, Empty.INSTANCE);
                             return;
@@ -343,8 +343,8 @@ public class FollowersCheckerTests extends ESTestCase {
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
         followersChecker.setCurrentNodes(discoveryNodes);
-        while (nodeFailed.get() == false) {
-            if (deterministicTaskQueue.hasRunnableTasks() == false) {
+        while (!nodeFailed.get()) {
+            if (!deterministicTaskQueue.hasRunnableTasks()) {
                 deterministicTaskQueue.advanceTime();
             }
             deterministicTaskQueue.runAllRunnableTasks();
@@ -565,7 +565,7 @@ public class FollowersCheckerTests extends ESTestCase {
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
             .map(cr -> cr.node).collect(Collectors.toList());
         List<DiscoveryNode> sortedFollowerTargets = new ArrayList<>(followerTargets);
-        Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> n.isMasterNode() == false));
+        Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> !n.isMasterNode()));
         assertEquals(sortedFollowerTargets, followerTargets);
     }
 

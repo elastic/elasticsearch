@@ -208,18 +208,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected boolean defaultDocValues(Version indexCreated) {
-            return fieldType.tokenized() == false;
+            return !fieldType.tokenized();
         }
 
         protected void setupFieldType(BuilderContext context) {
             fieldType.setName(buildFullName(context));
-            if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
+            if (fieldType.indexAnalyzer() == null && !fieldType.tokenized() && fieldType.indexOptions() != IndexOptions.NONE) {
                 fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
                 fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             }
             boolean defaultDocValues = defaultDocValues(context.indexCreatedVersion());
             defaultFieldType.setHasDocValues(defaultDocValues);
-            if (docValuesSet == false) {
+            if (!docValuesSet) {
                 fieldType.setHasDocValues(defaultDocValues);
             }
         }
@@ -410,7 +410,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             builder.field("term_vector", termVectorOptionsToString(fieldType()));
         }
         if (includeDefaults || fieldType().omitNorms() != defaultFieldType.omitNorms()) {
-            builder.field("norms", fieldType().omitNorms() == false);
+            builder.field("norms", !fieldType().omitNorms());
         }
         if (indexed && (includeDefaults || fieldType().indexOptions() != defaultFieldType.indexOptions())) {
             builder.field("index_options", indexOptionToString(fieldType().indexOptions()));
@@ -430,7 +430,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected final void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
-        if (fieldType.tokenized() == false) {
+        if (!fieldType.tokenized()) {
             return;
         }
         if (fieldType().indexAnalyzer() == null) {
@@ -440,9 +440,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         } else {
             boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
             final String searchAnalyzerName = fieldType().searchAnalyzer().name();
-            boolean hasDifferentSearchAnalyzer = searchAnalyzerName.equals(fieldType().indexAnalyzer().name()) == false;
-            boolean hasDifferentSearchQuoteAnalyzer = searchAnalyzerName.equals(fieldType().searchQuoteAnalyzer().name()) == false;
-            if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
+            boolean hasDifferentSearchAnalyzer = !searchAnalyzerName.equals(fieldType().indexAnalyzer().name());
+            boolean hasDifferentSearchQuoteAnalyzer = !searchAnalyzerName.equals(fieldType().searchQuoteAnalyzer().name());
+            if (includeDefaults || !hasDefaultIndexAnalyzer || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                 builder.field("analyzer", fieldType().indexAnalyzer().name());
                 if (includeDefaults || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                     builder.field("search_analyzer", searchAnalyzerName);

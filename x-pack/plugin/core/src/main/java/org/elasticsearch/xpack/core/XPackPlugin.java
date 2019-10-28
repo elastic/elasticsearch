@@ -116,7 +116,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             // from being initialized correctly by the test framework, and means we have to
             // have this leniency.
         } catch (ExceptionInInitializerError bogus) {
-            if (bogus.getCause() instanceof SecurityException == false) {
+            if (!(bogus.getCause() instanceof SecurityException)) {
                 throw bogus; // some other bug
             }
         }
@@ -173,7 +173,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             return;
         }
         List<DiscoveryNode> notReadyNodes = nodesNotReadyForXPackCustomMetadata(clusterState);
-        if (notReadyNodes.isEmpty() == false) {
+        if (!notReadyNodes.isEmpty()) {
             throw new IllegalStateException("The following nodes are not ready yet for enabling x-pack custom metadata: " + notReadyNodes);
         }
     }
@@ -194,7 +194,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         // check that all nodes would be capable of deserializing newly added x-pack metadata
         final List<DiscoveryNode> notReadyNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false).filter(node -> {
             final String xpackInstalledAttr = node.getAttributes().getOrDefault(XPACK_INSTALLED_NODE_ATTR, "false");
-            return Booleans.parseBoolean(xpackInstalledAttr) == false;
+            return !Booleans.parseBoolean(xpackInstalledAttr);
         }).collect(Collectors.toList());
 
         return notReadyNodes;
@@ -299,7 +299,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
     public static Path resolveConfigFile(Environment env, String name) {
         Path config =  env.configFile().resolve(name);
-        if (Files.exists(config) == false) {
+        if (!Files.exists(config)) {
             Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
                 deprecationLogger.deprecated("Config file [" + name + "] is in a deprecated location. Move from " +

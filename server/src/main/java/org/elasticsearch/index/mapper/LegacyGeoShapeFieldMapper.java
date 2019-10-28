@@ -129,7 +129,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         }
 
         public void setPointsOnly(boolean pointsOnly) {
-            if (this.strategy == SpatialStrategy.TERM && pointsOnly == false) {
+            if (this.strategy == SpatialStrategy.TERM && !pointsOnly) {
                 throw new ElasticsearchParseException("points_only cannot be set to false for term strategy");
             }
             this.pointsOnly = pointsOnly;
@@ -166,7 +166,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         }
 
         private static void checkPrefixTreeSupport(String fieldName) {
-            if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
+            if (!ShapesAvailability.JTS_AVAILABLE || !ShapesAvailability.SPATIAL4J_AVAILABLE) {
                 throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type",
                     fieldName, CONTENT_TYPE);
             }
@@ -370,7 +370,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
             }
 
             // prevent user from changing trees (changes encoding)
-            if (tree().equals(other.tree()) == false) {
+            if (!tree().equals(other.tree())) {
                 conflicts.add("mapper [" + name() + "] has different [tree]");
             }
 
@@ -486,7 +486,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         super.doXContentBody(builder, includeDefaults, params);
 
         if (includeDefaults
-            || (fieldType().tree().equals(DeprecatedParameters.Defaults.TREE)) == false) {
+            || !(fieldType().tree().equals(DeprecatedParameters.Defaults.TREE))) {
             builder.field(DeprecatedParameters.Names.TREE.getPreferredName(), fieldType().tree());
         }
 
@@ -523,7 +523,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         }
         if (fieldType().strategy() == SpatialStrategy.TERM) {
             // For TERMs strategy the defaults for points only change to true
-            if (includeDefaults || fieldType().pointsOnly() != true) {
+            if (includeDefaults || !fieldType().pointsOnly()) {
                 builder.field(DeprecatedParameters.Names.POINTS_ONLY.getPreferredName(), fieldType().pointsOnly());
             }
         } else {

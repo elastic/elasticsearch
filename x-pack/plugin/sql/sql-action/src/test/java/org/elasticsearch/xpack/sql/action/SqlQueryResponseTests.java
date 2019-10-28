@@ -66,7 +66,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
                 rowCount = columnCount;
                 columnCount = temp;
             }
-            
+
             rows = new ArrayList<>(rowCount);
             for (int r = 0; r < rowCount; r++) {
                 List<Object> row = new ArrayList<>(rowCount);
@@ -119,7 +119,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
             assertEquals(row, testInstance.rows().get(i));
         }
 
-        if (testInstance.cursor().equals("") == false) {
+        if (!testInstance.cursor().equals("")) {
             assertEquals(rootMap.get(CURSOR.getPreferredName()), testInstance.cursor());
         }
     }

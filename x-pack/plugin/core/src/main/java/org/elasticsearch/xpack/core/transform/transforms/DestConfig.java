@@ -66,7 +66,7 @@ public class DestConfig implements Writeable, ToXContentObject {
     }
 
     public boolean isValid() {
-        return index.isEmpty() == false;
+        return !index.isEmpty();
     }
 
     @Override

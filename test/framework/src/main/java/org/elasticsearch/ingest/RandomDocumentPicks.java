@@ -93,7 +93,7 @@ public final class RandomDocumentPicks {
         String fieldName;
         do {
             fieldName = randomFieldName(random);
-        } while (canAddField(fieldName, ingestDocument) == false);
+        } while (!canAddField(fieldName, ingestDocument));
         ingestDocument.setFieldValue(fieldName, value);
         return fieldName;
     }
@@ -112,7 +112,7 @@ public final class RandomDocumentPicks {
                 if (currentLevel == null) {
                     return true;
                 }
-                if (currentLevel instanceof Map == false) {
+                if (!(currentLevel instanceof Map)) {
                     return false;
                 }
                 @SuppressWarnings("unchecked")
@@ -121,7 +121,7 @@ public final class RandomDocumentPicks {
             }
         }
         String leafKey = pathElements[pathElements.length - 1];
-        return innerMap.containsKey(leafKey) == false;
+        return !innerMap.containsKey(leafKey);
     }
 
     /**

@@ -44,7 +44,7 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
         final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal).filter(s -> s.startsWith("xpack.security.transport.ssl") == false))
+                .put(super.nodeSettings(nodeOrdinal).filter(s -> !s.startsWith("xpack.security.transport.ssl")))
                 .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.ssl.key", keyPath)
                 .put("xpack.security.transport.ssl.certificate", certPath)

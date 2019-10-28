@@ -170,10 +170,10 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 .append("], allow_restricted_indices=[").append(allowRestrictedIndices)
                 .append("], privileges=[").append(Strings.collectionToCommaDelimitedString(privileges))
                 .append("]");
-            if (fieldSecurity.isEmpty() == false) {
+            if (!fieldSecurity.isEmpty()) {
                 sb.append(", fls=[").append(Strings.collectionToCommaDelimitedString(fieldSecurity)).append("]");
             }
-            if (queries.isEmpty() == false) {
+            if (!queries.isEmpty()) {
                 sb.append(", dls=[")
                     .append(queries.stream().map(BytesReference::utf8ToString).collect(Collectors.joining(",")))
                     .append("]");
@@ -220,7 +220,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 }
                 builder.endArray();
             }
-            if (queries.isEmpty() == false) {
+            if (!queries.isEmpty()) {
                 builder.startArray(RoleDescriptor.Fields.QUERY.getPreferredName());
                 for (BytesReference q : queries) {
                     builder.value(q.utf8ToString());

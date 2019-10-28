@@ -73,8 +73,8 @@ public class RemoveCorruptedLuceneSegmentsAction {
 
             status = checker.checkIndex(null);
 
-            if (status.missingSegments == false) {
-                if (status.clean == false) {
+            if (!status.missingSegments) {
+                if (!status.clean) {
                     terminal.println("Writing...");
                     checker.exorciseIndex(status);
 

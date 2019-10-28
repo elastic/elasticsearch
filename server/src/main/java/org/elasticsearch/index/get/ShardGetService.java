@@ -162,11 +162,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         Engine.GetResult get = indexShard.get(new Engine.Get(realtime, readFromTranslog, id, uidTerm)
             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
-        if (get.exists() == false) {
+        if (!get.exists()) {
             get.close();
         }
 
-        if (get == null || get.exists() == false) {
+        if (get == null || !get.exists()) {
             return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
         }
 

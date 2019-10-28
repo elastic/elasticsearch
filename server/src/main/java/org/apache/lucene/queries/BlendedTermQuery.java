@@ -265,7 +265,7 @@ public abstract class BlendedTermQuery extends Query {
             if (this == o) {
                 return true;
             }
-            if (o instanceof TermAndBoost == false) {
+            if (!(o instanceof TermAndBoost)) {
                 return false;
             }
 
@@ -306,7 +306,7 @@ public abstract class BlendedTermQuery extends Query {
         if (this == o) {
             return true;
         }
-        if (sameClassAs(o) == false) {
+        if (!sameClassAs(o)) {
             return false;
         }
 

@@ -47,17 +47,17 @@ public class UserFunctionIT extends ESRestTestCase {
     private List<String> users;
     @Rule
     public TestName name = new TestName();
-    
+
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();
     }
-    
+
     @Override
     protected String getProtocol() {
         return RestSqlIT.SSL_ENABLED ? "https" : "http";
     }
-    
+
     @Before
     private void setUpUsers() throws IOException {
         int usersCount = name.getMethodName().startsWith("testSingle") ? 1 : randomIntBetween(5,  15);
@@ -74,20 +74,20 @@ public class UserFunctionIT extends ESRestTestCase {
             deleteUser(user);
         }
     }
-    
+
     public void testSingleRandomUser() throws IOException {
         String mode = randomMode().toString();
         String randomUserName = users.get(0);
-        
+
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
                 columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 32766)));
         expected.put("rows", Arrays.asList(Arrays.asList(randomUserName)));
         Map<String, Object> actual = runSql(randomUserName, mode, SQL);
-        
+
         assertResponse(expected, actual);
     }
-    
+
     public void testSingleRandomUserWithWhereEvaluatingTrue() throws IOException {
         index("{\"test\":\"doc1\"}",
               "{\"test\":\"doc2\"}",
@@ -104,7 +104,7 @@ public class UserFunctionIT extends ESRestTestCase {
         Map<String, Object> actual = runSql(randomUserName, mode, SQL + " FROM test WHERE USER()='" + randomUserName + "' LIMIT 3");
         assertResponse(expected, actual);
     }
-    
+
     public void testSingleRandomUserWithWhereEvaluatingFalse() throws IOException {
         index("{\"test\":\"doc1\"}",
               "{\"test\":\"doc2\"}",
@@ -120,7 +120,7 @@ public class UserFunctionIT extends ESRestTestCase {
         Map<String, Object> actual = runSql(randomUserName, mode, SQL + " FROM test WHERE USER()='" + anotherRandomUserName + "' LIMIT 3");
         assertResponse(expected, actual);
     }
-    
+
     public void testMultipleRandomUsersAccess() throws IOException {
         // run 30 queries and pick randomly each time one of the 5-15 users created previously
         for (int i = 0; i < 30; i++) {
@@ -132,19 +132,19 @@ public class UserFunctionIT extends ESRestTestCase {
                     columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 32766)));
             expected.put("rows", Arrays.asList(Arrays.asList(randomlyPickedUsername)));
             Map<String, Object> actual = runSql(randomlyPickedUsername, mode, SQL);
-            
+
             // expect the user that ran the query to be the same as the one returned by the `USER()` function
             assertResponse(expected, actual);
         }
     }
-    
+
     public void testSingleUserSelectFromIndex() throws IOException {
         index("{\"test\":\"doc1\"}",
               "{\"test\":\"doc2\"}",
               "{\"test\":\"doc3\"}");
         String mode = randomMode().toString();
         String randomUserName = users.get(0);
-        
+
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
                 columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 32766)));
@@ -152,10 +152,10 @@ public class UserFunctionIT extends ESRestTestCase {
                                            Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName)));
         Map<String, Object> actual = runSql(randomUserName, mode, "SELECT USER() FROM test LIMIT 3");
-        
+
         assertResponse(expected, actual);
     }
-    
+
     private void createUser(String name, String role) throws IOException {
         Request request = new Request("PUT", "/_security/user/" + name);
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
@@ -167,16 +167,16 @@ public class UserFunctionIT extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(user));
         client().performRequest(request);
     }
-    
+
     private void deleteUser(String name) throws IOException {
         Request request = new Request("DELETE", "/_security/user/" + name);
         client().performRequest(request);
     }
-    
+
     private Map<String, Object> runSql(String asUser, String mode, String sql) throws IOException {
         return runSql(asUser, new StringEntity("{\"query\": \"" + sql + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON));
     }
-    
+
     private Map<String, Object> runSql(String asUser, HttpEntity entity) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         if (asUser != null) {
@@ -187,15 +187,15 @@ public class UserFunctionIT extends ESRestTestCase {
         request.setEntity(entity);
         return toMap(client().performRequest(request));
     }
-    
+
     private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
-        if (false == expected.equals(actual)) {
+        if (!expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
         }
     }
-    
+
     private static Map<String, Object> toMap(Response response) throws IOException {
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);

@@ -303,11 +303,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
             @Override
             protected void doRun() {
-                assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                assert !Thread.holdsLock(mutex) : "mutex unexpectedly held";
                 transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
                     @Override
                     public void onResponse(Void aVoid) {
-                        assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                        assert !Thread.holdsLock(mutex) : "mutex unexpectedly held";
                         consecutiveFailureCount.set(0);
                         logger.debug("connected to {}", discoveryNode);
                         onCompletion(ActivityType.CONNECTING, null, disconnectActivity);
@@ -322,7 +322,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
             @Override
             public void onFailure(Exception e) {
-                assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                assert !Thread.holdsLock(mutex) : "mutex unexpectedly held";
                 final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
                 // only warn every 6th failure
                 final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
@@ -340,7 +340,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private final Runnable disconnectActivity = new AbstractRunnable() {
             @Override
             protected void doRun() {
-                assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                assert !Thread.holdsLock(mutex) : "mutex unexpectedly held";
                 transportService.disconnectFromNode(discoveryNode);
                 consecutiveFailureCount.set(0);
                 logger.debug("disconnected from {}", discoveryNode);
@@ -349,7 +349,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
             @Override
             public void onFailure(Exception e) {
-                assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                assert !Thread.holdsLock(mutex) : "mutex unexpectedly held";
                 consecutiveFailureCount.incrementAndGet();
                 // we may not have disconnected, but will not retry, so this connection might have leaked
                 logger.warn(new ParameterizedMessage("failed to disconnect from {}, possible connection leak", discoveryNode), e);
@@ -421,7 +421,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private Runnable addListenerAndStartActivity(@Nullable ActionListener<Void> listener, ActivityType newActivityType,
                                                      Runnable activity, String cancellationMessage) {
             assert Thread.holdsLock(mutex) : "mutex not held";
-            assert newActivityType.equals(ActivityType.IDLE) == false;
+            assert !newActivityType.equals(ActivityType.IDLE);
 
             if (activityType == ActivityType.IDLE) {
                 activityType = newActivityType;
@@ -442,7 +442,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         private void onCompletion(ActivityType completedActivityType, @Nullable Exception e, Runnable oppositeActivity) {
-            assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+            assert !Thread.holdsLock(mutex) : "mutex unexpectedly held";
 
             final Runnable cleanup;
             synchronized (mutex) {

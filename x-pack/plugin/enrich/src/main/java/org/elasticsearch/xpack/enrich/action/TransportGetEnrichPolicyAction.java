@@ -63,7 +63,7 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
         } else {
             policies = new HashMap<>();
             for (String name: request.getNames()) {
-                if (name.isEmpty() == false) {
+                if (!name.isEmpty()) {
                     EnrichPolicy policy = EnrichStore.getPolicy(name, state);
                     if (policy != null) {
                         policies.put(name, policy);

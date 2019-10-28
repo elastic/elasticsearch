@@ -182,7 +182,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     public boolean refreshNeeded() {
         // A null list doesn't need a refresh. If we're closed we don't need a refresh either.
-        return refreshListeners != null && false == closed;
+        return refreshListeners != null && !closed;
     }
 
     /**
@@ -277,7 +277,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                         refreshListeners = preservedListeners;
                     }
                 } else {
-                    assert closed == false : "Can't be closed and have non-null refreshListeners";
+                    assert !closed : "Can't be closed and have non-null refreshListeners";
                     refreshListeners.addAll(preservedListeners);
                 }
             }

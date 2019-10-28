@@ -61,7 +61,7 @@ public class SettingsFilterTests extends ESTestCase {
 
         // pki filtering
         configureUnfilteredSetting("xpack.security.authc.realms.pki.pki1.order", "0");
-        if (inFipsJvm() == false) {
+        if (!inFipsJvm()) {
             configureFilteredSetting("xpack.security.authc.realms.pki.pki1.truststore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks").toString());
             configureFilteredSetting("xpack.security.transport.ssl.keystore.path",
@@ -82,7 +82,7 @@ public class SettingsFilterTests extends ESTestCase {
 
         // client profile
         configureUnfilteredSetting("transport.profiles.client.port", "9500-9600");
-        if (inFipsJvm() == false) {
+        if (!inFipsJvm()) {
             configureFilteredSetting("transport.profiles.client.xpack.security.ssl.keystore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString());
         }

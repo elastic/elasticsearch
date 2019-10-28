@@ -220,7 +220,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         Settings.Builder repoSettings = Settings.builder().put(node().settings()).put("location", location);
         boolean compress = randomBoolean();
-        if (compress == false) {
+        if (!compress) {
             repoSettings.put(BlobStoreRepository.COMPRESS_SETTING.getKey(), false);
         }
         AcknowledgedResponse putRepositoryResponse =

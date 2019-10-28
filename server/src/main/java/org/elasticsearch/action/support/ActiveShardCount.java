@@ -163,7 +163,7 @@ public final class ActiveShardCount implements Writeable {
                 continue;
             }
             assert indexRoutingTable != null;
-            if (indexRoutingTable.allPrimaryShardsActive() == false) {
+            if (!indexRoutingTable.allPrimaryShardsActive()) {
                 // all primary shards aren't active yet
                 return false;
             }
@@ -172,7 +172,7 @@ public final class ActiveShardCount implements Writeable {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetaData.getSettings());
             }
             for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-                if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
+                if (!waitForActiveShards.enoughShardsActive(shardRouting.value)) {
                     // not enough active shard copies yet
                     return false;
                 }

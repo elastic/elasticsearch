@@ -171,7 +171,7 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalGeoBounds agg) {
-        return (agg.topLeft() == null && agg.bottomRight() == null) == false;
+        return !(agg.topLeft() == null && agg.bottomRight() == null);
     }
 
     public static boolean hasValue(InternalGeoCentroid agg) {
@@ -228,15 +228,15 @@ public class AggregationInspectionHelper {
 
     public static boolean hasValue(InternalSimpleValue agg) {
         // This is a coarse approximation, since some aggs use positive/negative infinity or NaN
-        return (Double.isInfinite(agg.getValue()) || Double.isNaN(agg.getValue())) == false;
+        return !(Double.isInfinite(agg.getValue()) || Double.isNaN(agg.getValue()));
     }
 
     public static boolean hasValue(InternalBucketMetricValue agg) {
-        return Double.isInfinite(agg.value()) == false;
+        return !Double.isInfinite(agg.value());
     }
 
     public static boolean hasValue(InternalPercentilesBucket agg) {
-        return StreamSupport.stream(agg.spliterator(), false).allMatch(p -> Double.isNaN(p.getValue())) == false;
+        return !StreamSupport.stream(agg.spliterator(), false).allMatch(p -> Double.isNaN(p.getValue()));
     }
 
 }

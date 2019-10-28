@@ -287,7 +287,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         for (Iterator<Entry<DiscoveryNode, IndicesClusterStateService>> it = clusterStateServiceMap.entrySet().iterator(); it.hasNext(); ) {
             DiscoveryNode node = it.next().getKey();
-            if (state.nodes().nodeExists(node) == false) {
+            if (!state.nodes().nodeExists(node)) {
                 it.remove();
             }
         }
@@ -303,7 +303,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         }
 
         // randomly add no_master blocks
-        if (rarely() && state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID) == false) {
+        if (rarely() && !state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID)) {
             ClusterBlock block = randomBoolean() ? NoMasterBlockService.NO_MASTER_BLOCK_ALL : NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
             state = ClusterState.builder(state).blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(block)).build();
         }
@@ -339,7 +339,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         for (String index : randomSubsetOf(numberOfIndicesToDelete, state.metaData().indices().keys().toArray(String.class))) {
             indicesToDelete.add(state.metaData().index(index).getIndex().getName());
         }
-        if (indicesToDelete.isEmpty() == false) {
+        if (!indicesToDelete.isEmpty()) {
             DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[indicesToDelete.size()]));
             state = cluster.deleteIndices(state, deleteRequest);
             for (String index : indicesToDelete) {
@@ -371,11 +371,11 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 containsClosedIndex = true;
             }
         }
-        if (indicesToUpdate.isEmpty() == false) {
+        if (!indicesToUpdate.isEmpty()) {
             UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(
                 indicesToUpdate.toArray(new String[indicesToUpdate.size()]));
             Settings.Builder settings = Settings.builder();
-            if (containsClosedIndex == false) {
+            if (!containsClosedIndex) {
                 settings.put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
             }
             settings.put("index.refresh_interval", randomIntBetween(1, 5) + "s");
@@ -420,7 +420,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 // remove node
                 if (state.nodes().getDataNodes().size() > 3) {
                     DiscoveryNode discoveryNode = randomFrom(state.nodes().getNodes().values().toArray(DiscoveryNode.class));
-                    if (discoveryNode.equals(state.nodes().getMasterNode()) == false) {
+                    if (!discoveryNode.equals(state.nodes().getMasterNode())) {
                         state = cluster.removeNodes(state, Collections.singletonList(discoveryNode));
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }

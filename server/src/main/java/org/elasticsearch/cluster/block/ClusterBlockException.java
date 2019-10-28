@@ -84,10 +84,10 @@ public class ClusterBlockException extends ElasticsearchException {
     }
 
     private static String buildMessageForGlobalBlocks(Set<ClusterBlock> globalLevelBlocks) {
-        assert globalLevelBlocks.isEmpty() == false;
+        assert !globalLevelBlocks.isEmpty();
         Function<ClusterBlock, String> blockDescription = block -> block.status() + "/" + block.id() + "/" + block.description();
         StringBuilder sb = new StringBuilder();
-        if (globalLevelBlocks.isEmpty() == false) {
+        if (!globalLevelBlocks.isEmpty()) {
             sb.append("blocked by: [");
             sb.append(globalLevelBlocks.stream().map(blockDescription).collect(Collectors.joining(", ")));
             sb.append("];");
@@ -96,7 +96,7 @@ public class ClusterBlockException extends ElasticsearchException {
     }
 
     private static String buildMessageForIndexBlocks(Map<String, Set<ClusterBlock>> indexLevelBlocks) {
-        assert indexLevelBlocks.isEmpty() == false;
+        assert !indexLevelBlocks.isEmpty();
         Function<ClusterBlock, String> blockDescription = block -> block.status() + "/" + block.id() + "/" + block.description();
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, Set<ClusterBlock>> entry : indexLevelBlocks.entrySet()) {

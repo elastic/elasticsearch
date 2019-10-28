@@ -96,7 +96,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
             tasks = internalCluster().clusterService().state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertEquals(numberOfTasks, tasks.tasks().stream()
                 .filter(t -> TestPersistentTasksExecutor.NAME.equals(t.getTaskName()))
-                .filter(t -> t.isAssigned() == false)
+                .filter(t -> !t.isAssigned())
                 .count());
 
             ListTasksResponse runningTasks = client().admin().cluster().prepareListTasks()

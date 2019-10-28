@@ -144,7 +144,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         final RepositoryData repositoryData;
-        if (isCurrentSnapshotsOnly(snapshots) == false) {
+        if (!isCurrentSnapshotsOnly(snapshots)) {
             repositoryData = snapshotsService.getRepositoryData(repo);
             for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
                 allSnapshotIds.put(snapshotId.getName(), snapshotId);
@@ -160,10 +160,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             for (String snapshotOrPattern : snapshots) {
                 if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
                     toResolve.addAll(currentSnapshots.stream().map(SnapshotInfo::snapshotId).collect(Collectors.toList()));
-                } else if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
+                } else if (!Regex.isSimpleMatchPattern(snapshotOrPattern)) {
                     if (allSnapshotIds.containsKey(snapshotOrPattern)) {
                         toResolve.add(allSnapshotIds.get(snapshotOrPattern));
-                    } else if (ignoreUnavailable == false) {
+                    } else if (!ignoreUnavailable) {
                         throw new SnapshotMissingException(repo, snapshotOrPattern);
                     }
                 } else {
@@ -175,7 +175,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 }
             }
 
-            if (toResolve.isEmpty() && ignoreUnavailable == false && isCurrentSnapshotsOnly(snapshots) == false) {
+            if (toResolve.isEmpty() && !ignoreUnavailable && !isCurrentSnapshotsOnly(snapshots)) {
                 throw new SnapshotMissingException(repo, snapshots[0]);
             }
         }

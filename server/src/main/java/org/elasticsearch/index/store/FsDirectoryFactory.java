@@ -101,8 +101,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     public static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
             Set<String> preLoadExtensions) throws IOException {
-        assert mMapDirectory.getPreload() == false;
-        if (preLoadExtensions.isEmpty() == false) {
+        assert !mMapDirectory.getPreload();
+        if (!preLoadExtensions.isEmpty()) {
             if (preLoadExtensions.contains("*")) {
                 mMapDirectory.setPreload(true);
             } else {
@@ -181,7 +181,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             this.delegate = delegate;
             this.delegate.setPreload(true);
             this.preloadExtensions = preload;
-            assert getPreload() == false;
+            assert !getPreload();
         }
 
         @Override

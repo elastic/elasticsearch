@@ -263,7 +263,7 @@ public class CcrLicenseChecker {
                 for (ShardStats shardStats : indexShardStats) {
                     // Ignore replica shards as they may not have yet started and
                     // we just end up overwriting slots in historyUUIDs
-                    if (shardStats.getShardRouting().primary() == false) {
+                    if (!shardStats.getShardRouting().primary()) {
                         continue;
                     }
 
@@ -307,7 +307,7 @@ public class CcrLicenseChecker {
             throw new IllegalArgumentException("indices must not be empty");
         }
         Objects.requireNonNull(handler, "handler");
-        if (isAuthAllowed.getAsBoolean() == false) {
+        if (!isAuthAllowed.getAsBoolean()) {
             handler.accept(null);
             return;
         }
@@ -339,7 +339,7 @@ public class CcrLicenseChecker {
 
                 ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().iterator().next();
                 for (Map.Entry<String, Boolean> entry : resourcePrivileges.getPrivileges().entrySet()) {
-                    if (entry.getValue() == false) {
+                    if (!entry.getValue()) {
                         message.append(", privilege for action [");
                         message.append(entry.getKey());
                         message.append("] is missing");

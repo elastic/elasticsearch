@@ -80,7 +80,7 @@ final class MinScoreScorer extends Scorer {
             public boolean matches() throws IOException {
                 // we need to check the two-phase iterator first
                 // otherwise calling score() is illegal
-                if (inTwoPhase != null && inTwoPhase.matches() == false) {
+                if (inTwoPhase != null && !inTwoPhase.matches()) {
                     return false;
                 }
                 curScore = in.score();

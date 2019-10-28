@@ -486,7 +486,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         final Pattern hexEntity = Pattern.compile("&#x([0-9a-f]{2});");
         while (true) {
             final Matcher matcher = hexEntity.matcher(text);
-            if (matcher.find() == false) {
+            if (!matcher.find()) {
                 return text;
             }
             char ch = (char) Integer.parseInt(matcher.group(1), 16);

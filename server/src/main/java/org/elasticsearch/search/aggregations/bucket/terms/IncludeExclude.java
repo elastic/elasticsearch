@@ -80,7 +80,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
         String includeMethod = include.isRegexBased() ? "regex" : "set";
         String excludeMethod = exclude.isRegexBased() ? "regex" : "set";
-        if (includeMethod.equals(excludeMethod) == false) {
+        if (!includeMethod.equals(excludeMethod)) {
             throw new IllegalArgumentException("Cannot mix a " + includeMethod + "-based include with a "
                     + excludeMethod + "-based method");
         }

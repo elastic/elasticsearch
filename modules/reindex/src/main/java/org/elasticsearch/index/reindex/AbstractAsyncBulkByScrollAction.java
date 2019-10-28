@@ -401,7 +401,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
             addDestinationIndices(destinationIndicesThisBatch);
 
-            if (false == failures.isEmpty()) {
+            if (!failures.isEmpty()) {
                 refreshAndFinish(unmodifiableList(failures), emptyList(), false);
                 return;
             }
@@ -431,7 +431,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private void recordFailure(Failure failure, List<Failure> failures) {
         if (failure.getStatus() == CONFLICT) {
             worker.countVersionConflict();
-            if (false == mainRequest.isAbortOnVersionConflict()) {
+            if (!mainRequest.isAbortOnVersionConflict()) {
                 return;
             }
         }
@@ -443,7 +443,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * {@link #finishHim(Exception, List, List, boolean)}.
      */
     void refreshAndFinish(List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
-        if (task.isCancelled() || false == mainRequest.isRefresh() || destinationIndices.isEmpty()) {
+        if (task.isCancelled() || !mainRequest.isRefresh() || destinationIndices.isEmpty()) {
             finishHim(null, indexingFailures, searchFailures, timedOut);
             return;
         }
@@ -760,15 +760,15 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             request.setSource((Map<String, Object>) context.remove(SourceFieldMapper.NAME));
 
             Object newValue = context.remove(IndexFieldMapper.NAME);
-            if (false == doc.getIndex().equals(newValue)) {
+            if (!doc.getIndex().equals(newValue)) {
                 scriptChangedIndex(request, newValue);
             }
             newValue = context.remove(IdFieldMapper.NAME);
-            if (false == doc.getId().equals(newValue)) {
+            if (!doc.getId().equals(newValue)) {
                 scriptChangedId(request, newValue);
             }
             newValue = context.remove(VersionFieldMapper.NAME);
-            if (false == Objects.equals(oldVersion, newValue)) {
+            if (!Objects.equals(oldVersion, newValue)) {
                 scriptChangedVersion(request, newValue);
             }
             /*
@@ -776,7 +776,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
              * change them both.
              */
             newValue = context.remove(RoutingFieldMapper.NAME);
-            if (false == Objects.equals(oldRouting, newValue)) {
+            if (!Objects.equals(oldRouting, newValue)) {
                 scriptChangedRouting(request, newValue);
             }
 
@@ -785,7 +785,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return scriptChangedOpType(request, oldOpType, newOpType);
             }
 
-            if (false == context.isEmpty()) {
+            if (!context.isEmpty()) {
                 throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", context.keySet()) + ']');
             }
             return request;

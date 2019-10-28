@@ -386,7 +386,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public boolean equals(Object o) {
-            if (sameClassAs(o) == false) return false;
+            if (!sameClassAs(o)) return false;
 
             LateParsingQuery that = (LateParsingQuery) o;
 

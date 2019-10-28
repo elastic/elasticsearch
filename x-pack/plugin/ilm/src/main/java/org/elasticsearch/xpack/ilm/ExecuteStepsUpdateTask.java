@@ -153,7 +153,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                 // transition happens, so even if we would continue in the while
                 // loop, if we are about to go into a new phase, return so that
                 // other processing can occur
-                if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
+                if (!currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase())) {
                     return state;
                 }
                 currentStep = policyStepsRegistry.getStep(indexMetaData, currentStep.getNextStepKey());
@@ -169,7 +169,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        if (oldState.equals(newState) == false) {
+        if (!oldState.equals(newState)) {
             IndexMetaData indexMetaData = newState.metaData().index(index);
             if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY && indexMetaData != null) {
                 logger.trace("[{}] step sequence starting with {} has completed, running next step {} if it is an async action",

@@ -53,7 +53,7 @@ public class ActionRegistry {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 id = parser.currentName();
-                if (WatcherUtils.isValidId(id) == false) {
+                if (!WatcherUtils.isValidId(id)) {
                     throw new ElasticsearchParseException("could not parse action [{}] for watch [{}]. id contains whitespace", id,
                             watchId);
                 }

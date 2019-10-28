@@ -130,7 +130,7 @@ public class UpdateResponseTests extends ESTestCase {
         }
 
         IndexResponseTests.assertDocWriteResponse(expectedUpdateResponse, parsedUpdateResponse);
-        if (addRandomFields == false) {
+        if (!addRandomFields) {
             assertEquals(expectedUpdateResponse.getGetResult(), parsedUpdateResponse.getGetResult());
         }
 

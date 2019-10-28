@@ -105,7 +105,7 @@ public class CoordinationStateTestCluster {
         }
 
         void reboot() {
-            if (localNode.isMasterNode() == false && rarely()) {
+            if (!localNode.isMasterNode() && rarely()) {
                 // master-ineligible nodes can't be trusted to persist the cluster state properly
                 persistedState = new InMemoryPersistedState(0L,
                     clusterState(0L, 0L, localNode, CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG,
@@ -189,7 +189,7 @@ public class CoordinationStateTestCluster {
 
     void applyMessage(Message message) {
         final Optional<ClusterNode> maybeNode = getNode(message.targetNode);
-        if (maybeNode.isPresent() == false) {
+        if (!maybeNode.isPresent()) {
             throw new CoordinationStateRejectedException("node not available");
         } else {
             final Object payload = message.payload;
@@ -227,7 +227,7 @@ public class CoordinationStateTestCluster {
                 } else if (rarely()) {
                     final List<ClusterNode> masterNodes = clusterNodes.stream().filter(cn -> cn.state.electionWon())
                         .collect(Collectors.toList());
-                    if (masterNodes.isEmpty() == false) {
+                    if (!masterNodes.isEmpty()) {
                         final ClusterNode clusterNode = randomFrom(masterNodes);
                         final long term = rarely() ? randomLongBetween(0, maxTerm + 1) : clusterNode.state.getCurrentTerm();
                         final long version = rarely() ? randomIntBetween(0, 5) : clusterNode.state.getLastPublishedVersion() + 1;
@@ -238,7 +238,7 @@ public class CoordinationStateTestCluster {
                                 acceptedConfig, randomLong()));
                         broadcast(clusterNode.localNode, publishRequest);
                     }
-                } else if (messages.isEmpty() == false) {
+                } else if (!messages.isEmpty()) {
                     applyMessage(randomFrom(messages));
                 }
 

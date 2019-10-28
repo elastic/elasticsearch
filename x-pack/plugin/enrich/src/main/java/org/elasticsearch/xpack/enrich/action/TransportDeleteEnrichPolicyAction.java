@@ -100,7 +100,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
                 }
             }
 
-            if (pipelinesWithProcessors.isEmpty() == false) {
+            if (!pipelinesWithProcessors.isEmpty()) {
                 throw new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
                         RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors);
             }
@@ -130,7 +130,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
 
         client.admin().indices().delete(deleteRequest, ActionListener.wrap(
             (response) -> {
-                if (response.isAcknowledged() == false) {
+                if (!response.isAcknowledged()) {
                     listener.onFailure(new ElasticsearchStatusException("Could not fetch indices to delete during policy delete of [{}]",
                         RestStatus.INTERNAL_SERVER_ERROR, name));
                 } else {

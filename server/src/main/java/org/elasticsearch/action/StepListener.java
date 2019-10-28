@@ -82,7 +82,7 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      * Gets the result of this step. This method will throw {@link IllegalStateException} if this step is not completed yet.
      */
     public Response result() {
-        if (delegate.isDone() == false) {
+        if (!delegate.isDone()) {
             throw new IllegalStateException("step is not completed yet");
         }
         return FutureUtils.get(delegate, 0L, TimeUnit.NANOSECONDS); // this future is done already - use a non-blocking method.

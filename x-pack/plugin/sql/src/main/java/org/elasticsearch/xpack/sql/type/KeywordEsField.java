@@ -24,7 +24,7 @@ public class KeywordEsField extends EsField {
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision, boolean normalized) {
         this(name, properties, hasDocValues, precision, normalized, false);
     }
-    
+
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision,
             boolean normalized, boolean isAlias) {
         super(name, DataType.KEYWORD, properties, hasDocValues, isAlias);
@@ -39,7 +39,7 @@ public class KeywordEsField extends EsField {
 
     @Override
     public Exact getExactInfo() {
-        return new Exact(normalized == false, "Normalized keyword field cannot be used for exact match operations");
+        return new Exact(!normalized, "Normalized keyword field cannot be used for exact match operations");
     }
 
     @Override

@@ -124,13 +124,13 @@ public class ClientYamlTestClient implements Closeable {
             }
         }
 
-        if (false == apiRequiredParameters.isEmpty()) {
+        if (!apiRequiredParameters.isEmpty()) {
             throw new IllegalArgumentException(
                     "missing required parameter: " + apiRequiredParameters + " by [" + restApi.getName() + "] api");
         }
 
         Set<String> partNames = pathParts.keySet();
-        if (path.getParts().size() != partNames.size() || path.getParts().containsAll(partNames) == false) {
+        if (path.getParts().size() != partNames.size() || !path.getParts().containsAll(partNames)) {
             throw new IllegalStateException("provided path parts don't match the best matching path: "
                 + path.getParts() + " - " + partNames);
         }
@@ -153,7 +153,7 @@ public class ClientYamlTestClient implements Closeable {
         List<String> supportedMethods = Arrays.asList(path.getMethods());
         String requestMethod;
         if (entity != null) {
-            if (false == restApi.isBodySupported()) {
+            if (!restApi.isBodySupported()) {
                 throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
             }
             String contentType = entity.getContentType().getValue();
@@ -216,7 +216,7 @@ public class ClientYamlTestClient implements Closeable {
     }
 
     private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, long contentLength) {
-        if (false == supportedMethods.contains(HttpGet.METHOD_NAME)) {
+        if (!supportedMethods.contains(HttpGet.METHOD_NAME)) {
             // The API doesn't claim to support GET anyway
             return false;
         }
@@ -228,8 +228,8 @@ public class ClientYamlTestClient implements Closeable {
             // Long bodies won't fit in the parameter and will cause a too_long_frame_exception
             return false;
         }
-        if (false == contentType.startsWith(ContentType.APPLICATION_JSON.getMimeType())
-                && false == contentType.startsWith(YAML_CONTENT_TYPE.getMimeType())) {
+        if (!contentType.startsWith(ContentType.APPLICATION_JSON.getMimeType())
+                && !contentType.startsWith(YAML_CONTENT_TYPE.getMimeType())) {
             // We can only encode JSON or YAML this way.
             return false;
         }

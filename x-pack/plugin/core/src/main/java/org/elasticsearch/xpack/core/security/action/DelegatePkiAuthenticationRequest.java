@@ -87,7 +87,7 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         ActionRequestValidationException validationException = null;
         if (certificateChain.isEmpty()) {
             validationException = addValidationError("certificates chain must not be empty", validationException);
-        } else if (false == CertParsingUtils.isOrderedCertificateChain(certificateChain)) {
+        } else if (!CertParsingUtils.isOrderedCertificateChain(certificateChain)) {
             validationException = addValidationError("certificates chain must be an ordered chain", validationException);
         }
         return validationException;

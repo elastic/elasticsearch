@@ -355,7 +355,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * explain API only.
          */
         private MoveDecision decideRebalance(final ShardRouting shard) {
-            if (shard.started() == false) {
+            if (!shard.started()) {
                 // we can only rebalance started shards
                 return MoveDecision.NOT_TAKEN;
             }
@@ -406,7 +406,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // then even though the node we are examining has a better weight and may make the cluster balance
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
-                    boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
+                    boolean deltaAboveThreshold = !lessThan(currentDelta, threshold);
                     // simulate the weight of the node if we were to relocate the shard to it
                     float weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
@@ -654,7 +654,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
                     }
-                } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
+                } else if (moveDecision.isDecisionTaken() && !moveDecision.canRemain()) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
             }
@@ -673,7 +673,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *      {@link MoveDecision#nodeDecisions} will have a non-null value.
          */
         public MoveDecision decideMove(final ShardRouting shardRouting) {
-            if (shardRouting.started() == false) {
+            if (!shardRouting.started()) {
                 // we can only move started shards
                 return MoveDecision.NOT_TAKEN;
             }
@@ -712,7 +712,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
                             targetNode = target;
-                            if (explain == false) {
+                            if (!explain) {
                                 // we are not in explain mode and already have a YES decision on the best weighted node,
                                 // no need to continue iterating
                                 break;
@@ -890,7 +890,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             final boolean explain = allocation.debugDecision();
             Decision shardLevelDecision = allocation.deciders().canAllocate(shard, allocation);
-            if (shardLevelDecision.type() == Type.NO && explain == false) {
+            if (shardLevelDecision.type() == Type.NO && !explain) {
                 // NO decision for allocating the shard, irrespective of any particular node, so exit early
                 return AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, null);
             }
@@ -899,7 +899,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float minWeight = Float.POSITIVE_INFINITY;
             ModelNode minNode = null;
             Decision decision = null;
-            if (throttledNodes.size() >= nodes.size() && explain == false) {
+            if (throttledNodes.size() >= nodes.size() && !explain) {
                 // all nodes are throttled, so we know we won't be able to allocate this round,
                 // so if we are not in explain mode, short circuit
                 return AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, null);
@@ -909,7 +909,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             Map<String, NodeAllocationResult> nodeExplanationMap = explain ? new HashMap<>() : null;
             List<Tuple<String, Float>> nodeWeights = explain ? new ArrayList<>() : null;
             for (ModelNode node : nodes.values()) {
-                if ((throttledNodes.contains(node) || node.containsShard(shard)) && explain == false) {
+                if ((throttledNodes.contains(node) || node.containsShard(shard)) && !explain) {
                     // decision is NO without needing to check anything further, so short circuit
                     continue;
                 }
@@ -917,7 +917,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // simulate weight if we would add shard to node
                 float currentWeight = weight.weightShardAdded(this, node, shard.getIndexName());
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
-                if (currentWeight > minWeight && explain == false) {
+                if (currentWeight > minWeight && !explain) {
                     continue;
                 }
 

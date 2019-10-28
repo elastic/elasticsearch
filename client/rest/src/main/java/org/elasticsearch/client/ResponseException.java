@@ -54,7 +54,7 @@ public final class ResponseException extends IOException {
 
         HttpEntity entity = response.getEntity();
         if (entity != null) {
-            if (entity.isRepeatable() == false) {
+            if (!entity.isRepeatable()) {
                 entity = new BufferedHttpEntity(entity);
                 response.getHttpResponse().setEntity(entity);
             }

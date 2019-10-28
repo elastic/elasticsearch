@@ -36,7 +36,7 @@ public class GlobalOperationPrivilegeTests extends ESTestCase {
         final String operation = randomFrom(Arrays.asList(null, randomAlphaOfLength(5)));
         final Map<String, Object> privilege = randomFrom(Arrays.asList(null, Collections.emptyMap(), Collections.singletonMap("k1", "v1")));
 
-        if (Strings.hasText(category) && Strings.hasText(operation) && privilege != null && privilege.isEmpty() == false) {
+        if (Strings.hasText(category) && Strings.hasText(operation) && privilege != null && !privilege.isEmpty()) {
             GlobalOperationPrivilege globalOperationPrivilege = new GlobalOperationPrivilege(category, operation, privilege);
             assertThat(globalOperationPrivilege.getCategory(), equalTo(category));
             assertThat(globalOperationPrivilege.getOperation(), equalTo(operation));

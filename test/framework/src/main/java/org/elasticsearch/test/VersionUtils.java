@@ -78,7 +78,7 @@ public class VersionUtils {
                 moveLastToUnreleased(stableVersions, unreleasedVersions);
             }
             // remove the next bugfix
-            if (stableVersions.isEmpty() == false) {
+            if (!stableVersions.isEmpty()) {
                 moveLastToUnreleased(stableVersions, unreleasedVersions);
             }
         }

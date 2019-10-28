@@ -34,7 +34,7 @@ public class LoggedExec extends Exec {
 
     public LoggedExec() {
 
-        if (getLogger().isInfoEnabled() == false) {
+        if (!getLogger().isInfoEnabled()) {
             setIgnoreExitValue(true);
             setSpoolOutput(false);
             // We use an anonymous inner class here because Gradle cannot properly snapshot this input for the purposes of

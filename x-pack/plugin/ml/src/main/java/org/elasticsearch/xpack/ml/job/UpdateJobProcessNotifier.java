@@ -101,13 +101,13 @@ public class UpdateJobProcessNotifier {
     }
 
     void executeProcessUpdates(Iterator<UpdateHolder> updatesIterator) {
-        if (updatesIterator.hasNext() == false) {
+        if (!updatesIterator.hasNext()) {
             return;
         }
         UpdateHolder updateHolder = updatesIterator.next();
         UpdateParams update = updateHolder.update;
 
-        if (update.isJobUpdate() && clusterService.localNode().isMasterNode() == false) {
+        if (update.isJobUpdate() && !clusterService.localNode().isMasterNode()) {
             assert clusterService.localNode().isMasterNode();
             logger.error("Job update was submitted to non-master node [" + clusterService.getNodeName() + "]; update for job ["
                     + update.getJobId() + "] will be ignored");

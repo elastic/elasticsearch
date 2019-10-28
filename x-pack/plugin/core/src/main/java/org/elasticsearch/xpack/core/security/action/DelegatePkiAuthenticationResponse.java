@@ -31,7 +31,7 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
             "delegate_pki_response", true, a -> {
                 final String accessToken = (String) a[0];
                 final String type = (String) a[1];
-                if (false == "Bearer".equals(type)) {
+                if (!"Bearer".equals(type)) {
                     throw new IllegalArgumentException("Unknown token type [" + type + "], only [Bearer] type permitted");
                 }
                 final Long expiresIn = (Long) a[2];

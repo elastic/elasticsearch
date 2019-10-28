@@ -43,7 +43,7 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
         if (script.contains("{{") && script.contains("}}")) {
             throw new IllegalArgumentException("Fix your test to not rely on mustache");
         }
-        if (context.instanceClazz.equals(TemplateScript.class) == false) {
+        if (!context.instanceClazz.equals(TemplateScript.class)) {
             throw new IllegalArgumentException("mock mustache only understands template scripts, not [" + context.name + "]");
         }
         return context.factoryClazz.cast((TemplateScript.Factory) vars ->

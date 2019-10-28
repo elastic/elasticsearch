@@ -167,7 +167,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
             success = true;
             return pool;
         } finally {
-            if (success == false && pool != null) {
+            if (!success && pool != null) {
                 pool.close();
             }
         }

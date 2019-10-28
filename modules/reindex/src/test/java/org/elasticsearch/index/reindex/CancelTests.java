@@ -199,7 +199,7 @@ public class CancelTests extends ReindexTestCase {
             tasks.rethrowFailures("Find tasks to cancel");
             for (TaskInfo taskInfo : tasks.getTasks()) {
                 // Skip tasks with a parent because those are children of the task we want to cancel
-                if (false == taskInfo.getParentTaskId().isSet()) {
+                if (!taskInfo.getParentTaskId().isSet()) {
                     return taskInfo;
                 }
             }

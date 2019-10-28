@@ -616,7 +616,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         void addRecoveredBytes(long bytes) {
-            assert reused == false : "file is marked as reused, can't update recovered bytes";
+            assert !reused : "file is marked as reused, can't update recovered bytes";
             assert bytes >= 0 : "can't recovered negative bytes. got [" + bytes + "]";
             recovered += bytes;
         }
@@ -650,7 +650,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         boolean fullyRecovered() {
-            return reused == false && length == recovered;
+            return !reused && length == recovered;
         }
 
         @Override
@@ -782,7 +782,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized int totalRecoverFiles() {
             int total = 0;
             for (File file : fileDetails.values()) {
-                if (file.reused() == false) {
+                if (!file.reused()) {
                     total++;
                 }
             }
@@ -810,7 +810,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             int total = 0;
             int recovered = 0;
             for (File file : fileDetails.values()) {
-                if (file.reused() == false) {
+                if (!file.reused()) {
                     total++;
                     if (file.fullyRecovered()) {
                         recovered++;
@@ -856,7 +856,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized long totalRecoverBytes() {
             long total = 0;
             for (File file : fileDetails.values()) {
-                if (file.reused() == false) {
+                if (!file.reused()) {
                     total += file.length();
                 }
             }
@@ -870,7 +870,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             long total = 0;
             long recovered = 0;
             for (File file : fileDetails.values()) {
-                if (file.reused() == false) {
+                if (!file.reused()) {
                     total += file.length();
                     recovered += file.recovered();
                 }

@@ -63,7 +63,7 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
         return new LeafBucketCollectorBase(sub, docsWithValue) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (docsWithValue.advanceExact(doc) == false) {
+                if (!docsWithValue.advanceExact(doc)) {
                     collectBucket(sub, doc, bucket);
                 }
             }

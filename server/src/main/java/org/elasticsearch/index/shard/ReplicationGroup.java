@@ -49,13 +49,13 @@ public class ReplicationGroup {
         this.skippedShards = new ArrayList<>();
         for (final ShardRouting shard : routingTable) {
             if (shard.unassigned()) {
-                assert shard.primary() == false : "primary shard should not be unassigned in a replication group: " + shard;
+                assert !shard.primary() : "primary shard should not be unassigned in a replication group: " + shard;
                 skippedShards.add(shard);
             } else {
                 if (trackedAllocationIds.contains(shard.allocationId().getId())) {
                     replicationTargets.add(shard);
                 } else {
-                    assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false :
+                    assert !inSyncAllocationIds.contains(shard.allocationId().getId()) :
                         "in-sync shard copy but not tracked: " + shard;
                     skippedShards.add(shard);
                 }
@@ -65,7 +65,7 @@ public class ReplicationGroup {
                         replicationTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
-                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false :
+                        assert !inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) :
                             "in-sync shard copy but not tracked: " + shard;
                     }
                 }

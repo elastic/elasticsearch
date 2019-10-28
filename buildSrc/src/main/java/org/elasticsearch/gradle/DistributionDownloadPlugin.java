@@ -167,7 +167,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             ivyRepo.content(content -> content.includeGroup(group));
         });
         project.getRepositories().all(repo -> {
-            if (repo.getName().equals(name) == false) {
+            if (!repo.getName().equals(name)) {
                 // all other repos should ignore the special group name
                 repo.content(content -> content.excludeGroup(group));
             }
@@ -179,7 +179,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return;
         }
         addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.elastic.co", FAKE_IVY_GROUP);
-        if (ClasspathUtils.isElasticsearchProject(project) == false) {
+        if (!ClasspathUtils.isElasticsearchProject(project)) {
             // external, so add snapshot repo as well
             addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
         }
@@ -273,7 +273,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getFlavor() == Flavor.OSS) {
             projectName += "oss-";
         }
-        if (distribution.getBundledJdk() == false) {
+        if (!distribution.getBundledJdk()) {
             projectName += "no-jdk-";
         }
 
@@ -304,7 +304,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             if (distribution.getFlavor() == Flavor.OSS) {
                 taskName += "Oss";
             }
-            if (distribution.getBundledJdk() == false) {
+            if (!distribution.getBundledJdk()) {
                 taskName += "NoJdk";
             }
         }

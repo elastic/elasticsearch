@@ -93,7 +93,7 @@ public class TriggerService {
             }
             counters.inc("watch.trigger." + stats.triggerType + ".total");
             counters.inc("watch.trigger." + stats.triggerType + ".active");
-            if (Strings.isNullOrEmpty(stats.scheduleType) == false) {
+            if (!Strings.isNullOrEmpty(stats.scheduleType)) {
                 counters.inc("watch.trigger.schedule." + stats.scheduleType + ".total");
                 counters.inc("watch.trigger.schedule." + stats.scheduleType + ".active");
                 counters.inc("watch.trigger.schedule._all.total");
@@ -107,7 +107,7 @@ public class TriggerService {
             counters.inc("watch.condition._all.total");
             counters.inc("watch.condition._all.active");
 
-            if (Strings.isNullOrEmpty(stats.transformType) == false) {
+            if (!Strings.isNullOrEmpty(stats.transformType)) {
                 counters.inc("watch.transform." + stats.transformType + ".active");
                 counters.inc("watch.transform." + stats.transformType + ".total");
                 counters.inc("watch.transform._all.active");
@@ -120,13 +120,13 @@ public class TriggerService {
                 counters.inc("watch.action._all.active");
                 counters.inc("watch.action._all.total");
 
-                if (Strings.isNullOrEmpty(action.conditionType) == false) {
+                if (!Strings.isNullOrEmpty(action.conditionType)) {
                     counters.inc("watch.action.condition." + action.conditionType + ".active");
                     counters.inc("watch.action.condition." + action.conditionType + ".total");
                     counters.inc("watch.action.condition._all.active");
                     counters.inc("watch.action.condition._all.total");
                 }
-                if (Strings.isNullOrEmpty(action.transformType) == false) {
+                if (!Strings.isNullOrEmpty(action.transformType)) {
                     counters.inc("watch.action.transform." + action.transformType + ".active");
                     counters.inc("watch.action.transform." + action.transformType + ".total");
                     counters.inc("watch.action.transform._all.active");

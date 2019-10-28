@@ -242,7 +242,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             bindServer();
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 doStop(); // otherwise we leak threads since we never moved to started
             }
         }

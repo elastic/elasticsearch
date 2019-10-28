@@ -37,7 +37,7 @@ public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
     @Override
     protected String process(String value) {
         // shortcut, no need to create a string builder and go through each char
-        if (value.contains("<") == false || value.contains(">") == false) {
+        if (!value.contains("<") || !value.contains(">")) {
             return value;
         }
 

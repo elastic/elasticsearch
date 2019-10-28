@@ -158,7 +158,7 @@ public class TransportSearchActionTests extends ESTestCase {
                         SearchShardIterator remoteIterator = createSearchShardIterator(i, index,
                             OriginalIndicesTests.randomOriginalIndices(), remoteClusterAlias);
                         remoteShardIterators.add(remoteIterator);
-                        assert remoteClusterAlias.equals(localClusterAlias) == false;
+                        assert !remoteClusterAlias.equals(localClusterAlias);
                         if (remoteClusterAlias.compareTo(localClusterAlias) < 0) {
                             expected.add(remoteIterator);
                             expected.add(localIterator);

@@ -143,7 +143,7 @@ public abstract class ScriptTestCase extends ESTestCase {
                     AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
                     assertion.initCause(e);
                     throw assertion;
-                } else if (false == shouldHaveScriptStack && false == hasEmptyScriptStack) {
+                } else if (!shouldHaveScriptStack && !hasEmptyScriptStack) {
                     AssertionFailedError assertion = new AssertionFailedError("ScriptException shouldn't have a scriptStack");
                     assertion.initCause(e);
                     throw assertion;

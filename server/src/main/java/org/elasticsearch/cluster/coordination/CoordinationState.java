@@ -136,7 +136,7 @@ public class CoordinationState {
     public void setInitialState(ClusterState initialState) {
 
         final VotingConfiguration lastAcceptedConfiguration = getLastAcceptedConfiguration();
-        if (lastAcceptedConfiguration.isEmpty() == false) {
+        if (!lastAcceptedConfiguration.isEmpty()) {
             logger.debug("setInitialState: rejecting since last-accepted configuration is nonempty: {}", lastAcceptedConfiguration);
             throw new CoordinationStateRejectedException(
                 "initial state already set: last-accepted configuration now " + lastAcceptedConfiguration);
@@ -146,14 +146,14 @@ public class CoordinationState {
         assert getLastCommittedConfiguration().isEmpty() : getLastCommittedConfiguration();
         assert lastPublishedVersion == 0 : lastPublishedVersion;
         assert lastPublishedConfiguration.isEmpty() : lastPublishedConfiguration;
-        assert electionWon == false;
+        assert !electionWon;
         assert joinVotes.isEmpty() : joinVotes;
         assert publishVotes.isEmpty() : publishVotes;
 
         assert initialState.term() == 0 : initialState + " should have term 0";
         assert initialState.version() == getLastAcceptedVersion() : initialState + " should have version " + getLastAcceptedVersion();
-        assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
-        assert initialState.getLastCommittedConfiguration().isEmpty() == false;
+        assert !initialState.getLastAcceptedConfiguration().isEmpty();
+        assert !initialState.getLastCommittedConfiguration().isEmpty();
 
         persistedState.setLastAcceptedState(initialState);
     }
@@ -175,9 +175,9 @@ public class CoordinationState {
 
         logger.debug("handleStartJoin: leaving term [{}] due to {}", getCurrentTerm(), startJoinRequest);
 
-        if (joinVotes.isEmpty() == false) {
+        if (!joinVotes.isEmpty()) {
             final String reason;
-            if (electionWon == false) {
+            if (!electionWon) {
                 reason = "failed election";
             } else if (startJoinRequest.getSourceNode().equals(localNode)) {
                 reason = "bumping term";
@@ -217,7 +217,7 @@ public class CoordinationState {
                 "incoming term " + join.getTerm() + " does not match current term " + getCurrentTerm());
         }
 
-        if (startedJoinSinceLastReboot == false) {
+        if (!startedJoinSinceLastReboot) {
             logger.debug("handleJoin: ignored join as term was not incremented yet after reboot");
             throw new CoordinationStateRejectedException("ignored join as term has not been incremented yet after reboot");
         }
@@ -256,7 +256,7 @@ public class CoordinationState {
         logger.debug("handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}", join,
             join.getSourceNode(), electionWon, lastAcceptedTerm, getLastAcceptedVersion());
 
-        if (electionWon && prevElectionWon == false) {
+        if (electionWon && !prevElectionWon) {
             logger.debug("handleJoin: election won in term [{}] with {}", getCurrentTerm(), joinVotes);
             lastPublishedVersion = getLastAcceptedVersion();
         }
@@ -271,7 +271,7 @@ public class CoordinationState {
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public PublishRequest handleClientValue(ClusterState clusterState) {
-        if (electionWon == false) {
+        if (!electionWon) {
             logger.debug("handleClientValue: ignored request as election not won");
             throw new CoordinationStateRejectedException("election not won");
         }
@@ -294,12 +294,12 @@ public class CoordinationState {
                 " lower or equal to last published version " + lastPublishedVersion);
         }
 
-        if (clusterState.getLastAcceptedConfiguration().equals(getLastAcceptedConfiguration()) == false
-            && getLastCommittedConfiguration().equals(getLastAcceptedConfiguration()) == false) {
+        if (!clusterState.getLastAcceptedConfiguration().equals(getLastAcceptedConfiguration())
+            && !getLastCommittedConfiguration().equals(getLastAcceptedConfiguration())) {
             logger.debug("handleClientValue: only allow reconfiguration while not already reconfiguring");
             throw new CoordinationStateRejectedException("only allow reconfiguration while not already reconfiguring");
         }
-        if (joinVotesHaveQuorumFor(clusterState.getLastAcceptedConfiguration()) == false) {
+        if (!joinVotesHaveQuorumFor(clusterState.getLastAcceptedConfiguration())) {
             logger.debug("handleClientValue: only allow reconfiguration if joinVotes have quorum for new config");
             throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
@@ -356,7 +356,7 @@ public class CoordinationState {
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
-        if (electionWon == false) {
+        if (!electionWon) {
             logger.debug("handlePublishResponse: ignored response as election not won");
             throw new CoordinationStateRejectedException("election not won");
         }
@@ -428,7 +428,7 @@ public class CoordinationState {
         } else {
             assert getLastPublishedVersion() == 0L;
         }
-        assert electionWon() == false || startedJoinSinceLastReboot;
+        assert !electionWon() || startedJoinSinceLastReboot;
         assert publishVotes.isEmpty() || electionWon();
     }
 
@@ -475,17 +475,17 @@ public class CoordinationState {
         default void markLastAcceptedStateAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
             MetaData.Builder metaDataBuilder = null;
-            if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
+            if (!lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration())) {
                 final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
                         .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
                         .build();
                 metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
                 metaDataBuilder.coordinationMetaData(coordinationMetaData);
             }
-            assert lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false :
+            assert !lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) :
                 "received cluster state with empty cluster uuid: " + lastAcceptedState;
-            if (lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false &&
-                lastAcceptedState.metaData().clusterUUIDCommitted() == false) {
+            if (!lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) &&
+                !lastAcceptedState.metaData().clusterUUIDCommitted()) {
                 if (metaDataBuilder == null) {
                     metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
                 }

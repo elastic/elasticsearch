@@ -35,7 +35,7 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
         GetDataFrameAnalyticsStatsAction.Request request = new GetDataFrameAnalyticsStatsAction.Request();
-        if (Strings.isNullOrEmpty(id) == false) {
+        if (!Strings.isNullOrEmpty(id)) {
             request.setId(id);
         }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

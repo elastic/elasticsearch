@@ -64,7 +64,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             throw new IllegalArgumentException("Expected start object but got [" + parser.currentToken() + "]");
         }
         if (parser.nextToken() != XContentParser.Token.FIELD_NAME
-                || CATEGORIZATION_ANALYZER.match(parser.currentName(), parser.getDeprecationHandler()) == false) {
+                || !CATEGORIZATION_ANALYZER.match(parser.currentName(), parser.getDeprecationHandler())) {
             throw new IllegalArgumentException("Expected [" + CATEGORIZATION_ANALYZER + "] field but got [" + parser.currentToken() + "]");
         }
         parser.nextToken();
@@ -128,7 +128,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                         }
                     }
                 // Be lenient when parsing cluster state - assume unknown fields are from future versions
-                } else if (ignoreUnknownFields == false) {
+                } else if (!ignoreUnknownFields) {
                     throw new IllegalArgumentException("Parameter [" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
                             "] is unknown or of the wrong type [" + token + "]");
                 }
@@ -223,7 +223,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             builder.field(CATEGORIZATION_ANALYZER.getPreferredName(), analyzer);
         } else {
             builder.startObject(CATEGORIZATION_ANALYZER.getPreferredName());
-            if (charFilters.isEmpty() == false) {
+            if (!charFilters.isEmpty()) {
                 builder.startArray(CHAR_FILTERS.getPreferredName());
                 for (NameOrDefinition charFilter : charFilters) {
                     charFilter.toXContent(builder, params);
@@ -233,7 +233,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             if (tokenizer != null) {
                 builder.field(TOKENIZER.getPreferredName(), tokenizer);
             }
-            if (tokenFilters.isEmpty() == false) {
+            if (!tokenFilters.isEmpty()) {
                 builder.startArray(TOKEN_FILTERS.getPreferredName());
                 for (NameOrDefinition tokenFilter : tokenFilters) {
                     tokenFilter.toXContent(builder, params);
@@ -321,7 +321,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                 throw new IllegalArgumentException(CATEGORIZATION_ANALYZER + " that is not a global analyzer must specify a ["
                         + TOKENIZER + "] field");
             }
-            if (analyzer != null && charFilters.isEmpty() == false) {
+            if (analyzer != null && !charFilters.isEmpty()) {
                 throw new IllegalArgumentException(CATEGORIZATION_ANALYZER + " that is a global analyzer cannot also specify a ["
                         + CHAR_FILTERS + "] field");
             }
@@ -329,7 +329,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                 throw new IllegalArgumentException(CATEGORIZATION_ANALYZER + " that is a global analyzer cannot also specify a ["
                         + TOKENIZER + "] field");
             }
-            if (analyzer != null && tokenFilters.isEmpty() == false) {
+            if (analyzer != null && !tokenFilters.isEmpty()) {
                 throw new IllegalArgumentException(CATEGORIZATION_ANALYZER + " that is a global analyzer cannot also specify a ["
                         + TOKEN_FILTERS + "] field");
             }

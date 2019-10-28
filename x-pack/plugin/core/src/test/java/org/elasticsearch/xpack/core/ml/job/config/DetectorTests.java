@@ -152,7 +152,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         }
         if (randomBoolean()) {
             detector.setPartitionFieldName(randomAlphaOfLengthBetween(6, 20));
-        } else if (randomBoolean() && Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function) == false) {
+        } else if (randomBoolean() && !Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function)) {
             detector.setOverFieldName(randomAlphaOfLengthBetween(6, 20));
         } else if (randomBoolean()) {
             detector.setByFieldName(randomAlphaOfLengthBetween(6, 20));
@@ -160,7 +160,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         if (randomBoolean()) {
             detector.setExcludeFrequent(randomFrom(Detector.ExcludeFrequent.values()));
         }
-        if (Detector.FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT.contains(function) == false && randomBoolean()) {
+        if (!Detector.FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT.contains(function) && randomBoolean()) {
             int size = randomInt(10);
             List<DetectionRule> rules = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
@@ -218,28 +218,28 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     private static void verifyFieldName(Detector.Builder detector, String character, boolean valid) {
         Detector.Builder updated = createDetectorWithSpecificFieldName(detector.build().getFieldName() + character);
-        if (valid == false) {
+        if (!valid) {
             expectThrows(ElasticsearchException.class , updated::build);
         }
     }
 
     private static void verifyByFieldName(Detector.Builder detector, String character, boolean valid) {
         detector.setByFieldName(detector.build().getByFieldName() + character);
-        if (valid == false) {
+        if (!valid) {
             expectThrows(ElasticsearchException.class , detector::build);
         }
     }
 
     private static void verifyOverFieldName(Detector.Builder detector, String character, boolean valid) {
         detector.setOverFieldName(detector.build().getOverFieldName() + character);
-        if (valid == false) {
+        if (!valid) {
             expectThrows(ElasticsearchException.class , detector::build);
         }
     }
 
     private static void verifyPartitionFieldName(Detector.Builder detector, String character, boolean valid) {
         detector.setPartitionFieldName(detector.build().getPartitionFieldName() + character);
-        if (valid == false) {
+        if (!valid) {
             expectThrows(ElasticsearchException.class , detector::build);
         }
     }

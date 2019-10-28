@@ -162,11 +162,11 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
         @Override
         public int ordValue() throws IOException {
-            if (hasValue == false) {
+            if (!hasValue) {
                 return substituteOrd;
             }
             int ord = in.ordValue();
-            if (exists == false && ord >= substituteOrd) {
+            if (!exists && ord >= substituteOrd) {
                 return ord + 1;
             } else {
                 return ord;
@@ -197,7 +197,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         public BytesRef lookupOrd(int ord) throws IOException {
             if (ord == substituteOrd) {
                 return substituteTerm;
-            } else if (exists == false && ord > substituteOrd) {
+            } else if (!exists && ord > substituteOrd) {
                 return in.lookupOrd(ord-1);
             } else {
                 return in.lookupOrd(ord);

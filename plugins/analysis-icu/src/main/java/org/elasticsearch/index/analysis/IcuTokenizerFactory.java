@@ -110,7 +110,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
         final Path path = env.configFile().resolve(filename);
         String rules = Files.readAllLines(path)
             .stream()
-            .filter((v) -> v.startsWith("#") == false)
+            .filter((v) -> !v.startsWith("#"))
             .collect(Collectors.joining("\n"));
 
         return new RuleBasedBreakIterator(rules.toString());

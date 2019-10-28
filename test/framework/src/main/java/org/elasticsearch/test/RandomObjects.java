@@ -215,7 +215,7 @@ public final class RandomObjects {
                     int numElements = randomIntBetween(random, 1, 5);
                     boolean object = random.nextBoolean();
                     int dataType = -1;
-                    if (object == false) {
+                    if (!object) {
                         dataType = randomDataType(random);
                     }
                     for (int j = 0; j < numElements; j++) {
@@ -277,7 +277,7 @@ public final class RandomObjects {
      */
     public static Tuple<ShardInfo, ShardInfo> randomShardInfo(Random random, boolean withShardFailures) {
         int total = randomIntBetween(random, 1, 10);
-        if (withShardFailures == false) {
+        if (!withShardFailures) {
             return Tuple.tuple(new ShardInfo(total, total), new ShardInfo(total, total));
         }
 

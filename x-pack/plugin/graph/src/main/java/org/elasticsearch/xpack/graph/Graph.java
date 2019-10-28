@@ -43,7 +43,7 @@ public class Graph extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.GRAPH, GraphUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.GRAPH, GraphInfoTransportAction.class);
-        if (false == enabled) {
+        if (!enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(
@@ -57,7 +57,7 @@ public class Graph extends Plugin implements ActionPlugin {
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (false == enabled) {
+        if (!enabled) {
             return emptyList();
         }
         return singletonList(new RestGraphAction(restController));

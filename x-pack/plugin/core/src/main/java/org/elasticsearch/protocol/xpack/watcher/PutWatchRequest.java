@@ -182,7 +182,7 @@ public final class PutWatchRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (id == null) {
             validationException = addValidationError("watch id is missing", validationException);
-        } else if (isValidId(id) == false) {
+        } else if (!isValidId(id)) {
             validationException = addValidationError("watch id contains whitespace", validationException);
         }
         if (source == null) {
@@ -206,6 +206,6 @@ public final class PutWatchRequest extends ActionRequest {
     }
 
     public static boolean isValidId(String id) {
-        return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();
+        return !Strings.isEmpty(id) && NO_WS_PATTERN.matcher(id).matches();
     }
 }

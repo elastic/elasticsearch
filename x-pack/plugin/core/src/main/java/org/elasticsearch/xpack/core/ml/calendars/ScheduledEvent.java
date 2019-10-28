@@ -253,7 +253,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
                         Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, Calendar.ID.getPreferredName()));
             }
 
-            if (startTime.isBefore(endTime) == false) {
+            if (!startTime.isBefore(endTime)) {
                 throw ExceptionsHelper.badRequestException("Event start time [" + startTime +
                                 "] must come before end time [" + endTime + "]");
             }

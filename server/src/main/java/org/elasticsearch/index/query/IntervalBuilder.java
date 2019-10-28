@@ -225,7 +225,7 @@ public class IntervalBuilder {
                 Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                 TokenStream ts = it.next();
                 clauses.addAll(analyzeTerms(ts));
-                assert it.hasNext() == false;
+                assert !it.hasNext();
             }
         }
         return clauses;

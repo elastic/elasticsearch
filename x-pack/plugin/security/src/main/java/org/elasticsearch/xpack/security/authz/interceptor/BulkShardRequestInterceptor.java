@@ -62,7 +62,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                     }
                 }
 
-                if (found == false) {
+                if (!found) {
                     logger.trace("intercepted bulk request for index [{}] without any update requests, continuing execution",
                         bulkItemRequest.index());
                 }

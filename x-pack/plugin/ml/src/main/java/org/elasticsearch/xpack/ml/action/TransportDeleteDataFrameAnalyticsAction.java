@@ -120,7 +120,7 @@ public class TransportDeleteDataFrameAnalyticsAction
                 if (bulkByScrollResponse.isTimedOut()) {
                     LOGGER.warn("[{}] DeleteByQuery for state timed out", id);
                 }
-                if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
                     LOGGER.warn("[{}] {} failures and {} conflicts encountered while runnint DeleteByQuery for state", id,
                         bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts());
                     for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {

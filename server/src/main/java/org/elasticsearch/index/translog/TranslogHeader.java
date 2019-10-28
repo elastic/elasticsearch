@@ -138,7 +138,7 @@ final class TranslogHeader {
             uuid.length = uuidLen;
             in.read(uuid.bytes, uuid.offset, uuid.length);
             final BytesRef expectedUUID = new BytesRef(translogUUID);
-            if (uuid.bytesEquals(expectedUUID) == false) {
+            if (!uuid.bytesEquals(expectedUUID)) {
                 throw new TranslogCorruptedException(
                     path.toString(),
                     "expected shard UUID " + expectedUUID + " but got: " + uuid +

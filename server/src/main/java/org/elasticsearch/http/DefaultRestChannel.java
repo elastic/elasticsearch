@@ -129,7 +129,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             httpChannel.sendResponse(httpResponse, listener);
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 Releasables.close(toClose);
             }
         }
@@ -158,7 +158,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private void addCookies(HttpResponse response) {
         if (settings.isResetCookies()) {
             List<String> cookies = request.getHttpRequest().strictCookies();
-            if (cookies.isEmpty() == false) {
+            if (!cookies.isEmpty()) {
                 for (String cookie : cookies) {
                     response.addHeader(SET_COOKIE, cookie);
                 }

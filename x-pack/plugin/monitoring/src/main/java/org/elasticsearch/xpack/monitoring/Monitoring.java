@@ -99,7 +99,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false) {
+        if (!enabled) {
             return Collections.singletonList(new MonitoringUsageServices(null, null));
         }
 
@@ -133,7 +133,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
-        if (false == enabled) {
+        if (!enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(
@@ -146,7 +146,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        if (false == enabled) {
+        if (!enabled) {
             return emptyList();
         }
         return singletonList(new RestMonitoringBulkAction(restController));

@@ -87,7 +87,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         final String[] nonMasterNodes =
                 StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                         .map(n -> n.value)
-                        .filter(n -> n.isMasterNode() == false)
+                        .filter(n -> !n.isMasterNode())
                         .map(DiscoveryNode::getId)
                         .toArray(String[]::new);
         assertThat(discoveryNodes.resolveNodes("_all", "master:false"), arrayContainingInAnyOrder(nonMasterNodes));
@@ -101,7 +101,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         final String[] coordinatorOnlyNodes =
                 StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                     .map(n -> n.value)
-                    .filter(n -> n.isDataNode() == false && n.isIngestNode() == false && n.isMasterNode() == false)
+                    .filter(n -> !n.isDataNode() && !n.isIngestNode() && !n.isMasterNode())
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 
@@ -160,7 +160,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertEquals(returnedNodes.size(), inputNodes.size());
         assertEquals(new HashSet<>(returnedNodes), new HashSet<>(inputNodes));
         final List<DiscoveryNode> sortedNodes = new ArrayList<>(returnedNodes);
-        Collections.sort(sortedNodes, Comparator.comparing(n -> n.isMasterNode() == false));
+        Collections.sort(sortedNodes, Comparator.comparing(n -> !n.isMasterNode()));
         assertEquals(sortedNodes, returnedNodes);
     }
 
@@ -251,13 +251,13 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         Set<DiscoveryNode> newNodes = new HashSet<>(nodesB);
         newNodes.removeAll(nodesA);
-        assertThat(delta.added(), equalTo(newNodes.isEmpty() == false));
+        assertThat(delta.added(), equalTo(!newNodes.isEmpty()));
         assertThat(delta.addedNodes(), containsInAnyOrder(newNodes.stream().collect(Collectors.toList()).toArray()));
         assertThat(delta.addedNodes().size(), equalTo(newNodes.size()));
 
         Set<DiscoveryNode> removedNodes = new HashSet<>(nodesA);
         removedNodes.removeAll(nodesB);
-        assertThat(delta.removed(), equalTo(removedNodes.isEmpty() == false));
+        assertThat(delta.removed(), equalTo(!removedNodes.isEmpty()));
         assertThat(delta.removedNodes(), containsInAnyOrder(removedNodes.stream().collect(Collectors.toList()).toArray()));
         assertThat(delta.removedNodes().size(), equalTo(removedNodes.size()));
     }

@@ -134,7 +134,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             success = true;
             return newService;
         } finally {
-            if (success == false) {
+            if (!success) {
                 newService.close();
             }
         }

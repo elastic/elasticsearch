@@ -172,7 +172,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         Set<String> unmappedIndices = new HashSet<>();
         Arrays.stream(indices).forEach(unmappedIndices::add);
         typeMap.values().stream().forEach((b) -> b.getIndices().stream().forEach(unmappedIndices::remove));
-        if (unmappedIndices.isEmpty() == false) {
+        if (!unmappedIndices.isEmpty()) {
             FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
             typeMap.put("unmapped", unmapped);
             for (String index : unmappedIndices) {

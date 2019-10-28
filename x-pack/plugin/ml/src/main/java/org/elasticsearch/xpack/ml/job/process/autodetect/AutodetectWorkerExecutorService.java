@@ -55,7 +55,7 @@ class AutodetectWorkerExecutorService extends AbstractExecutorService {
 
     @Override
     public boolean isShutdown() {
-        return running == false;
+        return !running;
     }
 
     @Override
@@ -80,7 +80,7 @@ class AutodetectWorkerExecutorService extends AbstractExecutorService {
         }
 
         boolean added = queue.offer(contextHolder.preserveContext(command));
-        if (added == false) {
+        if (!added) {
             throw new ElasticsearchStatusException("Unable to submit operation", RestStatus.TOO_MANY_REQUESTS);
         }
     }
@@ -101,7 +101,7 @@ class AutodetectWorkerExecutorService extends AbstractExecutorService {
 
             synchronized (this) {
                 // if shutdown with tasks pending notify the handlers
-                if (queue.isEmpty() == false) {
+                if (!queue.isEmpty()) {
                     List<Runnable> notExecuted = new ArrayList<>();
                     queue.drainTo(notExecuted);
 

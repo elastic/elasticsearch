@@ -154,7 +154,7 @@ public class JobConfigProvider {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
+                if (!getResponse.isExists()) {
                     jobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
                     return;
                 }
@@ -227,7 +227,7 @@ public class JobConfigProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
+                if (!getResponse.isExists()) {
                     updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
                     return;
                 }
@@ -291,7 +291,7 @@ public class JobConfigProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
+                if (!getResponse.isExists()) {
                     updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
                     return;
                 }
@@ -379,7 +379,7 @@ public class JobConfigProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
+                if (!getResponse.isExists()) {
                     if (errorIfMissing) {
                         listener.onFailure(ExceptionsHelper.missingJobException(jobId));
                     } else {
@@ -749,7 +749,7 @@ public class JobConfigProvider {
 
     private QueryBuilder buildQuery(String [] tokens, boolean excludeDeleting) {
         QueryBuilder jobQuery = new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
-        if (Strings.isAllOrWildcard(tokens) && excludeDeleting == false) {
+        if (Strings.isAllOrWildcard(tokens) && !excludeDeleting) {
             // match all
             return jobQuery;
         }
@@ -778,12 +778,12 @@ public class JobConfigProvider {
             }
         }
 
-        if (terms.isEmpty() == false) {
+        if (!terms.isEmpty()) {
             shouldQueries.should(new TermsQueryBuilder(Job.ID.getPreferredName(), terms));
             shouldQueries.should(new TermsQueryBuilder(Job.GROUPS.getPreferredName(), terms));
         }
 
-        if (shouldQueries.should().isEmpty() == false) {
+        if (!shouldQueries.should().isEmpty()) {
             boolQueryBuilder.filter(shouldQueries);
         }
 

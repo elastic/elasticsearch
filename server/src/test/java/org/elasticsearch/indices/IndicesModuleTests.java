@@ -231,7 +231,7 @@ public class IndicesModuleTests extends ESTestCase {
             new MapperPlugin() {
                 @Override
                 public Function<String, Predicate<String>> getFieldFilter() {
-                    return index -> field -> field.equals("hidden_field") == false;
+                    return index -> field -> !field.equals("hidden_field");
                 }
             },
             new MapperPlugin() {

@@ -774,7 +774,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      */
     private static void declareMetaDataFields(ObjectParser<Map<String, Object>, Void> parser) {
         for (String metadatafield : MapperService.getAllMetaFields()) {
-            if (metadatafield.equals(Fields._ID) == false && metadatafield.equals(Fields._INDEX) == false) {
+            if (!metadatafield.equals(Fields._ID) && !metadatafield.equals(Fields._INDEX)) {
                 if (metadatafield.equals(IgnoredFieldMapper.NAME)) {
                     parser.declareObjectArray((map, list) -> {
                             @SuppressWarnings("unchecked")

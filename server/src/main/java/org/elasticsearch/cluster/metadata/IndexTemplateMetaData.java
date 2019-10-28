@@ -374,7 +374,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             if (params.paramAsBoolean("reduce_mappings", false)) {
                 // The parameter include_type_name is only ever used in the REST API, where reduce_mappings is
                 // always set to true. We therefore only check for include_type_name in this branch.
-                if (includeTypeName == false) {
+                if (!includeTypeName) {
                     Map<String, Object> documentMapping = null;
                     for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
                         assert documentMapping == null;

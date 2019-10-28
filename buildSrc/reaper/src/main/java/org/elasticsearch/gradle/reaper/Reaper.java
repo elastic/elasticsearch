@@ -117,7 +117,7 @@ public class Reaper implements Closeable {
 
     @Override
     public void close() {
-        if (failed == false) {
+        if (!failed) {
             try (Stream<Path> stream = Files.walk(inputDir)){
                 stream.sorted(Comparator.reverseOrder()).forEach(this::delete);
             } catch (IOException e) {

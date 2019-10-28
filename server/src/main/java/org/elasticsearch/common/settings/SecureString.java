@@ -57,7 +57,7 @@ public final class SecureString implements CharSequence, Closeable {
     public synchronized boolean equals(Object o) {
         ensureNotClosed();
         if (this == o) return true;
-        if (o == null || o instanceof CharSequence == false) return false;
+        if (o == null || !(o instanceof CharSequence)) return false;
         CharSequence that = (CharSequence) o;
         if (chars.length != that.length()) {
             return false;

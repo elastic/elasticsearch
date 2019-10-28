@@ -79,7 +79,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     // if the id has been specified in the body and the path, they must match
                     if (id == null) {
                         id = optionalId;
-                    } else if (optionalId != null && id.equals(optionalId) == false) {
+                    } else if (optionalId != null && !id.equals(optionalId)) {
                         throw new IllegalArgumentException(
                                 TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_INCONSISTENT_ID, id, optionalId));
                     }
@@ -94,7 +94,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     // ignored, only for internal storage: String docType = (String) args[5];
 
                     // on strict parsing do not allow injection of headers, transform version, or create time
-                    if (lenient == false) {
+                    if (!lenient) {
                         validateStrictParsingParams(args[6], HEADERS.getPreferredName());
                         validateStrictParsingParams(args[9], TransformField.CREATE_TIME.getPreferredName());
                         validateStrictParsingParams(args[10], TransformField.VERSION.getPreferredName());
@@ -270,11 +270,11 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     }
 
     public boolean isValid() {
-        if (pivotConfig != null && pivotConfig.isValid() == false) {
+        if (pivotConfig != null && !pivotConfig.isValid()) {
             return false;
         }
 
-        if (syncConfig != null && syncConfig.isValid() == false) {
+        if (syncConfig != null && !syncConfig.isValid()) {
             return false;
         }
 
@@ -324,7 +324,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
             builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
         }
-        if (headers.isEmpty() == false && params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false) == true) {
+        if (!headers.isEmpty() && params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
         if (description != null) {

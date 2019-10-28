@@ -175,11 +175,11 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             sm.checkPermission(new SpecialPermission());
         }
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            if (false == Files.exists(AUDIT_LOG_FILE)) {
+            if (!Files.exists(AUDIT_LOG_FILE)) {
                 auditLogWrittenBeforeTestStart = 0;
                 return null;
             }
-            if (false == Files.isRegularFile(AUDIT_LOG_FILE)) {
+            if (!Files.isRegularFile(AUDIT_LOG_FILE)) {
                 throw new IllegalStateException("expected tests.audit.logfile [" + AUDIT_LOG_FILE + "] to be a plain file but wasn't");
             }
             try {
@@ -193,7 +193,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             // calls to auditLogs(), and the method could run while the audit file is rolled over.
             // If this happens, next call to auditLogs() will make the tests read from the rolled over file using the main audit file
             // offset, which will most likely not going to work since the offset will happen somewhere in the middle of a json line.
-            if (auditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
+            if (!auditFileRolledOver && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
                 // once the audit file rolled over, it will stay like this
                 auditFileRolledOver = true;
             }
@@ -586,7 +586,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                         try {
                             // the audit log file rolled over during the test
                             // and we need to consume the rest of the rolled over file plus the new audit log file
-                            if (localAuditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
+                            if (!localAuditFileRolledOver && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
                                 // once the audit file rolled over, it will stay like this
                                 auditFileRolledOver = true;
                                 // the order in the array matters, as the readers will be used in that order
@@ -627,14 +627,14 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                         else {
                             try {
                                 final Map<String, Object> log = XContentHelper.convertToMap(JsonXContent.jsonXContent, line, false);
-                                if (false == ("access_denied".equals(log.get("event.action"))
-                                        || "access_granted".equals(log.get("event.action")))) {
+                                if (!("access_denied".equals(log.get("event.action"))
+                                    || "access_granted".equals(log.get("event.action")))) {
                                     continue;
                                 }
                                 assertThat(log.containsKey("action"), is(true));
-                                if (false == (SQL_ACTION_NAME.equals(log.get("action"))
-                                              || GetIndexAction.NAME.equals(log.get("action"))
-                                              || FieldCapabilitiesAction.NAME.equals(log.get("action")))) {
+                                if (!(SQL_ACTION_NAME.equals(log.get("action"))
+                                    || GetIndexAction.NAME.equals(log.get("action"))
+                                    || FieldCapabilitiesAction.NAME.equals(log.get("action")))) {
                                     // TODO we may want to extend this and the assertions to SearchAction.NAME as well
                                     continue;
                                 }
@@ -675,11 +675,11 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                         }
                         notMatching.add(c);
                     }
-                    if (false == notMatching.isEmpty()) {
+                    if (!notMatching.isEmpty()) {
                         fail("Some checkers " + notMatching + " didn't match any logs. All logs:" + logsMessage(allLogs)
                             + "\nRemaining logs:" + logsMessage(logs));
                     }
-                    if (false == logs.isEmpty()) {
+                    if (!logs.isEmpty()) {
                         fail("Not all logs matched. Unmatched logs:" + logsMessage(logs));
                     }
                 });

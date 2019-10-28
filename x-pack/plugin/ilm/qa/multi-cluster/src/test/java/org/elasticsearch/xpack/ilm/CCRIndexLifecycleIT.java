@@ -297,7 +297,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             final StringBuilder aliases = new StringBuilder();
             boolean first = true;
             for (int i = 0; i < numberOfAliases; i++) {
-                if (first == false) {
+                if (!first) {
                     aliases.append(",");
                 }
                 final Boolean isWriteIndex = randomFrom(new Boolean[] { null, false, true });

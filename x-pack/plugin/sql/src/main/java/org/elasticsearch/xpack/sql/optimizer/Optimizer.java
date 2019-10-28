@@ -489,11 +489,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
-                else if (e instanceof ScalarFunction && false == Expressions.anyMatch(e.children(), c -> c instanceof FullTextPredicate)) {
+                else if (e instanceof ScalarFunction && !Expressions.anyMatch(e.children(), c -> c instanceof FullTextPredicate)) {
                     ScalarFunction sf = (ScalarFunction) e;
 
                     // if it's a unseen function check if the function children/arguments refers to any of the promoted aggs
-                    if (newAggIds.isEmpty() == false && !updatedScalarAttrs.containsKey(sf.functionId()) && e.anyMatch(c -> {
+                    if (!newAggIds.isEmpty() && !updatedScalarAttrs.containsKey(sf.functionId()) && e.anyMatch(c -> {
                         Attribute a = Expressions.attribute(c);
                         if (a instanceof FunctionAttribute) {
                             return newAggIds.contains(((FunctionAttribute) a).functionId());
@@ -908,7 +908,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // remove constants and put the items in reverse order so the iteration happens back to front
             List<Order> nonConstant = new LinkedList<>();
             for (Order o : order) {
-                if (o.child().foldable() == false) {
+                if (!o.child().foldable()) {
                     nonConstant.add(0, o);
                 }
             }
@@ -946,8 +946,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 }
                             });
                         }
-                        
-                        if (isMatching.get() == true) {
+
+                        if (isMatching.get()) {
                             // move grouping in front
                             groupings.remove(group);
                             groupings.add(0, group);
@@ -955,7 +955,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
-                if (groupings.equals(a.groupings()) == false) {
+                if (!groupings.equals(a.groupings())) {
                     return new Aggregate(a.source(), a.child(), groupings, a.aggregates());
                 }
 
@@ -1097,7 +1097,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // collect aliases in the lower list
             Map<Attribute, NamedExpression> map = new LinkedHashMap<>();
             for (NamedExpression ne : lower) {
-                if ((ne instanceof Attribute) == false) {
+                if (!(ne instanceof Attribute)) {
                     map.put(ne.toAttribute(), ne);
                 }
             }
@@ -1217,7 +1217,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
-            } else if (e instanceof Alias == false
+            } else if (!(e instanceof Alias)
                     && e.nullable() == Nullability.TRUE
                     && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
@@ -1253,7 +1253,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // exclude any nulls found
                 List<Expression> newChildren = new ArrayList<>();
                 for (Expression child : c.children()) {
-                    if (Expressions.isNull(child) == false) {
+                    if (!Expressions.isNull(child)) {
                         newChildren.add(child);
 
                         // For Coalesce find the first non-null foldable child (if any) and break early

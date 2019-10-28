@@ -305,7 +305,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.executeBulkItemRequest(
             context, null, threadPool::absoluteTimeInMillis,
-            errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
+            !errorOnWait ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
             errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
             new LatchedActionListener<>(new ActionListener<Void>() {
                 @Override

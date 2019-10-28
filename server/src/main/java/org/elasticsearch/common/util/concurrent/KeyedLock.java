@@ -164,7 +164,7 @@ public final class KeyedLock<T> {
      * Returns <code>true</code> if this lock has at least one locked key.
      */
     public boolean hasLockedKeys() {
-        return map.isEmpty() == false;
+        return !map.isEmpty();
     }
 
 }

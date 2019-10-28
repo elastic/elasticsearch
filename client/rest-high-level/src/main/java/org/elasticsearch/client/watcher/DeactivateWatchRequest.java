@@ -28,7 +28,7 @@ public class DeactivateWatchRequest implements Validatable {
 
     public DeactivateWatchRequest(String watchId) {
         Objects.requireNonNull(watchId, "watch id is missing");
-        if (PutWatchRequest.isValidId(watchId) == false) {
+        if (!PutWatchRequest.isValidId(watchId)) {
             throw new IllegalArgumentException("watch id contains whitespace");
         }
 

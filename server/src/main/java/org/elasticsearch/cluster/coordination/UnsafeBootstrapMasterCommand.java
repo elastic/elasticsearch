@@ -75,7 +75,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         Settings settings = env.settings();
         terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.master setting");
         Boolean master = Node.NODE_MASTER_SETTING.get(settings);
-        if (master == false) {
+        if (!master) {
             throw new ElasticsearchException(NOT_MASTER_NODE_MSG);
         }
 

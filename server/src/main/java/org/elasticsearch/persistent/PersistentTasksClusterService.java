@@ -119,7 +119,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 if (tasks != null) {
                     PersistentTask<?> task = tasks.getTask(taskId);
                     listener.onResponse(task);
-                    if (task != null && task.isAssigned() == false && periodicRechecker.isScheduled() == false) {
+                    if (task != null && !task.isAssigned() && !periodicRechecker.isScheduled()) {
                         periodicRechecker.rescheduleIfNecessary();
                     }
                 } else {
@@ -358,7 +358,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             return false;
         }
 
-        boolean masterChanged = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+        boolean masterChanged = !event.previousState().nodes().isLocalNodeElectedMaster();
 
         if (persistentTasksChanged(event)
             || event.nodesChanged()
@@ -369,7 +369,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             for (PersistentTask<?> task : tasks.tasks()) {
                 if (needsReassignment(task.getAssignment(), event.state().nodes())) {
                     Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), event.state());
-                    if (Objects.equals(assignment, task.getAssignment()) == false) {
+                    if (!Objects.equals(assignment, task.getAssignment())) {
                         return true;
                     }
                 }
@@ -382,7 +382,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * Returns true if any persistent task is unassigned.
      */
     private boolean isAnyTaskUnassigned(final PersistentTasksCustomMetaData tasks) {
-        return tasks != null && tasks.tasks().stream().anyMatch(task -> task.getAssignment().isAssigned() == false);
+        return tasks != null && tasks.tasks().stream().anyMatch(task -> !task.getAssignment().isAssigned());
     }
 
     /**
@@ -403,7 +403,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             for (PersistentTask<?> task : tasks.tasks()) {
                 if (needsReassignment(task.getAssignment(), nodes)) {
                     Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), clusterState);
-                    if (Objects.equals(assignment, task.getAssignment()) == false) {
+                    if (!Objects.equals(assignment, task.getAssignment())) {
                         logger.trace("reassigning task {} from node {} to node {}", task.getId(),
                                 task.getAssignment().getExecutorNode(), assignment.getExecutorNode());
                         clusterState = update(clusterState, builder(clusterState).reassignTask(task.getId(), assignment));
@@ -421,12 +421,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /** Returns true if the persistent tasks are not equal between the previous and the current cluster state **/
     static boolean persistentTasksChanged(final ClusterChangedEvent event) {
         String type = PersistentTasksCustomMetaData.TYPE;
-        return Objects.equals(event.state().metaData().custom(type), event.previousState().metaData().custom(type)) == false;
+        return !Objects.equals(event.state().metaData().custom(type), event.previousState().metaData().custom(type));
     }
 
     /** Returns true if the task is not assigned or is assigned to a non-existing node */
     public static boolean needsReassignment(final Assignment assignment, final DiscoveryNodes nodes) {
-        return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
+        return (!assignment.isAssigned() || !nodes.nodeExists(assignment.getExecutorNode()));
     }
 
     private static PersistentTasksCustomMetaData.Builder builder(ClusterState currentState) {

@@ -267,7 +267,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
             equalTo(ShardRoutingState.STARTED));
 
-        if (closed == false) {
+        if (!closed) {
             client().prepareIndex("test").setId("1").setSource("field", "value")
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }

@@ -73,7 +73,7 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
     protected void masterOperation(Task task, Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         final PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null && request.isForce() == false) {
+        if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null && !request.isForce()) {
             listener.onFailure(new ElasticsearchStatusException("Cannot delete transform [" + request.getId() +
                     "] as the task is running. Stop the task first", RestStatus.CONFLICT));
         } else {

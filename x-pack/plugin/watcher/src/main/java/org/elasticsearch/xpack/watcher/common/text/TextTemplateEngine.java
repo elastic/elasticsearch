@@ -32,7 +32,7 @@ public class TextTemplateEngine {
         String mediaType = compileParams(detectContentType(template));
         template = trimContentType(textTemplate);
 
-        if (textTemplate.isUsingMustache() == false) {
+        if (!textTemplate.isUsingMustache()) {
             return template;
         }
 

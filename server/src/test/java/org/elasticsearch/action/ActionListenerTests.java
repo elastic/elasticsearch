@@ -85,7 +85,7 @@ public class ActionListenerTests extends ESTestCase {
 
         ActionListener.onResponse(listeners, Boolean.TRUE);
         for (int i = 0; i < numListeners; i++) {
-            if (failOnTrue.get(i) == false) {
+            if (!failOnTrue.get(i)) {
                 assertTrue("listener index " + i, refList.get(i).get());
                 refList.get(i).set(null);
             } else {
@@ -95,7 +95,7 @@ public class ActionListenerTests extends ESTestCase {
         }
 
         for (int i = 0; i < numListeners; i++) {
-            if (failOnTrue.get(i) == false) {
+            if (!failOnTrue.get(i)) {
                 assertNull("listener index " + i, excList.get(i).get());
             } else {
                 assertEquals("listener index " + i, "must not be true", excList.get(i).get().getMessage());

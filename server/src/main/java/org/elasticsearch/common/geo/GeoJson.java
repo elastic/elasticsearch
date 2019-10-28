@@ -176,7 +176,7 @@ public final class GeoJson {
 
             private XContentBuilder coordinatesToXContent(double lat, double lon, double alt) throws IOException {
                 builder.startArray().value(lon).value(lat);
-                if (Double.isNaN(alt) == false) {
+                if (!Double.isNaN(alt)) {
                     builder.value(alt);
                 }
                 return builder.endArray();
@@ -319,7 +319,7 @@ public final class GeoJson {
         List<CoordinateNode> nodes = new ArrayList<>();
         while (token != XContentParser.Token.END_ARRAY) {
             CoordinateNode node = parseCoordinates(parser);
-            if (nodes.isEmpty() == false && nodes.get(0).numDimensions() != node.numDimensions()) {
+            if (!nodes.isEmpty() && nodes.get(0).numDimensions() != node.numDimensions()) {
                 throw new ElasticsearchParseException("Exception parsing coordinates: number of dimensions do not match");
             }
             nodes.add(node);
@@ -499,7 +499,7 @@ public final class GeoJson {
 
             boolean needsClosing;
             int resultSize;
-            if (close && coerce && children.get(0).asPoint().equals(children.get(children.size() - 1).asPoint()) == false) {
+            if (close && coerce && !children.get(0).asPoint().equals(children.get(children.size() - 1).asPoint())) {
                 needsClosing = true;
                 resultSize = children.size() + 1;
             } else {

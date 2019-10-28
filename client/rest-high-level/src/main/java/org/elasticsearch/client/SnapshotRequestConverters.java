@@ -61,7 +61,7 @@ final class SnapshotRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(putRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(putRepositoryRequest.timeout());
-        if (putRepositoryRequest.verify() == false) {
+        if (!putRepositoryRequest.verify()) {
             parameters.putParam("verify", "false");
         }
         request.addParameters(parameters.asMap());

@@ -121,7 +121,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (super.equals(o) == false) {
+            if (!super.equals(o)) {
                 return false;
             }
             RankFeatureFieldType other = (RankFeatureFieldType) o;
@@ -211,7 +211,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
                 name() + "] in the same document");
         }
 
-        if (fieldType().positiveScoreImpact() == false) {
+        if (!fieldType().positiveScoreImpact()) {
             value = 1 / value;
         }
 
@@ -227,7 +227,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().positiveScoreImpact() == false) {
+        if (includeDefaults || !fieldType().positiveScoreImpact()) {
             builder.field("positive_score_impact", fieldType().positiveScoreImpact());
         }
     }

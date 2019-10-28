@@ -143,7 +143,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
         try {
             runInternal();
         } catch (Exception ex) {
-            if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
+            if (lastThrownException == null || !sameException(lastThrownException, ex)) {
                 // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
                 logger.warn(
                     () -> new ParameterizedMessage(
@@ -166,7 +166,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
                 StackTraceElement[] stackTraceRight = right.getStackTrace();
                 if (stackTraceLeft.length == stackTraceRight.length) {
                     for (int i = 0; i < stackTraceLeft.length; i++) {
-                        if (stackTraceLeft[i].equals(stackTraceRight[i]) == false) {
+                        if (!stackTraceLeft[i].equals(stackTraceRight[i])) {
                             return false;
                         }
                     }

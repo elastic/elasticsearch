@@ -226,7 +226,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 concreteIndexName, indexHealth, indexState);
         this.indexState = newState;
 
-        if (newState.equals(previousState) == false) {
+        if (!newState.equals(previousState)) {
             for (BiConsumer<State, State> listener : stateChangeListeners) {
                 listener.accept(previousState, newState);
             }
@@ -244,7 +244,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             return false;
         }
         final IndexRoutingTable routingTable = state.routingTable().index(metaData.getIndex());
-        if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+        if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
             logger.debug("Index [{}] is not yet active", aliasName);
             return false;
         } else {
@@ -329,7 +329,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     public void checkIndexVersionThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
-        if (indexState.indexExists() && indexState.isIndexUpToDate == false) {
+        if (indexState.indexExists() && !indexState.isIndexUpToDate) {
             consumer.accept(new IllegalStateException(
                     "Index [" + indexState.concreteIndexName + "] is not on the current version. Security features relying on the index"
                             + " will not be available until the upgrade API is run on the index"));
@@ -350,10 +350,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                 throw new ElasticsearchStatusException(
                         "Cluster state has not been recovered yet, cannot write to the [" + indexState.concreteIndexName + "] index",
                         RestStatus.SERVICE_UNAVAILABLE);
-            } else if (indexState.indexExists() && indexState.isIndexUpToDate == false) {
+            } else if (indexState.indexExists() && !indexState.isIndexUpToDate) {
                 throw new IllegalStateException("Index [" + indexState.concreteIndexName + "] is not on the current version."
                         + "Security features relying on the index will not be available until the upgrade API is run on the index");
-            } else if (indexState.indexExists() == false) {
+            } else if (!indexState.indexExists()) {
                 assert indexState.concreteIndexName != null;
                 logger.info("security index does not exist. Creating [{}] with alias [{}]", indexState.concreteIndexName, this.aliasName);
                 final byte[] mappingSource = mappingSourceSupplier.get();
@@ -386,7 +386,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                         }
                     }
                 }, client.admin().indices()::create);
-            } else if (indexState.mappingUpToDate == false) {
+            } else if (!indexState.mappingUpToDate) {
                 logger.info("Index [{}] (alias [{}]) is not up to date. Updating mapping", indexState.concreteIndexName, this.aliasName);
                 final byte[] mappingSource = mappingSourceSupplier.get();
                 final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);

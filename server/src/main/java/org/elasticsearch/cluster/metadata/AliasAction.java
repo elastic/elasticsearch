@@ -30,7 +30,7 @@ public abstract class AliasAction {
     private final String index;
 
     private AliasAction(String index) {
-        if (false == Strings.hasText(index)) {
+        if (!Strings.hasText(index)) {
             throw new IllegalArgumentException("[index] is required");
         }
         this.index = index;
@@ -91,7 +91,7 @@ public abstract class AliasAction {
         public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting,
                    @Nullable String searchRouting, @Nullable Boolean writeIndex) {
             super(index);
-            if (false == Strings.hasText(alias)) {
+            if (!Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
             this.alias = alias;
@@ -147,7 +147,7 @@ public abstract class AliasAction {
          */
         public Remove(String index, String alias) {
             super(index);
-            if (false == Strings.hasText(alias)) {
+            if (!Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
             this.alias = alias;
@@ -167,7 +167,7 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
-            if (false == index.getAliases().containsKey(alias)) {
+            if (!index.getAliases().containsKey(alias)) {
                 return false;
             }
             metadata.put(IndexMetaData.builder(index).removeAlias(alias));

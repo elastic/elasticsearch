@@ -163,7 +163,7 @@ public class PluginsService {
 
         // Checking expected plugins
         List<String> mandatoryPlugins = MANDATORY_SETTING.get(settings);
-        if (mandatoryPlugins.isEmpty() == false) {
+        if (!mandatoryPlugins.isEmpty()) {
             Set<String> missingPlugins = new HashSet<>();
             for (String mandatoryPlugin : mandatoryPlugins) {
                 if (!pluginsNames.contains(mandatoryPlugin) && !missingPlugins.contains(mandatoryPlugin)) {
@@ -248,7 +248,7 @@ public class PluginsService {
                 for (Path jar : jarStream) {
                     // normalize with toRealPath to get symlinks out of our hair
                     URL url = jar.toRealPath().toUri().toURL();
-                    if (urls.add(url) == false) {
+                    if (!urls.add(url)) {
                         throw new IllegalStateException("duplicate codebase: " + url);
                     }
                 }
@@ -287,7 +287,7 @@ public class PluginsService {
                         plugin.getFileName().toString().startsWith(".removing-")) {
                         continue;
                     }
-                    if (seen.add(plugin.getFileName().toString()) == false) {
+                    if (!seen.add(plugin.getFileName().toString())) {
                         throw new IllegalStateException("duplicate plugin: " + plugin);
                     }
                     plugins.add(plugin);
@@ -301,7 +301,7 @@ public class PluginsService {
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
     static void verifyCompatibility(PluginInfo info) {
-        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+        if (!info.getElasticsearchVersion().equals(Version.CURRENT)) {
             throw new IllegalArgumentException("Plugin [" + info.getName() + "] was built for Elasticsearch version "
                 + info.getElasticsearchVersion() + " but version " + Version.CURRENT + " is running");
         }
@@ -361,7 +361,7 @@ public class PluginsService {
                                             " directory [" + plugin.getFileName() + "]", e);
         }
         final Bundle bundle = new Bundle(info, plugin);
-        if (bundles.add(bundle) == false) {
+        if (!bundles.add(bundle)) {
             throw new IllegalStateException("duplicate " + type + ": " + info);
         }
         return bundle;
@@ -450,14 +450,14 @@ public class PluginsService {
 
                 Set<URL> intersection = new HashSet<>(urls);
                 intersection.retainAll(pluginUrls);
-                if (intersection.isEmpty() == false) {
+                if (!intersection.isEmpty()) {
                     throw new IllegalStateException("jar hell! extended plugins " + exts +
                                                     " have duplicate codebases with each other: " + intersection);
                 }
 
                 intersection = new HashSet<>(bundle.urls);
                 intersection.retainAll(pluginUrls);
-                if (intersection.isEmpty() == false) {
+                if (!intersection.isEmpty()) {
                     throw new IllegalStateException("jar hell! duplicate codebases with extended plugin [" +
                                                     extendedPlugin + "]: " + intersection);
                 }
@@ -473,7 +473,7 @@ public class PluginsService {
             // check we don't have conflicting codebases with core
             Set<URL> intersection = new HashSet<>(classpath);
             intersection.retainAll(bundle.urls);
-            if (intersection.isEmpty() == false) {
+            if (!intersection.isEmpty()) {
                 throw new IllegalStateException("jar hell! duplicate codebases between plugin and core: " + intersection);
             }
             // check we don't have conflicting classes
@@ -495,7 +495,7 @@ public class PluginsService {
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
             Plugin extendedPlugin = loaded.get(extendedPluginName);
             assert extendedPlugin != null;
-            if (ExtensiblePlugin.class.isInstance(extendedPlugin) == false) {
+            if (!ExtensiblePlugin.class.isInstance(extendedPlugin)) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
             }
             extendedLoaders.add(extendedPlugin.getClass().getClassLoader());

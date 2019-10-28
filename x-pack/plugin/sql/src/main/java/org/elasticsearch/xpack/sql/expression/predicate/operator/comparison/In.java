@@ -116,7 +116,7 @@ public class In extends ScalarFunction {
         }
 
         for (Expression ex : list) {
-            if (ex.foldable() == false) {
+            if (!ex.foldable()) {
                 return new TypeResolution(format(null, "Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
                     Expressions.name(ex),
                     name()));
@@ -126,7 +126,7 @@ public class In extends ScalarFunction {
         DataType dt = value.dataType();
         for (int i = 0; i < list.size(); i++) {
             Expression listValue = list.get(i);
-            if (areTypesCompatible(dt, listValue.dataType()) == false) {
+            if (!areTypesCompatible(dt, listValue.dataType())) {
                 return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
                     ordinal(i + 1),
                     sourceText(),

@@ -161,8 +161,8 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
         switch (randomIntBetween(0, 3)) {
             case 0:
-                Predicate<String> predicate = s -> s.equals(instance.getFieldName()) == false && s.equals(GEO_POINT_FIELD_NAME) == false
-                    && s.equals(GEO_SHAPE_FIELD_NAME) == false;
+                Predicate<String> predicate = s -> !s.equals(instance.getFieldName()) && !s.equals(GEO_POINT_FIELD_NAME)
+                    && !s.equals(GEO_SHAPE_FIELD_NAME);
                 fieldName = randomValueOtherThanMany(predicate, () -> randomFrom(MAPPED_FIELD_NAMES));
                 values = randomValues(fieldName);
                 break;

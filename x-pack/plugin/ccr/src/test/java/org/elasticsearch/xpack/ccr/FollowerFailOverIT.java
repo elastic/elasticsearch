@@ -65,9 +65,9 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         Semaphore availableDocs = new Semaphore(0);
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
-                while (stopped.get() == false) {
+                while (!stopped.get()) {
                     try {
-                        if (availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS) == false) {
+                        if (!availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS)) {
                             continue;
                         }
                     } catch (InterruptedException e) {
@@ -132,7 +132,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
             int counter = 0;
             while (run.get()) {
                 try {
-                    if (availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS) == false) {
+                    if (!availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS)) {
                         continue;
                     }
                 } catch (InterruptedException e) {
@@ -187,7 +187,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         AtomicInteger docID = new AtomicInteger();
         boolean appendOnly = randomBoolean();
         Thread indexingOnLeader = new Thread(() -> {
-            while (stopped.get() == false) {
+            while (!stopped.get()) {
                 try {
                     if (appendOnly) {
                         String id = Integer.toString(docID.incrementAndGet());
@@ -206,7 +206,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         });
         indexingOnLeader.start();
         Thread flushingOnFollower = new Thread(() -> {
-            while (stopped.get() == false) {
+            while (!stopped.get()) {
                 try {
                     if (rarely()) {
                         followerClient().admin().indices().prepareFlush("follower-index").get();

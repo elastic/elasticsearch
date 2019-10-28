@@ -45,7 +45,7 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
         if (truncateTo == null || timestamp == null) {
             return null;
         }
-        if (truncateTo instanceof String == false) {
+        if (!(truncateTo instanceof String)) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", truncateTo);
         }
         Part truncateDateField = Part.resolve((String) truncateTo);
@@ -60,7 +60,7 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
             }
         }
 
-        if (timestamp instanceof ZonedDateTime == false) {
+        if (!(timestamp instanceof ZonedDateTime)) {
             throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", timestamp);
         }
 

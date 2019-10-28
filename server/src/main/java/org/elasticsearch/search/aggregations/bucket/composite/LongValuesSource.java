@@ -76,7 +76,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         if (missingBucket && missingCurrentValue) {
             bits.clear(slot);
         } else {
-            assert missingCurrentValue == false;
+            assert !missingCurrentValue;
             if (missingBucket) {
                 bits.set(slot);
             }
@@ -87,9 +87,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     int compare(int from, int to) {
         if (missingBucket) {
-            if (bits.get(from) == false) {
+            if (!bits.get(from)) {
                 return bits.get(to) ? -1 * reverseMul : 0;
-            } else if (bits.get(to) == false) {
+            } else if (!bits.get(to)) {
                 return reverseMul;
             }
         }
@@ -101,7 +101,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         if (missingBucket) {
             if (missingCurrentValue) {
                 return bits.get(slot) ? -1 * reverseMul : 0;
-            } else if (bits.get(slot) == false) {
+            } else if (!bits.get(slot)) {
                 return reverseMul;
             }
         }
@@ -122,7 +122,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     int hashCode(int slot) {
-        if (missingBucket && bits.get(slot) == false) {
+        if (missingBucket && !bits.get(slot)) {
             return 0;
         } else {
             return Long.hashCode(values.get(slot));
@@ -159,7 +159,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     Long toComparable(int slot) {
-        if (missingBucket && bits.get(slot) == false) {
+        if (missingBucket && !bits.get(slot)) {
             return null;
         }
         return values.get(slot);
@@ -234,8 +234,8 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
+        if (!checkIfSortedDocsIsApplicable(reader, fieldType) ||
+            !checkMatchAllOrRangeQuery(query, fieldType.name())) {
             return null;
         }
         final byte[] lowerPoint;

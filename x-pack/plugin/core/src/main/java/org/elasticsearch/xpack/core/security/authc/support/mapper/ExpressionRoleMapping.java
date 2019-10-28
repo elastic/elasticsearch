@@ -227,14 +227,14 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean indexFormat) throws IOException {
         builder.startObject();
         builder.field(Fields.ENABLED.getPreferredName(), enabled);
-        if (roles.isEmpty() == false) {
+        if (!roles.isEmpty()) {
             builder.startArray(Fields.ROLES.getPreferredName());
             for (String r : roles) {
                 builder.value(r);
             }
             builder.endArray();
         }
-        if (roleTemplates.isEmpty() == false) {
+        if (!roleTemplates.isEmpty()) {
             builder.startArray(Fields.ROLE_TEMPLATES.getPreferredName());
             for (TemplateRoleName r : roleTemplates) {
                 builder.value(r);

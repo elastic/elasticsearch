@@ -331,7 +331,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         boolean compatible = onOrAfter(version.minimumCompatibilityVersion())
             && version.onOrAfter(minimumCompatibilityVersion());
 
-        assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
+        assert !compatible || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
         return compatible;
     }
 
@@ -387,7 +387,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final List<Version> versions = new ArrayList<>(fields.length);
         for (final Field field : fields) {
             final int mod = field.getModifiers();
-            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
+            if (!Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
                 continue;
             }
             if (field.getType() != Version.class) {

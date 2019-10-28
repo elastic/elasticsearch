@@ -97,8 +97,8 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         boolean isWatcherStoppedManually = isWatcherStoppedManually(event.state());
         boolean isStoppedOrStopping = stopStates.contains(this.state.get());
         // if this is not a data node, we need to start it ourselves possibly
-        if (event.state().nodes().getLocalNode().isDataNode() == false &&
-            isWatcherStoppedManually == false && isStoppedOrStopping) {
+        if (!event.state().nodes().getLocalNode().isDataNode() &&
+            !isWatcherStoppedManually && isStoppedOrStopping) {
             this.state.set(WatcherState.STARTING);
             watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
             return;
@@ -157,7 +157,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             .sorted(Comparator.comparing(ShardRouting::hashCode))
             .collect(Collectors.toList());
 
-        if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
+        if (!previousShardRoutings.get().equals(localAffectedShardRoutings)) {
             if (watcherService.validate(event.state())) {
                 previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
@@ -195,7 +195,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
      */
     private boolean clearAllocationIds() {
         List<ShardRouting> previousIds = previousShardRoutings.getAndSet(Collections.emptyList());
-        return previousIds.isEmpty() == false;
+        return !previousIds.isEmpty();
     }
 
     // for testing purposes only

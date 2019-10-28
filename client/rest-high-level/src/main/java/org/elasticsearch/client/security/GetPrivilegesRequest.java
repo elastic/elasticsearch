@@ -35,7 +35,7 @@ public final class GetPrivilegesRequest implements Validatable {
     private final String[] privilegeNames;
 
     public GetPrivilegesRequest(@Nullable final String applicationName, @Nullable final String... privilegeNames) {
-        if ((CollectionUtils.isEmpty(privilegeNames) == false) && Strings.isNullOrEmpty(applicationName)) {
+        if ((!CollectionUtils.isEmpty(privilegeNames)) && Strings.isNullOrEmpty(applicationName)) {
             throw new IllegalArgumentException("privilege cannot be specified when application is missing");
         }
         this.applicationName = applicationName;

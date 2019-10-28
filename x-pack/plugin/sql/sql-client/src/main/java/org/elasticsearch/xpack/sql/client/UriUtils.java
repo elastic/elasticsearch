@@ -58,7 +58,7 @@ public final class UriUtils {
             }
         } else {
             // We managed to parse URI and all necessary pieces are present, let's make sure the scheme is correct
-            if ("http".equals(uri.getScheme()) == false && "https".equals(uri.getScheme()) == false) {
+            if (!"http".equals(uri.getScheme()) && !"https".equals(uri.getScheme())) {
                 throw new IllegalArgumentException(
                         "Invalid connection configuration [" + connectionString + "]: Only http and https protocols are supported");
             }
@@ -84,11 +84,11 @@ public final class UriUtils {
         if (segment == null || segment.isEmpty() || "/".equals(segment)) {
             return uri;
         }
-        
+
         String path = uri.getPath();
         String concatenatedPath = "";
         String cleanSegment = segment.startsWith("/") ? segment.substring(1) : segment;
-        
+
         if (path == null || path.isEmpty()) {
             path = "/";
         }

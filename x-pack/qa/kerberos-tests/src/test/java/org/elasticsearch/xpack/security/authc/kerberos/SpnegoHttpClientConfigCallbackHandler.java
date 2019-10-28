@@ -208,7 +208,7 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
 
         @Override
         public void setCredentials(AuthScope authscope, Credentials credentials) {
-            if (authscope.getScheme().regionMatches(true, 0, AuthSchemes.SPNEGO, 0, AuthSchemes.SPNEGO.length()) == false) {
+            if (!authscope.getScheme().regionMatches(true, 0, AuthSchemes.SPNEGO, 0, AuthSchemes.SPNEGO.length())) {
                 throw new IllegalArgumentException("Only " + AuthSchemes.SPNEGO + " auth scheme is supported in AuthScope");
             }
             this.authScope = authscope;

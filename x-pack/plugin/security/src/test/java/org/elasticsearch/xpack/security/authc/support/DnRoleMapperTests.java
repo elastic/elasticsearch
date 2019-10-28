@@ -73,7 +73,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         env = TestEnvironment.newEnvironment(settings);
-        if (Files.exists(env.configFile()) == false) {
+        if (!Files.exists(env.configFile())) {
             Files.createDirectory(env.configFile());
         }
         threadPool = new TestThreadPool("test");

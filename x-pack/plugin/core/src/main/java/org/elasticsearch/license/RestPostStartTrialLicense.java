@@ -47,7 +47,7 @@ public class RestPostStartTrialLicense extends BaseRestHandler {
                         }
 
                         Map<String, String[]> acknowledgementMessages = response.getAcknowledgementMessages();
-                        if (acknowledgementMessages.isEmpty() == false) {
+                        if (!acknowledgementMessages.isEmpty()) {
                             builder.startObject("acknowledge");
                             builder.field("message", response.getAcknowledgementMessage());
                             for (Map.Entry<String, String[]> entry : acknowledgementMessages.entrySet()) {

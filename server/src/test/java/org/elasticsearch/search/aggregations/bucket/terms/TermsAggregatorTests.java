@@ -596,7 +596,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             boolean multiValued = randomBoolean();
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                if (multiValued == false) {
+                if (!multiValued) {
                     for (Map.Entry<T, Integer> entry : counts.entrySet()) {
                         for (int i = 0; i < entry.getValue(); i++) {
                             Document document = new Document();
@@ -647,7 +647,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         comparator = Comparator.comparing(Map.Entry::getValue);
                         comparator = comparator.thenComparing(Comparator.comparing(Map.Entry::getKey, keyComparator));
                     }
-                    if (order == false) {
+                    if (!order) {
                         comparator = comparator.reversed();
                     }
                     expectedBuckets.sort(comparator);
@@ -682,7 +682,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         assertEquals(expected.getValue().longValue(), actual.getDocCount());
                     }
 
-                    if (multiValued == false) {
+                    if (!multiValued) {
                         aggregationBuilder = new FilterAggregationBuilder("_name1", QueryBuilders.termQuery("include", "yes"));
                         aggregationBuilder.subAggregation(new TermsAggregationBuilder("_name2", valueType)
                             .executionHint(executionHint)
@@ -739,7 +739,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     expectedBuckets.addAll(counts.entrySet());
                     BucketOrder bucketOrder = BucketOrder.aggregation("_max", order);
                     Comparator<Map.Entry<T, Long>> comparator = Comparator.comparing(Map.Entry::getValue, Long::compareTo);
-                    if (order == false) {
+                    if (!order) {
                         comparator = comparator.reversed();
                     }
                     expectedBuckets.sort(comparator);

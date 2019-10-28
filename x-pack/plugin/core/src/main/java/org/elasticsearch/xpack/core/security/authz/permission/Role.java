@@ -216,7 +216,7 @@ public class Role {
         public Builder cluster(Set<String> privilegeNames, Iterable<ConfigurableClusterPrivilege> configurableClusterPrivileges) {
             ClusterPermission.Builder builder = ClusterPermission.builder();
             List<ClusterPermission> clusterPermissions = new ArrayList<>();
-            if (privilegeNames.isEmpty() == false) {
+            if (!privilegeNames.isEmpty()) {
                 for (String name : privilegeNames) {
                     builder = ClusterPrivilegeResolver.resolve(name).buildPermission(builder);
                 }

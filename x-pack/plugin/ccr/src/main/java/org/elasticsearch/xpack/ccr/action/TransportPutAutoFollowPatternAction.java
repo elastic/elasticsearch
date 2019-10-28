@@ -75,7 +75,7 @@ public class TransportPutAutoFollowPatternAction extends
     protected void masterOperation(Task task, PutAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
-        if (ccrLicenseChecker.isCcrAllowed() == false) {
+        if (!ccrLicenseChecker.isCcrAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
@@ -188,7 +188,7 @@ public class TransportPutAutoFollowPatternAction extends
 
         final List<String> newPatterns = leaderIndexPatterns
             .stream()
-            .filter(p -> previousPattern.getLeaderIndexPatterns().contains(p) == false)
+            .filter(p -> !previousPattern.getLeaderIndexPatterns().contains(p))
             .collect(Collectors.toList());
         markExistingIndicesAsAutoFollowed(newPatterns, leaderMetaData, followedIndexUUIDS);
     }

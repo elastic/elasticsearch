@@ -397,7 +397,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ListTasksResponse listTasksResponse = followerClient().admin().cluster().listTasks(listTasksRequest).get();
             int numNodeTasks = 0;
             for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
+                if (!taskInfo.getAction().startsWith(ListTasksAction.NAME)) {
                     numNodeTasks++;
                 }
             }
@@ -484,7 +484,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     Sets.newHashSet(fe.getValue()), Sets.newHashSet(docsOnLeader.getOrDefault(fe.getKey(), Collections.emptyList())));
                 Set<DocIdSeqNoAndSource> d2 = Sets.difference(
                     Sets.newHashSet(docsOnLeader.getOrDefault(fe.getKey(), Collections.emptyList())), Sets.newHashSet(fe.getValue()));
-                if (d1.isEmpty() == false || d2.isEmpty() == false) {
+                if (!d1.isEmpty() || !d2.isEmpty()) {
                     mismatchedDocs.put(fe.getKey(), Sets.union(d1, d2));
                 }
             }
@@ -517,7 +517,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         Randomness.shuffle(shardRoutings);
         final Map<Integer, List<DocIdSeqNoAndSource>> docs = new HashMap<>();
         for (ShardRouting shardRouting : shardRoutings) {
-            if (shardRouting == null || shardRouting.assignedToNode() == false) {
+            if (shardRouting == null || !shardRouting.assignedToNode()) {
                 continue;
             }
             IndexShard indexShard = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())

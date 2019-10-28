@@ -1669,7 +1669,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         String clusterAddresses = System.getProperty(TESTS_CLUSTER);
-        if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
+        if (Strings.hasLength(clusterAddresses) && !ignoreExternalCluster()) {
             if (scope == Scope.TEST) {
                 throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
             }
@@ -1709,7 +1709,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>(mockPlugins);
             // add both mock plugins - local and tcp if they are not there
             // we do this in case somebody overrides getMockPlugins and misses to call super
-            if (mockPlugins.contains(getTestTransportPlugin()) == false) {
+            if (!mockPlugins.contains(getTestTransportPlugin())) {
                 mocks.add(getTestTransportPlugin());
             }
             mockPlugins = mocks;
@@ -1826,7 +1826,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                                                                                                 boolean forceExecution,
                                                                                                 TransportRequestHandler<T> actualHandler) {
-                    if (TransportService.isValidActionName(action) == false) {
+                    if (!TransportService.isValidActionName(action)) {
                         throw new IllegalArgumentException("invalid action name [" + action + "] must start with one of: " +
                             TransportService.VALID_ACTION_PREFIXES );
                     }

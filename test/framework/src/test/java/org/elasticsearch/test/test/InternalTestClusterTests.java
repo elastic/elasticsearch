@@ -118,7 +118,7 @@ public class InternalTestClusterTests extends ESTestCase {
         assertThat("--> left:\n" + left.toDelimitedString('\n') +  "\n-->right:\n" + right.toDelimitedString('\n'),
             keys0.size(), equalTo(keys1.size()));
         for (String key : keys0) {
-            if (clusterUniqueSettings.contains(key) && checkClusterUniqueSettings == false) {
+            if (clusterUniqueSettings.contains(key) && !checkClusterUniqueSettings) {
                 continue;
             }
             assertTrue("key [" + key + "] is missing in " + keys1, keys1.contains(key));
@@ -153,9 +153,9 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                     .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-                if (autoManageMinMasterNodes == false) {
+                if (!autoManageMinMasterNodes) {
                     assert minNumDataNodes == maxNumDataNodes;
-                    assert masterNodes == false;
+                    assert !masterNodes;
                 }
                 return settings.build();
             }
@@ -316,7 +316,7 @@ public class InternalTestClusterTests extends ESTestCase {
         cluster.beforeTest(random());
         List<DiscoveryNodeRole> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false ?
+            final DiscoveryNodeRole role = i == numNodes - 1 && !roles.contains(DiscoveryNodeRole.MASTER_ROLE) ?
                     DiscoveryNodeRole.MASTER_ROLE : // last node and still no master
                 randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
             roles.add(role);

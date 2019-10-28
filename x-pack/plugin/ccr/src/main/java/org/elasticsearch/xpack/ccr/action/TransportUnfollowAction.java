@@ -186,7 +186,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                     final ActionListener<RetentionLeaseActions.Response> listener,
                     final Exception e) {
                 final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                assert cause instanceof ElasticsearchSecurityException == false : e;
+                assert !(cause instanceof ElasticsearchSecurityException) : e;
                 if (cause instanceof RetentionLeaseNotFoundException) {
                     // treat as success
                     logger.trace(new ParameterizedMessage(

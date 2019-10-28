@@ -133,7 +133,7 @@ public class Quantiles implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof Quantiles == false) {
+        if (!(other instanceof Quantiles)) {
             return false;
         }
 

@@ -75,10 +75,10 @@ public class Count extends AggregateFunction {
         }
         return super.toAttribute();
     }
-    
+
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (!super.equals(obj)) {
             return false;
         }
         Count other = (Count) obj;

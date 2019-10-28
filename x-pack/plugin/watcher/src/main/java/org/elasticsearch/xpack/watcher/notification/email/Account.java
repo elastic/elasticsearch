@@ -260,7 +260,7 @@ public class Account {
                 settings = builder.build();
                 Properties props = new Properties();
                 // Secure strings can not be retreived out of a settings object and should be handled differently
-                Set<String> insecureSettings = settings.filter(s -> s.startsWith("secure_") == false).keySet();
+                Set<String> insecureSettings = settings.filter(s -> !s.startsWith("secure_")).keySet();
                 for (String key : insecureSettings) {
                     props.setProperty(SMTP_SETTINGS_PREFIX + key, settings.get(key));
                 }

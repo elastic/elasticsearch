@@ -43,7 +43,7 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
-        if (event.localNodeMaster() == false) {
+        if (!event.localNodeMaster()) {
             return;
         }
 
@@ -53,7 +53,7 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
             return;
         }
         for (PersistentTasksCustomMetaData.PersistentTask<?> persistentTask : persistentTasksMetaData.tasks()) {
-            if (ShardFollowTask.NAME.equals(persistentTask.getTaskName()) == false) {
+            if (!ShardFollowTask.NAME.equals(persistentTask.getTaskName())) {
                 // this task is not a shard follow task
                 continue;
             }

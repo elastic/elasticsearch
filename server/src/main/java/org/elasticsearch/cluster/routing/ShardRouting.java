@@ -311,7 +311,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     public ShardRouting updateUnassigned(UnassignedInfo unassignedInfo, RecoverySource recoverySource) {
         assert this.unassignedInfo != null : "can only update unassign info if they are already set";
-        assert this.unassignedInfo.isDelayed() || (unassignedInfo.isDelayed() == false) : "cannot transition from non-delayed to delayed";
+        assert this.unassignedInfo.isDelayed() || (!unassignedInfo.isDelayed()) : "cannot transition from non-delayed to delayed";
         return new ShardRouting(shardId, currentNodeId, relocatingNodeId, primary, state, recoverySource,
             unassignedInfo, allocationId, expectedShardSize);
     }
@@ -382,7 +382,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * relocation source has failed.
      */
     public ShardRouting removeRelocationSource() {
-        assert primary == false : this;
+        assert !primary : this;
         assert state == ShardRoutingState.INITIALIZING : this;
         assert assignedToNode() : this;
         assert relocatingNodeId != null : this;
@@ -395,8 +395,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      */
     public ShardRouting reinitializeReplicaShard() {
         assert state == ShardRoutingState.INITIALIZING : this;
-        assert primary == false : this;
-        assert isRelocationTarget() == false : this;
+        assert !primary : this;
+        assert !isRelocationTarget() : this;
         return new ShardRouting(shardId, currentNodeId, null, primary, ShardRoutingState.INITIALIZING,
             recoverySource, unassignedInfo, AllocationId.newInitializing(), expectedShardSize);
     }
@@ -453,7 +453,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      **/
     public boolean isSameAllocation(ShardRouting other) {
         boolean b = this.allocationId != null && other.allocationId != null && this.allocationId.getId().equals(other.allocationId.getId());
-        assert b == false || this.currentNodeId.equals(other.currentNodeId) :
+        assert !b || this.currentNodeId.equals(other.currentNodeId) :
             "ShardRoutings have the same allocation id but not the same node. This [" + this + "], other [" + other + "]";
         return b;
     }
@@ -471,26 +471,26 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         boolean b = this.allocationId != null && other.allocationId != null && this.state == ShardRoutingState.INITIALIZING &&
             this.allocationId.getId().equals(other.allocationId.getRelocationId());
 
-        assert b == false || other.state == ShardRoutingState.RELOCATING :
+        assert !b || other.state == ShardRoutingState.RELOCATING :
             "ShardRouting is a relocation target but the source shard state isn't relocating. This [" + this + "], other [" + other + "]";
 
-        assert b == false || other.allocationId.getId().equals(this.allocationId.getRelocationId()) :
+        assert !b || other.allocationId.getId().equals(this.allocationId.getRelocationId()) :
             "ShardRouting is a relocation target but the source id isn't equal to source's allocationId.getRelocationId." +
             " This [" + this + "], other [" + other + "]";
 
-        assert b == false || other.currentNodeId().equals(this.relocatingNodeId) :
+        assert !b || other.currentNodeId().equals(this.relocatingNodeId) :
             "ShardRouting is a relocation target but source current node id isn't equal to target relocating node." +
             " This [" + this + "], other [" + other + "]";
 
-        assert b == false || this.currentNodeId().equals(other.relocatingNodeId) :
+        assert !b || this.currentNodeId().equals(other.relocatingNodeId) :
             "ShardRouting is a relocation target but current node id isn't equal to source relocating node." +
                 " This [" + this + "], other [" + other + "]";
 
-        assert b == false || this.shardId.equals(other.shardId) :
+        assert !b || this.shardId.equals(other.shardId) :
             "ShardRouting is a relocation target but both indexRoutings are not of the same shard id." +
                 " This [" + this + "], other [" + other + "]";
 
-        assert b == false || this.primary == other.primary :
+        assert !b || this.primary == other.primary :
             "ShardRouting is a relocation target but primary flag is different." +
                 " This [" + this + "], target [" + other + "]";
 
@@ -502,27 +502,27 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         boolean b = this.allocationId != null && other.allocationId != null && other.state == ShardRoutingState.INITIALIZING &&
             other.allocationId.getId().equals(this.allocationId.getRelocationId());
 
-        assert b == false || this.state == ShardRoutingState.RELOCATING :
+        assert !b || this.state == ShardRoutingState.RELOCATING :
             "ShardRouting is a relocation source but shard state isn't relocating. This [" + this + "], other [" + other + "]";
 
 
-        assert b == false || this.allocationId.getId().equals(other.allocationId.getRelocationId()) :
+        assert !b || this.allocationId.getId().equals(other.allocationId.getRelocationId()) :
             "ShardRouting is a relocation source but the allocation id isn't equal to other.allocationId.getRelocationId." +
                 " This [" + this + "], other [" + other + "]";
 
-        assert b == false || this.currentNodeId().equals(other.relocatingNodeId) :
+        assert !b || this.currentNodeId().equals(other.relocatingNodeId) :
             "ShardRouting is a relocation source but current node isn't equal to other's relocating node." +
                 " This [" + this + "], other [" + other + "]";
 
-        assert b == false || other.currentNodeId().equals(this.relocatingNodeId) :
+        assert !b || other.currentNodeId().equals(this.relocatingNodeId) :
             "ShardRouting is a relocation source but relocating node isn't equal to other's current node." +
                 " This [" + this + "], other [" + other + "]";
 
-        assert b == false || this.shardId.equals(other.shardId) :
+        assert !b || this.shardId.equals(other.shardId) :
             "ShardRouting is a relocation source but both indexRoutings are not of the same shard." +
                 " This [" + this + "], target [" + other + "]";
 
-        assert b == false || this.primary == other.primary :
+        assert !b || this.primary == other.primary :
             "ShardRouting is a relocation source but primary flag is different. This [" + this + "], target [" + other + "]";
 
         return b;

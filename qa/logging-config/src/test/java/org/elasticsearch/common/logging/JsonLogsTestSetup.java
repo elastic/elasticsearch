@@ -22,7 +22,7 @@ public class JsonLogsTestSetup {
     private static boolean initialized = false;
 
     public static void init() {
-        if (initialized == false) {
+        if (!initialized) {
             LogConfigurator.setNodeName("sample-name");
             initialized = true;
         }

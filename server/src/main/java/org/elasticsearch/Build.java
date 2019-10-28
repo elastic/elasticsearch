@@ -307,10 +307,10 @@ public class Build {
         if (isSnapshot != build.isSnapshot) {
             return false;
         }
-        if (hash.equals(build.hash) == false) {
+        if (!hash.equals(build.hash)) {
             return false;
         }
-        if (version.equals(build.version) == false) {
+        if (!version.equals(build.version)) {
             return false;
         }
         return date.equals(build.date);

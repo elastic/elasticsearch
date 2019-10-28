@@ -456,7 +456,7 @@ public class CuckooFilter implements Writeable {
      * per bucket.  Will return 0.84, 0.955 or 0.98 depending on b
      */
     private double getLoadFactor(int b) {
-        if ((b == 2 || b == 4 || b == 8) == false) {
+        if (!(b == 2 || b == 4 || b == 8)) {
             throw new IllegalArgumentException("b must be one of [2,4,8]");
         }
         /*

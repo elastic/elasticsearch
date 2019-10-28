@@ -569,7 +569,7 @@ final class RequestConverters {
             .withIndicesOptions(deleteByQueryRequest.indicesOptions())
             .withWaitForCompletion(waitForCompletion)
             .withSlices(deleteByQueryRequest.getSlices());
-        if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
+        if (!deleteByQueryRequest.isAbortOnVersionConflict()) {
             params.putParam("conflicts", "proceed");
         }
         if (deleteByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
@@ -598,7 +598,7 @@ final class RequestConverters {
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(updateByQueryRequest.indicesOptions())
             .withSlices(updateByQueryRequest.getSlices());
-        if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
+        if (!updateByQueryRequest.isAbortOnVersionConflict()) {
             params.putParam("conflicts", "proceed");
         }
         if (updateByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
@@ -815,7 +815,7 @@ final class RequestConverters {
 
         Params withFetchSourceContext(FetchSourceContext fetchSourceContext) {
             if (fetchSourceContext != null) {
-                if (fetchSourceContext.fetchSource() == false) {
+                if (!fetchSourceContext.fetchSource()) {
                     putParam("_source", Boolean.FALSE.toString());
                 }
                 if (fetchSourceContext.includes() != null && fetchSourceContext.includes().length > 0) {
@@ -848,7 +848,7 @@ final class RequestConverters {
         }
 
         Params withRealtime(boolean realtime) {
-            if (realtime == false) {
+            if (!realtime) {
                 return putParam("realtime", Boolean.FALSE.toString());
             }
             return this;
@@ -964,7 +964,7 @@ final class RequestConverters {
                 withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
                 putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
                 String expandWildcards;
-                if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
+                if (!indicesOptions.expandWildcardsOpen() && !indicesOptions.expandWildcardsClosed()) {
                     expandWildcards = "none";
                 } else {
                     StringJoiner joiner = new StringJoiner(",");

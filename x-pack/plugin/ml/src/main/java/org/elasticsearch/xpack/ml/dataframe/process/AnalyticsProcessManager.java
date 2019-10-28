@@ -106,7 +106,7 @@ public class AnalyticsProcessManager {
 
     @Nullable
     private BytesReference getModelState(DataFrameAnalyticsConfig config) {
-        if (config.getAnalysis().persistsState() == false) {
+        if (!config.getAnalysis().persistsState()) {
             return null;
         }
 
@@ -150,7 +150,7 @@ public class AnalyticsProcessManager {
             refreshDest(config);
             LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
-            if (task.isStopping() == false) {
+            if (!task.isStopping()) {
                 String errorMsg = new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage())
                     .getFormattedMessage();
                 LOGGER.error(errorMsg, e);
@@ -191,7 +191,7 @@ public class AnalyticsProcessManager {
             Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
             if (rows.isPresent()) {
                 for (DataFrameDataExtractor.Row row : rows.get()) {
-                    if (row.shouldSkip() == false) {
+                    if (!row.shouldSkip()) {
                         String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
                         record[record.length - 2] = String.valueOf(row.getChecksum());
@@ -223,7 +223,7 @@ public class AnalyticsProcessManager {
 
     private void restoreState(DataFrameAnalyticsConfig config, @Nullable BytesReference state, AnalyticsProcess<AnalyticsResult> process,
                               Consumer<Exception> failureHandler) {
-        if (config.getAnalysis().persistsState() == false) {
+        if (!config.getAnalysis().persistsState()) {
             LOGGER.debug("[{}] Analysis does not support state", config.getId());
             return;
         }
@@ -249,7 +249,7 @@ public class AnalyticsProcessManager {
         ExecutorService executorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         AnalyticsProcess<AnalyticsResult> process = processFactory.createAnalyticsProcess(config, analyticsProcessConfig, state,
             executorService, onProcessCrash(task));
-        if (process.isProcessAlive() == false) {
+        if (!process.isProcessAlive()) {
             throw ExceptionsHelper.serverError("Failed to start data frame analytics process");
         }
         return process;

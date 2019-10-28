@@ -146,7 +146,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
 
     private void doRenormalizations() {
         // Exit immediately if another normalization is in progress.  This means we don't hog threads.
-        if (tryStartWork() == false) {
+        if (!tryStartWork()) {
             return;
         }
 
@@ -183,7 +183,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
                 }
                 // Loop if more work has become available while we were working, because the
                 // tasks originally submitted to do that work will have exited early.
-            } while (tryFinishWork() == false);
+            } while (!tryFinishWork());
         } catch (Exception e) {
             LOGGER.error("[" + jobId + "] Normalization failed", e);
             if (latch != null) {

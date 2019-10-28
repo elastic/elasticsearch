@@ -265,7 +265,7 @@ public class SecurityTests extends ESTestCase {
         MetaData.Builder builder = MetaData.builder();
         final String forbiddenLicenseType =
             randomFrom(List.of(License.OperationMode.values()).stream()
-                .filter(l -> FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(l) == false).collect(Collectors.toList())).toString();
+                .filter(l -> !FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(l)).collect(Collectors.toList())).toString();
         License license = TestUtils.generateSignedLicense(forbiddenLicenseType, TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
@@ -398,7 +398,7 @@ public class SecurityTests extends ESTestCase {
             .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
             .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
-                    .filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())))
+                    .filter(alg -> !alg.startsWith("pbkdf2")).collect(Collectors.toList())))
             .build();
             final IllegalArgumentException iae =
                 expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
@@ -424,7 +424,7 @@ public class SecurityTests extends ESTestCase {
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
-                    .filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())))
+                    .filter(alg -> !alg.startsWith("pbkdf2")).collect(Collectors.toList())))
             .build();
         final IllegalArgumentException iae =
             expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
@@ -438,7 +438,7 @@ public class SecurityTests extends ESTestCase {
             .put("xpack.security.transport.ssl.keystore.type", "JKS")
             .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
-                    .filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())))
+                    .filter(alg -> !alg.startsWith("pbkdf2")).collect(Collectors.toList())))
             .build();
         final IllegalArgumentException iae =
             expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));

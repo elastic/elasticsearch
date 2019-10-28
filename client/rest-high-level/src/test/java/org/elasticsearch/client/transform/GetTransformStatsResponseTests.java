@@ -42,7 +42,7 @@ public class GetTransformStatsResponseTests extends ESTestCase {
                 .assertEqualsConsumer(GetTransformStatsResponseTests::assertEqualInstances)
                 .assertToXContentEquivalence(false)
                 .supportsUnknownFields(true)
-                .randomFieldsExcludeFilter(path -> path.isEmpty() == false)
+                .randomFieldsExcludeFilter(path -> !path.isEmpty())
                 .test();
     }
 

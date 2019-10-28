@@ -116,7 +116,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                     if (bulkItemResponse.isFailed()) {
                         BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
                         if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                            if (rejectedExecutionExpected == false) {
+                            if (!rejectedExecutionExpected) {
                                 assertRetriedCorrectly(internalPolicy, bulkResponse, failure.getCause());
                                 rejectedAfterAllRetries = true;
                             }
@@ -128,7 +128,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
             } else {
                 if (response instanceof RemoteTransportException
                     && ((RemoteTransportException) response).status() == RestStatus.TOO_MANY_REQUESTS) {
-                    if (rejectedExecutionExpected == false) {
+                    if (!rejectedExecutionExpected) {
                         assertRetriedCorrectly(internalPolicy, response, ((Throwable) response).getCause());
                         rejectedAfterAllRetries = true;
                     }

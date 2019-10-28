@@ -104,7 +104,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        if (enabled == false) {
+        if (!enabled) {
             return Map.of();
         }
 
@@ -116,7 +116,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (enabled == false) {
+        if (!enabled) {
             return List.of(
                 new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class)
             );
@@ -139,7 +139,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (enabled == false) {
+        if (!enabled) {
             return List.of();
         }
 
@@ -157,7 +157,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false) {
+        if (!enabled) {
             return List.of();
         }
 

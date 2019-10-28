@@ -240,7 +240,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
                 LogManager.getLogger(SearchRestCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {
-                    waitUntil(() -> shouldBlock.get() == false);
+                    waitUntil(() -> !shouldBlock.get());
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

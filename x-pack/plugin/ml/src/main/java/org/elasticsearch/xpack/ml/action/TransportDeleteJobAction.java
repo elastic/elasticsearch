@@ -159,7 +159,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         logger.debug("Deleting job '{}'", request.getJobId());
 
-        if (request.isForce() == false) {
+        if (!request.isForce()) {
             checkJobIsNotOpen(request.getJobId(), state);
         }
 
@@ -508,7 +508,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         for (ObjectObjectCursor<String, List<AliasMetaData>> entry : getAliasesResponse.getAliases()) {
             // The response includes _all_ indices, but only those associated with
             // the aliases we asked about will have associated AliasMetaData
-            if (entry.value.isEmpty() == false) {
+            if (!entry.value.isEmpty()) {
                 indices.add(entry.key);
                 entry.value.forEach(metadata -> aliases.add(metadata.getAlias()));
             }
@@ -606,7 +606,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
                 datafeedIds -> {
-                    if (datafeedIds.isEmpty() == false) {
+                    if (!datafeedIds.isEmpty()) {
                         listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because datafeed ["
                                 + datafeedIds.iterator().next() + "] refers to it"));
                         return;

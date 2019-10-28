@@ -71,7 +71,7 @@ public class DataFrameAnalyticsConfigProvider {
     public void put(DataFrameAnalyticsConfig config, Map<String, String> headers, ActionListener<IndexResponse> listener) {
         String id = config.getId();
 
-        if (headers.isEmpty() == false) {
+        if (!headers.isEmpty()) {
             // Filter any values in headers that aren't security fields
             DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(config);
             Map<String, String> securityHeaders = headers.entrySet().stream()
@@ -169,7 +169,7 @@ public class DataFrameAnalyticsConfigProvider {
 
                     Set<String> tasksWithoutConfigs = new HashSet<>(jobsWithTask);
                     tasksWithoutConfigs.removeAll(configs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList()));
-                    if (tasksWithoutConfigs.isEmpty() == false) {
+                    if (!tasksWithoutConfigs.isEmpty()) {
                         logger.warn("Data frame analytics tasks {} have no configs", tasksWithoutConfigs);
                     }
                     listener.onResponse(configs);

@@ -213,7 +213,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         if (builder.smoothingModel() != null) {
             assertEquals(builder.smoothingModel().buildWordScorerFactory().getClass(), phraseSuggesterCtx.model().getClass());
         }
-        if (builder.getCandidateGenerators().isEmpty() == false) {
+        if (!builder.getCandidateGenerators().isEmpty()) {
             // currently, "direct_generator" is the only one available. Only compare size of the lists
             assertEquals(builder.getCandidateGenerators().get("direct_generator").size(), phraseSuggesterCtx.generators().size());
         }

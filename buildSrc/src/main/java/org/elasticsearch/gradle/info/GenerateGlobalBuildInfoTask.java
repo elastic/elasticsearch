@@ -133,7 +133,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         boolean inFipsJvm = false;
 
         try {
-            if (Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
+            if (!Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath())) {
                 if (compilerJavaHome.exists()) {
                     compilerJavaVersionDetails = findJavaVersionDetails(compilerJavaHome);
                     compilerJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(compilerJavaHome));
@@ -142,7 +142,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                 }
             }
 
-            if (Files.isSameFile(runtimeJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
+            if (!Files.isSameFile(runtimeJavaHome.toPath(), gradleJavaHome.toPath())) {
                 if (runtimeJavaHome.exists()) {
                     runtimeJavaVersionDetails = findJavaVersionDetails(runtimeJavaHome);
                     runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(runtimeJavaHome));
@@ -162,8 +162,8 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
             writer.write("  Gradle Version        : " + getProject().getGradle().getGradleVersion() + "\n");
             writer.write("  OS Info               : " + System.getProperty("os.name") + " " + System.getProperty("os.version")
                 + " (" + System.getProperty("os.arch") + ")\n");
-            if (gradleJavaVersionDetails.equals(compilerJavaVersionDetails) == false
-                || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
+            if (!gradleJavaVersionDetails.equals(compilerJavaVersionDetails)
+                || !gradleJavaVersionDetails.equals(runtimeJavaVersionDetails)) {
                 writer.write("  Compiler JDK Version  : " + compilerJavaVersionEnum + " (" + compilerJavaVersionDetails + ")\n");
                 writer.write("  Compiler java.home    : " + compilerJavaHome + "\n");
                 writer.write("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" + runtimeJavaVersionDetails + ")\n");

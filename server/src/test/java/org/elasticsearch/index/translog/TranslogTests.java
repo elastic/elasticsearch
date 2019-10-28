@@ -333,7 +333,7 @@ public class TranslogTests extends ESTestCase {
             } catch (InvalidPathException ex) {
                 // some FS don't like our random file names -- let's just skip these random choices
             }
-        } while (Translog.PARSE_STRICT_ID_PATTERN.matcher(string).matches() || validPathString == false);
+        } while (Translog.PARSE_STRICT_ID_PATTERN.matcher(string).matches() || !validPathString);
         return string;
     }
 
@@ -1099,7 +1099,7 @@ public class TranslogTests extends ESTestCase {
                                 expectedOps.remove(op);
                             }
                         }
-                        if (expectedOps.isEmpty() == false) {
+                        if (!expectedOps.isEmpty()) {
                             StringBuilder missed = new StringBuilder("missed ").append(expectedOps.size())
                                 .append(" operations from [").append(committedLocalCheckpointAtView + 1L).append("]");
                             boolean failed = false;
@@ -1933,7 +1933,7 @@ public class TranslogTests extends ESTestCase {
 
         for (int i = 0; i < threadCount; i++) {
             if (threadExceptions[i] != null) {
-                if ((threadExceptions[i] instanceof AlreadyClosedException) == false) {
+                if (!(threadExceptions[i] instanceof AlreadyClosedException)) {
                     throw threadExceptions[i];
                 }
             }
@@ -2018,7 +2018,7 @@ public class TranslogTests extends ESTestCase {
         List<Translog.Location> locations = new ArrayList<>();
         int opsSynced = 0;
         boolean failed = false;
-        while (failed == false) {
+        while (!failed) {
             try {
                 locations.add(translog.add(
                     new Translog.Index("" + opsSynced, opsSynced, primaryTerm.get(),
@@ -2202,7 +2202,7 @@ public class TranslogTests extends ESTestCase {
                     atLeastOneFailed = true;
                 }
             }
-            if (atLeastOneFailed == false) {
+            if (!atLeastOneFailed) {
                 try {
                     boolean syncNeeded = translog.syncNeeded();
                     translog.close();
@@ -2400,7 +2400,7 @@ public class TranslogTests extends ESTestCase {
                 success = true;
                 return throwingFileChannel;
             } finally {
-                if (success == false) {
+                if (!success) {
                     IOUtils.closeWhileHandlingException(channel);
                 }
             }
@@ -3091,7 +3091,7 @@ public class TranslogTests extends ESTestCase {
         }
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             final List<Translog.Operation> expectedSeqNo = new ArrayList<>();
-            while (views.isEmpty() == false) {
+            while (!views.isEmpty()) {
                 expectedSeqNo.addAll(views.pop());
             }
             assertThat(snapshot, SnapshotMatchers.equalsTo(expectedSeqNo));

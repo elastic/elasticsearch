@@ -151,7 +151,7 @@ public class CompositeAggCursor implements Cursor {
             }
         });
     }
-    
+
     protected Supplier<CompositeAggRowSet> makeRowSet(SearchResponse response) {
         return () -> new CompositeAggRowSet(extractors, mask, response, limit);
     }
@@ -166,9 +166,9 @@ public class CompositeAggCursor implements Cursor {
             Runnable retry,
             ActionListener<Page> listener,
             Schema schema) {
-        
+
         // there are some results
-        if (response.getAggregations().asList().isEmpty() == false) {
+        if (!response.getAggregations().asList().isEmpty()) {
             // retry
             if (shouldRetryDueToEmptyPage(response)) {
                 updateCompositeAfterKey(response, source);
@@ -199,7 +199,7 @@ public class CompositeAggCursor implements Cursor {
             listener.onResponse(Page.last(Rows.empty(schema)));
         }
     }
-    
+
     private static boolean shouldRetryDueToEmptyPage(SearchResponse response) {
         CompositeAggregation composite = getComposite(response);
         // if there are no buckets but a next page, go fetch it instead of sending an empty response to the client

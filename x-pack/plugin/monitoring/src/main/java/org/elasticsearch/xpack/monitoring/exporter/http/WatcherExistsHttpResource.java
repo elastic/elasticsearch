@@ -124,7 +124,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
         final Map<String, Object> xpackInfo = XContentHelper.convertToMap(xContent, response.getEntity().getContent(), false);
 
         // if it's empty, then there's no features.watcher response because of filter_path usage
-        if (xpackInfo.isEmpty() == false) {
+        if (!xpackInfo.isEmpty()) {
             @SuppressWarnings("unchecked")
             final Map<String, Object> features = (Map<String, Object>) xpackInfo.get("features");
             @SuppressWarnings("unchecked")

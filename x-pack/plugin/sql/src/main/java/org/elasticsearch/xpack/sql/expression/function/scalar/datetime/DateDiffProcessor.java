@@ -44,7 +44,7 @@ public class DateDiffProcessor extends ThreeArgsDateTimeProcessor {
         if (unit == null || startTimestamp == null || endTimestamp == null) {
             return null;
         }
-        if (unit instanceof String == false) {
+        if (!(unit instanceof String)) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", unit);
         }
         Part datePartField = Part.resolve((String) unit);
@@ -59,11 +59,11 @@ public class DateDiffProcessor extends ThreeArgsDateTimeProcessor {
             }
         }
 
-        if (startTimestamp instanceof ZonedDateTime == false) {
+        if (!(startTimestamp instanceof ZonedDateTime)) {
             throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", startTimestamp);
         }
 
-        if (endTimestamp instanceof ZonedDateTime == false) {
+        if (!(endTimestamp instanceof ZonedDateTime)) {
             throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", endTimestamp);
         }
 

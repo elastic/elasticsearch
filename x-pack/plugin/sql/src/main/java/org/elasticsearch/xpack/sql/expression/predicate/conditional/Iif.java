@@ -52,7 +52,7 @@ public class Iif extends Case {
         }
 
         DataType resultDataType = conditions().get(0).dataType();
-        if (DataTypes.areTypesCompatible(resultDataType, elseResult().dataType()) == false) {
+        if (!DataTypes.areTypesCompatible(resultDataType, elseResult().dataType())) {
             return new TypeResolution(format(null, "third argument of [{}] must be [{}], found value [{}] type [{}]",
                 sourceText(),
                 resultDataType.typeName,

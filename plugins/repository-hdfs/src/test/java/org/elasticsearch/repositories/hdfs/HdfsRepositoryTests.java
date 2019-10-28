@@ -48,7 +48,7 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        if (isJava11() == false) {
+        if (!isJava11()) {
             super.tearDown();
         }
     }

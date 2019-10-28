@@ -138,7 +138,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         if (t instanceof ElasticsearchSecurityException) {
             assert ((ElasticsearchSecurityException) t).status() == RestStatus.UNAUTHORIZED;
             ese = (ElasticsearchSecurityException) t;
-            if (ese.getHeader("WWW-Authenticate") != null && ese.getHeader("WWW-Authenticate").isEmpty() == false) {
+            if (ese.getHeader("WWW-Authenticate") != null && !ese.getHeader("WWW-Authenticate").isEmpty()) {
                 /**
                  * If 'WWW-Authenticate' header is present with 'Negotiate ' then do not
                  * replace. In case of kerberos spnego mechanism, we use

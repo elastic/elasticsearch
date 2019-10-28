@@ -55,7 +55,7 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
 
     protected ShardsAcknowledgedResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged);
-        assert acknowledged || shardsAcknowledged == false; // if it's not acknowledged, then shards acked should be false too
+        assert acknowledged || !shardsAcknowledged; // if it's not acknowledged, then shards acked should be false too
         this.shardsAcknowledged = shardsAcknowledged;
     }
 

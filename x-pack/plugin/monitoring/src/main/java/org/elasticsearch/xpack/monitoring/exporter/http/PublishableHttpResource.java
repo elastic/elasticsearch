@@ -96,7 +96,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                                       final Map<String, String> baseParameters, final boolean dirty) {
         super(resourceOwnerName, dirty);
 
-        if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
+        if (masterTimeout != null && !TimeValue.MINUS_ONE.equals(masterTimeout)) {
             final Map<String, String> parameters = new HashMap<>(baseParameters.size() + 1);
 
             parameters.putAll(baseParameters);
@@ -239,14 +239,14 @@ public abstract class PublishableHttpResource extends HttpResource {
                         logger.debug("{} [{}] found on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
                         // if we should replace it -- true -- then the resource "does not exist" as far as the caller is concerned
-                        listener.onResponse(false == responseChecker.apply(response));
+                        listener.onResponse(!responseChecker.apply(response));
 
                     } else if (doesNotExist.contains(statusCode)) {
                         logger.debug("{} [{}] does not exist on the [{}] {}",
                                      resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
                         // if we should replace it -- true -- then the resource "does not exist" as far as the caller is concerned
-                        listener.onResponse(false == doesNotExistResponseChecker.apply(response));
+                        listener.onResponse(!doesNotExistResponseChecker.apply(response));
                     } else {
                         onFailure(new ResponseException(response));
                     }
@@ -382,7 +382,7 @@ public abstract class PublishableHttpResource extends HttpResource {
         final Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);
         addDefaultParameters(request);
 
-        if (false == defaultParameters.containsKey("ignore")) {
+        if (!defaultParameters.containsKey("ignore")) {
             // avoid 404 being an exception by default
             request.addParameter("ignore", Integer.toString(RestStatus.NOT_FOUND.getStatus()));
         }
@@ -443,7 +443,7 @@ public abstract class PublishableHttpResource extends HttpResource {
         final Map<String, Object> resources = XContentHelper.convertToMap(xContent, response.getEntity().getContent(), false);
 
         // if it's empty, then there's no version in the response thanks to filter_path
-        if (resources.isEmpty() == false) {
+        if (!resources.isEmpty()) {
             @SuppressWarnings("unchecked")
             final Map<String, Object> resource = (Map<String, Object>) resources.get(resourceName);
             final Object version = resource != null ? resource.get("version") : null;

@@ -276,7 +276,7 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public void close() throws IOException {
-        if (closed == false) {
+        if (!closed) {
             closed = true;
             while (true) {
                 if (nextToken() == null) {

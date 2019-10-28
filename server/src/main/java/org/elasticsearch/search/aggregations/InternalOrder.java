@@ -195,7 +195,7 @@ public class InternalOrder extends BucketOrder {
                 }
                 lastElement = order;
             }
-            if (absoluteOrdering && isKeyOrder(lastElement) == false) {
+            if (absoluteOrdering && !isKeyOrder(lastElement)) {
                 // add key order ascending as a tie-breaker to avoid non-deterministic ordering
                 // if all user provided comparators return 0.
                 this.orderElements.add(KEY_ASC);

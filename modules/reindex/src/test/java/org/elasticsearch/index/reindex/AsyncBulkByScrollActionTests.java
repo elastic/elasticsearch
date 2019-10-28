@@ -817,7 +817,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         protected <Request extends ActionRequest, Response extends ActionResponse>
         void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-            if (false == expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
+            if (!expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
                 listener.onFailure(
                         new RuntimeException("Expected " + expectedHeaders + " but got " + threadPool().getThreadContext().getHeaders()));
                 return;

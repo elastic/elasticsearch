@@ -120,7 +120,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     }
 
     private void getDatafeedConfigs(ActionListener<List<DatafeedConfig>> listener) {
-        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) == false) {
+        if (!XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)) {
             listener.onResponse(Collections.emptyList());
         } else {
             ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN, GetDatafeedsAction.INSTANCE,

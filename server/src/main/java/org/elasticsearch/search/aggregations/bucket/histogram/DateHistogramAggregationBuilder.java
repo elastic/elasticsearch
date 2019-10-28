@@ -409,7 +409,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         final ZoneId tz = timeZone();
         if (field() != null &&
                 tz != null &&
-                tz.getRules().isFixedOffset() == false &&
+            !tz.getRules().isFixedOffset() &&
                 field() != null &&
                 script() == null) {
             final MappedFieldType ft = context.fieldMapper(field());
@@ -516,7 +516,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         DateHistogramAggregationBuilder other = (DateHistogramAggregationBuilder) obj;
         return Objects.equals(order, other.order)
                 && Objects.equals(keyed, other.keyed)

@@ -296,7 +296,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             @Override
             protected ClusterBlockException checkBlock(Request request, ClusterState state) {
                 Set<ClusterBlock> blocks = state.blocks().global();
-                if (throwExceptionOnRetry == false || blocks.isEmpty()) {
+                if (!throwExceptionOnRetry || blocks.isEmpty()) {
                     throw new RuntimeException("checkBlock has thrown exception");
                 }
                 return new ClusterBlockException(blocks);
@@ -304,7 +304,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
         }, null, request, listener);
 
-        if (throwExceptionOnRetry == false) {
+        if (!throwExceptionOnRetry) {
             assertListenerThrows("checkBlock has thrown exception", listener, RuntimeException.class);
         } else {
             assertFalse(listener.isDone());

@@ -143,7 +143,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
 
     @Override
     void getUnauthenticatedSessionWithoutPool(String user, ActionListener<LdapSession> listener) {
-        if (config.hasSetting(PoolingSessionFactorySettings.BIND_DN) == false) {
+        if (!config.hasSetting(PoolingSessionFactorySettings.BIND_DN)) {
             listener.onResponse(null);
             return;
         }
@@ -190,7 +190,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
 
     static String getBindDN(RealmConfig config) {
         String bindDN = config.getSetting(PoolingSessionFactorySettings.BIND_DN);
-        if (bindDN.isEmpty() == false && bindDN.indexOf('\\') < 0 && bindDN.indexOf('@') < 0 && bindDN.indexOf('=') < 0) {
+        if (!bindDN.isEmpty() && bindDN.indexOf('\\') < 0 && bindDN.indexOf('@') < 0 && bindDN.indexOf('=') < 0) {
             bindDN = bindDN + "@" + config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING);
         }
         return bindDN;
@@ -412,7 +412,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 final String cachedName = domainNameCache.get(netBiosDomainName);
                 if (cachedName != null) {
                     listener.onResponse(cachedName);
-                } else if (usingGlobalCatalog(ldapInterface) == false) {
+                } else if (!usingGlobalCatalog(ldapInterface)) {
                     search(ldapInterface, "CN=Configuration," + domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds,
                             ignoreReferralErrors,
                             ActionListener.wrap((results) -> handleSearchResults(results, netBiosDomainName, domainNameCache, listener),

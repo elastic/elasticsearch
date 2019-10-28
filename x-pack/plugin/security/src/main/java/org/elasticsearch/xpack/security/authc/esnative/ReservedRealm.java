@@ -80,9 +80,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     @Override
     protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-        if (realmEnabled == false) {
+        if (!realmEnabled) {
             listener.onResponse(AuthenticationResult.notHandled());
-        } else if (ClientReservedRealm.isReserved(token.principal(), config.settings()) == false) {
+        } else if (!ClientReservedRealm.isReserved(token.principal(), config.settings())) {
             listener.onResponse(AuthenticationResult.notHandled());
         } else {
             getUserInfo(token.principal(), ActionListener.wrap((userInfo) -> {
@@ -114,12 +114,12 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     @Override
     protected void doLookupUser(String username, ActionListener<User> listener) {
-        if (realmEnabled == false) {
+        if (!realmEnabled) {
             if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.settings())) {
                 listener.onResponse(anonymousUser);
             }
             listener.onResponse(null);
-        } else if (ClientReservedRealm.isReserved(username, config.settings()) == false) {
+        } else if (!ClientReservedRealm.isReserved(username, config.settings())) {
             listener.onResponse(null);
         } else if (AnonymousUser.isAnonymousUsername(username, config.settings())) {
             listener.onResponse(anonymousEnabled ? anonymousUser : null);
@@ -160,7 +160,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
 
     public void users(ActionListener<Collection<User>> listener) {
-        if (realmEnabled == false) {
+        if (!realmEnabled) {
             listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
         } else {
             nativeUsersStore.getAllReservedUserInfo(ActionListener.wrap((reservedUserInfos) -> {
@@ -198,7 +198,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
 
     private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
-        if (securityIndex.indexExists() == false) {
+        if (!securityIndex.indexExists()) {
             listener.onResponse(getDefaultUserInfo(username));
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {

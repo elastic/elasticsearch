@@ -90,7 +90,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
                     for (int i = 0; i < valueCount; i++) {
                         double value = values.nextValue();
-                        if (Double.isFinite(value) == false) {
+                        if (!Double.isFinite(value)) {
                             sum += value;
                         } else if (Double.isFinite(sum)) {
                             double corrected = value - compensation;

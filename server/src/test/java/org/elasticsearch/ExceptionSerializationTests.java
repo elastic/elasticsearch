@@ -152,7 +152,7 @@ public class ExceptionSerializationTests extends ESTestCase {
             }
 
             private void checkFile(String filename) {
-                if (filename.endsWith(".class") == false) {
+                if (!filename.endsWith(".class")) {
                     return;
                 }
                 try {
@@ -166,11 +166,11 @@ public class ExceptionSerializationTests extends ESTestCase {
                 if (ignore.contains(clazz) || isAbstract(clazz.getModifiers()) || isInterface(clazz.getModifiers())) {
                     return;
                 }
-                if (isEsException(clazz) == false) {
+                if (!isEsException(clazz)) {
                     return;
                 }
-                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT) == false
-                        && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
+                if (!ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT)
+                        && !ElasticsearchException.class.equals(clazz.getEnclosingClass())) {
                     notRegistered.add(clazz);
                 } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT)) {
                     registered.add(clazz);

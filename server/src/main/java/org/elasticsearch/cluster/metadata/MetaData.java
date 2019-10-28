@@ -270,7 +270,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             if (thisIndex == null) {
                 return false;
             }
-            if (otherIndex.getAliases().equals(thisIndex.getAliases()) == false) {
+            if (!otherIndex.getAliases().equals(thisIndex.getAliases())) {
                 return false;
             }
         }
@@ -345,19 +345,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 String alias = value.alias();
                 for (int i = 0; i < patterns.length; i++) {
                     if (include[i]) {
-                        if (matched == false) {
+                        if (!matched) {
                             String pattern = patterns[i];
                             matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
                         }
                     } else if (matched) {
-                        matched = Regex.simpleMatch(patterns[i], alias) == false;
+                        matched = !Regex.simpleMatch(patterns[i], alias);
                     }
                 }
                 if (matched) {
                     filteredValues.add(value);
                 }
             }
-            if (filteredValues.isEmpty() == false) {
+            if (!filteredValues.isEmpty()) {
                 // Make the list order deterministic
                 CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetaData::alias));
                 mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
@@ -447,7 +447,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
 
             //only remove a field if it has no sub-fields left and it has to be excluded
-            if (fieldPredicate.test(newPath) == false) {
+            if (!fieldPredicate.test(newPath)) {
                 if (mayRemove) {
                     entryIterator.remove();
                 } else if (isMultiField) {
@@ -497,7 +497,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
-        if (result == null || result.isAlias() == false) {
+        if (result == null || !result.isAlias()) {
             return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
@@ -534,7 +534,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
-        if (result == null || result.isAlias() == false) {
+        if (result == null || !result.isAlias()) {
             return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
@@ -1162,7 +1162,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 indexMetaData.getAliases().keysIt().forEachRemaining(duplicateAliasesIndices::add);
             }
             duplicateAliasesIndices.retainAll(allIndices);
-            if (duplicateAliasesIndices.isEmpty() == false) {
+            if (!duplicateAliasesIndices.isEmpty()) {
                 // iterate again and constructs a helpful message
                 ArrayList<String> duplicates = new ArrayList<>();
                 for (ObjectCursor<IndexMetaData> cursor : indices.values()) {

@@ -133,7 +133,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                     private void processResponse() {
                         banLock.onBanSet();
                         if (responses.decrementAndGet() == 0) {
-                            if (failures.isEmpty() == false) {
+                            if (!failures.isEmpty()) {
                                 IllegalStateException exception = new IllegalStateException("failed to cancel children of the task [" +
                                     cancellableTask.getId() + "]");
                                 failures.forEach(exception::addSuppressed);
@@ -152,7 +152,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 logger.trace("task {} doesn't have any children that should be cancelled", cancellableTask.getId());
             }
         }
-        if (canceled == false) {
+        if (!canceled) {
             logger.trace("task {} is already cancelled", cancellableTask.getId());
             throw new IllegalStateException("task with id " + cancellableTask.getId() + " is already cancelled");
         }

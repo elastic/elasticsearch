@@ -387,7 +387,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (description != null) {
             builder.setDescription(description);
         }
-        if (detectorUpdates != null && detectorUpdates.isEmpty() == false) {
+        if (detectorUpdates != null && !detectorUpdates.isEmpty()) {
             int numDetectors = currentAnalysisConfig.getDetectors().size();
             for (DetectorUpdate dd : detectorUpdates) {
                 if (dd.getDetectorIndex() >= numDetectors) {
@@ -457,7 +457,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (description == null || Objects.equals(description, job.getDescription()))
                 && (modelPlotConfig == null || Objects.equals(modelPlotConfig, job.getModelPlotConfig()))
                 && (analysisLimits == null || Objects.equals(analysisLimits, job.getAnalysisLimits()))
-                && updatesDetectors(job) == false
+                && !updatesDetectors(job)
                 && (renormalizationWindowDays == null || Objects.equals(renormalizationWindowDays, job.getRenormalizationWindowDays()))
                 && (backgroundPersistInterval == null || Objects.equals(backgroundPersistInterval, job.getBackgroundPersistInterval()))
                 && (modelSnapshotRetentionDays == null || Objects.equals(modelSnapshotRetentionDays, job.getModelSnapshotRetentionDays()))
@@ -468,7 +468,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
                 && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))
                 && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()))
-                && (clearJobFinishTime == null || clearJobFinishTime == false || job.getFinishedTime() == null)
+                && (clearJobFinishTime == null || !clearJobFinishTime || job.getFinishedTime() == null)
                 && (allowLazyOpen == null || Objects.equals(allowLazyOpen, job.allowLazyOpen()));
     }
 
@@ -482,8 +482,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 continue;
             }
             Detector detector = analysisConfig.getDetectors().get(detectorUpdate.detectorIndex);
-            if (Objects.equals(detectorUpdate.description, detector.getDetectorDescription()) == false
-                    || Objects.equals(detectorUpdate.rules, detector.getRules()) == false) {
+            if (!Objects.equals(detectorUpdate.description, detector.getDetectorDescription())
+                    || !Objects.equals(detectorUpdate.rules, detector.getRules())) {
                 return true;
             }
         }
@@ -496,7 +496,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return true;
         }
 
-        if (other instanceof JobUpdate == false) {
+        if (!(other instanceof JobUpdate)) {
             return false;
         }
 
@@ -609,7 +609,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             if (this == other) {
                 return true;
             }
-            if (other instanceof DetectorUpdate == false) {
+            if (!(other instanceof DetectorUpdate)) {
                 return false;
             }
 

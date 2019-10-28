@@ -596,7 +596,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     updateCommittedStates();
                 }
 
-                if (deterministicTaskQueue.hasDeferredTasks() == false) {
+                if (!deterministicTaskQueue.hasDeferredTasks()) {
                     // A 1-node cluster has no need for fault detection etc so will eventually run out of things to do.
                     assert clusterNodes.size() == 1 : clusterNodes.size();
                     break;
@@ -656,14 +656,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         ClusterNode getAnyNodeExcept(ClusterNode... clusterNodes) {
             List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodes);
-            assert filteredNodes.isEmpty() == false;
+            assert !filteredNodes.isEmpty();
             return randomFrom(filteredNodes);
         }
 
         List<ClusterNode> getAllNodesExcept(ClusterNode... clusterNodes) {
             Set<String> forbiddenIds = Arrays.stream(clusterNodes).map(ClusterNode::getId).collect(Collectors.toSet());
             List<ClusterNode> acceptableNodes
-                = this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
+                = this.clusterNodes.stream().filter(n -> !forbiddenIds.contains(n.getId())).collect(Collectors.toList());
             return acceptableNodes;
         }
 
@@ -746,7 +746,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         final long persistedCurrentTerm;
 
                         if ( // node is master-ineligible either before or after the restart ...
-                            (oldState.getLastAcceptedState().nodes().getLocalNode().isMasterNode() && newLocalNode.isMasterNode()) == false
+                            !(oldState.getLastAcceptedState().nodes().getLocalNode().isMasterNode() && newLocalNode.isMasterNode())
                                 // ... and it's accepted some non-initial state so we can roll back ...
                             && (oldState.getLastAcceptedState().term() > 0L || oldState.getLastAcceptedState().version() > 0L)
                                 // ... and we're feeling lucky ...
@@ -870,7 +870,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     onNodeLog(localNode, this::setUp).run();
                     success = true;
                 } finally {
-                    if (success == false) {
+                    if (!success) {
                         persistedState.close(); // removes it from openPersistedStates
                     }
                 }
@@ -1000,7 +1000,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return new Runnable() {
                     @Override
                     public void run() {
-                        if (clusterNodes.contains(ClusterNode.this) == false) {
+                        if (!clusterNodes.contains(ClusterNode.this)) {
                             logger.trace("ignoring runnable {} from node {} as node has been removed from cluster", runnable, localNode);
                             return;
                         }
@@ -1119,21 +1119,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             boolean heal() {
                 boolean unBlackholed = blackholedNodes.remove(localNode.getId());
                 boolean unDisconnected = disconnectedNodes.remove(localNode.getId());
-                assert unBlackholed == false || unDisconnected == false;
+                assert !unBlackholed || !unDisconnected;
                 return unBlackholed || unDisconnected;
             }
 
             boolean disconnect() {
                 boolean unBlackholed = blackholedNodes.remove(localNode.getId());
                 boolean disconnected = disconnectedNodes.add(localNode.getId());
-                assert disconnected || unBlackholed == false;
+                assert disconnected || !unBlackholed;
                 return disconnected;
             }
 
             boolean blackhole() {
                 boolean unDisconnected = disconnectedNodes.remove(localNode.getId());
                 boolean blackholed = blackholedNodes.add(localNode.getId());
-                assert blackholed || unDisconnected == false;
+                assert blackholed || !unDisconnected;
                 return blackholed;
             }
 
@@ -1154,7 +1154,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     final Set<String> nodeIds = new HashSet<>(
                         randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders));
                     // initial configuration should not have a place holder for local node
-                    if (initialConfiguration.getNodeIds().contains(localNode.getId()) && nodeIds.contains(localNode.getId()) == false) {
+                    if (initialConfiguration.getNodeIds().contains(localNode.getId()) && !nodeIds.contains(localNode.getId())) {
                         nodeIds.remove(nodeIds.iterator().next());
                         nodeIds.add(localNode.getId());
                     }
@@ -1170,7 +1170,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             private boolean isNotUsefullyBootstrapped() {
-                return getLocalNode().isMasterNode() == false || coordinator.isInitialConfigurationSet() == false;
+                return !getLocalNode().isMasterNode() || !coordinator.isInitialConfigurationSet();
             }
 
             void allowClusterStateApplicationFailure() {

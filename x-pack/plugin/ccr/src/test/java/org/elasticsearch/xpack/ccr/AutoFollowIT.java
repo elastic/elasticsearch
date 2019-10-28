@@ -518,7 +518,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         // now pause some random patterns
         pausedAutoFollowerPatterns.forEach(this::pauseAutoFollowPattern);
         assertBusy(() -> autoFollowPatterns.forEach(pattern ->
-            assertThat(getAutoFollowPattern(pattern).isActive(), equalTo(pausedAutoFollowerPatterns.contains(pattern) == false))));
+            assertThat(getAutoFollowPattern(pattern).isActive(), equalTo(!pausedAutoFollowerPatterns.contains(pattern)))));
 
         // wait for more leader indices to be created on the remote cluster
         assertBusy(() -> assertThat(leaderIndices.get(), greaterThanOrEqualTo(6)));

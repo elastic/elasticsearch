@@ -42,7 +42,7 @@ public class AckWatchRequest implements Validatable {
         ValidationException exception = new ValidationException();
         if (watchId == null) {
             exception.addValidationError("watch id is missing");
-        } else if (PutWatchRequest.isValidId(watchId) == false) {
+        } else if (!PutWatchRequest.isValidId(watchId)) {
             exception.addValidationError("watch id contains whitespace");
         }
 
@@ -50,7 +50,7 @@ public class AckWatchRequest implements Validatable {
             for (String actionId : actionIds) {
                 if (actionId == null) {
                     exception.addValidationError(String.format(Locale.ROOT, "action id may not be null"));
-                } else if (PutWatchRequest.isValidId(actionId) == false) {
+                } else if (!PutWatchRequest.isValidId(actionId)) {
                     exception.addValidationError(
                         String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId));
                 }

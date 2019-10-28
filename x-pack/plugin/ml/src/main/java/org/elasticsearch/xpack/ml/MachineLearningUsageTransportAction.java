@@ -70,7 +70,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        if (enabled == false) {
+        if (!enabled) {
             MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(), enabled,
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), 0);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
@@ -171,7 +171,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
     private String jobCreatedBy(Job job) {
         Map<String, Object> customSettings = job.getCustomSettings();
-        if (customSettings == null || customSettings.containsKey(MachineLearningFeatureSetUsage.CREATED_BY) == false) {
+        if (customSettings == null || !customSettings.containsKey(MachineLearningFeatureSetUsage.CREATED_BY)) {
             return "unknown";
         }
         // Replace non-alpha-numeric characters with underscores because

@@ -177,7 +177,7 @@ public abstract class DataTypeConversion {
         if (from == NULL) {
             return Conversion.NULL;
         }
-        
+
         Conversion conversion = conversion(from, to);
         if (conversion == null) {
             throw new SqlIllegalArgumentException("cannot convert from [" + from.typeName + "] to [" + to.typeName + "]");
@@ -512,7 +512,7 @@ public abstract class DataTypeConversion {
 
     public static boolean convertToBoolean(String val) {
         String lowVal = val.toLowerCase(Locale.ROOT);
-        if (Booleans.isBoolean(lowVal) == false) {
+        if (!Booleans.isBoolean(lowVal)) {
             throw new SqlIllegalArgumentException("cannot cast [" + val + "] to [boolean]");
         }
         return Booleans.parseBoolean(lowVal);
@@ -538,7 +538,7 @@ public abstract class DataTypeConversion {
     public enum Conversion {
         IDENTITY(Function.identity()),
         NULL(value -> null),
-        
+
         DATE_TO_STRING(o -> DateUtils.toDateString((ZonedDateTime) o)),
         TIME_TO_STRING(o -> DateUtils.toTimeString((OffsetTime) o)),
         DATETIME_TO_STRING(o -> DateUtils.toString((ZonedDateTime) o)),
@@ -639,7 +639,7 @@ public abstract class DataTypeConversion {
         private static Function<Object, Object> fromLong(LongFunction<Object> converter) {
             return (Object l) -> converter.apply(((Number) l).longValue());
         }
-        
+
         private static Function<Object, Object> fromString(Function<String, Object> converter, String to) {
             return (Object value) -> {
                 try {

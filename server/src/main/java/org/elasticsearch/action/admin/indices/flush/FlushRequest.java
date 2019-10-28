@@ -94,7 +94,7 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationError = super.validate();
-        if (force && waitIfOngoing == false) {
+        if (force && !waitIfOngoing) {
             validationError = addValidationError("wait_if_ongoing must be true for a force flush", validationError);
         }
         return validationError;

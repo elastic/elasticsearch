@@ -333,7 +333,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
                         @Override
                         public void onFailure(final Exception e) {
-                            if (failure == false) {
+                            if (!failure) {
                                 fail();
                             }
                             assertThat(threadPool.getThreadContext().getHeader("key"), equalTo("value"));
@@ -419,7 +419,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
             @Override
             public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck response) {
-                if (listenerInvoked.compareAndSet(false, true) == false) {
+                if (!listenerInvoked.compareAndSet(false, true)) {
                     fail("listener invoked twice");
                 }
                 listener.onResponse(response);
@@ -427,7 +427,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
             @Override
             public void onFailure(final Exception e) {
-                if (listenerInvoked.compareAndSet(false, true) == false) {
+                if (!listenerInvoked.compareAndSet(false, true)) {
                     fail("listener invoked twice");
                 }
                 listener.onFailure(e);

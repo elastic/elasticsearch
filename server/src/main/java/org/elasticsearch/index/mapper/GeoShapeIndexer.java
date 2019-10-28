@@ -281,7 +281,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                 // Check if new point intersects with anti-meridian
                 shift = newShift;
                 double t = intersection(lons[i - 1] + shift, lons[i] + shift);
-                if (Double.isNaN(t) == false) {
+                if (!Double.isNaN(t)) {
                     // Found intersection, all previous segments are now part of the linestring
                     double[] partLons = Arrays.copyOfRange(lons, offset, i + 1);
                     double[] partLats = Arrays.copyOfRange(lats, offset, i + 1);
@@ -455,7 +455,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         boolean direction = (component == 0 ^ orientation);
         // set the points array accordingly (shell or hole)
         Point[] points = (hole != null) ? points(hole) : points(shell);
-        ring(component, direction, orientation == false, points, 0, edges, offset, points.length - 1, translated);
+        ring(component, direction, !orientation, points, 0, edges, offset, points.length - 1, translated);
         return points.length - 1;
     }
 
@@ -907,7 +907,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             coordinates[i] = (component = component.next).coordinate;
         }
         // First and last coordinates must be equal
-        if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {
+        if (!coordinates[0].equals(coordinates[coordinates.length - 1])) {
             if (partitionPoint[2] == Double.NaN) {
                 throw new InvalidShapeException("Self-intersection at or near point ["
                     + partitionPoint[0] + "," + partitionPoint[1] + "]");

@@ -182,7 +182,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
             int docId;
             do {
                 docId = in.nextDoc();
-            } while (docId != DocIdSetIterator.NO_MORE_DOCS && liveDocs.get(docId) == false);
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS && !liveDocs.get(docId));
             return docId;
         }
 

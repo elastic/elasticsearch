@@ -79,7 +79,7 @@ public final class ShardCoreKeyMap {
 
         final String index = shardId.getIndexName();
         synchronized (this) {
-            if (coreKeyToShard.containsKey(coreKey) == false) {
+            if (!coreKeyToShard.containsKey(coreKey)) {
                 Set<IndexReader.CacheKey> objects = indexToCoreKey.get(index);
                 if (objects == null) {
                     objects = new HashSet<>();
@@ -112,7 +112,7 @@ public final class ShardCoreKeyMap {
                     ShardId previous = coreKeyToShard.put(coreKey, shardId);
                     assert previous == null;
                 } finally {
-                    if (false == addedListener) {
+                    if (!addedListener) {
                         try {
                             listener.onClose(coreKey);
                         } catch (IOException e) {

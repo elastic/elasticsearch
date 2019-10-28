@@ -86,7 +86,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.bucketName = bucketName;
         this.clientName = clientName;
         this.storageService = storageService;
-        if (doesBucketExist(bucketName) == false) {
+        if (!doesBucketExist(bucketName)) {
             throw new BlobStoreException("Bucket [" + bucketName + "] does not exist");
         }
     }
@@ -145,7 +145,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             () -> client().get(bucketName).list(BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix)).iterateAll().forEach(
                 blob -> {
                     assert blob.getName().startsWith(path);
-                    if (blob.isDirectory() == false) {
+                    if (!blob.isDirectory()) {
                         final String suffixName = blob.getName().substring(path.length());
                         mapBuilder.put(suffixName, new PlainBlobMetaData(suffixName, blob.getSize()));
                     }
@@ -164,7 +164,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                         assert blob.getName().endsWith("/");
                         // Strip path prefix and trailing slash
                         final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
-                        if (suffixName.isEmpty() == false) {
+                        if (!suffixName.isEmpty()) {
                             mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
                         }
                     }
@@ -322,7 +322,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     void deleteBlob(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucketName, blobName);
         final boolean deleted = SocketAccess.doPrivilegedIOException(() -> client().delete(blobId));
-        if (deleted == false) {
+        if (!deleted) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
     }
@@ -379,7 +379,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                             public void error(StorageException exception) {
                                 if (exception.getCode() != HTTP_NOT_FOUND) {
                                     failedBlobs.add(blob);
-                                    if (ioe.compareAndSet(null, exception) == false) {
+                                    if (!ioe.compareAndSet(null, exception)) {
                                         ioe.get().addSuppressed(exception);
                                     }
                                 }

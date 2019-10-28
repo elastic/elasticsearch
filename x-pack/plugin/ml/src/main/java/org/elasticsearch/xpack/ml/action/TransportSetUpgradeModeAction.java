@@ -91,7 +91,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
 
         // Don't want folks spamming this endpoint while it is in progress, only allow one request to be handled at a time
-        if (isRunning.compareAndSet(false, true) == false) {
+        if (!isRunning.compareAndSet(false, true)) {
             String msg = "Attempted to set [upgrade_mode] to [" +
                 request.isEnabled() + "] from [" + MlMetadata.getMlMetadata(state).isUpgradeMode() +
                 "] while previous request was processing.";
@@ -146,7 +146,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                 // Handle potential node timeouts,
                                 // these should be considered failures as tasks as still potentially executing
                                 logger.info("Waited for tasks to be unassigned");
-                                if (r.getNodeFailures().isEmpty() == false) {
+                                if (!r.getNodeFailures().isEmpty()) {
                                     logger.info("There were node failures waiting for tasks", r.getNodeFailures().get(0));
                                 }
                                 rethrowAndSuppress(r.getNodeFailures());
@@ -197,7 +197,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
             acknowledgedResponse -> {
                 // State change was not acknowledged, we either timed out or ran into some exception
                 // We should not continue and alert failure to the end user
-                if (acknowledgedResponse.isAcknowledged() == false) {
+                if (!acknowledgedResponse.isAcknowledged()) {
                     logger.info("Cluster state update is NOT acknowledged");
                     wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
                     return;
@@ -300,7 +300,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 // If the task was removed from the node, all is well
                 // We handle the case of allocation_id changing later in this transport class by timing out waiting for task completion
                 // Consequently, if the exception is ResourceNotFoundException, continue execution; circuit break otherwise.
-                ex -> ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException == false);
+                ex -> !(ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException));
 
         for (PersistentTask<?> task : datafeedAndJobTasks) {
             chainTaskExecutor.add(

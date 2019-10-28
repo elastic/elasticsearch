@@ -89,12 +89,12 @@ public final class TransportFreezeIndexAction extends
             // only unfreeze if we are frozen and only freeze if we are not frozen already.
             // this prevents all indices that are already frozen that match a pattern to
             // go through the cycles again.
-            if ((request.freeze() && FrozenEngine.INDEX_FROZEN.get(settings) == false) ||
-                (request.freeze() == false && FrozenEngine.INDEX_FROZEN.get(settings))) {
+            if ((request.freeze() && !FrozenEngine.INDEX_FROZEN.get(settings)) ||
+                (!request.freeze() && FrozenEngine.INDEX_FROZEN.get(settings))) {
                 indices.add(index);
             }
         }
-        if (indices.isEmpty() && request.indicesOptions().allowNoIndices() == false) {
+        if (indices.isEmpty() && !request.indicesOptions().allowNoIndices()) {
             throw new ResourceNotFoundException("no index found to " + (request.freeze() ? "freeze" : "unfreeze"));
         }
         return indices.toArray(Index.EMPTY_ARRAY);

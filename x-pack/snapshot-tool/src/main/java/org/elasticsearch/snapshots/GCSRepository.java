@@ -180,7 +180,7 @@ public class GCSRepository extends AbstractRepository {
                         public void error(StorageException exception) {
                             if (exception.getCode() != HTTP_NOT_FOUND) {
                                 failedBlobs.add(blob);
-                                if (ioe.compareAndSet(null, exception) == false) {
+                                if (!ioe.compareAndSet(null, exception)) {
                                     ioe.get().addSuppressed(exception);
                                 }
                             }

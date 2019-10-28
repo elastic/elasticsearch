@@ -182,14 +182,14 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (INCLUDE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
-                    if (query instanceof SpanQueryBuilder == false) {
+                    if (!(query instanceof SpanQueryBuilder)) {
                         throw new ParsingException(parser.getTokenLocation(), "span_not [include] must be of type span query");
                     }
                     include = (SpanQueryBuilder) query;
                     checkNoBoost(NAME, currentFieldName, parser, include);
                 } else if (EXCLUDE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
-                    if (query instanceof SpanQueryBuilder == false) {
+                    if (!(query instanceof SpanQueryBuilder)) {
                         throw new ParsingException(parser.getTokenLocation(), "span_not [exclude] must be of type span query");
                     }
                     exclude = (SpanQueryBuilder) query;

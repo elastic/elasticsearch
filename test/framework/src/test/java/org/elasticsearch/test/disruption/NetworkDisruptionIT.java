@@ -144,7 +144,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
 
         // give a bit of time to send something under disruption.
         assertFalse(latch.await(500, TimeUnit.MILLISECONDS)
-            && networkDisruption.getNetworkLinkDisruptionType() instanceof NetworkDisruption.NetworkDisconnect == false);
+            && !(networkDisruption.getNetworkLinkDisruptionType() instanceof NetworkDisruption.NetworkDisconnect));
         networkDisruption.stopDisrupting();
 
         latch.await(30, TimeUnit.SECONDS);

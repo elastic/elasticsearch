@@ -153,7 +153,7 @@ class NioHttpClient implements Closeable {
                 nioSocketChannel.getContext().sendMessage(request, (v, e) -> {
                 });
             }
-            if (latch.await(30L, TimeUnit.SECONDS) == false) {
+            if (!latch.await(30L, TimeUnit.SECONDS)) {
                 fail("Failed to get all expected responses.");
             }
 

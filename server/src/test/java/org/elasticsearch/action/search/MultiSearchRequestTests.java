@@ -245,7 +245,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             MultiSearchRequest parsedRequest = new MultiSearchRequest();
             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
-                if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
+                if (!searchSourceBuilder.equals(new SearchSourceBuilder())) {
                     r.source(searchSourceBuilder);
                 }
                 parsedRequest.add(r);

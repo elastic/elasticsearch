@@ -150,7 +150,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
                 final IndexCommit lastCommit = commitList.get(commitList.size() - 1);
                 safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
                 assertThat(indexPolicy.releaseCommit(snapshot),
-                    equalTo(pendingSnapshots == 0 && snapshot.equals(lastCommit) == false && snapshot.equals(safeCommit) == false));
+                    equalTo(pendingSnapshots == 0 && !snapshot.equals(lastCommit) && !snapshot.equals(safeCommit)));
             }
             // Snapshotting commits must not be deleted.
             snapshottingCommits.forEach(snapshot -> assertThat(snapshot.isDeleted(), equalTo(false)));

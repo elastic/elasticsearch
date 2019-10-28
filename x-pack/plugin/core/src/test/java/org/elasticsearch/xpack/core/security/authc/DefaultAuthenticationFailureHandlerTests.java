@@ -93,7 +93,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
                 assertThat(ese, is(notNullValue()));
                 assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
                 assertThat(ese, is(sameInstance(cause)));
-                if (withAuthenticateHeader == false) {
+                if (!withAuthenticateHeader) {
                     assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
                 } else {
                     if (selectedScheme.contains("Negotiate ")) {

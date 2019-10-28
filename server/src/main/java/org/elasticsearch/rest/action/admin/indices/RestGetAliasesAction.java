@@ -115,7 +115,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             }
             if (j == requestedAliases.length) {
                 // explicitly requested aliases[i] is not excluded by any subsequent "-" wildcard in expression
-                if (false == returnedAliasNames.contains(requestedAliases[i])) {
+                if (!returnedAliasNames.contains(requestedAliases[i])) {
                     // aliases[i] is not in the result set
                     missingAliases.add(requestedAliases[i]);
                 }
@@ -140,7 +140,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             }
 
             for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : responseAliasMap) {
-                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
+                if (!aliasesExplicitlyRequested || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
                     builder.startObject(entry.key);
                     {
                         builder.startObject("aliases");

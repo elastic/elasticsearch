@@ -50,7 +50,7 @@ public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
     @Override
     protected void assertFromXContent(InternalMin min, ParsedAggregation parsedAggregation) {
         ParsedMin parsed = ((ParsedMin) parsedAggregation);
-        if (Double.isInfinite(min.getValue()) == false) {
+        if (!Double.isInfinite(min.getValue())) {
             assertEquals(min.getValue(), parsed.getValue(), Double.MIN_VALUE);
             assertEquals(min.getValueAsString(), parsed.getValueAsString());
         } else {

@@ -444,7 +444,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             // synchronize starting with the listener thread and the main test thread
             awaitQuietly(barrier);
             for (int i = 0; i < numberOfIterations; i++) {
-                if (i > numberOfIterations / 2 && rarely() && closed.get() == false) {
+                if (i > numberOfIterations / 2 && rarely() && !closed.get()) {
                     closed.set(true);
                     try {
                         globalCheckpointListeners.close();
@@ -452,7 +452,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                         throw new UncheckedIOException(e);
                     }
                 }
-                if (rarely() && closed.get() == false) {
+                if (rarely() && !closed.get()) {
                     globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.incrementAndGet());
                 }
             }
@@ -472,7 +472,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                         globalCheckpoint.get(),
                         maybeMultipleInvocationProtectingListener(
                                 (g, e) -> {
-                                    if (invocation.compareAndSet(false, true) == false) {
+                                    if (!invocation.compareAndSet(false, true)) {
                                         throw new IllegalStateException("listener invoked twice");
                                     }
                                 }),
@@ -488,7 +488,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         // synchronize ending with the updating thread and the listener thread
         barrier.await();
         // one last update to ensure all listeners are notified
-        if (closed.get() == false) {
+        if (!closed.get()) {
             globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.incrementAndGet());
         }
         assertThat(globalCheckpointListeners.pendingListeners(), equalTo(0));
@@ -610,7 +610,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         if (Assertions.ENABLED) {
             final AtomicBoolean invoked = new AtomicBoolean();
             return (g, e) -> {
-                if (invoked.compareAndSet(false, true) == false) {
+                if (!invoked.compareAndSet(false, true)) {
                     throw new AssertionError("listener invoked twice");
                 }
                 globalCheckpointListener.accept(g, e);

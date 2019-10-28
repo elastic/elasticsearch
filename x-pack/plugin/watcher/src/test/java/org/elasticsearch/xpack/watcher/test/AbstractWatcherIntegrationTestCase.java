@@ -280,7 +280,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         ensureGreen(to);
 
         AtomicReference<String> originalIndex = new AtomicReference<>(originalIndexOrAlias);
-        boolean watchesIsAlias = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
+        boolean watchesIsAlias = !client().admin().indices().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty();
         if (watchesIsAlias) {
             GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());

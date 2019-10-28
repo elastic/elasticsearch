@@ -119,7 +119,7 @@ public class MockWebServer implements Closeable {
                     byte[] responseAsBytes = response.getBody().getBytes(StandardCharsets.UTF_8);
                     s.sendResponseHeaders(response.getStatusCode(), responseAsBytes.length);
                     sleepIfNeeded(response.getBodyDelay());
-                    if ("HEAD".equals(request.getMethod()) == false) {
+                    if (!"HEAD".equals(request.getMethod())) {
                         try (OutputStream responseBody = s.getResponseBody()) {
                             responseBody.write(responseAsBytes);
                         }
@@ -180,7 +180,7 @@ public class MockWebServer implements Closeable {
         MockRequest request = new MockRequest(exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRequestHeaders());
         if (exchange.getRequestBody() != null) {
             String body = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
-            if (Strings.isEmpty(body) == false) {
+            if (!Strings.isEmpty(body)) {
                 request.setBody(body);
             }
         }
@@ -234,7 +234,7 @@ public class MockWebServer implements Closeable {
      * @return true if more requests are available, false otherwise
      */
     public boolean hasMoreRequests() {
-        return requests.isEmpty() == false;
+        return !requests.isEmpty();
     }
 
     /**

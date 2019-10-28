@@ -85,7 +85,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
     static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
         PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        if (isForce == false && tasks != null) {
+        if (!isForce && tasks != null) {
             List<String> failedTasks = new ArrayList<>();
             List<String> failedReasons = new ArrayList<>();
             for (String transformId : transformIds) {
@@ -97,7 +97,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     failedReasons.add(((TransformState) dfTask.getState()).getReason());
                 }
             }
-            if (failedTasks.isEmpty() == false) {
+            if (!failedTasks.isEmpty()) {
                 String msg = failedTasks.size() == 1 ?
                     TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM,
                         failedTasks.get(0),
@@ -113,7 +113,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();
-        if (nodes.isLocalNodeElectedMaster() == false) {
+        if (!nodes.isLocalNodeElectedMaster()) {
             // Delegates stop transform to elected master node so it becomes the coordinating node.
             if (nodes.getMasterNode() == null) {
                 listener.onFailure(new MasterNotDiscoveredException("no known master node"));
@@ -183,7 +183,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                                                                 List<TaskOperationFailure> taskOperationFailures,
                                                                 List<FailedNodeException> failedNodeExceptions) {
 
-        if (taskOperationFailures.isEmpty() == false || failedNodeExceptions.isEmpty() == false) {
+        if (!taskOperationFailures.isEmpty() || !failedNodeExceptions.isEmpty()) {
             return new Response(taskOperationFailures, failedNodeExceptions, false);
         }
 
@@ -211,7 +211,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 response -> {
                     // If there were failures attempting to stop the tasks, we don't know if they will actually stop.
                     // It is better to respond to the user now than allow for the persistent task waiting to timeout
-                    if (response.getTaskFailures().isEmpty() == false || response.getNodeFailures().isEmpty() == false) {
+                    if (!response.getTaskFailures().isEmpty() || !response.getNodeFailures().isEmpty()) {
                         RestStatus status = firstNotOKStatus(response.getTaskFailures(), response.getNodeFailures());
                         listener.onFailure(buildException(response.getTaskFailures(), response.getNodeFailures(), status));
                         return;
@@ -246,7 +246,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
         for (TaskOperationFailure taskOperationFailure : taskOperationFailures) {
             status = taskOperationFailure.getStatus();
-            if (RestStatus.OK.equals(status) == false) {
+            if (!RestStatus.OK.equals(status)) {
                 break;
             }
         }
@@ -256,7 +256,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 // FailedNodeException does not overwrite the `status()` method and the logic in ElasticsearchException
                 // Just returns an INTERNAL_SERVER_ERROR
                 status = exception.status();
-                if (RestStatus.OK.equals(status) == false) {
+                if (!RestStatus.OK.equals(status)) {
                     break;
                 }
             }
@@ -284,7 +284,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
                 // If force is true, then it should eventually go away, don't add it to the collection of failures.
                 TransformState taskState = (TransformState)transformsTask.getState();
-                if (force == false && taskState != null && taskState.getTaskState() == TransformTaskState.FAILED) {
+                if (!force && taskState != null && taskState.getTaskState() == TransformTaskState.FAILED) {
                     exceptions.put(persistentTaskId, new ElasticsearchStatusException(
                         TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM,
                             persistentTaskId,

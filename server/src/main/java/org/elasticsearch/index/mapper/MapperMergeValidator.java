@@ -48,7 +48,7 @@ class MapperMergeValidator {
         Set<String> objectFullNames = new HashSet<>();
         for (ObjectMapper objectMapper : objectMappers) {
             String fullPath = objectMapper.fullPath();
-            if (objectFullNames.add(fullPath) == false) {
+            if (!objectFullNames.add(fullPath)) {
                 throw new IllegalArgumentException("Object mapper [" + fullPath + "] is defined twice.");
             }
         }
@@ -58,7 +58,7 @@ class MapperMergeValidator {
             String name = fieldMapper.name();
             if (objectFullNames.contains(name)) {
                 throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field.");
-            } else if (fieldNames.add(name) == false) {
+            } else if (!fieldNames.add(name)) {
                 throw new IllegalArgumentException("Field [" + name + "] is defined twice.");
             }
 
@@ -72,7 +72,7 @@ class MapperMergeValidator {
                 throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field.");
             } else if (fieldNames.contains(name)) {
                 throw new IllegalArgumentException("Field [" + name + "] is defined both as an alias and a concrete field.");
-            } else if (fieldAliasNames.add(name) == false) {
+            } else if (!fieldAliasNames.add(name)) {
                 throw new IllegalArgumentException("Field [" + name + "] is defined twice.");
             }
 
@@ -88,10 +88,10 @@ class MapperMergeValidator {
         MappedFieldType newFieldType = fieldMapper.fieldType();
         MappedFieldType existingFieldType = fieldTypes.get(newFieldType.name());
 
-        if (existingFieldType != null && Objects.equals(newFieldType, existingFieldType) == false) {
+        if (existingFieldType != null && !Objects.equals(newFieldType, existingFieldType)) {
             List<String> conflicts = new ArrayList<>();
             existingFieldType.checkCompatibility(newFieldType, conflicts);
-            if (conflicts.isEmpty() == false) {
+            if (!conflicts.isEmpty()) {
                 throw new IllegalArgumentException("Mapper for [" + newFieldType.name() +
                     "] conflicts with existing mapping:\n" + conflicts.toString());
             }
@@ -118,7 +118,7 @@ class MapperMergeValidator {
                 aliasName + "]: an alias cannot refer to another alias.");
         }
 
-        if (fieldMappers.contains(path) == false) {
+        if (!fieldMappers.contains(path)) {
             throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
                 aliasName + "]: an alias must refer to an existing field in the mappings.");
         }
@@ -144,7 +144,7 @@ class MapperMergeValidator {
                                        Map<String, ObjectMapper> fullPathObjectMappers,
                                        FieldTypeLookup fieldTypes) {
         for (FieldMapper mapper : fieldMappers) {
-            if (mapper.copyTo() != null && mapper.copyTo().copyToFields().isEmpty() == false) {
+            if (mapper.copyTo() != null && !mapper.copyTo().copyToFields().isEmpty()) {
                 String sourceParent = parentObject(mapper.name());
                 if (sourceParent != null && fieldTypes.get(sourceParent) != null) {
                     throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + mapper.name() + "]");
@@ -209,7 +209,7 @@ class MapperMergeValidator {
         } else {
             targetIsParentOfSource = source.equals(target) || source.startsWith(target + ".");
         }
-        if (targetIsParentOfSource == false) {
+        if (!targetIsParentOfSource) {
             throw new IllegalArgumentException(
                 "Illegal combination of [copy_to] and [nested] mappings: [copy_to] may only copy data to the current nested " +
                     "document or any of its parents, however one [copy_to] directive is trying to copy data from nested object [" +

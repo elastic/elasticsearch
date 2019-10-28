@@ -54,7 +54,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     protected SecureSettings credentials() {
         assertThat(System.getProperty("test.azure.account"), not(blankOrNullString()));
         final boolean hasSasToken = Strings.hasText(System.getProperty("test.azure.sas_token"));
-        if (hasSasToken == false) {
+        if (!hasSasToken) {
             assertThat(System.getProperty("test.azure.key"), not(blankOrNullString()));
         } else {
             assertThat(System.getProperty("test.azure.key"), blankOrNullString());

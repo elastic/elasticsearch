@@ -108,7 +108,7 @@ public final class EngineConfig {
             case "lucene_default":
                 return s;
             default:
-                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
+                if (!Codec.availableCodecs().contains(s)) { // we don't error message the not officially supported ones
                     throw new IllegalArgumentException(
                         "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
                 }

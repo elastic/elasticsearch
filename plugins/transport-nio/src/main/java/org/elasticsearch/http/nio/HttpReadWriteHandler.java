@@ -188,7 +188,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     }
 
     private void maybeReadTimeout() {
-        if (requestSinceReadTimeoutTrigger == false && inFlightRequests == 0) {
+        if (!requestSinceReadTimeoutTrigger && inFlightRequests == 0) {
             transport.onException(nioHttpChannel, new HttpReadTimeoutException(TimeValue.nsecToMSec(readTimeoutNanos)));
         } else {
             requestSinceReadTimeoutTrigger = false;

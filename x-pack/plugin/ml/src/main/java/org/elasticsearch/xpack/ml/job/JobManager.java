@@ -364,7 +364,7 @@ public class JobManager {
             return;
         }
 
-        if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {
+        if (request.getJobUpdate().getGroups() != null && !request.getJobUpdate().getGroups().isEmpty()) {
 
             // check the new groups are not job Ids
             jobConfigProvider.jobIdMatches(request.getJobUpdate().getGroups(), ActionListener.wrap(
@@ -475,7 +475,7 @@ public class JobManager {
     }
 
     private void auditJobUpdatedIfNotInternal(UpdateJobAction.Request request) {
-        if (request.isInternal() == false) {
+        if (!request.isInternal()) {
             auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_UPDATED, request.getJobUpdate().getUpdateFields()));
         }
     }
@@ -529,15 +529,15 @@ public class JobManager {
         auditMsg.append(filterId);
         auditMsg.append("] has been modified; ");
 
-        if (addedItems.isEmpty() == false) {
+        if (!addedItems.isEmpty()) {
             auditMsg.append("added items: ");
             appendCommaSeparatedSet(addedItems, auditMsg);
-            if (removedItems.isEmpty() == false) {
+            if (!removedItems.isEmpty()) {
                 auditMsg.append(", ");
             }
         }
 
-        if (removedItems.isEmpty() == false) {
+        if (!removedItems.isEmpty()) {
             auditMsg.append("removed items: ");
             appendCommaSeparatedSet(removedItems, auditMsg);
         }

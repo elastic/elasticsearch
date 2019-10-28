@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.containsString;
  * user rather than to the JDBC driver or CLI.
  */
 public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements ErrorsTestCase {
-    
+
     public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
     private static String SQL_TRANSLATE_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
     /**
@@ -71,7 +71,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> expected = new HashMap<>();
         String mode = randomMode();
         boolean columnar = randomBoolean();
-        
+
         expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
         if (columnar) {
             expected.put("values", singletonList(Arrays.asList("test", "test")));
@@ -92,7 +92,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
-        
+
         boolean columnar = randomBoolean();
         String sqlRequest =
                   "{\"query\":\""
@@ -121,7 +121,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                         columnInfo(mode, "s", "double", JDBCType.DOUBLE, 25),
                         columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
             }
-            
+
             if (columnar) {
                 expected.put("values", Arrays.asList(
                         Arrays.asList("text" + i, "text" + (i + 1)),
@@ -190,7 +190,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         } else {
             expected.put("rows", singletonList(Arrays.asList("test", 10, 1.0)));
         }
-        
+
         assertResponse(expected, runSql(mode, "SELECT *, SCORE() FROM test ORDER BY SCORE()", columnar));
         assertResponse(expected, runSql(mode, "SELECT name, \\\"score\\\", SCORE() FROM test ORDER BY SCORE()", columnar));
     }
@@ -323,7 +323,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     public void testUseColumnarForUnsupportedFormats() throws Exception {
         String format = randomFrom("txt", "csv", "tsv");
         index("{\"foo\":1}");
-        
+
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("pretty", "true");
@@ -335,10 +335,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 return Collections.emptyMap();
             }, containsString("Invalid use of [columnar] argument: cannot be used in combination with txt, csv or tsv formats"));
     }
-    
+
     public void testUseColumnarForTranslateRequest() throws IOException {
         index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
-        
+
         Request request = new Request("POST", SQL_TRANSLATE_REST_ENDPOINT);
         request.setEntity(new StringEntity("{\"columnar\":true,\"query\":\"SELECT * FROM test\"" + mode(randomMode()) + "}",
                 ContentType.APPLICATION_JSON));
@@ -372,7 +372,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     private Map<String, Object> runSql(String mode, String sql) throws IOException {
         return runSql(mode, sql, StringUtils.EMPTY, randomBoolean());
     }
-    
+
     private Map<String, Object> runSql(String mode, String sql, boolean columnar) throws IOException {
         return runSql(mode, sql, StringUtils.EMPTY, columnar);
     }
@@ -382,9 +382,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         return runSql(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + columnarParameter(columnar) + "}",
                 ContentType.APPLICATION_JSON), suffix);
     }
-    
+
     private String columnarParameter(boolean columnar) {
-        if (columnar == false && randomBoolean()) {
+        if (!columnar && randomBoolean()) {
             return "";
         } else {
             return ",\"columnar\":" + columnar;
@@ -417,41 +417,41 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         String expected = "";
         if (columnar) {
-            expected = "{\n" + 
-                    "  \"columns\" : [\n" + 
-                    "    {\n" + 
-                    "      \"name\" : \"test1\",\n" + 
-                    "      \"type\" : \"text\"\n" + 
-                    "    }\n" + 
-                    "  ],\n" + 
-                    "  \"values\" : [\n" + 
-                    "    [\n" + 
-                    "      \"test1\",\n" + 
-                    "      \"test2\"\n" + 
-                    "    ]\n" + 
-                    "  ]\n" + 
+            expected = "{\n" +
+                    "  \"columns\" : [\n" +
+                    "    {\n" +
+                    "      \"name\" : \"test1\",\n" +
+                    "      \"type\" : \"text\"\n" +
+                    "    }\n" +
+                    "  ],\n" +
+                    "  \"values\" : [\n" +
+                    "    [\n" +
+                    "      \"test1\",\n" +
+                    "      \"test2\"\n" +
+                    "    ]\n" +
+                    "  ]\n" +
                     "}\n";
         } else {
-            expected = "{\n" + 
-                    "  \"columns\" : [\n" + 
-                    "    {\n" + 
-                    "      \"name\" : \"test1\",\n" + 
-                    "      \"type\" : \"text\"\n" + 
-                    "    }\n" + 
-                    "  ],\n" + 
-                    "  \"rows\" : [\n" + 
-                    "    [\n" + 
-                    "      \"test1\"\n" + 
-                    "    ],\n" + 
-                    "    [\n" + 
-                    "      \"test2\"\n" + 
-                    "    ]\n" + 
-                    "  ]\n" + 
+            expected = "{\n" +
+                    "  \"columns\" : [\n" +
+                    "    {\n" +
+                    "      \"name\" : \"test1\",\n" +
+                    "      \"type\" : \"text\"\n" +
+                    "    }\n" +
+                    "  ],\n" +
+                    "  \"rows\" : [\n" +
+                    "    [\n" +
+                    "      \"test1\"\n" +
+                    "    ],\n" +
+                    "    [\n" +
+                    "      \"test2\"\n" +
+                    "    ]\n" +
+                    "  ]\n" +
                     "}\n";
         }
         executeAndAssertPrettyPrinting(expected, "true", columnar);
     }
-    
+
     public void testPrettyPrintingDisabled() throws IOException {
         boolean columnar = randomBoolean();
         String expected = "";
@@ -462,7 +462,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         executeAndAssertPrettyPrinting(expected, randomFrom("false", null), columnar);
     }
-    
+
     private void executeAndAssertPrettyPrinting(String expectedJson, String prettyParameter, boolean columnar)
             throws IOException {
         index("{\"test1\":\"test1\"}",
@@ -484,7 +484,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         request.setEntity(new StringEntity("{\"query\":\"SELECT * FROM test\"" + mode("plain") + columnarParameter(columnar) + "}",
                   ContentType.APPLICATION_JSON));
-        
+
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
             String actualJson = new BytesArray(content.readAllBytes()).utf8ToString();
@@ -494,7 +494,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     public void testBasicTranslateQuery() throws IOException {
         index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
-        
+
         Map<String, Object> response = runSql(new StringEntity("{\"query\":\"SELECT * FROM test\"" + mode(randomMode()) + "}",
                 ContentType.APPLICATION_JSON), "/translate/");
         assertEquals(1000, response.get("size"));
@@ -741,7 +741,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Tuple<String, String> response = runSqlAsText(query, "text/csv; header=absent");
         assertEquals(expected, response.v1());
     }
-    
+
     public void testNextPageCSV() throws IOException {
         executeQueryWithNextPage("text/csv; header=present", "text,number,sum\r\n", "%s,%d,%d\r\n");
     }
@@ -763,11 +763,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         response = runSqlAsTextFormat(query, "tsv");
         assertEquals(expected, response.v1());
     }
-    
+
     public void testNextPageTSV() throws IOException {
         executeQueryWithNextPage("text/tab-separated-values", "text\tnumber\tsum\n", "%s\t%d\t%d\n");
     }
-    
+
     private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {
         int size = 20;
         String[] docs = new String[size];
@@ -853,7 +853,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
-        if (false == expected.equals(actual)) {
+        if (!expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
@@ -869,7 +869,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         @SuppressWarnings("unchecked")
         Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
         for (String index : indicesStats.keySet()) {
-            if (index.startsWith(".") == false) { // We are not interested in internal indices
+            if (!index.startsWith(".")) { // We are not interested in internal indices
                 assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
             }
         }

@@ -87,14 +87,14 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        final boolean valuesAsString = (percentilesAsString.isEmpty() == false);
+        final boolean valuesAsString = (!percentilesAsString.isEmpty());
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (Map.Entry<Double, Double> percentile : percentiles.entrySet()) {
                 Double key = percentile.getKey();
                 Double value = percentile.getValue();
                 builder.field(String.valueOf(key), value.isNaN() ? null : value);
-                if (valuesAsString && value.isNaN() == false) {
+                if (valuesAsString && !value.isNaN()) {
                     builder.field(key + "_as_string", getPercentileAsString(key));
                 }
             }
@@ -108,7 +108,7 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
                     builder.field(CommonFields.KEY.getPreferredName(), key);
                     Double value = percentile.getValue();
                     builder.field(CommonFields.VALUE.getPreferredName(), value.isNaN() ? null : value);
-                    if (valuesAsString && value.isNaN() == false) {
+                    if (valuesAsString && !value.isNaN()) {
                         builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), getPercentileAsString(key));
                     }
                 }

@@ -46,7 +46,7 @@ final class CombinedDocValues {
 
     long docVersion(int segmentDocId) throws IOException {
         assert versionDV.docID() < segmentDocId;
-        if (versionDV.advanceExact(segmentDocId) == false) {
+        if (!versionDV.advanceExact(segmentDocId)) {
             throw new IllegalStateException("DocValues for field [" + VersionFieldMapper.NAME + "] is not found");
         }
         return versionDV.longValue();
@@ -54,7 +54,7 @@ final class CombinedDocValues {
 
     long docSeqNo(int segmentDocId) throws IOException {
         assert seqNoDV.docID() < segmentDocId;
-        if (seqNoDV.advanceExact(segmentDocId) == false) {
+        if (!seqNoDV.advanceExact(segmentDocId)) {
             throw new IllegalStateException("DocValues for field [" + SeqNoFieldMapper.NAME + "] is not found");
         }
         return seqNoDV.longValue();
@@ -66,7 +66,7 @@ final class CombinedDocValues {
         }
         assert primaryTermDV.docID() < segmentDocId;
         // Use -1 for docs which don't have primary term. The caller considers those docs as nested docs.
-        if (primaryTermDV.advanceExact(segmentDocId) == false) {
+        if (!primaryTermDV.advanceExact(segmentDocId)) {
             return -1;
         }
         return primaryTermDV.longValue();

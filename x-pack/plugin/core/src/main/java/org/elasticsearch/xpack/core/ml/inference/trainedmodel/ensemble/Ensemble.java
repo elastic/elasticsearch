@@ -123,7 +123,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public List<Double> classificationProbability(Map<String, Object> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
+        if (!(targetType == TargetType.CLASSIFICATION)) {
             throw new UnsupportedOperationException(
                 "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
         }
@@ -287,7 +287,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         public Ensemble build() {
             // This is essentially a serialization error but the underlying xcontent parsing does not allow us to inject this requirement
             // So, we verify the models were parsed in an ordered fashion here instead.
-            if (modelsAreOrdered == false && trainedModels != null && trainedModels.size() > 1) {
+            if (!modelsAreOrdered && trainedModels != null && trainedModels.size() > 1) {
                 throw ExceptionsHelper.badRequestException("[trained_models] needs to be an array of objects");
             }
             return new Ensemble(featureNames, trainedModels, outputAggregator, targetType, classificationLabels);

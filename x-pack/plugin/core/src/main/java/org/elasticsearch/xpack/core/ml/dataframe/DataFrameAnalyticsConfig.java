@@ -235,7 +235,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             builder.field(ANALYZED_FIELDS.getPreferredName(), analyzedFields);
         }
         builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), getModelMemoryLimit().getStringRep());
-        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+        if (!headers.isEmpty() && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
         if (createTime != null) {

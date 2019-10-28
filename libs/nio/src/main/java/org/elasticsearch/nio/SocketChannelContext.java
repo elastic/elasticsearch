@@ -91,7 +91,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         configureSocket(rawChannel.socket(), false);
 
-        if (socketConfig.isAccepted() == false) {
+        if (!socketConfig.isAccepted()) {
             InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
             try {
                 connect(rawChannel, remoteAddress);
@@ -106,7 +106,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     public boolean isConnectComplete() {
-        return connectContext.isDone() && connectContext.isCompletedExceptionally() == false;
+        return connectContext.isDone() && !connectContext.isCompletedExceptionally();
     }
 
     /**
@@ -134,7 +134,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
 
         boolean isConnected = rawChannel.isConnected();
-        if (isConnected == false) {
+        if (!isConnected) {
             try {
                 isConnected = rawChannel.finishConnect();
             } catch (IOException | RuntimeException e) {
@@ -216,7 +216,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             }
             channelBuffer.close();
 
-            if (closingExceptions.isEmpty() == false) {
+            if (!closingExceptions.isEmpty()) {
                 ExceptionsHelper.rethrowAndSuppress(closingExceptions);
             }
         }
@@ -235,7 +235,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     public boolean readyForFlush() {
         getSelector().assertOnSelectorThread();
-        return pendingFlushes.isEmpty() == false;
+        return !pendingFlushes.isEmpty();
     }
 
     /**
@@ -296,7 +296,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected int flushToChannel(FlushOperation flushOperation) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
 
-        boolean continueFlush = flushOperation.isFullyFlushed() == false;
+        boolean continueFlush = !flushOperation.isFullyFlushed();
         int totalBytesFlushed = 0;
         while (continueFlush) {
             ioBuffer.clear();
@@ -313,7 +313,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             }
             flushOperation.incrementIndex(bytesFlushed);
             totalBytesFlushed += bytesFlushed;
-            continueFlush = ioBuffer.hasRemaining() == false && flushOperation.isFullyFlushed() == false;
+            continueFlush = !ioBuffer.hasRemaining() && !flushOperation.isFullyFlushed();
         }
         return totalBytesFlushed;
     }

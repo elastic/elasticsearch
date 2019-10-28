@@ -63,12 +63,12 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             final Task task,
             final FollowStatsAction.StatsRequest request,
             final ActionListener<FollowStatsAction.StatsResponses> listener) {
-        if (ccrLicenseChecker.isCcrAllowed() == false) {
+        if (!ccrLicenseChecker.isCcrAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
 
-        if (Strings.isAllOrWildcard(request.indices()) == false) {
+        if (!Strings.isAllOrWildcard(request.indices())) {
             final ClusterState state = clusterService.state();
             Set<String> shardFollowTaskFollowerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
             if (shardFollowTaskFollowerIndices.isEmpty()) {

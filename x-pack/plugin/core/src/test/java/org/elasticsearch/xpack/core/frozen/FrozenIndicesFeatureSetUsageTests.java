@@ -26,10 +26,10 @@ public class FrozenIndicesFeatureSetUsageTests extends AbstractWireSerializingTe
         int numFrozenIndices = instance.getNumberOfFrozenIndices();
         switch (between(0, 2)) {
             case 0:
-                available = available == false;
+                available = !available;
                 break;
             case 1:
-                enabled = enabled == false;
+                enabled = !enabled;
                 break;
             case 2:
                 numFrozenIndices = randomValueOtherThan(numFrozenIndices, () -> randomIntBetween(0, 100000));

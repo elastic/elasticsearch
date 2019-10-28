@@ -82,7 +82,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         // all other repos should ignore the special jdk artifacts
         project.getRootProject().getRepositories().all(repo -> {
-            if (repo.getName().startsWith(REPO_NAME_PREFIX) == false) {
+            if (!repo.getName().startsWith(REPO_NAME_PREFIX)) {
                 repo.content(content -> {
                     content.excludeGroup("adoptopenjdk");
                     content.excludeGroup("openjdk");
@@ -110,7 +110,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         // decompose the bundled jdk version, broken into elements as: [feature, interim, update, build]
         // Note the "patch" version is not yet handled here, as it has not yet been used by java.
         Matcher jdkVersionMatcher = Jdk.VERSION_PATTERN.matcher(version);
-        if (jdkVersionMatcher.matches() == false) {
+        if (!jdkVersionMatcher.matches()) {
             throw new IllegalArgumentException("Malformed jdk version [" + version + "]");
         }
         String jdkVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");

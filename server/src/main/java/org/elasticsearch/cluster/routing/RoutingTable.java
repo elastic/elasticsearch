@@ -146,7 +146,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      */
     public IndexShardRoutingTable shardRoutingTable(ShardId shardId) {
         IndexRoutingTable indexRouting = index(shardId.getIndexName());
-        if (indexRouting == null || indexRouting.getIndex().equals(shardId.getIndex()) == false) {
+        if (indexRouting == null || !indexRouting.getIndex().equals(shardId.getIndex())) {
             throw new IndexNotFoundException(shardId.getIndex());
         }
         IndexShardRoutingTable shard = indexRouting.shard(shardId.id());
@@ -168,7 +168,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     public boolean validate(MetaData metaData) {
         for (IndexRoutingTable indexRoutingTable : this) {
-            if (indexRoutingTable.validate(metaData) == false) {
+            if (!indexRoutingTable.validate(metaData)) {
                 return false;
             }
         }

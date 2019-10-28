@@ -99,7 +99,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
         }
-        if (getSearchRequest().source().fetchSource() != null && getSearchRequest().source().fetchSource().fetchSource() == false) {
+        if (getSearchRequest().source().fetchSource() != null && !getSearchRequest().source().fetchSource().fetchSource()) {
             e = addValidationError("_source:false is not supported in this context", e);
         }
         /*
@@ -111,7 +111,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             e = addValidationError("index must be specified", e);
             return e;
         }
-        if (false == routingIsValid()) {
+        if (!routingIsValid()) {
             e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
         }
         if (destination.versionType() == INTERNAL) {
@@ -309,7 +309,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (getScript() != null) {
                 builder.field("script", getScript());
             }
-            if (isAbortOnVersionConflict() == false) {
+            if (!isAbortOnVersionConflict()) {
                 builder.field("conflicts", "proceed");
             }
         }
@@ -406,14 +406,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         int port = uri.getPort();
 
         String pathPrefix = null;
-        if (uri.getPath().isEmpty() == false) {
+        if (!uri.getPath().isEmpty()) {
             pathPrefix = uri.getPath();
         }
 
         Map<String, String> headers = extractStringStringMap(remote, "headers");
         TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
-        if (false == remote.isEmpty()) {
+        if (!remote.isEmpty()) {
             throw new IllegalArgumentException(
                 "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
         }
@@ -437,12 +437,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (value == null) {
             return emptyMap();
         }
-        if (false == value instanceof Map) {
+        if (!(value instanceof Map)) {
             throw new IllegalArgumentException("Expected [" + name + "] to be an object containing strings but was [" + value + "]");
         }
         Map<?, ?> map = (Map<?, ?>) value;
         for (Map.Entry<?, ?> entry : map.entrySet()) {
-            if (false == entry.getKey() instanceof String || false == entry.getValue() instanceof String) {
+            if (!(entry.getKey() instanceof String) || !(entry.getValue() instanceof String)) {
                 throw new IllegalArgumentException("Expected [" + name + "] to be an object containing strings but has [" + entry + "]");
             }
         }

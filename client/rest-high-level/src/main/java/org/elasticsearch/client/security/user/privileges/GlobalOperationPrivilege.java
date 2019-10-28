@@ -43,7 +43,7 @@ public class GlobalOperationPrivilege {
      * Constructs privileges under a specific {@code category} and for some
      * {@code operation}. The privilege definition is flexible, it is a {@code Map},
      * and the semantics is bound to the {@code category} and {@code operation}.
-     * 
+     *
      * @param category
      *            The category of the privilege.
      * @param operation
@@ -84,7 +84,7 @@ public class GlobalOperationPrivilege {
         if (this == o) {
             return true;
         }
-        if (false == (o instanceof GlobalOperationPrivilege)) {
+        if (!(o instanceof GlobalOperationPrivilege)) {
             return false;
         }
         final GlobalOperationPrivilege that = (GlobalOperationPrivilege) o;

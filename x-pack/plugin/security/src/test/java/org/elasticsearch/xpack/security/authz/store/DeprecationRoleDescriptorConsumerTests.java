@@ -182,7 +182,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         deprecationConsumer.accept(Arrays.asList(someRole));
         final String cacheKeyAfter = DeprecationRoleDescriptorConsumer.buildCacheKey(someRole);
         // we don't do this test if it crosses days
-        if (false == cacheKeyBefore.equals(cacheKeyAfter)) {
+        if (!cacheKeyBefore.equals(cacheKeyAfter)) {
             return;
         }
         verifyNoMoreInteractions(deprecationLogger);
@@ -193,7 +193,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         deprecationConsumer.accept(Arrays.asList(differentRoleSameName));
         final String cacheKeyAfterParty = DeprecationRoleDescriptorConsumer.buildCacheKey(differentRoleSameName);
         // we don't do this test if it crosses days
-        if (false == cacheKeyBefore.equals(cacheKeyAfterParty)) {
+        if (!cacheKeyBefore.equals(cacheKeyAfterParty)) {
             return;
         }
         verifyNoMoreInteractions(deprecationLogger);

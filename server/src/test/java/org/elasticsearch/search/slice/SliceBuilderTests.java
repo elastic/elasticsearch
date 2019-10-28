@@ -279,7 +279,7 @@ public class SliceBuilderTests extends ESTestCase {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
                     context = createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED, numShards, j);
                     Query q = slice.toFilter(null, createRequest(j), context);
-                    if (q instanceof MatchNoDocsQuery == false) {
+                    if (!(q instanceof MatchNoDocsQuery)) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
                         targetShards.add(j);
                     }

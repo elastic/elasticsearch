@@ -129,7 +129,7 @@ public class JodaDateFormatter implements DateFormatter {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj.getClass().equals(this.getClass()) == false) {
+        if (!obj.getClass().equals(this.getClass())) {
             return false;
         }
         JodaDateFormatter other = (JodaDateFormatter) obj;

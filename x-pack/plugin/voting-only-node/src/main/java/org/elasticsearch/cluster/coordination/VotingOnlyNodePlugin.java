@@ -83,7 +83,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     }
 
     public static boolean isFullMasterNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE) == false;
+        return discoveryNode.isMasterNode() && !discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE);
     }
 
     @Override
@@ -93,7 +93,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
-        if (isVotingOnlyNode && Node.NODE_MASTER_SETTING.get(settings) == false) {
+        if (isVotingOnlyNode && !Node.NODE_MASTER_SETTING.get(settings)) {
             throw new IllegalStateException("voting-only node must be master-eligible");
         }
         return Collections.singleton(VOTING_ONLY_NODE_ROLE);

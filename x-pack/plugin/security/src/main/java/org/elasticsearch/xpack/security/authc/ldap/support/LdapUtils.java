@@ -278,7 +278,7 @@ public final class LdapUtils {
         } catch (LDAPException e) {
             listener.onFailure(e);
         } finally {
-            if (searching == false) {
+            if (!searching) {
                 final LDAPConnection finalConnection = ldapConnection;
                 IOUtils.closeWhileHandlingException(() -> ldap.releaseConnection(finalConnection));
             }
@@ -357,7 +357,7 @@ public final class LdapUtils {
         } catch (LDAPException e) {
             listener.onFailure(e);
         } finally {
-            if (searching == false && ldapConnection != null) {
+            if (!searching && ldapConnection != null) {
                 final LDAPConnection finalConnection = ldapConnection;
                 IOUtils.closeWhileHandlingException(() -> ldap.releaseConnection(finalConnection));
             }
@@ -496,7 +496,7 @@ public final class LdapUtils {
                     .collect(Collectors.toList())
                     .toArray(Strings.EMPTY_ARRAY);
             final SearchRequest request = searchRequestRef.get();
-            if (referralUrls.length == 0 || request.followReferrals(ldapConnection) == false) {
+            if (referralUrls.length == 0 || !request.followReferrals(ldapConnection)) {
                 // either no referrals to follow or we have explicitly disabled referral following
                 // on the connection so we just create a new search result that has the values we've
                 // collected. The search result passed to this method will not have of the entries
@@ -669,7 +669,7 @@ public final class LdapUtils {
             referralConn.asyncSearch(referralSearchRequest);
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 IOUtils.closeWhileHandlingException(referralConn);
             }
         }

@@ -69,7 +69,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     @Override
     public UsernamePasswordToken token(ThreadContext threadContext) {
-        if (authenticationEnabled == false) {
+        if (!authenticationEnabled) {
             return null;
         }
         return super.token(threadContext);
@@ -91,7 +91,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      */
     @Override
     public final void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
-        if (authenticationEnabled == false) {
+        if (!authenticationEnabled) {
             listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
@@ -164,7 +164,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             } else {
                 // attempt authentication against the authentication source
                 doAuthenticate(token, ActionListener.wrap(authResult -> {
-                    if (authResult.isAuthenticated() == false || authResult.getUser().enabled() == false) {
+                    if (!authResult.isAuthenticated() || !authResult.getUser().enabled()) {
                         // a new request should trigger a new authentication
                         cache.invalidate(token.principal(), listenableCacheEntry);
                     }
@@ -233,7 +233,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 lookupInCache.set(false);
                 return new ListenableFuture<>();
             });
-            if (false == lookupInCache.get()) {
+            if (!lookupInCache.get()) {
                 // attempt lookup against the user directory
                 doLookupUser(username, ActionListener.wrap(user -> {
                     final CachedResult result = new CachedResult(AuthenticationResult.notHandled(), cacheHasher, user, null);

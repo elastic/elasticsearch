@@ -434,7 +434,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         logger.info("Created Random GeometryCollection containing {} shapes using {} tree", gcb.numShapes(),
             usePrefixTrees ? "default" : "quadtree");
 
-        if (usePrefixTrees == false) {
+        if (!usePrefixTrees) {
             client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
                 .execute().actionGet();
         } else {

@@ -112,7 +112,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", !primaryOnNode1,
                 ShardRoutingState.STARTED));
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
@@ -134,7 +134,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", !primaryOnNode1,
                 ShardRoutingState.STARTED));
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
@@ -156,7 +156,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", !primaryOnNode1,
                 ShardRoutingState.STARTED));
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
@@ -185,7 +185,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         shardOnNode1 = shardOnNode1.relocate("node3", 230);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(shardOnNode1)
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", !primaryOnNode1,
                 ShardRoutingState.STARTED));
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
@@ -255,7 +255,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", !primaryOnNode1,
                         ShardRoutingState.STARTED));
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());

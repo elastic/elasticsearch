@@ -59,7 +59,7 @@ public class CleanupS3RepositoryCommand extends AbstractCleanupCommand {
             throw new ElasticsearchException("region or endpoint option is required for cleaning up S3 repository");
         }
 
-        if (Strings.isNullOrEmpty(region) == false && Strings.isNullOrEmpty(endpoint) == false) {
+        if (!Strings.isNullOrEmpty(region) && !Strings.isNullOrEmpty(endpoint)) {
             throw new ElasticsearchException("you must not specify both region and endpoint");
         }
 

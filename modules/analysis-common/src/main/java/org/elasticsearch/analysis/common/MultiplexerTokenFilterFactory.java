@@ -189,7 +189,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             public boolean incrementToken() throws IOException {
                 if (selector >= filterCount - 1) {
                     selector = 0;
-                    if (input.incrementToken() == false) {
+                    if (!input.incrementToken()) {
                         return false;
                     }
                     state = captureState();

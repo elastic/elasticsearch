@@ -179,7 +179,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
-        if (false == "http".equals(scheme)) {
+        if (!"http".equals(scheme)) {
             // http is the default so it isn't worth taking up space if it is the scheme
             b.append("scheme=").append(scheme).append(' ');
         }

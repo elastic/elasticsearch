@@ -163,7 +163,7 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
 
         public CalendarInterval(String field, DateHistogramInterval interval, DateHistogramInterval delay, String timeZone) {
             super(field, interval, delay, timeZone);
-            if (DATE_FIELD_UNITS.contains(interval.toString()) == false) {
+            if (!DATE_FIELD_UNITS.contains(interval.toString())) {
                 throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
                     "as a calendar interval.");
             }
@@ -210,7 +210,7 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
         this.field = field;
         this.interval = interval;
         this.delay = delay;
-        this.timeZone = (timeZone != null && timeZone.isEmpty() == false) ? timeZone : DEFAULT_TIMEZONE;
+        this.timeZone = (timeZone != null && !timeZone.isEmpty()) ? timeZone : DEFAULT_TIMEZONE;
     }
 
     @Override

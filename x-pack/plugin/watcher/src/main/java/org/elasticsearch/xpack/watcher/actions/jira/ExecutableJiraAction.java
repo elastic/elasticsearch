@@ -102,7 +102,7 @@ public class ExecutableJiraAction extends ExecutableAction<JiraAction> {
 
                 // Copy the value directly in the map if it does not exist yet.
                 // We don't try to merge maps or list.
-                if (fields.containsKey(key) == false) {
+                if (!fields.containsKey(key)) {
                     fields.put(key, value);
                 }
             }

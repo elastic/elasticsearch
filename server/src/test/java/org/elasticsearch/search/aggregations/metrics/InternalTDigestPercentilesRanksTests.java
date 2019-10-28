@@ -106,7 +106,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
             state = newState;
             break;
         case 3:
-            keyed = keyed == false;
+            keyed = !keyed;
             break;
         case 4:
             if (metaData == null) {

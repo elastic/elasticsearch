@@ -72,7 +72,7 @@ final class WatcherRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params()
             .withIfSeqNo(putWatchRequest.ifSeqNo())
             .withIfPrimaryTerm(putWatchRequest.ifPrimaryTerm());
-        if (putWatchRequest.isActive() == false) {
+        if (!putWatchRequest.isActive()) {
             params.putParam("active", "false");
         }
         request.addParameters(params.asMap());

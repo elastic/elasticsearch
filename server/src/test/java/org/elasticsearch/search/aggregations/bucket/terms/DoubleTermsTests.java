@@ -52,7 +52,7 @@ public class DoubleTermsTests extends InternalTermsTestCase {
         final int numBuckets = randomNumberOfBuckets();
         Set<Double> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            double term = randomValueOtherThanMany(d -> terms.add(d) == false, random()::nextDouble);
+            double term = randomValueOtherThanMany(d -> !terms.add(d), random()::nextDouble);
             int docCount = randomIntBetween(1, 100);
             buckets.add(new DoubleTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
         }
@@ -100,7 +100,7 @@ public class DoubleTermsTests extends InternalTermsTestCase {
                 shardSize += between(1, 100);
                 break;
             case 4:
-                showTermDocCountError = showTermDocCountError == false;
+                showTermDocCountError = !showTermDocCountError;
                 break;
             case 5:
                 otherDocCount += between(1, 100);

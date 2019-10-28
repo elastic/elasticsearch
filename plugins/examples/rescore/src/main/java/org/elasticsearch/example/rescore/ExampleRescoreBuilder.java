@@ -115,7 +115,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (!super.equals(obj)) {
             return false;
         }
         ExampleRescoreBuilder other = (ExampleRescoreBuilder) obj;
@@ -170,7 +170,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                  * them in (reader, field, docId) order because that is the
                  * order they are on disk.
                  */
-                ScoreDoc[] sortedByDocId = new ScoreDoc[topDocs.scoreDocs.length]; 
+                ScoreDoc[] sortedByDocId = new ScoreDoc[topDocs.scoreDocs.length];
                 System.arraycopy(topDocs.scoreDocs, 0, sortedByDocId, 0, topDocs.scoreDocs.length);
                 Arrays.sort(sortedByDocId, (a, b) -> a.doc - b.doc); // Safe because doc ids >= 0
                 Iterator<LeafReaderContext> leaves = searcher.getIndexReader().leaves().iterator();
@@ -184,12 +184,12 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                             endDoc = leaf.docBase + leaf.reader().maxDoc();
                         } while (topDocs.scoreDocs[i].doc >= endDoc);
                         AtomicFieldData fd = context.factorField.load(leaf);
-                        if (false == (fd instanceof AtomicNumericFieldData)) {
+                        if (!(fd instanceof AtomicNumericFieldData)) {
                             throw new IllegalArgumentException("[" + context.factorField.getFieldName() + "] is not a number");
                         }
                         data = ((AtomicNumericFieldData) fd).getDoubleValues();
                     }
-                    if (false == data.advanceExact(topDocs.scoreDocs[i].doc - leaf.docBase)) {
+                    if (!data.advanceExact(topDocs.scoreDocs[i].doc - leaf.docBase)) {
                         throw new IllegalArgumentException("document [" + topDocs.scoreDocs[i].doc
                                 + "] does not have the field [" + context.factorField.getFieldName() + "]");
                     }

@@ -97,7 +97,7 @@ public class RuleScope implements ToXContentObject {
             return true;
         }
 
-        if (obj instanceof RuleScope == false) {
+        if (!(obj instanceof RuleScope)) {
             return false;
         }
 

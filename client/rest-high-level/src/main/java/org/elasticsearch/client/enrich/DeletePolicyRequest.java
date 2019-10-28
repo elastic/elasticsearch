@@ -26,7 +26,7 @@ public final class DeletePolicyRequest implements Validatable {
     private final String name;
 
     public DeletePolicyRequest(String name) {
-        if (Strings.hasLength(name) == false) {
+        if (!Strings.hasLength(name)) {
             throw new IllegalArgumentException("name must be a non-null and non-empty string");
         }
         this.name = name;

@@ -59,7 +59,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         } else {
             fieldPermissions = new FieldPermissions();
         }
-        final boolean useDls = (useFls == false) || randomBoolean();
+        final boolean useDls = (!useFls) || randomBoolean();
         final Set<BytesReference> queries;
         if (useDls) {
             queries = Collections.singleton(new BytesArray(randomAlphaOfLengthBetween(2, 8)));

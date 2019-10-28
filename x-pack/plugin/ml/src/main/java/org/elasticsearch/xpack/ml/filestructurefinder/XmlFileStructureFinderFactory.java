@@ -69,7 +69,7 @@ public class XmlFileStructureFinderFactory implements FileStructureFinderFactory
                                     String rootElementName = xmlReader.getLocalName();
                                     if (commonRootElementName == null) {
                                         commonRootElementName = rootElementName;
-                                    } else if (commonRootElementName.equals(rootElementName) == false) {
+                                    } else if (!commonRootElementName.equals(rootElementName)) {
                                         explanation.add("Not XML because different documents have different root " +
                                             "element names: [" + commonRootElementName + "] and [" + rootElementName + "]");
                                         return false;

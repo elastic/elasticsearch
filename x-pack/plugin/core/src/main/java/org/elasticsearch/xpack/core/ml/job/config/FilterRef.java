@@ -91,7 +91,7 @@ public class FilterRef implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (obj instanceof FilterRef == false) {
+        if (!(obj instanceof FilterRef)) {
             return false;
         }
 

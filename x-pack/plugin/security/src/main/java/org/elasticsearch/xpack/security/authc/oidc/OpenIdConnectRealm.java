@@ -107,7 +107,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         this.nameAttribute = ClaimParser.forSetting(logger, NAME_CLAIM, config, false);
         this.mailAttribute = ClaimParser.forSetting(logger, MAIL_CLAIM, config, false);
         this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
-        if (TokenService.isTokenServiceEnabled(config.settings()) == false) {
+        if (!TokenService.isTokenServiceEnabled(config.settings())) {
             throw new IllegalStateException("OpenID Connect Realm requires that the token service be enabled ("
                 + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + ")");
         }
@@ -264,7 +264,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         }
 
         final Scope requestedScope = new Scope(config.getSetting(RP_REQUESTED_SCOPES).toArray(Strings.EMPTY_ARRAY));
-        if (requestedScope.contains("openid") == false) {
+        if (!requestedScope.contains("openid")) {
             requestedScope.add("openid");
         }
         final JWSAlgorithm signatureAlgorithm = JWSAlgorithm.parse(require(config, RP_SIGNATURE_ALGORITHM));
@@ -442,7 +442,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                     return null;
                                 }
                                 final Matcher matcher = regex.matcher(s);
-                                if (matcher.find() == false) {
+                                if (!matcher.find()) {
                                     logger.debug("OpenID Connect Claim [{}] is [{}], which does not match [{}]",
                                         claimName, s, regex.pattern());
                                     return null;
@@ -465,7 +465,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                 return List.of();
                             } else if (claimValueObject instanceof String) {
                                 return List.of((String) claimValueObject);
-                            } else if (claimValueObject instanceof List == false) {
+                            } else if (!(claimValueObject instanceof List)) {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
                                     + " expects a claim with String or a String Array value but found a "
                                     + claimValueObject.getClass().getName());

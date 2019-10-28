@@ -22,7 +22,7 @@ public final class CappedScoreQuery extends Query {
     /** Caps scores from the passed in Query to the supplied maxScore parameter */
     public CappedScoreQuery(Query query, float maxScore) {
         this.query = Objects.requireNonNull(query, "Query must not be null");
-        if (maxScore > 0 == false) {
+        if (maxScore <= 0) {
             throw new IllegalArgumentException(this.getClass().getName() + " maxScore must be >0, " + maxScore + " supplied.");
         }
         this.maxScore = maxScore;
@@ -87,7 +87,7 @@ public final class CappedScoreQuery extends Query {
                         public void setMinCompetitiveScore(float minScore) throws IOException {
                             scorer.setMinCompetitiveScore(minScore);
                         }
-                        
+
                     });
                 }
             };
@@ -127,7 +127,7 @@ public final class CappedScoreQuery extends Query {
                             innerScorer.advanceShallow(0);
                             if (innerScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS) <= maxScore) {
                               return innerScorer;
-                            }                            
+                            }
                             return new CappedScorer(innerWeight, innerScorer, maxScore);
                         }
 
@@ -164,7 +164,7 @@ public final class CappedScoreQuery extends Query {
 
     @Override
     public boolean equals(Object other) {
-        return sameClassAs(other) && maxScore == ((CappedScoreQuery) other).maxScore && 
+        return sameClassAs(other) && maxScore == ((CappedScoreQuery) other).maxScore &&
                 query.equals(((CappedScoreQuery) other).query);
     }
 

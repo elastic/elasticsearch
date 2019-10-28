@@ -85,7 +85,7 @@ public class ScheduledEventsQueryBuilder {
             queries.add(endQuery);
         }
 
-        if (calendarIds != null && calendarIds.isEmpty() == false) {
+        if (calendarIds != null && !calendarIds.isEmpty()) {
             queries.add(new TermsQueryBuilder(Calendar.ID.getPreferredName(), calendarIds));
         }
 

@@ -177,10 +177,10 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
     }
 
     public static double distance(GeoShape shape1, GeoShape shape2) {
-        if (shape1.shape instanceof Point == false) {
+        if (!(shape1.shape instanceof Point)) {
             throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape1);
         }
-        if (shape2.shape instanceof Point == false) {
+        if (!(shape2.shape instanceof Point)) {
             throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape2);
         }
         double srcLat = ((Point) shape1.shape).getY();

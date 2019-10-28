@@ -65,7 +65,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        assert commits.isEmpty() == false : "index is opened, but we have no commits";
+        assert !commits.isEmpty() : "index is opened, but we have no commits";
         onCommit(commits);
         if (safeCommit != commits.get(commits.size() - 1)) {
             throw new IllegalStateException("Engine is opened, but the last commit isn't safe. Global checkpoint ["
@@ -84,7 +84,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = commits.get(keptPosition);
             for (int i = 0; i < keptPosition; i++) {
-                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
+                if (!snapshottedCommits.containsKey(commits.get(i))) {
                     deleteCommit(commits.get(i));
                 }
             }
@@ -92,7 +92,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             safeCommit = this.safeCommit;
         }
 
-        assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
+        assert !Thread.holdsLock(this) : "should not block concurrent acquire or relesase";
         safeCommitInfo = new SafeCommitInfo(Long.parseLong(
             safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));
 
@@ -105,7 +105,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {
-        assert commit.isDeleted() == false : "Index commit [" + commitDescription(commit) + "] is deleted twice";
+        assert !commit.isDeleted() : "Index commit [" + commitDescription(commit) + "] is deleted twice";
         logger.debug("Delete index commit [{}]", commitDescription(commit));
         commit.delete();
         assert commit.isDeleted() : "Deletion commit [" + commitDescription(commit) + "] was suppressed";
@@ -114,9 +114,9 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private void updateRetentionPolicy() throws IOException {
         assert Thread.holdsLock(this);
         logger.debug("Safe commit [{}], last commit [{}]", commitDescription(safeCommit), commitDescription(lastCommit));
-        assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
+        assert !safeCommit.isDeleted() : "The safe commit must not be deleted";
         final long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
+        assert !lastCommit.isDeleted() : "The last commit must not be deleted";
         final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
 
         assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
@@ -164,7 +164,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             snapshottedCommits.remove(releasingCommit);
         }
         // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
-        return refCount == 0 && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
+        return refCount == 0 && !releasingCommit.equals(safeCommit) && !releasingCommit.equals(lastCommit);
     }
 
     /**
@@ -196,7 +196,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         for (int i = commits.size() - 1; i >= 0; i--) {
             final Map<String, String> commitUserData = commits.get(i).getUserData();
             // Ignore index commits with different translog uuid.
-            if (expectedTranslogUUID.equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false) {
+            if (!expectedTranslogUUID.equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY))) {
                 return i + 1;
             }
             final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
@@ -213,7 +213,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * Checks whether the deletion policy is holding on to snapshotted commits
      */
     synchronized boolean hasSnapshottedCommits() {
-        return snapshottedCommits.isEmpty() == false;
+        return !snapshottedCommits.isEmpty();
     }
 
     /**

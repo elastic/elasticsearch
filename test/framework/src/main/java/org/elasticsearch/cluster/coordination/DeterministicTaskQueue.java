@@ -101,14 +101,14 @@ public class DeterministicTaskQueue {
      * @return whether there are any runnable tasks.
      */
     public boolean hasRunnableTasks() {
-        return runnableTasks.isEmpty() == false;
+        return !runnableTasks.isEmpty();
     }
 
     /**
      * @return whether there are any deferred tasks, i.e. tasks that are scheduled for the future.
      */
     public boolean hasDeferredTasks() {
-        return deferredTasks.isEmpty() == false;
+        return !deferredTasks.isEmpty();
     }
 
     /**

@@ -159,14 +159,14 @@ final class SecurityRequestConverters {
     static Request clearRealmCache(ClearRealmCacheRequest clearRealmCacheRequest) {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_security/realm");
-        if (clearRealmCacheRequest.getRealms().isEmpty() == false) {
+        if (!clearRealmCacheRequest.getRealms().isEmpty()) {
             builder.addCommaSeparatedPathParts(clearRealmCacheRequest.getRealms().toArray(Strings.EMPTY_ARRAY));
         } else {
             builder.addPathPart("_all");
         }
         final String endpoint = builder.addPathPartAsIs("_clear_cache").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        if (clearRealmCacheRequest.getUsernames().isEmpty() == false) {
+        if (!clearRealmCacheRequest.getUsernames().isEmpty()) {
             RequestConverters.Params params = new RequestConverters.Params();
             params.putParam("usernames", Strings.collectionToCommaDelimitedString(clearRealmCacheRequest.getUsernames()));
             request.addParameters(params.asMap());

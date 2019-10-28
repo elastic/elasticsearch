@@ -31,7 +31,7 @@ public class RealmUserLookup {
     }
 
     public boolean hasRealms() {
-        return realms.isEmpty() == false;
+        return !realms.isEmpty();
     }
 
     /**

@@ -179,7 +179,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             String key;
             do {
                 key = randomAlphaOfLength(16);
-            } while (keys.add(key) == false);
+            } while (!keys.add(key));
 
             IndexRequest indexRequest = new IndexRequest(SOURCE_INDEX_NAME);
             indexRequest.create(true);

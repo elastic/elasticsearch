@@ -133,7 +133,7 @@ public class Attachment implements MessageElement {
             }
             builder.endArray();
         }
-        if (actions != null && actions.isEmpty() == false) {
+        if (actions != null && !actions.isEmpty()) {
             builder.startArray("actions");
             for (Action action : actions) {
                 action.toXContent(builder, params);
@@ -209,7 +209,7 @@ public class Attachment implements MessageElement {
                 }
             }
             List<Action> actions = new ArrayList<>();
-            if (this.actions != null && this.actions.isEmpty() == false) {
+            if (this.actions != null && !this.actions.isEmpty()) {
                 for (Action.Template action : this.actions) {
                     actions.add(action.render(engine, model));
                 }
@@ -292,7 +292,7 @@ public class Attachment implements MessageElement {
                 }
                 builder.endArray();
             }
-            if (actions != null && actions.isEmpty() == false) {
+            if (actions != null && !actions.isEmpty()) {
                 builder.startArray(XField.ACTIONS.getPreferredName());
                 for (Action.Template action : actions) {
                     action.toXContent(builder, params);

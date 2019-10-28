@@ -150,7 +150,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state,
-                recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
+                recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || !recoveryState.getPrimary());
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
@@ -160,7 +160,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
            assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " +
                    recoveryState.getTargetNode()+ "-- \nbefore: \n" + state,
-               recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
+               recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || !recoveryState.getPrimary());
         }
     }
 }

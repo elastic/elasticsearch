@@ -185,7 +185,7 @@ public final class WhitelistLoader {
                     // Expects the following format: 'class' ID annotations? '{' '\n'
                     if (line.startsWith("class ")) {
                         // Ensure the final token of the line is '{'.
-                        if (line.endsWith("{") == false) {
+                        if (!line.endsWith("{")) {
                             throw new IllegalArgumentException(
                                     "invalid class definition: failed to parse class opening bracket [" + line + "]");
                         }
@@ -214,7 +214,7 @@ public final class WhitelistLoader {
                         whitelistFields = new ArrayList<>();
                     } else if (line.startsWith("static_import ")) {
                         // Ensure the final token of the line is '{'.
-                        if (line.endsWith("{") == false) {
+                        if (!line.endsWith("{")) {
                             throw new IllegalArgumentException(
                                     "invalid static import definition: failed to parse static import opening bracket [" + line + "]");
                         }
@@ -502,20 +502,20 @@ public final class WhitelistLoader {
                         if (argumentKeyValue.length != 2) {
                             throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
                         }
-                        
+
                         String argumentKey = argumentKeyValue[0].trim();
-                        
+
                         if (argumentKey.isEmpty()) {
                             throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
                         }
-                        
+
                         String argumentValue = argumentKeyValue[1];
-                        
-                        if (argumentValue.length() < 3 || argumentValue.charAt(0) != '"' || 
+
+                        if (argumentValue.length() < 3 || argumentValue.charAt(0) != '"' ||
                                 argumentValue.charAt(argumentValue.length() - 1) != '"') {
                             throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
                         }
-                        
+
                         argumentValue = argumentValue.substring(1, argumentValue.length() - 1);
 
                         arguments.put(argumentKey, argumentValue);

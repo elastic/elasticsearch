@@ -45,11 +45,11 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
 
-        if (Strings.isNullOrEmpty(System.getProperty("test.google.endpoint")) == false) {
+        if (!Strings.isNullOrEmpty(System.getProperty("test.google.endpoint"))) {
             builder.put("gcs.client.default.endpoint", System.getProperty("test.google.endpoint"));
         }
 
-        if (Strings.isNullOrEmpty(System.getProperty("test.google.tokenURI")) == false) {
+        if (!Strings.isNullOrEmpty(System.getProperty("test.google.tokenURI"))) {
             builder.put("gcs.client.default.token_uri", System.getProperty("test.google.tokenURI"));
         }
 

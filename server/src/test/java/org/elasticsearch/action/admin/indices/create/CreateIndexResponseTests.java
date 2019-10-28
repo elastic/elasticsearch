@@ -46,11 +46,11 @@ public class CreateIndexResponseTests extends AbstractSerializingTestCase<Create
     protected CreateIndexResponse mutateInstance(CreateIndexResponse response) {
         if (randomBoolean()) {
             if (randomBoolean()) {
-                boolean acknowledged = response.isAcknowledged() == false;
+                boolean acknowledged = !response.isAcknowledged();
                 boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
                 return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
             } else {
-                boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+                boolean shardsAcknowledged = !response.isShardsAcknowledged();
                 boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
                 return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
             }

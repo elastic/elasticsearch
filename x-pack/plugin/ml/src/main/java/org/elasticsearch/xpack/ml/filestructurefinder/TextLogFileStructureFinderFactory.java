@@ -30,7 +30,7 @@ public class TextLogFileStructureFinderFactory implements FileStructureFinderFac
             explanation.add("Not text because sample contains no newlines");
             return false;
         }
-        if (TWO_NON_BLANK_LINES_PATTERN.matcher(sample).find() == false) {
+        if (!TWO_NON_BLANK_LINES_PATTERN.matcher(sample).find()) {
             explanation.add("Not text because sample contains fewer than two non-blank lines");
             return false;
         }

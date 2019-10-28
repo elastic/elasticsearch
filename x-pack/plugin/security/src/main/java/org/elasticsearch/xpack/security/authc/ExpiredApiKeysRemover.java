@@ -108,7 +108,7 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
     }
 
     private void markComplete() {
-        if (inProgress.compareAndSet(true, false) == false) {
+        if (!inProgress.compareAndSet(true, false)) {
             throw new IllegalStateException("in progress was set to false but should have been true!");
         }
     }

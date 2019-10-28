@@ -54,7 +54,7 @@ public class JLineTerminal implements CliTerminal {
     JLineTerminal(Terminal terminal, LineReader reader, boolean enableMatchBracket) {
         this.terminal = terminal;
         this.reader = reader;
-        if (false == enableMatchBracket) {
+        if (!enableMatchBracket) {
             reader.setVariable(LineReader.BLINK_MATCHING_PAREN, 0L);
         }
     }

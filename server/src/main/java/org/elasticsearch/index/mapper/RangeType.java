@@ -116,11 +116,11 @@ public enum RangeType {
         @Override
         public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
                                   boolean includeTo) {
-            if (includeFrom == false) {
+            if (!includeFrom) {
                 from = nextUp(from);
             }
 
-            if (includeTo == false) {
+            if (!includeTo) {
                 to = nextDown(to);
             }
 
@@ -293,11 +293,11 @@ public enum RangeType {
         @Override
         public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
                                   boolean includeTo) {
-            if (includeFrom == false) {
+            if (!includeFrom) {
                 from = nextUp(from);
             }
 
-            if (includeTo == false) {
+            if (!includeTo) {
                 to = nextDown(to);
             }
 
@@ -364,11 +364,11 @@ public enum RangeType {
         @Override
         public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
                                   boolean includeTo) {
-            if (includeFrom == false) {
+            if (!includeFrom) {
                 from = nextUp(from);
             }
 
-            if (includeTo == false) {
+            if (!includeTo) {
                 to = nextDown(to);
             }
 
@@ -497,11 +497,11 @@ public enum RangeType {
         @Override
         public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
                                   boolean includeTo) {
-            if (includeFrom == false) {
+            if (!includeFrom) {
                 from = nextUp(from);
             }
 
-            if (includeTo == false) {
+            if (!includeTo) {
                 to = nextDown(to);
             }
 

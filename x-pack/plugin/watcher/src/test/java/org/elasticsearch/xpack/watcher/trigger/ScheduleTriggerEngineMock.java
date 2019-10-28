@@ -85,7 +85,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     public boolean trigger(String jobName, int times, TimeValue interval) {
-        if (watches.get().containsKey(jobName) == false) {
+        if (!watches.get().containsKey(jobName)) {
             return false;
         }
         if (paused.get()) {

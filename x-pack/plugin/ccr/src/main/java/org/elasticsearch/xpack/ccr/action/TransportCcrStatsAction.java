@@ -74,7 +74,7 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
 
     @Override
     protected void doExecute(Task task, CcrStatsAction.Request request, ActionListener<CcrStatsAction.Response> listener) {
-        if (ccrLicenseChecker.isCcrAllowed() == false) {
+        if (!ccrLicenseChecker.isCcrAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }

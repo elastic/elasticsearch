@@ -74,12 +74,12 @@ public class DisruptableMockTransportTests extends ESTestCase {
     private ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
         Tuple<DiscoveryNode, DiscoveryNode> link = Tuple.tuple(sender, destination);
         if (disconnectedLinks.contains(link)) {
-            assert blackholedLinks.contains(link) == false;
-            assert blackholedRequestLinks.contains(link) == false;
+            assert !blackholedLinks.contains(link);
+            assert !blackholedRequestLinks.contains(link);
             return ConnectionStatus.DISCONNECTED;
         }
         if (blackholedLinks.contains(link)) {
-            assert blackholedRequestLinks.contains(link) == false;
+            assert !blackholedRequestLinks.contains(link);
             return ConnectionStatus.BLACK_HOLE;
         }
         if (blackholedRequestLinks.contains(link)) {

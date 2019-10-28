@@ -66,7 +66,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
                                    String name,
                                    Settings settings) throws IOException {
         Version versionCreated = Version.indexCreated(settings);
-        if (Version.CURRENT.equals(versionCreated) == false) {
+        if (!Version.CURRENT.equals(versionCreated)) {
             return super.get(indexSettings, environment, name, settings);
         } else {
             return current;
@@ -75,7 +75,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
 
     @Override
     protected AnalyzerProvider<?> create(Version version) {
-        assert Version.CURRENT.equals(version) == false;
+        assert !Version.CURRENT.equals(version);
         Analyzer analyzer = create.apply(version);
         analyzer.setVersion(version.luceneVersion);
         return new PreBuiltAnalyzerProvider(getName(), AnalyzerScope.INDICES, analyzer);

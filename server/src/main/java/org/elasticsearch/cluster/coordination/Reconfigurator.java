@@ -104,12 +104,12 @@ public class Reconfigurator {
         final Set<VotingConfigNode> orderedCandidateNodes = new TreeSet<>();
         liveNodes.stream()
             .filter(DiscoveryNode::isMasterNode)
-            .filter(n -> retiredNodeIds.contains(n.getId()) == false)
+            .filter(n -> !retiredNodeIds.contains(n.getId()))
             .forEach(n -> orderedCandidateNodes.add(new VotingConfigNode(n.getId(), true,
                 n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))));
         currentConfigNodeIds.stream()
-            .filter(nid -> liveNodeIds.contains(nid) == false)
-            .filter(nid -> retiredNodeIds.contains(nid) == false)
+            .filter(nid -> !liveNodeIds.contains(nid))
+            .filter(nid -> !retiredNodeIds.contains(nid))
             .forEach(nid -> orderedCandidateNodes.add(new VotingConfigNode(nid, false, false, true)));
 
         /*

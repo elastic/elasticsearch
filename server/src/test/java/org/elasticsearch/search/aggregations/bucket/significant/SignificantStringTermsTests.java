@@ -49,8 +49,8 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
         List<SignificantStringTerms.Bucket> buckets = new ArrayList<>(numBuckets);
         Set<BytesRef> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAlphaOfLength(10)));
-            SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(term, subsetDfs[i], subsetSize, 
+            BytesRef term = randomValueOtherThanMany(b -> !terms.add(b), () -> new BytesRef(randomAlphaOfLength(10)));
+            SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(term, subsetDfs[i], subsetSize,
                     supersetDfs[i], supersetSize, aggs, format);
             bucket.updateScore(significanceHeuristic);
             buckets.add(bucket);

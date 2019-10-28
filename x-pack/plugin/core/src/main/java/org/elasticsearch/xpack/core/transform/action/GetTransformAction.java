@@ -107,12 +107,12 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             builder.startArray();
             for (TransformConfig configResponse : getResources().results()) {
                 configResponse.toXContent(builder, params);
-                if (configResponse.isValid() == false) {
+                if (!configResponse.isValid()) {
                     invalidTransforms.add(configResponse.getId());
                 }
             }
             builder.endArray();
-            if (invalidTransforms.isEmpty() == false) {
+            if (!invalidTransforms.isEmpty()) {
                 builder.startObject(INVALID_TRANSFORMS.getPreferredName());
                 builder.field(TransformField.COUNT.getPreferredName(), invalidTransforms.size());
                 builder.field(TransformField.TRANSFORMS.getPreferredName(), invalidTransforms);

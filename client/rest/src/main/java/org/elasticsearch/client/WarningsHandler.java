@@ -42,7 +42,7 @@ public interface WarningsHandler {
     WarningsHandler STRICT = new WarningsHandler() {
         @Override
         public boolean warningsShouldFailRequest(List<String> warnings) {
-            return false == warnings.isEmpty();
+            return !warnings.isEmpty();
         }
 
         @Override

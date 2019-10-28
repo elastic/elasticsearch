@@ -97,7 +97,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
                 }
                 // For the lucene version we are interested in the _oldest_ lucene version since it determines the
                 // oldest version that we need to support
-                if (result.oldestLuceneSegment().onOrAfter(versionTuple.v2()) == false) {
+                if (!result.oldestLuceneSegment().onOrAfter(versionTuple.v2())) {
                     luceneVersion = result.oldestLuceneSegment();
                 }
                 versions.put(index, new Tuple<>(version, luceneVersion));
@@ -161,7 +161,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
         RoutingTable routingTable = clusterState.routingTable();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = routingTable.index(index);
-            if (indexRoutingTable.allPrimaryShardsActive() == false) {
+            if (!indexRoutingTable.allPrimaryShardsActive()) {
                 indices.add(index);
             }
         }

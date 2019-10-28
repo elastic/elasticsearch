@@ -48,7 +48,7 @@ final class CountedCollector<R extends SearchPhaseResult> {
      * if all expected operations where executed
      */
     void countDown() {
-        assert counter.isCountedDown() == false : "more operations executed than specified";
+        assert !counter.isCountedDown() : "more operations executed than specified";
         if (counter.countDown()) {
             onFinish.run();
         }

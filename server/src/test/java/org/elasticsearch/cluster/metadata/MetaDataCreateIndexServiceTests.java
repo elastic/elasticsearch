@@ -172,7 +172,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         int targetShards;
         do {
             targetShards = randomIntBetween(1, numShards/2);
-        } while (isShrinkable(numShards, targetShards) == false);
+        } while (!isShrinkable(numShards, targetShards));
         MetaDataCreateIndexService.validateShrinkIndex(clusterState, "source", Collections.emptySet(), "target",
             Settings.builder().put("index.number_of_shards", targetShards).build());
     }
@@ -225,7 +225,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         int targetShards;
         do {
             targetShards = randomIntBetween(numShards+1, 100);
-        } while (isSplitable(numShards, targetShards) == false);
+        } while (!isSplitable(numShards, targetShards));
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();

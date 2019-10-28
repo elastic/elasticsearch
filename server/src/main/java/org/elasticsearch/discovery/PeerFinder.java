@@ -130,17 +130,17 @@ public abstract class PeerFinder {
 
     private boolean assertInactiveWithNoKnownPeers() {
         assert holdsLock() : "PeerFinder mutex not held";
-        assert active == false;
+        assert !active;
         assert peersByAddress.isEmpty() : peersByAddress.keySet();
         return true;
     }
 
     PeersResponse handlePeersRequest(PeersRequest peersRequest) {
         synchronized (mutex) {
-            assert peersRequest.getSourceNode().equals(getLocalNode()) == false;
+            assert !peersRequest.getSourceNode().equals(getLocalNode());
             final List<DiscoveryNode> knownPeers;
             if (active) {
-                assert leader.isPresent() == false : leader;
+                assert !leader.isPresent() : leader;
                 if (peersRequest.getSourceNode().isMasterNode()) {
                     startProbe(peersRequest.getSourceNode().getAddress());
                 }
@@ -238,7 +238,7 @@ public abstract class PeerFinder {
 
         final boolean peersRemoved = peersByAddress.values().removeIf(Peer::handleWakeUp);
 
-        if (active == false) {
+        if (!active) {
             logger.trace("not active");
             return peersRemoved;
         }
@@ -271,7 +271,7 @@ public abstract class PeerFinder {
             @Override
             protected void doRun() {
                 synchronized (mutex) {
-                    if (handleWakeUp() == false) {
+                    if (!handleWakeUp()) {
                         return;
                     }
                 }
@@ -289,7 +289,7 @@ public abstract class PeerFinder {
 
     protected void startProbe(TransportAddress transportAddress) {
         assert holdsLock() : "PeerFinder mutex not held";
-        if (active == false) {
+        if (!active) {
             logger.trace("startProbe({}) not running", transportAddress);
             return;
         }
@@ -319,7 +319,7 @@ public abstract class PeerFinder {
         boolean handleWakeUp() {
             assert holdsLock() : "PeerFinder mutex not held";
 
-            if (active == false) {
+            if (!active) {
                 return true;
             }
 
@@ -328,7 +328,7 @@ public abstract class PeerFinder {
 
             if (discoveryNode != null) {
                 if (transportService.nodeConnected(discoveryNode)) {
-                    if (peersRequestInFlight == false) {
+                    if (!peersRequestInFlight) {
                         requestPeers();
                     }
                 } else {
@@ -350,9 +350,9 @@ public abstract class PeerFinder {
                 @Override
                 public void onResponse(DiscoveryNode remoteNode) {
                     assert remoteNode.isMasterNode() : remoteNode + " is not master-eligible";
-                    assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
+                    assert !remoteNode.equals(getLocalNode()) : remoteNode + " is the local node";
                     synchronized (mutex) {
-                        if (active == false) {
+                        if (!active) {
                             return;
                         }
 
@@ -361,7 +361,7 @@ public abstract class PeerFinder {
                         requestPeers();
                     }
 
-                    assert holdsLock() == false : "PeerFinder mutex is held in error";
+                    assert !holdsLock() : "PeerFinder mutex is held in error";
                     onFoundPeersUpdated();
                 }
 
@@ -377,7 +377,7 @@ public abstract class PeerFinder {
 
         private void requestPeers() {
             assert holdsLock() : "PeerFinder mutex not held";
-            assert peersRequestInFlight == false : "PeersRequest already in flight";
+            assert !peersRequestInFlight : "PeersRequest already in flight";
             assert active;
 
             final DiscoveryNode discoveryNode = getDiscoveryNode();
@@ -404,7 +404,7 @@ public abstract class PeerFinder {
                 public void handleResponse(PeersResponse response) {
                     logger.trace("{} received {}", Peer.this, response);
                     synchronized (mutex) {
-                        if (active == false) {
+                        if (!active) {
                             return;
                         }
 
@@ -416,7 +416,7 @@ public abstract class PeerFinder {
 
                     if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
                         // Must not hold lock here to avoid deadlock
-                        assert holdsLock() == false : "PeerFinder mutex is held in error";
+                        assert !holdsLock() : "PeerFinder mutex is held in error";
                         onActiveMasterFound(discoveryNode, response.getTerm());
                     }
                 }

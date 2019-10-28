@@ -135,7 +135,7 @@ public class JoinHelper {
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metaData().clusterUUIDCommitted() &&
-                    localState.metaData().clusterUUID().equals(request.getState().metaData().clusterUUID()) == false) {
+                    !localState.metaData().clusterUUID().equals(request.getState().metaData().clusterUUID())) {
                     throw new CoordinationStateRejectedException("join validation on cluster state" +
                         " with a different cluster uuid " + request.getState().metaData().clusterUUID() +
                         " than local cluster uuid " + localState.metaData().clusterUUID() + ", rejecting");
@@ -175,7 +175,7 @@ public class JoinHelper {
     }
 
     boolean isJoinPending() {
-        return pendingOutgoingJoins.isEmpty() == false;
+        return !pendingOutgoingJoins.isEmpty();
     }
 
     // package-private for testing
@@ -383,7 +383,7 @@ public class JoinHelper {
 
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
-            assert closed == false : "CandidateJoinAccumulator closed";
+            assert !closed : "CandidateJoinAccumulator closed";
             JoinCallback prev = joinRequestAccumulator.put(sender, joinCallback);
             if (prev != null) {
                 prev.onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
@@ -392,7 +392,7 @@ public class JoinHelper {
 
         @Override
         public void close(Mode newMode) {
-            assert closed == false : "CandidateJoinAccumulator closed";
+            assert !closed : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
                 final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new LinkedHashMap<>();

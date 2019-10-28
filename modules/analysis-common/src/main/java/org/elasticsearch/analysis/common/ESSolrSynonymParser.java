@@ -46,7 +46,7 @@ public class ESSolrSynonymParser extends SolrSynonymParser {
         // analyze i.e., in the case when lenient is set we only add those combinations which are non-zero-length. The
         // else would happen only in the case when the input or output is empty and lenient is set, in which case we
         // quietly ignore it. For more details on the control-flow see SolrSynonymParser::addInternal.
-        if (lenient == false || (input.length > 0 && output.length > 0)) {
+        if (!lenient || (input.length > 0 && output.length > 0)) {
             super.add(input, output, includeOrig);
         }
     }

@@ -102,14 +102,14 @@ public class ScoresUpdater {
 
         List<BucketNormalizable> bucketsToRenormalize = new ArrayList<>();
 
-        while (bucketsIterator.hasNext() && shutdown == false) {
+        while (bucketsIterator.hasNext() && !shutdown) {
             Deque<Result<Bucket>> buckets = bucketsIterator.next();
             if (buckets.isEmpty()) {
                 LOGGER.debug("[{}] No buckets to renormalize for job", jobId);
                 break;
             }
 
-            while (!buckets.isEmpty() && shutdown == false) {
+            while (!buckets.isEmpty() && !shutdown) {
                 Result<Bucket> current = buckets.removeFirst();
                 if (current.result.isNormalizable()) {
                     bucketsToRenormalize.add(new BucketNormalizable(current.result, current.index));
@@ -149,7 +149,7 @@ public class ScoresUpdater {
                 .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
                 .includeInterim(false);
 
-        while (recordsIterator.hasNext() && shutdown == false) {
+        while (recordsIterator.hasNext() && !shutdown) {
             Deque<Result<AnomalyRecord>> records = recordsIterator.next();
             if (records.isEmpty()) {
                 LOGGER.debug("[{}] No records to renormalize for job", jobId);
@@ -172,7 +172,7 @@ public class ScoresUpdater {
                 .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
                 .includeInterim(false);
 
-        while (influencersIterator.hasNext() && shutdown == false) {
+        while (influencersIterator.hasNext() && !shutdown) {
             Deque<Result<Influencer>> influencers = influencersIterator.next();
             if (influencers.isEmpty()) {
                 LOGGER.debug("[{}] No influencers to renormalize for job", jobId);

@@ -356,7 +356,7 @@ public final class FileStructureFinderManager {
         } catch (Exception e) {
             // Add a dummy exception containing the explanation so far - this can be invaluable for troubleshooting as incorrect
             // decisions made early on in the structure analysis can result in seemingly crazy decisions or timeouts later on
-            if (explanation.isEmpty() == false) {
+            if (!explanation.isEmpty()) {
                 e.addSuppressed(
                     new ElasticsearchException(explanation.stream().collect(Collectors.joining("]\n[", "Explanation so far:\n[", "]\n"))));
             }
@@ -368,7 +368,7 @@ public final class FileStructureFinderManager {
 
         // We need an input stream that supports mark and reset, so wrap the argument
         // in a BufferedInputStream if it doesn't already support this feature
-        if (inputStream.markSupported() == false) {
+        if (!inputStream.markSupported()) {
             inputStream = new BufferedInputStream(inputStream, BUFFER_SIZE);
         }
 
@@ -438,11 +438,11 @@ public final class FileStructureFinderManager {
                 // the side of rejecting binary data.
                 if (charset.canEncode()) {
                     byte[] spaceBytes = " ".getBytes(charset);
-                    for (int i = 0; i < spaceBytes.length && spaceEncodingContainsZeroByte == false; ++i) {
+                    for (int i = 0; i < spaceBytes.length && !spaceEncodingContainsZeroByte; ++i) {
                         spaceEncodingContainsZeroByte = (spaceBytes[i] == 0);
                     }
                 }
-                if (containsZeroBytes && spaceEncodingContainsZeroByte == false) {
+                if (containsZeroBytes && !spaceEncodingContainsZeroByte) {
                     explanation.add("Character encoding [" + name + "] matched the input with [" + charsetMatch.getConfidence() +
                         "%] confidence but was rejected as the input contains zero bytes and the [" + name + "] encoding does not");
                 } else if (containsZeroBytes && 3 * oddPosZeroCount > 2 * evenPosZeroCount && 3 * evenPosZeroCount > 2 * oddPosZeroCount) {
@@ -522,7 +522,7 @@ public final class FileStructureFinderManager {
         if (charsetName.toUpperCase(Locale.ROOT).startsWith("UTF")) {
             int maybeByteOrderMarker = reader.read();
             hasByteOrderMarker = ((char) maybeByteOrderMarker == '\uFEFF');
-            if (maybeByteOrderMarker >= 0 && hasByteOrderMarker == false && (char) maybeByteOrderMarker != '\r')
+            if (maybeByteOrderMarker >= 0 && !hasByteOrderMarker && (char) maybeByteOrderMarker != '\r')
             {
                 sample.appendCodePoint(maybeByteOrderMarker);
                 if ((char) maybeByteOrderMarker == '\n') {

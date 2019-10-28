@@ -120,7 +120,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
         Settings parentSettings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
+                .put(parentSettings.filter((s) -> !s.startsWith("xpack.security.transport.ssl.")))
                 .put(nodeSSL);
 
         restrictionsPath = configPath.resolve("trust_restrictions.yml");

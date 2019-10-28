@@ -168,7 +168,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
     public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<ContextMapping.InternalQueryContext>> queryContexts) {
         ContextQuery typedContextQuery = new ContextQuery(query);
         boolean hasContext = false;
-        if (queryContexts.isEmpty() == false) {
+        if (!queryContexts.isEmpty()) {
             CharsRefBuilder scratch = new CharsRefBuilder();
             scratch.grow(1);
             for (int typeId = 0; typeId < contextMappings.size(); typeId++) {
@@ -186,7 +186,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
                 }
             }
         }
-        if (hasContext == false) {
+        if (!hasContext) {
             throw new IllegalArgumentException("Missing mandatory contexts in context query");
         }
         return typedContextQuery;
@@ -291,7 +291,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || (obj instanceof ContextMappings) == false) {
+        if (obj == null || !(obj instanceof ContextMappings)) {
             return false;
         }
         ContextMappings other = ((ContextMappings) obj);

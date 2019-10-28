@@ -276,7 +276,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             if (jobId != null) {
                 builder.field(Job.ID.getPreferredName(), jobId);
             }
-            if (datafeedIndices.isEmpty() == false) {
+            if (!datafeedIndices.isEmpty()) {
                 builder.field(INDICES.getPreferredName(), datafeedIndices);
             }
             builder.endObject();

@@ -55,17 +55,17 @@ class JdbcColumnInfo {
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
-        if (false == EMPTY.equals(table)) {
+        if (!EMPTY.equals(table)) {
             b.append(table).append('.');
         }
         b.append(name).append("<type=[").append(type).append(']');
-        if (false == EMPTY.equals(catalog)) {
+        if (!EMPTY.equals(catalog)) {
             b.append(" catalog=[").append(catalog).append(']');
         }
-        if (false == EMPTY.equals(schema)) {
+        if (!EMPTY.equals(schema)) {
             b.append(" schema=[").append(schema).append(']');
         }
-        if (false == EMPTY.equals(label)) {
+        if (!EMPTY.equals(label)) {
             b.append(" label=[").append(label).append(']');
         }
         return b.append('>').toString();

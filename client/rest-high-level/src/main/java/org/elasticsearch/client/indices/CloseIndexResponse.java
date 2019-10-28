@@ -74,12 +74,12 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
             (args, index) -> {
                 Exception exception = (Exception) args[1];
                 if (exception != null) {
-                    assert (boolean) args[0] == false;
+                    assert !((boolean) args[0]);
                     return new IndexResult(index, exception);
                 }
                 ShardResult[] shardResults = args[2] != null ? ((List<ShardResult>) args[2]).toArray(new ShardResult[0]) : null;
                 if (shardResults != null) {
-                    assert (boolean) args[0] == false;
+                    assert !((boolean) args[0]);
                     return new IndexResult(index, shardResults);
                 }
                 assert (boolean) args[0];

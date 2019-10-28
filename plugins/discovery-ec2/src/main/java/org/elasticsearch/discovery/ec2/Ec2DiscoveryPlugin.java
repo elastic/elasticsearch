@@ -139,7 +139,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     // pkg private for testing
     @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
     static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl) {
-        if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
+        if (!AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings)) {
             return Settings.EMPTY;
         }
         final Settings.Builder attrs = Settings.builder();

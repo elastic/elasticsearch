@@ -543,7 +543,7 @@ public class MultiValueModeTests extends ESTestCase {
                     verifyBinaryValueCanCalledMoreThanOnce(selected, actual);
 
                     BytesRef expected = null;
-                    if (values.advanceExact(i) == false) {
+                    if (!values.advanceExact(i)) {
                         expected = missingValue;
                     } else {
                         int numValues = values.docValueCount();

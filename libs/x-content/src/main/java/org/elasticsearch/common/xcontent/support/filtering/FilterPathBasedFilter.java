@@ -81,7 +81,7 @@ public class FilterPathBasedFilter extends TokenFilter {
                 }
             }
 
-            if ((nextFilters != null) && (nextFilters.isEmpty() == false)) {
+            if ((nextFilters != null) && (!nextFilters.isEmpty())) {
                 return new FilterPathBasedFilter(nextFilters.toArray(new FilterPath[nextFilters.size()]), inclusive);
             }
         }

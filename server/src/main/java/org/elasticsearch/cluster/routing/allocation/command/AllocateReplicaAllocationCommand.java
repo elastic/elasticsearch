@@ -124,7 +124,7 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
 
         List<ShardRouting> replicaShardRoutings = new ArrayList<>();
         for (ShardRouting shard : allocation.routingNodes().unassigned()) {
-            if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary() == false) {
+            if (shard.getIndexName().equals(index) && shard.getId() == shardId && !shard.primary()) {
                 replicaShardRoutings.add(shard);
             }
         }

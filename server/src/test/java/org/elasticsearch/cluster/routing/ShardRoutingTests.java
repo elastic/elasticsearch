@@ -138,7 +138,7 @@ public class ShardRoutingTests extends ESTestCase {
                     break;
                 case 2:
                     // change current node
-                    if (otherRouting.assignedToNode() == false) {
+                    if (!otherRouting.assignedToNode()) {
                         unchanged = true;
                     } else {
                         otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId() + "_1",
@@ -148,7 +148,7 @@ public class ShardRoutingTests extends ESTestCase {
                     break;
                 case 3:
                     // change relocating node
-                    if (otherRouting.relocating() == false) {
+                    if (!otherRouting.relocating()) {
                         unchanged = true;
                     } else {
                         otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId(),
@@ -159,7 +159,7 @@ public class ShardRoutingTests extends ESTestCase {
                     break;
                 case 4:
                     // change recovery source (only works for inactive primaries)
-                    if (otherRouting.active() || otherRouting.primary() == false) {
+                    if (otherRouting.active() || !otherRouting.primary()) {
                         unchanged = true;
                     } else {
                         otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId(),
@@ -172,7 +172,7 @@ public class ShardRoutingTests extends ESTestCase {
                 case 5:
                     // change primary flag
                     otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(),
-                        otherRouting.currentNodeId(), otherRouting.relocatingNodeId(), otherRouting.primary() == false,
+                        otherRouting.currentNodeId(), otherRouting.relocatingNodeId(), !otherRouting.primary(),
                         otherRouting.state(), otherRouting.unassignedInfo());
                     break;
                 case 6:
@@ -204,7 +204,7 @@ public class ShardRoutingTests extends ESTestCase {
                             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().getMessage() + "_1"));
             }
 
-            if (unchanged == false) {
+            if (!unchanged) {
                 logger.debug("comparing\nthis  {} to\nother {}", routing, otherRouting);
                 assertFalse("expected non-equality\nthis  " + routing + ",\nother " + otherRouting,
                     routing.equalsIgnoringMetaData(otherRouting));

@@ -188,7 +188,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             }
         }
 
-        if (false == currentPlan.equals(plan) && log.isDebugEnabled()) {
+        if (!currentPlan.equals(plan) && log.isDebugEnabled()) {
             log.debug("Tree transformation took {}\n{}",
                 TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
         }

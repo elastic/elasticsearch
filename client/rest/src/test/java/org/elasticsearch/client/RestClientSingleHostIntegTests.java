@@ -175,7 +175,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             restClientBuilder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
                 @Override
                 public HttpAsyncClientBuilder customizeHttpClient(final HttpAsyncClientBuilder httpClientBuilder) {
-                    if (usePreemptiveAuth == false) {
+                    if (!usePreemptiveAuth) {
                         // disable preemptive auth by ignoring any authcache
                         httpClientBuilder.disableAuthCaching();
                         // don't use the "persistent credentials strategy"
@@ -224,7 +224,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         }
 
         assertTrue("timeout waiting for requests to be sent", latch.await(10, TimeUnit.SECONDS));
-        if (exceptions.isEmpty() == false) {
+        if (!exceptions.isEmpty()) {
             AssertionError error = new AssertionError("expected no failures but got some. see suppressed for first 10 of ["
                 + exceptions.size() + "] failures");
             for (Exception exception : exceptions.subList(0, Math.min(10, exceptions.size()))) {
@@ -318,7 +318,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     public void testHeaders() throws Exception {
         for (String method : getHttpMethods()) {
             final Set<String> standardHeaders = new HashSet<>(Arrays.asList("Connection", "Host", "User-agent", "Date"));
-            if (method.equals("HEAD") == false) {
+            if (!method.equals("HEAD")) {
                 standardHeaders.add("Content-length");
             }
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
@@ -342,7 +342,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), standardHeaders);
             for (final Header responseHeader : esResponse.getHeaders()) {
                 String name = responseHeader.getName();
-                if (name.startsWith("Header") == false) {
+                if (!name.startsWith("Header")) {
                     assertTrue("unknown header was returned " + name, standardHeaders.remove(name));
                 }
             }

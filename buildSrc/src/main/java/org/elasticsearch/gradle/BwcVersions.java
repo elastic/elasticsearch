@@ -156,7 +156,7 @@ public class BwcVersions {
     }
 
     private void assertCurrentVersionMatchesParsed(Version currentVersionProperty) {
-        if (currentVersionProperty.equals(currentVersion) == false) {
+        if (!currentVersionProperty.equals(currentVersion)) {
             throw new IllegalStateException(
                 "Parsed versions latest version does not match the one configured in build properties. " +
                     "Parsed latest version is " + currentVersion + " but the build has " +
@@ -174,7 +174,7 @@ public class BwcVersions {
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
         List<UnreleasedVersionInfo> collect = getUnreleased().stream()
-            .filter(version -> version.equals(currentVersion) == false)
+            .filter(version -> !version.equals(currentVersion))
             .map(version -> new UnreleasedVersionInfo(
                     version,
                     getBranchFor(version),
@@ -319,7 +319,7 @@ public class BwcVersions {
     public void compareToAuthoritative(List<Version> authoritativeReleasedVersions) {
         Set<Version> notReallyReleased = new HashSet<>(getReleased());
         notReallyReleased.removeAll(authoritativeReleasedVersions);
-        if (notReallyReleased.isEmpty() == false) {
+        if (!notReallyReleased.isEmpty()) {
             throw new IllegalStateException(
                 "out-of-date released versions" +
                     "\nFollowing versions are not really released, but the build thinks they are: " + notReallyReleased
@@ -328,7 +328,7 @@ public class BwcVersions {
 
         Set<Version> incorrectlyConsideredUnreleased = new HashSet<>(authoritativeReleasedVersions);
         incorrectlyConsideredUnreleased.retainAll(getUnreleased());
-        if (incorrectlyConsideredUnreleased.isEmpty() == false) {
+        if (!incorrectlyConsideredUnreleased.isEmpty()) {
             throw new IllegalStateException(
                 "out-of-date released versions" +
                     "\nBuild considers versions unreleased, " +
@@ -342,7 +342,7 @@ public class BwcVersions {
         List<Version> unreleased = getUnreleased();
         return groupByMajor.values().stream()
             .flatMap(Collection::stream)
-            .filter(each -> unreleased.contains(each) == false)
+            .filter(each -> !unreleased.contains(each))
             .collect(Collectors.toList());
     }
 

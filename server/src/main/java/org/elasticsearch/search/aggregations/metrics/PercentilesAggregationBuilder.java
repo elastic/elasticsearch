@@ -297,10 +297,10 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         PercentilesAggregationBuilder other = (PercentilesAggregationBuilder) obj;
-        if (Objects.equals(method, other.method) == false) {
+        if (!Objects.equals(method, other.method)) {
             return false;
         }
         boolean equalSettings = false;
@@ -352,7 +352,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
 
         @Override
         public InternalBuilder method(PercentilesMethod method) {
-            if (setOnce == false) {
+            if (!setOnce) {
                 super.method(method);
                 setOnce = true;
                 return this;

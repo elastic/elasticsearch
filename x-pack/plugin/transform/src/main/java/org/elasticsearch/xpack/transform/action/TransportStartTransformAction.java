@@ -167,7 +167,7 @@ public class TransportStartTransformAction extends
         // <2> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(
             config -> {
-                if (config.isValid() == false) {
+                if (!config.isValid()) {
                     listener.onFailure(new ElasticsearchStatusException(
                         TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIG_INVALID, request.getId()),
                         RestStatus.BAD_REQUEST
@@ -337,8 +337,8 @@ public class TransportStartTransformAction extends
             }
             PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
             if (assignment != null &&
-                assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                assignment.isAssigned() == false) {
+                !assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) &&
+                !assignment.isAssigned()) {
                 // For some reason, the task is not assigned to a node, but is no longer in the `INITIAL_ASSIGNMENT` state
                 // Consider this a failure.
                 exception = new ElasticsearchStatusException("Could not start transform, allocation explanation [" +
@@ -354,7 +354,7 @@ public class TransportStartTransformAction extends
         // If it is not able to be assigned to a node all together, we should just close the task completely
         private boolean isNotStopped(PersistentTasksCustomMetaData.PersistentTask<?> task) {
             TransformState state = (TransformState)task.getState();
-            return state != null && state.getTaskState().equals(TransformTaskState.STOPPED) == false;
+            return state != null && !state.getTaskState().equals(TransformTaskState.STOPPED);
         }
     }
 }

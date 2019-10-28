@@ -109,7 +109,7 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         public void onResponse(PutLicenseResponse licensesUpdateResponse) {
             assertThat(licensesUpdateResponse.isAcknowledged(), equalTo(expectedAcknowledgement));
             assertThat(licensesUpdateResponse.status(), equalTo(expectedStatus));
-            assertEquals(licensesUpdateResponse.acknowledgeMessages().isEmpty(), expectAckMessages == false);
+            assertEquals(licensesUpdateResponse.acknowledgeMessages().isEmpty(), !expectAckMessages);
         }
 
         @Override

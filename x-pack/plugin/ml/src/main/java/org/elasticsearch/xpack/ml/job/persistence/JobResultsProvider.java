@@ -1308,7 +1308,7 @@ public class JobResultsProvider {
                     Set<String> currentJobs = new HashSet<>(calendar.getJobIds());
 
                     for (String jobToRemove : jobIdsToRemove) {
-                        if (currentJobs.contains(jobToRemove) == false) {
+                        if (!currentJobs.contains(jobToRemove)) {
                             errorHandler.accept(ExceptionsHelper.badRequestException("Cannot remove [" + jobToRemove
                                     + "] as it is not present in calendar [" + calendarId + "]"));
                             return;

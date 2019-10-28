@@ -123,13 +123,13 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
                 builder.startObject();
                 builder.field(CommonFields.KEY.getPreferredName(), key);
             }
-            if (Double.isInfinite(from) == false) {
+            if (!Double.isInfinite(from)) {
                 builder.field(CommonFields.FROM.getPreferredName(), from);
                 if (fromAsString != null) {
                     builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), fromAsString);
                 }
             }
-            if (Double.isInfinite(to) == false) {
+            if (!Double.isInfinite(to)) {
                 builder.field(CommonFields.TO.getPreferredName(), to);
                 if (toAsString != null) {
                     builder.field(CommonFields.TO_AS_STRING.getPreferredName(), toAsString);

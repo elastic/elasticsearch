@@ -104,7 +104,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (this.useAnyUnassignedShard() == false) {
+        if (!this.useAnyUnassignedShard()) {
             if (this.index == null) {
                 validationException = addValidationError("index must be specified", validationException);
             }

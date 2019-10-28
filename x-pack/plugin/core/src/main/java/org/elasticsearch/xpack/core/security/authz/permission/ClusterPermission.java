@@ -58,7 +58,7 @@ public class ClusterPermission {
         } else {
             for (PermissionCheck otherPermissionCheck : otherClusterPermission.checks) {
                 boolean isImplied = this.checks.stream().anyMatch(thisPermissionCheck -> thisPermissionCheck.implies(otherPermissionCheck));
-                if (isImplied == false) {
+                if (!isImplied) {
                     return false;
                 }
             }
@@ -104,7 +104,7 @@ public class ClusterPermission {
                 return NONE;
             }
             List<PermissionCheck> checks = this.permissionChecks;
-            if (false == actionAutomatons.isEmpty()) {
+            if (!actionAutomatons.isEmpty()) {
                 final Automaton mergedAutomaton = Automatons.unionAndMinimize(this.actionAutomatons);
                 checks = new ArrayList<>(this.permissionChecks.size() + 1);
                 checks.add(new AutomatonPermissionCheck(mergedAutomaton));

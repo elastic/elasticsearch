@@ -137,7 +137,7 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
                 // we still need to add them as a placeholder so the rank of the subsequent ratings is correct
                 ratingsInSearchHits.add(unknownDocRating);
             }
-            if (hit.getRating().isPresent() == false) {
+            if (!hit.getRating().isPresent()) {
                 unratedResults++;
             }
         }

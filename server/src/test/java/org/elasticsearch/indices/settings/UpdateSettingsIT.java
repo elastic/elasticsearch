@@ -529,14 +529,14 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                     .admin()
                     .indices()
                     .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("index.blocks.read_only", block == false))
+                    .setSettings(Settings.builder().put("index.blocks.read_only", !block))
                     .get());
             final long newSettingsVersion =
                     client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
             assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
 
             // if the read-only block is present, remove it
-            if (block == false) {
+            if (!block) {
                 assertAcked(client()
                         .admin()
                         .indices()

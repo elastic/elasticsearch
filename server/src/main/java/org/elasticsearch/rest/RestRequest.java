@@ -202,7 +202,7 @@ public class RestRequest implements ToXContent.Params {
      * @return content of the request body or throw an exception if the body or content type is missing
      */
     public final BytesReference requiredContent() {
-        if (hasContent() == false) {
+        if (!hasContent()) {
             throw new ElasticsearchParseException("request body is required");
         } else if (xContentType.get() == null) {
             throw new IllegalStateException("unknown content type");
@@ -216,7 +216,7 @@ public class RestRequest implements ToXContent.Params {
      */
     public final String header(String name) {
         List<String> values = headers.get(name);
-        if (values != null && values.isEmpty() == false) {
+        if (values != null && !values.isEmpty()) {
             return values.get(0);
         }
         return null;
@@ -452,7 +452,7 @@ public class RestRequest implements ToXContent.Params {
      * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
     public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
-        if (hasContentOrSourceParam() == false) {
+        if (!hasContentOrSourceParam()) {
             throw new ElasticsearchParseException("request body or source parameter is required");
         } else if (hasContent()) {
             return new Tuple<>(xContentType.get(), requiredContent());

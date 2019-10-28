@@ -273,7 +273,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                                     IndexRequest indexRequest,
                                                     MetaData metaData) {
 
-        if (indexRequest.isPipelineResolved() == false) {
+        if (!indexRequest.isPipelineResolved()) {
             final String requestPipeline = indexRequest.getPipeline();
             indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
             boolean requestCanOverridePipeline = true;
@@ -346,7 +346,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
 
             if (requestPipeline != null) {
-                if (requestCanOverridePipeline == false) {
+                if (!requestCanOverridePipeline) {
                     final String message = String.format(
                         Locale.ROOT,
                         "request pipeline [%s] can not override required pipeline [%s]",
@@ -372,7 +372,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         // Return whether this index request has a pipeline
-        return IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false;
+        return !IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline());
     }
 
     boolean needToCheck() {
@@ -753,7 +753,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 List<DocWriteRequest<?>> requests = bulkRequest.requests();
                 for (int i = 0; i < requests.size(); i++) {
                     DocWriteRequest<?> request = requests.get(i);
-                    if (failedSlots.get(i) == false) {
+                    if (!failedSlots.get(i)) {
                         modifiedBulkRequest.add(request);
                         originalSlots.set(slot++, i);
                     }

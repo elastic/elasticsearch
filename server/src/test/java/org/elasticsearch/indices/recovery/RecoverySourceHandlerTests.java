@@ -337,8 +337,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         CorruptionUtils.corruptFile(random(), FileSystemUtils.files(tempDir, (p) ->
-            (p.getFileName().toString().equals("write.lock") ||
-                p.getFileName().toString().startsWith("extra")) == false));
+            !(p.getFileName().toString().equals("write.lock") ||
+                p.getFileName().toString().startsWith("extra"))));
         Store targetStore = newStore(createTempDir(), false);
         MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
@@ -554,7 +554,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         });
 
         List<FileChunkResponse> ackedChunks = new ArrayList<>();
-        while (sentChunks.get() < totalChunks || unrepliedChunks.isEmpty() == false) {
+        while (sentChunks.get() < totalChunks || !unrepliedChunks.isEmpty()) {
             List<FileChunkResponse> chunksToAck = randomSubsetOf(between(1, unrepliedChunks.size()), unrepliedChunks);
             unrepliedChunks.removeAll(chunksToAck);
             ackedChunks.addAll(chunksToAck);
@@ -741,7 +741,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     private Store newStore(Path path, boolean checkIndex) throws IOException {
         BaseDirectoryWrapper baseDirectoryWrapper = RecoverySourceHandlerTests.newFSDirectory(path);
-        if (checkIndex == false) {
+        if (!checkIndex) {
             baseDirectoryWrapper.setCheckIndexOnClose(false); // don't run checkindex we might corrupt the index in these tests
         }
         return new Store(shardId,  INDEX_SETTINGS, baseDirectoryWrapper, new DummyShardLock(shardId));

@@ -64,7 +64,7 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
             return Collections.singletonList((request, state, indices) -> {
                 for (final Index index : indices) {
                     final List<String> allowedOrigins = ALLOWED_ORIGINS_SETTING.get(state.metaData().index(index).getSettings());
-                    if (allowedOrigins.contains(request.origin()) == false) {
+                    if (!allowedOrigins.contains(request.origin())) {
                         final String message = String.format(
                                 Locale.ROOT,
                                 "origin [%s] not allowed for index [%s]",

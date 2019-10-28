@@ -395,7 +395,7 @@ public final class IpRangeAggregationBuilder
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         IpRangeAggregationBuilder that = (IpRangeAggregationBuilder) obj;
         return keyed == that.keyed
             && ranges.equals(that.ranges);

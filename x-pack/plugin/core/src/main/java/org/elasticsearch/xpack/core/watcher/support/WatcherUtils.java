@@ -79,6 +79,6 @@ public final class WatcherUtils {
     }
 
     public static boolean isValidId(String id) {
-        return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();
+        return !Strings.isEmpty(id) && NO_WS_PATTERN.matcher(id).matches();
     }
 }

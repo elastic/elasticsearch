@@ -214,7 +214,7 @@ public class MultiPhrasePrefixQuery extends Query {
     @Override
     public final String toString(String f) {
         StringBuilder buffer = new StringBuilder();
-        if (field.equals(f) == false) {
+        if (!field.equals(f)) {
             buffer.append(field);
             buffer.append(":");
         }
@@ -264,7 +264,7 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     @Override
     public boolean equals(Object o) {
-        if (sameClassAs(o) == false) {
+        if (!sameClassAs(o)) {
             return false;
         }
         MultiPhrasePrefixQuery other = (MultiPhrasePrefixQuery) o;

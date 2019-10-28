@@ -152,7 +152,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                         if (placeholder == null) {
                             throw new IllegalArgumentException("Error using " + expr + ". " +
                                 "The variable [" + name + "] does not exist in the executable expressions script.");
-                        } else if (value instanceof Number == false) {
+                        } else if (!(value instanceof Number)) {
                             throw new IllegalArgumentException("Error using " + expr + ". " +
                                 "Executable expressions scripts can only process numbers." +
                                 "  The variable [" + name + "] is not a number.");
@@ -344,7 +344,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
 
     private static ValueSource getDocValueSource(String variable, SearchLookup lookup) throws ParseException {
         VariableContext[] parts = VariableContext.parse(variable);
-        if (parts[0].text.equals("doc") == false) {
+        if (!parts[0].text.equals("doc")) {
             throw new ParseException("Unknown variable [" + parts[0].text + "]", 0);
         }
         if (parts.length < 2 || parts[1].type != VariableContext.Type.STR_INDEX) {

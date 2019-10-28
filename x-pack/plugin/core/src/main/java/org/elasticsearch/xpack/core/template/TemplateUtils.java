@@ -158,7 +158,7 @@ public class TemplateUtils {
                 // get the actual mapping entries
                 @SuppressWarnings("unchecked")
                 Map<String, Object> mappingMap = (Map<String, Object>) typeMappingMap.get(key);
-                if (containsCorrectVersion(versionKey, mappingMap, predicate) == false) {
+                if (!containsCorrectVersion(versionKey, mappingMap, predicate)) {
                     return false;
                 }
             } catch (ElasticsearchParseException e) {

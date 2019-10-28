@@ -158,12 +158,12 @@ public class IncidentEvent implements ToXContentObject {
             .collect(Collectors.groupingBy(iec -> iec.type));
 
         List<IncidentEventContext> links = groups.getOrDefault(IncidentEventContext.Type.LINK, Collections.emptyList());
-        if (links.isEmpty() == false) {
+        if (!links.isEmpty()) {
             builder.array(Fields.LINKS.getPreferredName(), links.toArray());
         }
 
         List<IncidentEventContext> images = groups.getOrDefault(IncidentEventContext.Type.IMAGE, Collections.emptyList());
-        if (images.isEmpty() == false) {
+        if (!images.isEmpty()) {
             builder.array(Fields.IMAGES.getPreferredName(), images.toArray());
         }
     }

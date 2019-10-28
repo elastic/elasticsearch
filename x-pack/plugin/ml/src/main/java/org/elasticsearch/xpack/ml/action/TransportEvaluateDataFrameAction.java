@@ -90,7 +90,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
                     ActionListener.wrap(
                         searchResponse -> {
                             evaluation.process(searchResponse);
-                            if (evaluation.hasAllResults() == false) {
+                            if (!evaluation.hasAllResults()) {
                                 add(nextTask());
                             }
                             listener.onResponse(null);

@@ -104,7 +104,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
-            final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(env.settings()) == false;
+            final boolean allowReserved = !XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(env.settings());
             Validation.Error validationError = Users.validateUsername(username, allowReserved, env.settings());
             if (validationError != null) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
@@ -167,7 +167,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             if (users == null) {
                 throw new UserException(ExitCodes.CONFIG, "Configuration file [" + passwordFile + "] is missing");
             }
-            if (users.containsKey(username) == false) {
+            if (!users.containsKey(username)) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
             if (Files.exists(passwordFile)) {
@@ -224,7 +224,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             if (users == null) {
                 throw new UserException(ExitCodes.CONFIG, "Configuration file [" + file + "] is missing");
             }
-            if (users.containsKey(username) == false) {
+            if (!users.containsKey(username)) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
             users = new HashMap<>(users); // make modifiable
@@ -429,7 +429,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             throw new UserException(ExitCodes.USAGE, "Expected a single username argument, found extra: " + args.toString());
         }
         String username = args.get(0);
-        final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) == false;
+        final boolean allowReserved = !XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         Validation.Error validationError = Users.validateUsername(username, allowReserved, settings);
         if (validationError != null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
@@ -462,7 +462,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                 throw new UserException(ExitCodes.DATA_ERROR, "Invalid password..." + validationError);
             }
             char[] retyped = terminal.readSecret("Retype new password: ");
-            if (Arrays.equals(password.getChars(), retyped) == false) {
+            if (!Arrays.equals(password.getChars(), retyped)) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Password mismatch");
             }
         }

@@ -63,13 +63,13 @@ public class MetricInspectionHelper {
     }
 
     public static boolean hasValue(InternalTopHits agg) {
-        return (agg.getHits().getTotalHits().value == 0
+        return !(agg.getHits().getTotalHits().value == 0
             && Double.isNaN(agg.getHits().getMaxScore())
-            && Double.isNaN(agg.getTopDocs().maxScore)) == false;
+            && Double.isNaN(agg.getTopDocs().maxScore));
     }
 
     public static boolean hasValue(InternalWeightedAvg agg) {
-        return (agg.getSum() == 0.0 && agg.getWeight() == 0L) == false;
+        return !(agg.getSum() == 0.0 && agg.getWeight() == 0L);
     }
 
     public static boolean hasValue(InternalDerivative agg) {

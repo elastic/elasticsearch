@@ -72,7 +72,7 @@ public class RunTask extends DefaultTestClustersTask {
                 toRead.add(Files.newBufferedReader(node.getEsStdoutFile()));
             }
         }
-        while (Thread.currentThread().isInterrupted() == false) {
+        while (!Thread.currentThread().isInterrupted()) {
             for (BufferedReader bufferedReader : toRead) {
                 if (bufferedReader.ready()) {
                     logger.lifecycle(bufferedReader.readLine());

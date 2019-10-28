@@ -63,7 +63,7 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
         if (REQUEST_TAG_NAME.equals(root.getLocalName()) && SAML_NAMESPACE.equals(root.getNamespaceURI())) {
             try {
                 final LogoutRequest logoutRequest = buildXmlObject(root, LogoutRequest.class);
-                return parseLogout(logoutRequest, parsed.hasSignature == false, parsed.relayState);
+                return parseLogout(logoutRequest, !parsed.hasSignature, parsed.relayState);
             } catch (ElasticsearchSecurityException e) {
                 logger.trace("Rejecting SAML logout request {} because {}", SamlUtils.toString(root), e.getMessage());
                 throw e;
@@ -191,7 +191,7 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
             throw samlException("SAML request " + request.getID() + " is for destination " + request.getDestination()
                     + " but this realm is not configured for logout");
         }
-        if (url.equals(request.getDestination()) == false) {
+        if (!url.equals(request.getDestination())) {
             throw samlException("SAML request " + request.getID() + " is for destination " + request.getDestination()
                     + " but this realm uses " + url);
         }

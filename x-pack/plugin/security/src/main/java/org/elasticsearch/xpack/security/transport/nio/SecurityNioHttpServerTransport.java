@@ -61,7 +61,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         this.sslService = sslService;
         if (sslEnabled) {
             this.sslConfiguration = sslService.getHttpTransportSSLConfiguration();
-            if (sslService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
+            if (!sslService.isConfigurationValidForServerUsage(sslConfiguration)) {
                 throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the " +
                     "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting");
             }

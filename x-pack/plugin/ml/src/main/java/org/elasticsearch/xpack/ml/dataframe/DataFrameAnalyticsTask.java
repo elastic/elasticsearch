@@ -155,15 +155,15 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         cancelReindex.setTimeout(timeout);
         CancelTasksResponse cancelReindexResponse = client.admin().cluster().cancelTasks(cancelReindex).actionGet();
         Throwable firstError = null;
-        if (cancelReindexResponse.getNodeFailures().isEmpty() == false) {
+        if (!cancelReindexResponse.getNodeFailures().isEmpty()) {
             firstError = cancelReindexResponse.getNodeFailures().get(0).getRootCause();
         }
-        if (cancelReindexResponse.getTaskFailures().isEmpty() == false) {
+        if (!cancelReindexResponse.getTaskFailures().isEmpty()) {
             firstError = cancelReindexResponse.getTaskFailures().get(0).getCause();
         }
         // There is a chance that the task is finished by the time we cancel it in which case we'll get
         // a ResourceNotFoundException which we can ignore.
-        if (firstError != null && ExceptionsHelper.unwrapCause(firstError) instanceof ResourceNotFoundException == false) {
+        if (firstError != null && !(ExceptionsHelper.unwrapCause(firstError) instanceof ResourceNotFoundException)) {
             throw ExceptionsHelper.serverError("[" + taskParams.getId() + "] Error cancelling reindex task", firstError);
         } else {
             LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());

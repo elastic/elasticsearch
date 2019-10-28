@@ -258,7 +258,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
 
         SearchSourceBuilder searchSourceBuilder = new BucketsQueryBuilder()
                 .size(0)
-                .includeInterim(excludeInterim == false)
+                .includeInterim(!excludeInterim)
                 .start(startTime)
                 .end(endTime)
                 .build();

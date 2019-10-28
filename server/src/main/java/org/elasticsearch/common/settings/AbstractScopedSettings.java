@@ -82,7 +82,7 @@ public abstract class AbstractScopedSettings {
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
         Map<String, Setting<?>> keySettings = new HashMap<>();
         for (Setting<?> setting : settingsSet) {
-            if (setting.getProperties().contains(scope) == false) {
+            if (!setting.getProperties().contains(scope)) {
                 throw new IllegalArgumentException("Setting " + setting + " must be a "
                     + scope + " setting but has: " + setting.getProperties());
             }
@@ -104,8 +104,8 @@ public abstract class AbstractScopedSettings {
     }
 
     protected void validateSettingKey(Setting<?> setting) {
-        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())
-            || isValidAffixKey(setting.getKey())) == false || setting.getKey().endsWith(".0")) {
+        if (!isValidKey(setting.getKey()) && !(setting.isGroupSetting() && isValidGroupKey(setting.getKey())
+            || isValidAffixKey(setting.getKey())) || setting.getKey().endsWith(".0")) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
         }
     }
@@ -262,7 +262,7 @@ public abstract class AbstractScopedSettings {
             public Map<String, Tuple<A, B>> getValue(Settings current, Settings previous) {
                 Map<String, Tuple<A, B>> map = new HashMap<>();
                 BiConsumer<String, A> aConsumer = (key, value) -> {
-                    assert map.containsKey(key) == false : "duplicate key: " + key;
+                    assert !map.containsKey(key) : "duplicate key: " + key;
                     map.put(key, new Tuple<>(value, settingB.getConcreteSettingForNamespace(key).get(current)));
                 };
                 BiConsumer<String, B> bConsumer = (key, value) -> {
@@ -521,7 +521,7 @@ public abstract class AbstractScopedSettings {
             }
             String msg = msgPrefix + " [" + key + "]";
             List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
-            if (keys.isEmpty() == false) {
+            if (!keys.isEmpty()) {
                 msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";
             } else {
                 msg += " please check that any required plugins are installed, or check the breaking changes documentation for removed " +
@@ -533,9 +533,9 @@ public abstract class AbstractScopedSettings {
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
             }
-            if (validateDependencies && settingsDependencies.isEmpty() == false) {
+            if (validateDependencies && !settingsDependencies.isEmpty()) {
                 for (final Setting<?> settingDependency : settingsDependencies) {
-                    if (settingDependency.existsOrFallbackExists(settings) == false) {
+                    if (!settingDependency.existsOrFallbackExists(settings)) {
                         final String message = String.format(
                                 Locale.ROOT,
                                 "missing required setting [%s] for setting [%s]",
@@ -689,7 +689,7 @@ public abstract class AbstractScopedSettings {
      * Returns the value for the given setting.
      */
     public <T> T get(Setting<T> setting) {
-        if (setting.getProperties().contains(scope) == false) {
+        if (!setting.getProperties().contains(scope)) {
             throw new IllegalArgumentException("settings scope doesn't match the setting scope [" + this.scope + "] not in [" +
                 setting.getProperties() + "]");
         }
@@ -735,10 +735,10 @@ public abstract class AbstractScopedSettings {
      * Returns <code>true</code> if the given key is a valid delete key
      */
     private boolean isValidDelete(String key, boolean onlyDynamic) {
-        return isFinalSetting(key) == false && // it's not a final setting
+        return !isFinalSetting(key) && // it's not a final setting
             (onlyDynamic && isDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
                 || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
-                || (onlyDynamic == false && get(key) != null)); // if it's not dynamic AND we have a key
+                || (!onlyDynamic && get(key) != null)); // if it's not dynamic AND we have a key
     }
 
     /**
@@ -758,10 +758,10 @@ public abstract class AbstractScopedSettings {
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.builder();
         final Predicate<String> canUpdate = (key) -> (
-            isFinalSetting(key) == false && // it's not a final setting
-                ((onlyDynamic == false && get(key) != null) || isDynamicSetting(key)));
+            !isFinalSetting(key) && // it's not a final setting
+                ((!onlyDynamic && get(key) != null) || isDynamicSetting(key)));
         for (String key : toApply.keySet()) {
-            boolean isDelete = toApply.hasValue(key) == false;
+            boolean isDelete = !toApply.hasValue(key);
             if (isDelete && (isValidDelete(key, onlyDynamic) || key.endsWith("*"))) {
                 // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
                 // we don't validate if there is any dynamic setting with that prefix yet we could do in the future
@@ -769,11 +769,11 @@ public abstract class AbstractScopedSettings {
                 // we don't set changed here it's set after we apply deletes below if something actually changed
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
-            } else if (isDelete == false && canUpdate.test(key)) {
+            } else if (!isDelete && canUpdate.test(key)) {
                 get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
-                changed |= toApply.get(key).equals(target.get(key)) == false;
+                changed |= !toApply.get(key).equals(target.get(key));
             } else {
                 if (isFinalSetting(key)) {
                     throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");

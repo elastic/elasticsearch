@@ -198,14 +198,14 @@ public class PreVoteCollector {
                 new Join(node, localNode, preVoteResponse.getCurrentTerm(),
                 preVoteResponse.getLastAcceptedTerm(), preVoteResponse.getLastAcceptedVersion())));
 
-            if (electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), localPreVoteResponse.getCurrentTerm(),
+            if (!electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), localPreVoteResponse.getCurrentTerm(),
                 localPreVoteResponse.getLastAcceptedTerm(), localPreVoteResponse.getLastAcceptedVersion(),
-                clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(), voteCollection) == false) {
+                clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(), voteCollection)) {
                 logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
                 return;
             }
 
-            if (electionStarted.compareAndSet(false, true) == false) {
+            if (!electionStarted.compareAndSet(false, true)) {
                 logger.debug("{} added {} from {} but election has already started", this, response, sender);
                 return;
             }

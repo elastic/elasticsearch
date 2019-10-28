@@ -221,7 +221,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
-        return false == (indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE &&
+        return !(indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE &&
             indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
     }
 
@@ -444,7 +444,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } catch (ShardLockObtainFailedException e) {
             throw new IOException("failed to obtain in-memory shard lock", e);
         } finally {
-            if (success == false) {
+            if (!success) {
                 if (lock != null) {
                     IOUtils.closeWhileHandlingException(lock);
                 }
@@ -457,7 +457,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized void removeShard(int shardId, String reason) {
         final ShardId sId = new ShardId(index(), shardId);
         final IndexShard indexShard;
-        if (shards.containsKey(shardId) == false) {
+        if (!shards.containsKey(shardId)) {
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
@@ -480,7 +480,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (indexShard != null) {
                     try {
                         // only flush we are we closed (closed index or shutdown) and if we are not deleted
-                        final boolean flushEngine = deleted.get() == false && closed.get();
+                        final boolean flushEngine = !deleted.get() && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
                         logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
@@ -675,7 +675,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             final long currentSettingsVersion = currentIndexMetaData.getSettingsVersion();
             final long newSettingsVersion = newIndexMetaData.getSettingsVersion();
             if (currentSettingsVersion == newSettingsVersion) {
-                assert updateIndexMetaData == false;
+                assert !updateIndexMetaData;
             } else {
                 assert updateIndexMetaData;
                 assert currentSettingsVersion < newSettingsVersion :
@@ -694,7 +694,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                             "[{}] failed to notify shard about setting change", shard.shardId().id()), e);
                 }
             }
-            if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
+            if (!refreshTask.getInterval().equals(indexSettings.getRefreshInterval())) {
                 // once we change the refresh interval we schedule yet another refresh
                 // to ensure we are in a clean and predictable state.
                 // it doesn't matter if we move from or to <code>-1</code>  in both cases we want
@@ -839,9 +839,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                             shard.runUnderPrimaryPermit(
                                     () -> sync.accept(shard),
                                     e -> {
-                                        if (e instanceof AlreadyClosedException == false
-                                            && e instanceof IndexShardClosedException == false
-                                            && e instanceof ShardNotInPrimaryModeException == false) {
+                                        if (!(e instanceof AlreadyClosedException)
+                                            && !(e instanceof IndexShardClosedException)
+                                            && !(e instanceof ShardNotInPrimaryModeException)) {
                                             logger.warn(
                                                     new ParameterizedMessage(
                                                             "{} failed to execute {} sync", shard.shardId(), source), e);
@@ -873,7 +873,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         protected boolean mustReschedule() {
             // don't re-schedule if the IndexService instance is closed or if the index is closed
-            return indexService.closed.get() == false
+            return !indexService.closed.get()
                 && indexService.indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN;
         }
     }
@@ -899,7 +899,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         void updateIfNeeded() {
             final TimeValue newInterval = indexService.getIndexSettings().getTranslogSyncInterval();
-            if (newInterval.equals(getInterval()) == false) {
+            if (!newInterval.equals(getInterval())) {
                 setInterval(newInterval);
             }
         }
@@ -941,7 +941,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected boolean mustReschedule() {
-            return indexService.closed.get() == false;
+            return !indexService.closed.get();
         }
 
         @Override
@@ -1058,7 +1058,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
         }
-        if (clearedAtLeastOne == false) {
+        if (!clearedAtLeastOne) {
             if (fields.length ==  0) {
                 indexCache.clear("api");
                 indexFieldData.clear();

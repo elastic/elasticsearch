@@ -877,7 +877,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (scriptedUpsert) {
             builder.field("scripted_upsert", scriptedUpsert);
         }
-        if (detectNoop == false) {
+        if (!detectNoop) {
             builder.field("detect_noop", detectNoop);
         }
         if (fetchSourceContext != null) {

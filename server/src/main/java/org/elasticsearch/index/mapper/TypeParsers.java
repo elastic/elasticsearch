@@ -145,7 +145,7 @@ public class TypeParsers {
     }
 
     public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode) {
-        builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms") == false);
+        builder.omitNorms(!XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms"));
     }
 
     /**
@@ -176,7 +176,7 @@ public class TypeParsers {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();
             final Object propNode = entry.getValue();
-            if (false == propName.equals("null_value") && propNode == null) {
+            if (!propName.equals("null_value") && propNode == null) {
                 /*
                  * No properties *except* null_value are allowed to have null. So we catch it here and tell the user something useful rather
                  * than send them a null pointer exception later.

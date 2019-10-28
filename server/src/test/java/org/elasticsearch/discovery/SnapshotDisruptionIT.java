@@ -162,7 +162,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
             SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
             SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-            if (snapshots != null && snapshots.entries().isEmpty() == false) {
+            if (snapshots != null && !snapshots.entries().isEmpty()) {
                 logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
                 fail("Snapshot is still running");
             } else if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.hasDeletionsInProgress()) {

@@ -310,17 +310,17 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
         for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
             List<Object> source = new ArrayList<>();
-            if (BOOLEAN_FIELD.equals(dependentVariable) == false) {
+            if (!BOOLEAN_FIELD.equals(dependentVariable)) {
                 source.addAll(List.of(BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size())));
             }
-            if (NUMERICAL_FIELD.equals(dependentVariable) == false) {
+            if (!NUMERICAL_FIELD.equals(dependentVariable)) {
                 source.addAll(List.of(NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size())));
             }
-            if (DISCRETE_NUMERICAL_FIELD.equals(dependentVariable) == false) {
+            if (!DISCRETE_NUMERICAL_FIELD.equals(dependentVariable)) {
                 source.addAll(
                     List.of(DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size())));
             }
-            if (KEYWORD_FIELD.equals(dependentVariable) == false) {
+            if (!KEYWORD_FIELD.equals(dependentVariable)) {
                 source.addAll(List.of(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());

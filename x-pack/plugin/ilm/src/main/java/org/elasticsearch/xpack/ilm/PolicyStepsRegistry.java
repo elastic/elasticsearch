@@ -118,17 +118,17 @@ public class PolicyStepsRegistry {
             stepMap.remove(deletedPolicyName);
         }
 
-        if (mapDiff.getUpserts().isEmpty() == false) {
+        if (!mapDiff.getUpserts().isEmpty()) {
             for (LifecyclePolicyMetadata policyMetadata : mapDiff.getUpserts().values()) {
                 LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
                         policyMetadata.getHeaders());
                 lifecyclePolicyMap.put(policyMetadata.getName(), policyMetadata);
                 List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient);
-                if (policyAsSteps.isEmpty() == false) {
+                if (!policyAsSteps.isEmpty()) {
                     firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
                     final Map<Step.StepKey, Step> stepMapForPolicy = new LinkedHashMap<>();
                     for (Step step : policyAsSteps) {
-                        assert ErrorStep.NAME.equals(step.getKey().getName()) == false : "unexpected error step in policy";
+                        assert !ErrorStep.NAME.equals(step.getKey().getName()) : "unexpected error step in policy";
                         stepMapForPolicy.put(step.getKey(), step);
                     }
                     logger.trace("updating cached steps for [{}] policy, new steps: {}",

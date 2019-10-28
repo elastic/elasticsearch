@@ -311,7 +311,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             String failedNode = "node" + Integer.toString(randomInt(numberOfReplicas));
             logger.info("failing shard on node [{}]", failedNode);
             ShardRouting shardToFail = routingNodes.node(failedNode).iterator().next();
-            if (shardRoutingsToFail.contains(shardToFail) == false) {
+            if (!shardRoutingsToFail.contains(shardToFail)) {
                 failedShards.add(new FailedShard(shardToFail, null, null, randomBoolean()));
                 failedNodes.add(failedNode);
                 shardRoutingsToFail.add(shardToFail);

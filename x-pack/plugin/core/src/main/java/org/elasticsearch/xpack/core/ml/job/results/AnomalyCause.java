@@ -331,7 +331,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof AnomalyCause == false) {
+        if (!(other instanceof AnomalyCause)) {
             return false;
         }
 

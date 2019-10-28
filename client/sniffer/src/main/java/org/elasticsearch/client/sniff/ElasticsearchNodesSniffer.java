@@ -256,8 +256,8 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
             boolean clientAttribute = v2RoleAttributeValue(realAttributes, "client", false);
             Boolean masterAttribute = v2RoleAttributeValue(realAttributes, "master", null);
             Boolean dataAttribute = v2RoleAttributeValue(realAttributes, "data", null);
-            master = masterAttribute == null ? false == clientAttribute : masterAttribute;
-            data = dataAttribute == null ? false == clientAttribute : dataAttribute;
+            master = masterAttribute == null ? !clientAttribute : masterAttribute;
+            data = dataAttribute == null ? !clientAttribute : dataAttribute;
         } else {
             assert sawRoles : "didn't see roles for [" + nodeId + "]";
         }

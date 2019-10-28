@@ -110,12 +110,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         List<String> conflicts = new ArrayList<>();
         for (ParentIdFieldMapper mapper : mappers) {
             for (String child : mapper.getChildren()) {
-                if (children.add(child) == false) {
+                if (!children.add(child)) {
                     conflicts.add("[" + child + "] cannot have multiple parents");
                 }
             }
         }
-        if (conflicts.isEmpty() == false) {
+        if (!conflicts.isEmpty()) {
             throw new IllegalArgumentException("invalid definition for join field [" + name + "]:\n" + conflicts.toString());
         }
     }
@@ -304,7 +304,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         for (ParentIdFieldMapper mapper : parentIdFields) {
             if (isParent && name.equals(mapper.getParentName())) {
                 return mapper;
-            } else if (isParent == false && mapper.getChildren().contains(name)) {
+            } else if (!isParent && mapper.getChildren().contains(name)) {
                 return mapper;
             }
         }
@@ -339,7 +339,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 newParentIdFields.add(mergeWithMapper);
             } else {
                 for (String child : self.getChildren()) {
-                    if (mergeWithMapper.getChildren().contains(child) == false) {
+                    if (!mergeWithMapper.getChildren().contains(child)) {
                         conflicts.add("cannot remove child [" + child + "] in join field [" + name() + "]");
                     }
                 }
@@ -347,7 +347,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 newParentIdFields.add(merged);
             }
         }
-        if (conflicts.isEmpty() == false) {
+        if (!conflicts.isEmpty()) {
             throw new IllegalStateException("invalid update for join field [" + name() + "]:\n" + conflicts.toString());
         }
         this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;

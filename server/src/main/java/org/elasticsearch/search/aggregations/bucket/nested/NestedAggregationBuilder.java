@@ -97,7 +97,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
                 parent, subFactoriesBuilder, metaData);
         }
 
-        if (childObjectMapper.nested().isNested() == false) {
+        if (!childObjectMapper.nested().isNested()) {
             throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
         }
         try {
@@ -154,7 +154,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         NestedAggregationBuilder other = (NestedAggregationBuilder) obj;
         return Objects.equals(path, other.path);
     }

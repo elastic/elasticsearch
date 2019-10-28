@@ -159,7 +159,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
         int totalOps = 0;
         for (Engine.Operation op : operations) {
-            if (engine.getLocalCheckpointTracker().hasProcessed(op.seqNo()) == false) {
+            if (!engine.getLocalCheckpointTracker().hasProcessed(op.seqNo())) {
                 seqNoToTerm.put(op.seqNo(), op.primaryTerm());
                 if (op instanceof Engine.Index) {
                     totalOps += ((Engine.Index) op).docs().size();
@@ -268,7 +268,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             try {
                 readLatch.countDown();
                 readLatch.await();
-                while (isDone.get() == false ||
+                while (!isDone.get() ||
                     engine.getLocalCheckpointTracker().getProcessedCheckpoint() <
                         leader.getLocalCheckpointTracker().getProcessedCheckpoint()) {
                     pullOperations(engine);

@@ -272,9 +272,9 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         PercentileRanksAggregationBuilder other = (PercentileRanksAggregationBuilder) obj;
-        if (Objects.equals(method, other.method) == false) {
+        if (!Objects.equals(method, other.method)) {
             return false;
         }
         boolean equalSettings = false;

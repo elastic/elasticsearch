@@ -41,8 +41,8 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
     // pkg scope for testing
     InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
                             @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
-        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
-                && Strings.hasText(apiKeyName) == false && ownedByAuthenticatedUser == false) {
+        if (!Strings.hasText(realmName) && !Strings.hasText(userName) && !Strings.hasText(apiKeyId)
+                && !Strings.hasText(apiKeyName) && !ownedByAuthenticatedUser) {
             throwValidationError("One of [api key id, api key name, username, realm name] must be specified if [owner] flag is false");
         }
         if (Strings.hasText(apiKeyId) || Strings.hasText(apiKeyName)) {

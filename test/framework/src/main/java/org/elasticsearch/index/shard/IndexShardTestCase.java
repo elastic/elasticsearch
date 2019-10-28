@@ -400,7 +400,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 IOUtils.close(store);
             }
         }
@@ -591,7 +591,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                   final boolean markAsRecovering, final boolean markAsStarted) throws IOException {
         IndexShardRoutingTable.Builder newRoutingTable = new IndexShardRoutingTable.Builder(replica.shardId());
         newRoutingTable.addShard(primary.routingEntry());
-        if (replica.routingEntry().isRelocationTarget() == false) {
+        if (!replica.routingEntry().isRelocationTarget()) {
             newRoutingTable.addShard(replica.routingEntry());
         }
         final Set<String> inSyncIds = Collections.singleton(primary.routingEntry().allocationId().getId());

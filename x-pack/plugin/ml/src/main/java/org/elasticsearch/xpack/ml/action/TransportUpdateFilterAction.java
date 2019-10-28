@@ -86,7 +86,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         // Check if removed items are present to avoid typos
         for (String toRemove : request.getRemoveItems()) {
             boolean wasPresent = items.remove(toRemove);
-            if (wasPresent == false) {
+            if (!wasPresent) {
                 listener.onFailure(ExceptionsHelper.badRequestException("Cannot remove item [" + toRemove
                         + "] as it is not present in filter [" + filter.getId() + "]"));
                 return;

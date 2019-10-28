@@ -287,9 +287,9 @@ public class CertGenUtils {
         String hostaddress = inetAddress.getHostAddress();
         String ip = NetworkAddress.format(inetAddress);
         list.add(new GeneralName(GeneralName.iPAddress, ip));
-        if (resolveName && (inetAddress.isLinkLocalAddress() == false)) {
+        if (resolveName && (!inetAddress.isLinkLocalAddress())) {
             String possibleHostName = inetAddress.getHostName();
-            if (possibleHostName.equals(hostaddress) == false) {
+            if (!possibleHostName.equals(hostaddress)) {
                 list.add(new GeneralName(GeneralName.dNSName, possibleHostName));
             }
         }

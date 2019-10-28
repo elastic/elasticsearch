@@ -115,7 +115,7 @@ public class JobResultsPersister {
         }
 
         private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) {
-            if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
+            if (bucketInfluencers != null && !bucketInfluencers.isEmpty()) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                     String id = bucketInfluencer.getId();
                     logger.trace("[{}] ES BULK ACTION: index bucket influencer to index [{}] with ID [{}]", jobId, indexName, id);

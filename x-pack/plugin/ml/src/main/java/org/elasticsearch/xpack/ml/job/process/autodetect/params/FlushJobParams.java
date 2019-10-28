@@ -155,7 +155,7 @@ public class FlushJobParams {
                 return System.currentTimeMillis();
             }
             long epoch = 0;
-            if (date.isEmpty() == false) {
+            if (!date.isEmpty()) {
                 epoch = TimeUtils.dateStringToEpoch(date);
                 if (epoch < 0) {
                     String msg = Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, paramName, date);

@@ -123,7 +123,7 @@ public class DependencyLicensesTask extends DefaultTask {
         if (to == null) {
             throw new InvalidUserDataException("Missing \"to\" setting for license name mapping");
         }
-        if (props.isEmpty() == false) {
+        if (!props.isEmpty()) {
             throw new InvalidUserDataException("Unknown properties for mapping on dependencyLicenses: " + props.keySet());
         }
         mappings.put(from, to);
@@ -171,7 +171,7 @@ public class DependencyLicensesTask extends DefaultTask {
                 throw new GradleException("Licenses dir " + licensesDir + " exists, but there are no dependencies");
             }
             return; // no dependencies to check
-        } else if (licensesDir.exists() == false) {
+        } else if (!licensesDir.exists()) {
             throw new GradleException("Licences dir " + licensesDir + " does not exist, but there are dependencies");
         }
 
@@ -197,13 +197,13 @@ public class DependencyLicensesTask extends DefaultTask {
 
         notices.forEach((item, exists) -> failIfAnyMissing(item, exists, "notice"));
 
-        if (shaFiles.isEmpty() == false) {
+        if (!shaFiles.isEmpty()) {
             throw new GradleException("Unused sha files found: \n" + joinFilenames(shaFiles));
         }
     }
 
     private void failIfAnyMissing(String item, Boolean exists, String type) {
-        if (exists == false) {
+        if (!exists) {
             throw new GradleException("Unused " + type + " " + item);
         }
     }
@@ -258,7 +258,7 @@ public class DependencyLicensesTask extends DefaultTask {
 
     private void checkSha(File jar, String jarName, Set<File> shaFiles) throws NoSuchAlgorithmException, IOException {
         File shaFile = getShaFile(jarName);
-        if (shaFile.exists() == false) {
+        if (!shaFile.exists()) {
             throw new GradleException("Missing SHA for " + jarName + ". Run \"gradle updateSHAs\" to create them");
         }
 
@@ -268,7 +268,7 @@ public class DependencyLicensesTask extends DefaultTask {
 
         String sha = getSha1(jar);
 
-        if (expectedSha.equals(sha) == false) {
+        if (!expectedSha.equals(sha)) {
             throw new GradleException(
                 "SHA has changed! Expected " + expectedSha + " for " + jarName + " but got " + sha + ". " +
                     "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream." +
@@ -280,7 +280,7 @@ public class DependencyLicensesTask extends DefaultTask {
     private void checkFile(String name, String jarName, Map<String, Boolean> counters, String type) {
         String fileName = getFileName(name, counters, type);
 
-        if (counters.containsKey(fileName) == false) {
+        if (!counters.containsKey(fileName)) {
             throw new GradleException("Missing " + type + " for " + jarName + ", expected in " + fileName);
         }
 
@@ -290,7 +290,7 @@ public class DependencyLicensesTask extends DefaultTask {
     private String getFileName(String name, Map<String, ?> counters, String type) {
         String fileName = name + "-" + type;
 
-        if (counters.containsKey(fileName) == false) {
+        if (!counters.containsKey(fileName)) {
             // try the other suffix...TODO: get rid of this, just support ending in .txt
             return fileName + ".txt";
         }

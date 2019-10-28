@@ -178,7 +178,7 @@ public class IndexActionTests extends ESTestCase {
 
     public void testThatIndexTypeIdDynamically() throws Exception {
         boolean configureIndexDynamically = randomBoolean();
-        boolean configureIdDynamically = configureIndexDynamically == false || randomBoolean();
+        boolean configureIdDynamically = !configureIndexDynamically || randomBoolean();
 
         var entries = new ArrayList<Map.Entry<String, Object>>(4);
         entries.add(entry("foo", "bar"));
@@ -265,7 +265,7 @@ public class IndexActionTests extends ESTestCase {
         ZonedDateTime executionTime = DateUtils.nowWithMillisResolution();
         Payload payload;
 
-        if (customId && docIdAsParam == false) {
+        if (customId && !docIdAsParam) {
             // intentionally immutable because the other side needs to cut out _id
             payload = new Payload.Simple("_doc", Map.of("foo", "bar", "_id", docId));
         } else {

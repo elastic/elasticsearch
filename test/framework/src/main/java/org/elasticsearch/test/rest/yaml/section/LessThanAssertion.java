@@ -41,7 +41,7 @@ public class LessThanAssertion extends Assertion {
     public static LessThanAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
         Tuple<String,Object> stringObjectTuple = ParserUtils.parseTuple(parser);
-        if (false == stringObjectTuple.v2() instanceof Comparable) {
+        if (!(stringObjectTuple.v2() instanceof Comparable)) {
             throw new IllegalArgumentException("lt section can only be used with objects that support natural ordering, found "
                     + stringObjectTuple.v2().getClass().getSimpleName());
         }

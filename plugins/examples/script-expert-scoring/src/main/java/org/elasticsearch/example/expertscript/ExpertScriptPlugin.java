@@ -57,7 +57,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
         public <T> T compile(String scriptName, String scriptSource,
                 ScriptContext<T> context, Map<String, String> params) {
-            if (context.equals(ScoreScript.CONTEXT) == false) {
+            if (!context.equals(ScoreScript.CONTEXT)) {
                 throw new IllegalArgumentException(getType()
                         + " scripts cannot be used for context ["
                         + context.name + "]");
@@ -84,11 +84,11 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
             private PureDfLeafFactory(
                         Map<String, Object> params, SearchLookup lookup) {
-                if (params.containsKey("field") == false) {
+                if (!params.containsKey("field")) {
                     throw new IllegalArgumentException(
                             "Missing parameter [field]");
                 }
-                if (params.containsKey("term") == false) {
+                if (!params.containsKey("term")) {
                     throw new IllegalArgumentException(
                             "Missing parameter [term]");
                 }

@@ -88,7 +88,7 @@ public class IndexResolver {
         public String toSql() {
             return toSql;
         }
-        
+
         public String toNative() {
             return toNative;
         }
@@ -110,7 +110,7 @@ public class IndexResolver {
         public IndexType type() {
             return type;
         }
-        
+
         @Override
         public String toString() {
             return name;
@@ -182,14 +182,14 @@ public class IndexResolver {
                     .local(true)
                     .aliases(indices)
                     .indicesOptions(IndicesOptions.lenientExpandOpen());
-    
+
             client.admin().indices().getAliases(aliasRequest, wrap(aliases ->
                             resolveIndices(indices, javaRegex, aliases, retrieveIndices, retrieveFrozenIndices, listener),
                             ex -> {
                                 // with security, two exception can be thrown:
                                 // INFE - if no alias matches
                                 // security exception is the user cannot access aliases
-    
+
                                 // in both cases, that is allowed and we continue with the indices request
                                 if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
                                     resolveIndices(indices, javaRegex, null, retrieveIndices, retrieveFrozenIndices, listener);
@@ -206,7 +206,7 @@ public class IndexResolver {
             boolean retrieveIndices, boolean retrieveFrozenIndices, ActionListener<Set<IndexInfo>> listener) {
 
         if (retrieveIndices || retrieveFrozenIndices) {
-            
+
             GetIndexRequest indexRequest = new GetIndexRequest()
                     .local(true)
                     .indices(indices)
@@ -218,11 +218,11 @@ public class IndexResolver {
             if (retrieveFrozenIndices) {
                 indexRequest.indicesOptions(FROZEN_INDICES_OPTIONS);
             }
-    
+
             client.admin().indices().getIndex(indexRequest,
                     wrap(response -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, listener),
                             listener::onFailure));
-            
+
         } else {
             filterResults(javaRegex, aliases, null, false, false, listener);
         }
@@ -233,7 +233,7 @@ public class IndexResolver {
             boolean retrieveIndices,
             boolean retrieveFrozenIndices,
             ActionListener<Set<IndexInfo>> listener) {
-        
+
         // since the index name does not support ?, filter the results manually
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
@@ -249,7 +249,7 @@ public class IndexResolver {
                 }
             }
         }
-        
+
         // filter indices (if present)
         String[] indicesNames = indices != null ? indices.indices() : null;
         if (indicesNames != null) {
@@ -385,7 +385,7 @@ public class IndexResolver {
         }
 
         EsField esField = field.apply(fieldName);
-        
+
         parentProps.put(fieldName, esField);
         flattedMapping.put(fullFieldName, esField);
 
@@ -434,12 +434,12 @@ public class IndexResolver {
                         listener::onFailure));
 
     }
-    
+
     static List<EsIndex> separateMappings(String indexPattern, String javaRegex, String[] indexNames,
             Map<String, Map<String, FieldCapabilities>> fieldCaps) {
         return buildIndices(indexNames, javaRegex, fieldCaps, Function.identity(), (s, cap) -> null);
     }
-    
+
     private static class Fields {
         final Map<String, EsField> hierarchicalMapping = new TreeMap<>();
         final Map<String, EsField> flattedMapping = new LinkedHashMap<>();
@@ -497,13 +497,13 @@ public class IndexResolver {
                 // compute the actual indices - if any are specified, take into account the unmapped indices
                 List<String> concreteIndices = null;
                 if (capIndices != null) {
-                    if (unmappedIndices.isEmpty() == true) {
+                    if (unmappedIndices.isEmpty()) {
                         concreteIndices = asList(capIndices);
                     } else {
                         concreteIndices = new ArrayList<>(capIndices.length);
                         for (String capIndex : capIndices) {
                             // add only indices that have a mapping
-                            if (unmappedIndices.contains(capIndex) == false) {
+                            if (!unmappedIndices.contains(capIndex)) {
                                 concreteIndices.add(capIndex);
                             }
                         }
@@ -522,7 +522,7 @@ public class IndexResolver {
                             indices.put(indexName, indexFields);
                         }
                         EsField field = indexFields.flattedMapping.get(fieldName);
-                        if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
+                        if (field == null || (invalidField != null && !(field instanceof InvalidMappedField))) {
                             int dot = fieldName.lastIndexOf('.');
                             /*
                              * Looking up the "tree" at the parent fields here to see if the field is an alias.
@@ -539,7 +539,7 @@ public class IndexResolver {
                                     }
                                 }
                             }
-                            
+
                             createField(fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
                                     s -> invalidField != null ? invalidField : createField(s, typeCap.getType(), emptyMap(),
                                             typeCap.isAggregatable(), isAlias.get()));

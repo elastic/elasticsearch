@@ -103,14 +103,14 @@ public final class SimilarityService extends AbstractIndexComponent {
             String typeName = providerSettings.get("type");
             if (typeName == null) {
                 throw new IllegalArgumentException("Similarity [" + name + "] must have an associated type");
-            } else if ((similarities.containsKey(typeName) || BUILT_IN.containsKey(typeName)) == false) {
+            } else if (!(similarities.containsKey(typeName) || BUILT_IN.containsKey(typeName))) {
                 throw new IllegalArgumentException("Unknown Similarity type [" + typeName + "] for [" + name + "]");
             }
             TriFunction<Settings, Version, ScriptService, Similarity> defaultFactory = BUILT_IN.get(typeName);
             TriFunction<Settings, Version, ScriptService, Similarity> factory = similarities.getOrDefault(typeName, defaultFactory);
             Similarity similarity = factory.apply(providerSettings, indexSettings.getIndexVersionCreated(), scriptService);
             validateSimilarity(indexSettings.getIndexVersionCreated(), similarity);
-            if (BUILT_IN.containsKey(typeName) == false || "scripted".equals(typeName)) {
+            if (!BUILT_IN.containsKey(typeName) || "scripted".equals(typeName)) {
                 // We don't trust custom similarities
                 similarity = new NonNegativeScoresSimilarity(similarity);
             }

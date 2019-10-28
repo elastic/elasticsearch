@@ -130,7 +130,7 @@ public class SchedulerEngine {
         scheduler.shutdownNow();
         try {
             final boolean terminated = scheduler.awaitTermination(5L, TimeUnit.SECONDS);
-            if (terminated == false) {
+            if (!terminated) {
                 logger.warn("scheduler engine was not terminated after waiting 5s");
             }
         } catch (InterruptedException e) {

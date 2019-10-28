@@ -80,7 +80,7 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
             if (userAgent != null && userAgent.startsWith("aws-sdk-java")) {
 
                 final String auth = request.getHeader("Authorization");
-                if (auth == null || auth.contains("ec2_integration_test_access_key") == false) {
+                if (auth == null || !auth.contains("ec2_integration_test_access_key")) {
                     throw new IllegalArgumentException("wrong access key: " + auth);
                 }
 

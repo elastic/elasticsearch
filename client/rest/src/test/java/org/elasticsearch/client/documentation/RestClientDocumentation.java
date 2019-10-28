@@ -144,7 +144,7 @@ public class RestClientDocumentation {
                         while (nodesIt.hasNext()) {
                             Node node = nodesIt.next();
                             String rackId = node.getAttributes().get("rack_id").get(0);
-                            if ("rack_one".equals(rackId) == false) {
+                            if (!"rack_one".equals(rackId)) {
                                 nodesIt.remove();
                             }
                         }

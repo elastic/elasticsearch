@@ -310,9 +310,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         boolean foundThrottledMessage = false;
         for (Decision decision : commandsResult.explanations().explanations().get(0).decisions().getDecisions()) {
             if (decision.label().equals(ThrottlingAllocationDecider.NAME)) {
-                assertEquals("reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, " 
-                        + "cluster setting [cluster.routing.allocation.node_concurrent_outgoing_recoveries=1] " 
-                        + "(can also be set via [cluster.routing.allocation.node_concurrent_recoveries])", 
+                assertEquals("reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, "
+                        + "cluster setting [cluster.routing.allocation.node_concurrent_outgoing_recoveries=1] "
+                        + "(can also be set via [cluster.routing.allocation.node_concurrent_recoveries])",
                         decision.getExplanation());
                 assertEquals(Decision.Type.THROTTLE, decision.type());
                 foundThrottledMessage = true;
@@ -379,7 +379,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         final RoutingTable routingTable = routingTableBuilder.build();
 
         final ImmutableOpenMap.Builder<String, ClusterState.Custom> restores = ImmutableOpenMap.builder();
-        if (snapshotIndices.isEmpty() == false) {
+        if (!snapshotIndices.isEmpty()) {
             // Some indices are restored from snapshot, the RestoreInProgress must be set accordingly
             ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = ImmutableOpenMap.builder();
             for (ShardRouting shard : routingTable.allShards()) {

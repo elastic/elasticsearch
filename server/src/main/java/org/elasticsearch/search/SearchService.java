@@ -353,7 +353,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 contextProcessing(context);
                 loadOrExecuteQueryPhase(request, context);
-                if (context.queryResult().hasSearchContext() == false && context.scrollContext() == null) {
+                if (!context.queryResult().hasSearchContext() && context.scrollContext() == null) {
                     freeContext(context.id());
                 } else {
                     contextProcessedSuccessfully(context);
@@ -423,7 +423,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 contextProcessing(context);
                 context.searcher().setAggregatedDfs(request.dfs());
                 queryPhase.execute(context);
-                if (context.queryResult().hasSearchContext() == false && context.scrollContext() == null) {
+                if (!context.queryResult().hasSearchContext() && context.scrollContext() == null) {
                     // no hits, we can release the context since there will be no fetch phase
                     freeContext(context.id());
                 } else {
@@ -550,7 +550,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             success = true;
             return context;
         } finally {
-            if (success == false) {
+            if (!success) {
                 freeContext(context.id());
             }
         }
@@ -568,7 +568,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } finally {
             // currently, the concrete listener is CompositeListener, which swallows exceptions, but here we anyway try to do the
             // right thing by closing and notifying onFreeXXX in case one of the listeners fails with an exception in the future.
-            if (success == false) {
+            if (!success) {
                 try (context) {
                     onFreeContext(context);
                 }
@@ -639,7 +639,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             assert searchContext.getQueryShardContext().isCacheable();
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 IOUtils.closeWhileHandlingException(searchContext);
                 if (searchContext == null) {
                     // we handle the case where the DefaultSearchContext constructor throws an exception since we would otherwise
@@ -673,7 +673,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void onFreeContext(SearchContext context) {
         assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
-        assert activeContexts.containsKey(context.id()) == false;
+        assert !activeContexts.containsKey(context.id());
         context.indexShard().getSearchOperationListener().onFreeContext(context);
         if (context.scrollContext() != null) {
             openScrollContexts.decrementAndGet();
@@ -889,7 +889,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.storedFields() != null) {
-            if (source.storedFields().fetchFields() == false) {
+            if (!source.storedFields().fetchFields()) {
                 if (context.version()) {
                     throw new SearchException(shardTarget, "`stored_fields` cannot be disabled if version is requested");
                 }
@@ -907,7 +907,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.searchAfter() != null) {
                 throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `search_after`");
             }
-            if (context.rescore() != null && context.rescore().isEmpty() == false) {
+            if (context.rescore() != null && !context.rescore().isEmpty()) {
                 throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");
             }
             final CollapseContext collapseContext = source.collapse().build(queryShardContext);
@@ -1024,7 +1024,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Rewriteable.rewrite(request.getRewriteable(), context, false);
             if (canRewriteToMatchNone(request.source())) {
                 QueryBuilder queryBuilder = request.source().query();
-                return queryBuilder instanceof MatchNoneQueryBuilder == false;
+                return !(queryBuilder instanceof MatchNoneQueryBuilder);
             }
             return true; // null query means match_all
         }
@@ -1049,7 +1049,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return false;
         }
         AggregatorFactories.Builder aggregations = source.aggregations();
-        return aggregations == null || aggregations.mustVisitAllDocs() == false;
+        return aggregations == null || !aggregations.mustVisitAllDocs();
     }
 
     /*
@@ -1141,8 +1141,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         @Override
         public void close() {
-            assert closed == false : "already closed - while technically ok double closing is a likely a bug in this case";
-            if (closed == false) {
+            assert !closed : "already closed - while technically ok double closing is a likely a bug in this case";
+            if (!closed) {
                 closed = true;
                 if (afterQueryTime != -1) {
                     if (fetch) {

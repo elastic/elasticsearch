@@ -184,7 +184,7 @@ public class MessagesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialJoinRequest,
                 (CopyFunction<JoinRequest>) joinRequest -> copyWriteable(joinRequest, writableRegistry(), JoinRequest::new),
             joinRequest -> {
-                if (randomBoolean() && joinRequest.getOptionalJoin().isPresent() == false) {
+                if (randomBoolean() && !joinRequest.getOptionalJoin().isPresent()) {
                     return new JoinRequest(createNode(randomAlphaOfLength(20)), joinRequest.getOptionalJoin());
                 } else {
                     // change OptionalJoin

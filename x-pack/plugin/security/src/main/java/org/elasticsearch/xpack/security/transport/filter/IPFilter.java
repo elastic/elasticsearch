@@ -126,8 +126,8 @@ public class IPFilter {
         isHttpFilterEnabled = IP_FILTER_ENABLED_HTTP_SETTING.get(settings);
         isIpFilterEnabled = IP_FILTER_ENABLED_SETTING.get(settings);
 
-        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> TransportSettings
-                .DEFAULT_PROFILE.equals(k) == false).collect(Collectors.toSet()); // exclude default profile -- it's handled differently
+        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> !TransportSettings
+            .DEFAULT_PROFILE.equals(k)).collect(Collectors.toSet()); // exclude default profile -- it's handled differently
         for (String profile : profiles) {
             Setting<List<String>> allowSetting = PROFILE_FILTER_ALLOW_SETTING.getConcreteSettingForNamespace(profile);
             profileAllowRules.put(profile, allowSetting.get(settings));
@@ -147,9 +147,9 @@ public class IPFilter {
 
     public Map<String, Object> usageStats() {
         Map<String, Object> map = new HashMap<>(2);
-        final boolean httpFilterEnabled = isHttpFilterEnabled && (httpAllowFilter.isEmpty() == false || httpDenyFilter.isEmpty() == false);
+        final boolean httpFilterEnabled = isHttpFilterEnabled && (!httpAllowFilter.isEmpty() || !httpDenyFilter.isEmpty());
         final boolean transportFilterEnabled = isIpFilterEnabled &&
-                (transportAllowFilter.isEmpty() == false || transportDenyFilter.isEmpty() == false);
+                (!transportAllowFilter.isEmpty() || !transportDenyFilter.isEmpty());
         map.put("http", httpFilterEnabled);
         map.put("transport", transportFilterEnabled);
         return map;
@@ -196,7 +196,7 @@ public class IPFilter {
     }
 
     public boolean accept(String profile, InetSocketAddress peerAddress) {
-        if (licenseState.isIpFilteringAllowed() == false) {
+        if (!licenseState.isIpFilteringAllowed()) {
             return true;
         }
 

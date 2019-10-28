@@ -49,7 +49,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 
 public class GceSeedHostsProvider implements SeedHostsProvider {
-    
+
     private static final Logger logger = LogManager.getLogger(GceSeedHostsProvider.class);
 
     /**
@@ -153,7 +153,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
 
                 // see if we need to filter by tag
                 boolean filterByTag = false;
-                if (tags.isEmpty() == false) {
+                if (!tags.isEmpty()) {
                     logger.trace("start filtering instance {} with tags {}.", name, tags);
                     if (instance.getTags() == null || instance.getTags().isEmpty()
                             || instance.getTags().getItems() == null || instance.getTags().getItems().isEmpty()) {

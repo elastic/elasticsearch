@@ -124,7 +124,7 @@ public interface Rewriteable<T> {
     static <T extends Rewriteable<T>> List<T> rewrite(List<T> rewritables, QueryRewriteContext context) throws IOException {
         List<T> list = rewritables;
         boolean changed = false;
-        if (rewritables != null && rewritables.isEmpty() == false) {
+        if (rewritables != null && !rewritables.isEmpty()) {
             list = new ArrayList<>(rewritables.size());
             for (T instance : rewritables) {
                 T rewrite = rewrite(instance, context);

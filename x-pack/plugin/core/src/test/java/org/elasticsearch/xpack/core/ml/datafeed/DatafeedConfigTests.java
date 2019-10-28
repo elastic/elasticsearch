@@ -119,7 +119,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             builder.setScriptFields(scriptFields);
         }
         Long aggHistogramInterval = null;
-        if (randomBoolean() && addScriptFields == false) {
+        if (randomBoolean() && !addScriptFields) {
             // can only test with a single agg as the xcontent order gets randomized by test base class and then
             // the actual xcontent isn't the same and test fail.
             // Testing with a single agg is ok as we don't have special list writeable / xcontent logic
@@ -883,7 +883,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                         .addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).interval(between(10000, 3600000))
                                 .subAggregation(new MaxAggregationBuilder(timeField).field(timeField)));
                 builder.setParsedAggregations(aggBuilder);
-                if (instance.getScriptFields().isEmpty() == false) {
+                if (!instance.getScriptFields().isEmpty()) {
                     builder.setScriptFields(Collections.emptyList());
                 }
             }

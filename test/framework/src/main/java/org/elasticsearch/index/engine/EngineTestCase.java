@@ -266,13 +266,13 @@ public abstract class EngineTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         try {
-            if (engine != null && engine.isClosed.get() == false) {
+            if (engine != null && !engine.isClosed.get()) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
                 assertMaxSeqNoInCommitUserData(engine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
-            if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
+            if (replicaEngine != null && !replicaEngine.isClosed.get()) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
                 assertMaxSeqNoInCommitUserData(replicaEngine);
@@ -518,7 +518,7 @@ public abstract class EngineTestCase extends ESTestCase {
                                           EngineConfig config) throws IOException {
         final Store store = config.getStore();
         final Directory directory = store.directory();
-        if (Lucene.indexExists(directory) == false) {
+        if (!Lucene.indexExists(directory)) {
             store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
             final String translogUuid = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
@@ -915,7 +915,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 // a delete state and return true for the found flag in favor of code simplicity
                 // his check is just signal regression so a decision can be made if it's
                 // intentional
-                assertThat(result.isFound(), equalTo(firstOp == false));
+                assertThat(result.isFound(), equalTo(!firstOp));
                 assertThat(result.getVersion(), equalTo(op.version()));
                 assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
             }
@@ -1020,7 +1020,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 Bits liveDocs = reader.getLiveDocs();
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
-                        if (primaryTermDocValues.advanceExact(i) == false) {
+                        if (!primaryTermDocValues.advanceExact(i)) {
                             // We have to skip non-root docs because its _id field is not stored (indexed only).
                             continue;
                         }
@@ -1029,11 +1029,11 @@ public abstract class EngineTestCase extends ESTestCase {
                         BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
                         String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
                         final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
-                        if (seqNoDocValues.advanceExact(i) == false) {
+                        if (!seqNoDocValues.advanceExact(i)) {
                             throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
                         }
                         final long seqNo = seqNoDocValues.longValue();
-                        if (versionDocValues.advanceExact(i) == false) {
+                        if (!versionDocValues.advanceExact(i)) {
                             throw new AssertionError("versionDocValues not found for doc[" + i + "] id[" + id + "]");
                         }
                         final long version = versionDocValues.longValue();
@@ -1067,8 +1067,8 @@ public abstract class EngineTestCase extends ESTestCase {
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
     public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper == null || mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
-            || (engine instanceof InternalEngine) == false) {
+        if (mapper == null || mapper.documentMapper() == null || !engine.config().getIndexSettings().isSoftDeleteEnabled()
+            || !(engine instanceof InternalEngine)) {
             return;
         }
         final List<Translog.Operation> translogOps = new ArrayList<>();
@@ -1152,7 +1152,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 long seqNo = seqNoDocValues.longValue();
                 assertThat(seqNo, greaterThanOrEqualTo(0L));
                 if (primaryTermDocValues.advanceExact(docId)) {
-                    if (seqNos.add(seqNo) == false) {
+                    if (!seqNos.add(seqNo)) {
                         final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
                         leaf.reader().document(docId, idFieldVisitor);
                         throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idFieldVisitor.getId());

@@ -51,7 +51,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
-        if (localStorageEnable == false &&
+        if (!localStorageEnable &&
             (Node.NODE_DATA_SETTING.get(settings) ||
                 Node.NODE_MASTER_SETTING.get(settings))
             ) {
@@ -182,7 +182,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Predicate<Map<String, String>> predicate =  (attrs) -> {
             boolean success = true;
             for (final DiscoveryNodeRole role : DiscoveryNode.roleNameToPossibleRoles.values()) {
-                success &= attrs.containsKey(role.roleName()) == false;
+                success &= !attrs.containsKey(role.roleName());
                 assert success : role.roleName();
             }
             return success;
@@ -408,7 +408,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         sb.append('{').append(ephemeralId).append('}');
         sb.append('{').append(hostName).append('}');
         sb.append('{').append(address).append('}');
-        if (roles.isEmpty() == false) {
+        if (!roles.isEmpty()) {
             sb.append('{');
             roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(sb::append);
             sb.append('}');

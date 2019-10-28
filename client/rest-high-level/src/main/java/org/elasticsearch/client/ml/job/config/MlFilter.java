@@ -100,7 +100,7 @@ public class MlFilter implements ToXContentObject {
             return true;
         }
 
-        if (obj instanceof MlFilter == false) {
+        if (!(obj instanceof MlFilter)) {
             return false;
         }
 

@@ -537,7 +537,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         builder.setId(jobId);
         builder.setAnalysisConfig(ac);
         builder.setDataDescription(new DataDescription.Builder());
-        if (groups != null && groups.isEmpty() == false) {
+        if (groups != null && !groups.isEmpty()) {
             builder.setGroups(groups);
         }
         return builder;

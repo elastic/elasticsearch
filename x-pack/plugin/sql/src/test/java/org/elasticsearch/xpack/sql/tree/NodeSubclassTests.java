@@ -198,7 +198,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                     List<B> newChildren = (List<B>) makeListOfSameSizeOtherThan(changedArgType, originalList);
                     B transformed = node.replaceChildren(newChildren);
                     assertTransformedOrReplacedChildren(node, transformed, ctor, nodeCtorArgs, changedArgOffset, newChildren);
-                } else if (false == originalList.isEmpty() && node.children().containsAll(originalList)) {
+                } else if (!originalList.isEmpty() && node.children().containsAll(originalList)) {
                     // The arg we're looking at is a collection contained within the children
 
                     // First make the new children
@@ -631,8 +631,8 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                             throw new IOException("Couldn't find " + file, e);
                         }
 
-                        if (false == Modifier.isAbstract(c.getModifiers())
-                                && false == c.isAnonymousClass()
+                        if (!Modifier.isAbstract(c.getModifiers())
+                                && !c.isAnonymousClass()
                                 && clazz.isAssignableFrom(c)) {
                             Class<? extends T> s = c.asSubclass(clazz);
                             results.add(s);

@@ -164,7 +164,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             AtomicBoolean stopped = new AtomicBoolean(false);
             socket.setSoTimeout(10);
             Thread emptyReader = new Thread(() -> {
-                while (stopped.get() == false) {
+                while (!stopped.get()) {
                     try {
                         socket.getInputStream().read();
                     } catch (SocketTimeoutException e) {

@@ -598,13 +598,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         if (routingFactor != that.routingFactor) {
             return false;
         }
-        if (Arrays.equals(primaryTerms, that.primaryTerms) == false) {
+        if (!Arrays.equals(primaryTerms, that.primaryTerms)) {
             return false;
         }
         if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) {
             return false;
         }
-        if (rolloverInfos.equals(that.rolloverInfos) == false) {
+        if (!rolloverInfos.equals(that.rolloverInfos)) {
             return false;
         }
         return true;
@@ -1150,7 +1150,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
 
             final ActiveShardCount waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(settings);
-            if (waitForActiveShards.validate(numberOfReplicas) == false) {
+            if (!waitForActiveShards.validate(numberOfReplicas)) {
                 throw new IllegalArgumentException("invalid " + SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey() +
                                                    "[" + waitForActiveShards + "]: cannot be greater than " +
                                                    "number of shard copies [" + (numberOfReplicas + 1) + "]");

@@ -241,7 +241,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     private void reloadConfiguration(String watchIndex, List<ShardRouting> localShardRouting,
                                      ClusterChangedEvent event) {
         // changed alias means to always read a new configuration
-        boolean isAliasChanged = watchIndex.equals(configuration.index) == false;
+        boolean isAliasChanged = !watchIndex.equals(configuration.index);
         if (isAliasChanged || hasShardAllocationIdChanged(watchIndex, event.state())) {
             IndexRoutingTable watchIndexRoutingTable = event.state().routingTable().index(watchIndex);
             Map<ShardId, ShardAllocationConfiguration> ids = getLocalShardAllocationIds(localShardRouting, watchIndexRoutingTable);
@@ -261,7 +261,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         allStartedRelocatedShards.addAll(state.getRoutingTable().index(watchIndex).shardsWithState(RELOCATING));
 
         // exit early, when there are shards, but the current configuration is inactive
-        if (allStartedRelocatedShards.isEmpty() == false && configuration == INACTIVE) {
+        if (!allStartedRelocatedShards.isEmpty() && configuration == INACTIVE) {
             return true;
         }
 
@@ -273,7 +273,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                 .collect(Collectors.toSet());
         Set<ShardId> configuredLocalShardIds = new HashSet<>(configuration.localShards.keySet());
         Set<ShardId> differenceSet = Sets.difference(clusterStateLocalShardIds, configuredLocalShardIds);
-        if (differenceSet.isEmpty() == false) {
+        if (!differenceSet.isEmpty()) {
             return true;
         }
 
@@ -287,12 +287,12 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
         // check for different allocation ids
         for (Map.Entry<ShardId, ShardAllocationConfiguration> entry : configuration.localShards.entrySet()) {
-            if (shards.containsKey(entry.getKey()) == false) {
+            if (!shards.containsKey(entry.getKey())) {
                 return true;
             }
 
             Collection<String> allocationIds = shards.get(entry.getKey());
-            if (allocationIds.equals(entry.getValue().allocationIds) == false) {
+            if (!allocationIds.equals(entry.getValue().allocationIds)) {
                 return true;
             }
         }
@@ -347,7 +347,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         final String index;
 
         Configuration(String index, Map<ShardId, ShardAllocationConfiguration> localShards) {
-            this.active = localShards.isEmpty() == false;
+            this.active = !localShards.isEmpty();
             this.index = index;
             this.localShards = Collections.unmodifiableMap(localShards);
         }
@@ -360,7 +360,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
          * @return false if watcher is not active or the passed index is not the watcher index
          */
         public boolean isIndexAndActive(String index) {
-            return active == true && index.equals(this.index);
+            return active && index.equals(this.index);
         }
     }
 

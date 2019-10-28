@@ -498,7 +498,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             int filesRecovered = 0;
             int filesReused = 0;
             for (final RecoveryState.File file : recoveryState.getIndex().fileDetails()) {
-                if (files.contains(file.name()) == false) {
+                if (!files.contains(file.name())) {
                     recovered += file.length();
                     filesRecovered++;
                 } else {

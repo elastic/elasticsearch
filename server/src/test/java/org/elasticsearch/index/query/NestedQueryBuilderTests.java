@@ -188,7 +188,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         try {
             super.testMustRewrite();
         } catch (UnsupportedOperationException e) {
-            if (requiresRewrite == false) {
+            if (!requiresRewrite) {
                 throw e;
             }
         }

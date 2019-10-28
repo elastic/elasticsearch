@@ -58,7 +58,7 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
     @Override
     public void collect(int docID, CharSequence key, CharSequence context, float score) throws IOException {
         int globalDoc = docID + docBase;
-        boolean isNewDoc = docContexts.containsKey(globalDoc) == false;
+        boolean isNewDoc = !docContexts.containsKey(globalDoc);
         List<CharSequence> contexts = docContexts.computeIfAbsent(globalDoc, k -> new ArrayList<>());
         if (context != null) {
             contexts.add(context);

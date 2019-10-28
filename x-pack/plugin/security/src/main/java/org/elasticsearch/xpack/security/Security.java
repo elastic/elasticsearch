@@ -353,7 +353,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                         NamedXContentRegistry xContentRegistry) throws Exception {
-        if (enabled == false) {
+        if (!enabled) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }
 
@@ -509,22 +509,22 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 realmFailureHeaders.entrySet().stream().forEach((e) -> {
                     String key = e.getKey();
                     e.getValue().stream()
-                            .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
+                            .filter(v -> !defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v))
                             .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
                 });
             });
 
             if (TokenService.isTokenServiceEnabled(settings)) {
                 String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
-                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
-                        .contains(bearerScheme) == false) {
+                if (!defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                    .contains(bearerScheme)) {
                     defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
                 }
             }
             if (API_KEY_SERVICE_ENABLED_SETTING.get(settings)) {
                 final String apiKeyScheme = "ApiKey";
-                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
-                    .contains(apiKeyScheme) == false) {
+                if (!defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                    .contains(apiKeyScheme)) {
                     defaultFailureResponseHeaders.get("WWW-Authenticate").add(apiKeyScheme);
                 }
             }
@@ -692,7 +692,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SECURITY, SecurityUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.SECURITY, SecurityInfoTransportAction.class);
-        if (enabled == false) {
+        if (!enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(
@@ -738,7 +738,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<ActionFilter> getActionFilters() {
-        if (enabled == false) {
+        if (!enabled) {
             return emptyList();
         }
         return singletonList(securityActionFilter.get());
@@ -749,7 +749,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (enabled == false) {
+        if (!enabled) {
             return emptyList();
         }
         return Arrays.asList(
@@ -819,7 +819,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 return suffix.indexOf('.') == suffix.lastIndexOf('.');
             })
             .collect(Collectors.toSet());
-        if (badRealmSettings.isEmpty() == false) {
+        if (!badRealmSettings.isEmpty()) {
             String sampleRealmSetting = RealmSettings.realmSettingPrefix(new RealmConfig.RealmIdentifier("file", "my_file")) + "order";
             throw new IllegalArgumentException("Incorrect realm settings found. " +
                 "Realm settings have been changed to include the type as part of the setting key.\n" +
@@ -834,23 +834,23 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final List<String> validationErrors = new ArrayList<>();
         Settings keystoreTypeSettings = settings.filter(k -> k.endsWith("keystore.type"))
             .filter(k -> settings.get(k).equalsIgnoreCase("jks"));
-        if (keystoreTypeSettings.isEmpty() == false) {
+        if (!keystoreTypeSettings.isEmpty()) {
             validationErrors.add("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
                 "revisit [" + keystoreTypeSettings.toDelimitedString(',') + "] settings");
         }
         Settings keystorePathSettings = settings.filter(k -> k.endsWith("keystore.path"))
-            .filter(k -> settings.hasValue(k.replace(".path", ".type")) == false);
-        if (keystorePathSettings.isEmpty() == false && SSLConfigurationSettings.inferKeyStoreType(null).equals("jks")) {
+            .filter(k -> !settings.hasValue(k.replace(".path", ".type")));
+        if (!keystorePathSettings.isEmpty() && SSLConfigurationSettings.inferKeyStoreType(null).equals("jks")) {
             validationErrors.add("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
                 "revisit [" + keystorePathSettings.toDelimitedString(',') + "] settings");
         }
         final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings);
-        if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+        if (!selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2")) {
             validationErrors.add("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the " +
                 "appropriate value for [ " + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey() + " ] setting.");
         }
 
-        if (validationErrors.isEmpty() == false) {
+        if (!validationErrors.isEmpty()) {
             final StringBuilder sb = new StringBuilder();
             sb.append("Validation for FIPS 140 mode failed: \n");
             int index = 0;
@@ -863,7 +863,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
-        if (enabled == false) { // don't register anything if we are not enabled
+        if (!enabled) { // don't register anything if we are not enabled
             return Collections.emptyList();
         }
        return Collections.singletonList(new TransportInterceptor() {
@@ -887,7 +887,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        if (enabled == false) { // don't register anything if we are not enabled
+        if (!enabled) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
 
@@ -926,7 +926,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {
-        if (enabled == false) { // don't register anything if we are not enabled
+        if (!enabled) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
 
@@ -941,7 +941,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-        if (enabled == false) {
+        if (!enabled) {
             return null;
         }
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
@@ -973,7 +973,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Function<String, Predicate<String>> getFieldFilter() {
         if (enabled) {
             return index -> {
-                if (getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
+                if (!getLicenseState().isDocumentAndFieldLevelSecurityAllowed()) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
@@ -982,11 +982,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 if (indexPermissions == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
-                if (indexPermissions.isGranted() == false) {
+                if (!indexPermissions.isGranted()) {
                     throw new IllegalStateException("unexpected call to getFieldFilter for index [" + index + "] which is not granted");
                 }
                 FieldPermissions fieldPermissions = indexPermissions.getFieldPermissions();
-                if (fieldPermissions.hasFieldLevelSecurity() == false) {
+                if (!fieldPermissions.hasFieldLevelSecurity()) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 return fieldPermissions::grantsAccessTo;
@@ -1029,7 +1029,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             if (inFipsMode) {
                 License license = LicenseService.getLicense(state.metaData());
                 if (license != null &&
-                    FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+                    !FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode())) {
                     throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
                         "] license. It is only allowed with a Platinum or Trial license.");
 

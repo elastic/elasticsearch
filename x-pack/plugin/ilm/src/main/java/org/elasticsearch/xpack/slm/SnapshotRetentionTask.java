@@ -94,7 +94,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         // Skip running retention if SLM is disabled, however, even if it's
         // disabled we allow manual running.
         if (SnapshotLifecycleService.slmStoppedOrStopping(state) &&
-            event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID) == false) {
+            !event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID)) {
             logger.debug("skipping SLM retention as SLM is currently stopped or stopping");
             return;
         }
@@ -175,7 +175,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         }
         return snapMeta.getSnapshotConfigurations().entrySet().stream()
             .filter(e -> e.getValue().getPolicy().getRetentionPolicy() != null)
-            .filter(e -> e.getValue().getPolicy().getRetentionPolicy().equals(SnapshotRetentionConfiguration.EMPTY) == false)
+            .filter(e -> !e.getValue().getPolicy().getRetentionPolicy().equals(SnapshotRetentionConfiguration.EMPTY))
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getPolicy()));
     }
 
@@ -440,7 +440,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
         // Cannot delete while a repository is being cleaned
         final RepositoryCleanupInProgress repositoryCleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
-        if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
+        if (repositoryCleanupInProgress != null && !repositoryCleanupInProgress.cleanupInProgress()) {
             return false;
         }
 

@@ -204,7 +204,7 @@ public class TextFieldMapper extends FieldMapper {
                 PrefixFieldType prefixFieldType =
                     new PrefixFieldType(fullName, fullName + "._index_prefix", minPrefixChars, maxPrefixChars);
                 fieldType().setPrefixFieldType(prefixFieldType);
-                if (fieldType().isSearchable() == false) {
+                if (!fieldType().isSearchable()) {
                     throw new IllegalArgumentException("Cannot set index_prefixes on unindexed field [" + name() + "]");
                 }
                 // Copy the index options of the main field to allow phrase queries on
@@ -222,7 +222,7 @@ public class TextFieldMapper extends FieldMapper {
                 prefixMapper = new PrefixFieldMapper(prefixFieldType, context.indexSettings());
             }
             if (fieldType().indexPhrases) {
-                if (fieldType().isSearchable() == false) {
+                if (!fieldType().isSearchable()) {
                     throw new IllegalArgumentException("Cannot set index_phrases on unindexed field [" + name() + "]");
                 }
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
@@ -546,7 +546,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (super.equals(o) == false) {
+            if (!super.equals(o)) {
                 return false;
             }
             TextFieldType that = (TextFieldType) o;
@@ -621,7 +621,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
+            if (prefixFieldType == null || !prefixFieldType.accept(value.length())) {
                 return super.prefixQuery(value, method, context);
             }
             Query tq = prefixFieldType.prefixQuery(value, method, context);
@@ -684,7 +684,7 @@ public class TextFieldMapper extends FieldMapper {
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
             // or if the incoming token stream is the output of a token graph due to
             // https://issues.apache.org/jira/browse/LUCENE-8916
-            if (indexPhrases && slop == 0 && hasGaps(stream) == false && stream.hasAttribute(BytesTermAttribute.class) == false) {
+            if (indexPhrases && slop == 0 && !hasGaps(stream) && !stream.hasAttribute(BytesTermAttribute.class)) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
@@ -715,7 +715,7 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
             String field = name();
-            if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
+            if (indexPhrases && slop == 0 && !hasGaps(stream)) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
@@ -747,7 +747,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            if (fielddata == false) {
+            if (!fielddata) {
                 throw new IllegalArgumentException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
                         + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
                                 + "use significant memory. Alternatively use a keyword field instead.");
@@ -762,7 +762,7 @@ public class TextFieldMapper extends FieldMapper {
             if (tft.indexPhrases != this.indexPhrases) {
                 conflicts.add("mapper [" + name() + "] has different [index_phrases] values");
             }
-            if (Objects.equals(this.prefixFieldType, tft.prefixFieldType) == false) {
+            if (!Objects.equals(this.prefixFieldType, tft.prefixFieldType)) {
                 if (this.prefixFieldType == null) {
                     conflicts.add("mapper [" + name()
                         + "] has different [index_prefixes] settings, cannot change from disabled to enabled");
@@ -787,7 +787,7 @@ public class TextFieldMapper extends FieldMapper {
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
-        assert fieldType.hasDocValues() == false;
+        assert !fieldType.hasDocValues();
         if (fieldType().indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
@@ -977,7 +977,7 @@ public class TextFieldMapper extends FieldMapper {
         int position = -1;
         while (stream.incrementToken()) {
             if (posIncrAtt.getPositionIncrement() != 0) {
-                if (currentTerms.isEmpty() == false) {
+                if (!currentTerms.isEmpty()) {
                     builder.add(currentTerms.toArray(new Term[0]), position);
                 }
                 position += posIncrAtt.getPositionIncrement();
@@ -995,7 +995,7 @@ public class TextFieldMapper extends FieldMapper {
         final int[] positions = builder.getPositions();
         for (Term term : terms[lastPos]) {
             String value = term.text();
-            if (usePrefixField.test(value.length()) == false) {
+            if (!usePrefixField.test(value.length())) {
                 return builder;
             }
         }

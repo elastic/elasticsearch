@@ -59,8 +59,8 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
-            if (options.has(forceOption) == false &&
-                terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
+            if (!options.has(forceOption) &&
+                !terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false)) {
                 terminal.println("Exiting without creating keystore.");
                 return;
             }
@@ -75,8 +75,8 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
         if (setting == null) {
             throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
         }
-        if (keystore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
-            if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
+        if (keystore.getSettingNames().contains(setting) && !options.has(forceOption)) {
+            if (!terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false)) {
                 terminal.println("Exiting without modifying keystore.");
                 return;
             }

@@ -102,7 +102,7 @@ public class Normalizer {
 
     private static void writeNormalizableAndChildrenRecursively(Normalizable normalizable,
                                                                 NormalizerProcess process) throws IOException {
-        if (normalizable.isContainerOnly() == false) {
+        if (!normalizable.isContainerOnly()) {
             process.writeRecord(new String[] {
                     normalizable.getLevel().asString(),
                     Strings.coalesceToEmpty(normalizable.getPartitionFieldName()),
@@ -147,7 +147,7 @@ public class Normalizer {
     private double mergeRecursively(Iterator<NormalizerResult> scoresIter, Normalizable parent,
                                     boolean parentHadBigChange, Normalizable result) {
         boolean hasBigChange = false;
-        if (result.isContainerOnly() == false) {
+        if (!result.isContainerOnly()) {
             if (!scoresIter.hasNext()) {
                 String msg = "Error iterating normalized results";
                 LOGGER.error("[{}] {}", jobId, msg);

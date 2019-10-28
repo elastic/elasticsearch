@@ -278,7 +278,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 sb.append("isa_ids ").append(indexMetaData.inSyncAllocationIds(shard)).append("\n");
             }
         }
-        if (metaData.customs().isEmpty() == false) {
+        if (!metaData.customs().isEmpty()) {
             sb.append("metadata customs:\n");
             for (final ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
                 final String type = cursor.key;
@@ -291,7 +291,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         sb.append(nodes());
         sb.append(routingTable());
         sb.append(getRoutingNodes());
-        if (customs.isEmpty() == false) {
+        if (!customs.isEmpty()) {
             sb.append("customs:\n");
             for (ObjectObjectCursor<String, Custom> cursor : customs) {
                 final String type = cursor.key;
@@ -828,7 +828,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 // no need to read the rest - cluster state didn't change
                 return state;
             }
-            if (fromUuid.equals(state.stateUUID) == false) {
+            if (!fromUuid.equals(state.stateUUID)) {
                 throw new IncompatibleClusterStateVersionException(state.version, state.stateUUID, toVersion, fromUuid);
             }
             builder.stateUUID(toUuid);

@@ -62,7 +62,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         int foundShards = 0;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.STARTED)) {
             final String currentNodeId = shard.currentNodeId();
-            if (idShardsShouldBeOn.equals(currentNodeId) && shard.relocating() == false) {
+            if (idShardsShouldBeOn.equals(currentNodeId) && !shard.relocating()) {
                 foundShards++;
             }
         }

@@ -92,7 +92,7 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
         // Can't run in FIPS with verification_mode none, disable this check instead of duplicating the test case
-        if (inFipsJvm() == false) {
+        if (!inFipsJvm()) {
             settings = Settings.builder()
                     .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.NONE)
                     .put("path.home", pathHome)

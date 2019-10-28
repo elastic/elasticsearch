@@ -994,7 +994,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);
-                if (fieldType != null && SUPPORTED_FIELD_TYPES.contains(fieldType.getClass()) == false) {
+                if (fieldType != null && !SUPPORTED_FIELD_TYPES.contains(fieldType.getClass())) {
                     if (failOnUnsupportedField) {
                         throw new IllegalArgumentException("more_like_this only supports text/keyword fields: [" + field + "]");
                     } else {

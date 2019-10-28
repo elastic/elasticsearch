@@ -97,7 +97,7 @@ public class GatewayMetaState {
                 manifestClusterStateTuple.v1(),
                 prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()),
                 transportService.getThreadPool()::relativeTimeInMillis);
-        if (DiscoveryNode.isMasterNode(settings) == false) {
+        if (!DiscoveryNode.isMasterNode(settings)) {
             if (DiscoveryNode.isDataNode(settings)) {
                 // Master-eligible nodes persist index metadata for all indices regardless of whether they hold any shards or not. It's
                 // vitally important to the safety of the cluster coordination system that master-eligible nodes persist this metadata when
@@ -160,7 +160,7 @@ public class GatewayMetaState {
                 final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
 
                 final long globalStateGeneration;
-                if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
+                if (!MetaData.isGlobalStateEquals(metaData, upgradedMetaData)) {
                     globalStateGeneration = writer.writeGlobalState("upgrade", upgradedMetaData);
                 } else {
                     globalStateGeneration = manifest.getGlobalGeneration();
@@ -168,7 +168,7 @@ public class GatewayMetaState {
 
                 Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
                 for (IndexMetaData indexMetaData : upgradedMetaData) {
-                    if (metaData.hasIndexMetaData(indexMetaData) == false) {
+                    if (!metaData.hasIndexMetaData(indexMetaData)) {
                         final long generation = writer.writeIndex("upgrade", indexMetaData);
                         indices.put(indexMetaData.getIndex(), generation);
                     }
@@ -241,7 +241,7 @@ public class GatewayMetaState {
         }
         // upgrade global custom meta data
         Map<String, IndexTemplateMetaData> upgradedCustoms = upgrader.apply(existingMap);
-        if (upgradedCustoms.equals(existingMap) == false) {
+        if (!upgradedCustoms.equals(existingMap)) {
             // remove all data first so a plugin can remove custom metadata or templates if needed
             existingMap.keySet().forEach(removeData);
             for (Map.Entry<String, IndexTemplateMetaData> upgradedCustomEntry : upgradedCustoms.entrySet()) {

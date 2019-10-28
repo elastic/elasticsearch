@@ -60,11 +60,11 @@ public final class EnrichStore {
         // therefor a policy name has the same restrictions as an index name
         MetaDataCreateIndexService.validateIndexOrAliasName(name,
             (policyName, error) -> new IllegalArgumentException("Invalid policy name [" + policyName + "], " + error));
-        if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
+        if (!name.toLowerCase(Locale.ROOT).equals(name)) {
             throw new IllegalArgumentException("Invalid policy name [" + name + "], must be lowercase");
         }
         Set<String> supportedPolicyTypes = Set.of(EnrichPolicy.SUPPORTED_POLICY_TYPES);
-        if (supportedPolicyTypes.contains(policy.getType()) == false) {
+        if (!supportedPolicyTypes.contains(policy.getType())) {
             throw new IllegalArgumentException("unsupported policy type [" + policy.getType() +
                 "], supported types are " + Arrays.toString(EnrichPolicy.SUPPORTED_POLICY_TYPES));
         }
@@ -124,7 +124,7 @@ public final class EnrichStore {
 
         updateClusterState(clusterService, handler, current -> {
             final Map<String, EnrichPolicy> policies = getPolicies(current);
-            if (policies.containsKey(name) == false) {
+            if (!policies.containsKey(name)) {
                 throw new ResourceNotFoundException("policy [{}] not found", name);
             }
 

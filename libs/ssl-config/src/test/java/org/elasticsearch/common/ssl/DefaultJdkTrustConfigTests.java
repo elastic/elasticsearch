@@ -67,7 +67,7 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
         final Optional<X509Certificate> ca = Stream.of(trustManager.getAcceptedIssuers())
             .filter(cert -> cert.getSubjectDN().getName().toLowerCase(Locale.ROOT).contains(lowerName))
             .findAny();
-        if (ca.isPresent() == false) {
+        if (!ca.isPresent()) {
             logger.info("Failed to find issuer [{}] in trust manager, but did find ...", lowerName);
             for (X509Certificate cert : trustManager.getAcceptedIssuers()) {
                 logger.info(" - {}", cert.getSubjectDN().getName().replaceFirst("^\\w+=([^,]+),.*", "$1"));

@@ -109,7 +109,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     @Override
     public void validate(ShardFollowTask params, ClusterState clusterState) {
         IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
-        if (routingTable.shard(params.getFollowShardId().id()).primaryShard().started() == false) {
+        if (!routingTable.shard(params.getFollowShardId().id()).primaryShard().started()) {
             throw new IllegalArgumentException("Not all copies of follow shard are started");
         }
     }
@@ -183,7 +183,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             if (indexSettings == null || indexSettings.isPrivateIndex() || indexSettings.isInternalIndex()) {
                                 return false;
                             }
-                            return existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false;
+                            return existingSettings.get(s) == null || !existingSettings.get(s).equals(settings.get(s));
                         });
                         if (updatedSettings.isEmpty()) {
                             finalHandler.accept(leaderIMD.getSettingsVersion());
@@ -469,8 +469,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
 
             private void logRetentionLeaseFailure(final String retentionLeaseId, final Throwable cause) {
-                assert cause instanceof ElasticsearchSecurityException == false : cause;
-                if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
+                assert !(cause instanceof ElasticsearchSecurityException) : cause;
+                if (!(cause instanceof RetentionLeaseInvalidRetainingSeqNoException)) {
                     logger.warn(new ParameterizedMessage(
                             "{} background management of retention lease [{}] failed while following",
                             params.getFollowShardId(),

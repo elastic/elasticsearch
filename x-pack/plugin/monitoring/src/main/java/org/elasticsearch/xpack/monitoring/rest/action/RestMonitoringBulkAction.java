@@ -76,12 +76,12 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
             throw new IllegalArgumentException("no [" + INTERVAL + "] for monitoring bulk request");
         }
 
-        if (false == request.hasContentOrSourceParam()) {
+        if (!request.hasContentOrSourceParam()) {
             throw new ElasticsearchParseException("no body content for monitoring bulk request");
         }
 
         final MonitoredSystem system = MonitoredSystem.fromSystem(id);
-        if (isSupportedSystemVersion(system, version) == false) {
+        if (!isSupportedSystemVersion(system, version)) {
             throw new IllegalArgumentException(MONITORING_VERSION + " [" + version + "] is not supported by "
                     + MONITORING_ID + " [" + id + "]");
         }

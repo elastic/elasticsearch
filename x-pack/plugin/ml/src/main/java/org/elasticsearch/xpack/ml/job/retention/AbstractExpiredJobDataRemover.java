@@ -47,7 +47,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
     private void removeData(WrappedBatchedJobsIterator jobIterator, ActionListener<Boolean> listener,
                             Supplier<Boolean> isTimedOutSupplier) {
-        if (jobIterator.hasNext() == false) {
+        if (!jobIterator.hasNext()) {
             listener.onResponse(true);
             return;
         }

@@ -217,7 +217,7 @@ public class DataDescription implements ToXContentObject {
             return true;
         }
 
-        if (other instanceof DataDescription == false) {
+        if (!(other instanceof DataDescription)) {
             return false;
         }
 

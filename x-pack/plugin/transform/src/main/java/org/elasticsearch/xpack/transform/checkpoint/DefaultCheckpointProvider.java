@@ -192,7 +192,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                     // or there is already a checkpoint entry for this index/shard combination
                     // but with a higher global checkpoint. This is by design(not a problem) and
                     // we take the higher value
-                    if (checkpoints.containsKey(shard.getShardRouting().getId()) == false
+                    if (!checkpoints.containsKey(shard.getShardRouting().getId())
                         || checkpoints.get(shard.getShardRouting().getId()) < globalCheckpoint) {
                         checkpoints.put(shard.getShardRouting().getId(), globalCheckpoint);
                     }
@@ -212,7 +212,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             Set<String> userIndicesClone = new HashSet<>(userIndices);
 
             userIndicesClone.removeAll(checkpointsByIndex.keySet());
-            if (userIndicesClone.isEmpty() == false) {
+            if (!userIndicesClone.isEmpty()) {
                 logger.debug("Original set of user indices contained more indexes [{}]", userIndicesClone);
             }
         }
@@ -319,7 +319,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
      */
     void reportSourceIndexChanges(final Set<String> lastSourceIndexes, final Set<String> newSourceIndexes) {
         // spam protection: only warn the first time
-        if (newSourceIndexes.isEmpty() && lastSourceIndexes.isEmpty() == false) {
+        if (newSourceIndexes.isEmpty() && !lastSourceIndexes.isEmpty()) {
             String message = "Source did not resolve to any open indexes";
             logger.warn("{} for transform [{}]", message, transformConfig.getId());
             transformAuditor.warning(transformConfig.getId(), message);

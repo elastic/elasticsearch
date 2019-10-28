@@ -79,7 +79,7 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
             .field("invalidated_tokens", invalidatedTokens.size())
             .field("previously_invalidated_tokens", previouslyInvalidatedTokens.size())
             .field("error_count", errors.size());
-        if (errors.isEmpty() == false) {
+        if (!errors.isEmpty()) {
             builder.field("error_details");
             builder.startArray();
             for (ElasticsearchException e : errors) {

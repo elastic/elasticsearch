@@ -118,7 +118,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     protected ArrayValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
         throws IOException {
         super(in);
-        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
+        assert !serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
         read(in);
@@ -362,7 +362,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         ArrayValuesSourceAggregationBuilder<?, ?> other = (ArrayValuesSourceAggregationBuilder<?, ?>) obj;
         return Objects.equals(fields, other.fields)
             && Objects.equals(format, other.format)

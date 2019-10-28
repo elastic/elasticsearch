@@ -196,7 +196,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             }
         }
 
-        if (propsMap.isEmpty() == false) {
+        if (!propsMap.isEmpty()) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 

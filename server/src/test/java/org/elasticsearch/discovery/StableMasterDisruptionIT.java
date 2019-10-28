@@ -148,7 +148,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(3);
 
         final String master = internalCluster().getMasterName();
-        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames()).filter(n -> master.equals(n) == false)
+        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames()).filter(n -> !master.equals(n))
             .collect(Collectors.toList());
         final String isolatedNode = randomFrom(nonMasters);
         final String otherNode = nonMasters.get(nonMasters.get(0).equals(isolatedNode) ? 1 : 0);

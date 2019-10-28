@@ -232,7 +232,7 @@ final class SimilarityProviders {
         Set<String> unknownSettings = new HashSet<>(settings.keySet());
         unknownSettings.removeAll(Arrays.asList(supportedSettings));
         unknownSettings.remove("type"); // used to figure out which sim this is
-        if (unknownSettings.isEmpty() == false) {
+        if (!unknownSettings.isEmpty()) {
             if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {

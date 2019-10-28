@@ -203,7 +203,7 @@ public class DatafeedManager {
                     holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
                     return;
                 }
-                if (holder.isIsolated() == false) {
+                if (!holder.isIsolated()) {
                     if (next != null) {
                         doDatafeedRealtime(next, holder.datafeedJob.getJobId(), holder);
                     } else {
@@ -245,7 +245,7 @@ public class DatafeedManager {
                         }
                     } catch (DatafeedJob.EmptyDataCountException e) {
                         int emptyDataCount = holder.problemTracker.reportEmptyDataCount();
-                        if (e.haveEverSeenData == false && holder.shouldStopAfterEmptyData(emptyDataCount)) {
+                        if (!e.haveEverSeenData && holder.shouldStopAfterEmptyData(emptyDataCount)) {
                             logger.warn("Datafeed for [" + jobId + "] has seen no data in [" + emptyDataCount
                                 + "] attempts, and never seen any data previously, so stopping...");
                             // In this case we auto-close the job, as though a lookback-only datafeed stopped
@@ -374,7 +374,7 @@ public class DatafeedManager {
                     finishHandler.accept(e);
                     logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeedId, datafeedJob.getJobId(),
                             acquired ? "" : ", but there may be pending tasks as the timeout [" + timeout.getStringRep() + "] expired");
-                    if (autoCloseJob && isIsolated() == false) {
+                    if (autoCloseJob && !isIsolated()) {
                         closeJob();
                     }
                     if (acquired) {
@@ -519,7 +519,7 @@ public class DatafeedManager {
 
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
-            if (tasksToRun.isEmpty() || event.metaDataChanged() == false) {
+            if (tasksToRun.isEmpty() || !event.metaDataChanged()) {
                 return;
             }
             PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -530,11 +530,11 @@ public class DatafeedManager {
 
             List<TransportStartDatafeedAction.DatafeedTask> remainingTasks = new ArrayList<>();
             for (TransportStartDatafeedAction.DatafeedTask datafeedTask : tasksToRun) {
-                if (runningDatafeedsOnThisNode.containsKey(datafeedTask.getAllocationId()) == false) {
+                if (!runningDatafeedsOnThisNode.containsKey(datafeedTask.getAllocationId())) {
                     continue;
                 }
                 JobState jobState = getJobState(currentTasks, datafeedTask);
-                if (jobState == JobState.OPENING || jobHasOpenAutodetectCommunicator(currentTasks, datafeedTask) == false) {
+                if (jobState == JobState.OPENING || !jobHasOpenAutodetectCommunicator(currentTasks, datafeedTask)) {
                     remainingTasks.add(datafeedTask);
                 } else if (jobState == JobState.OPENED) {
                     runTask(datafeedTask);

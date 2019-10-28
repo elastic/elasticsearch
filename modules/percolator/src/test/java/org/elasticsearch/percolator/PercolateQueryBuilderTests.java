@@ -257,7 +257,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                 duplicateField = false;
                 source = RandomDocumentPicks.randomSource(random());
                 for (String field : source.keySet()) {
-                    if (usedFields.add(field) == false) {
+                    if (!usedFields.add(field)) {
                         duplicateField = true;
                         break;
                     }

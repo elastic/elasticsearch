@@ -162,7 +162,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private static void validateField(Map<?, ?> properties, String fieldName, boolean fieldRequired) {
-        assert Strings.isEmpty(fieldName) == false: "Field name cannot be null or empty";
+        assert !Strings.isEmpty(fieldName) : "Field name cannot be null or empty";
         String[] fieldParts = fieldName.split("\\.");
         StringBuilder parent = new StringBuilder();
         Map<?, ?> currentField = properties;
@@ -170,7 +170,7 @@ public class EnrichPolicyRunner implements Runnable {
         for (String fieldPart : fieldParts) {
             // Ensure that the current field is of object type only (not a nested type or a non compound field)
             Object type = currentField.get("type");
-            if (type != null && "object".equals(type) == false) {
+            if (type != null && !"object".equals(type)) {
                 throw new ElasticsearchException(
                     "Could not traverse mapping to field [{}]. The [{}] field must be regular object but was [{}].",
                     fieldName,
@@ -281,7 +281,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void prepareReindexOperation(final String destinationIndexName) {
         // Check to make sure that the enrich pipeline exists, and create it if it is missing.
-        if (EnrichPolicyReindexPipeline.exists(clusterService.state()) == false) {
+        if (!EnrichPolicyReindexPipeline.exists(clusterService.state())) {
             EnrichPolicyReindexPipeline.create(client, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {

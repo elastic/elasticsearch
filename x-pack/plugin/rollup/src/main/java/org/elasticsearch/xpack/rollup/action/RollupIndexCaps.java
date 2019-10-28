@@ -101,7 +101,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
         static {
             META_PARSER.declareField((parser, jobs, aVoid) -> {
                 // "job-1"
-                while (parser.nextToken().equals(XContentParser.Token.END_OBJECT) == false) {
+                while (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
                     jobs.add(RollupJobConfig.fromXContent(parser, null));
                 }
             }, ROLLUP_FIELD, ObjectParser.ValueType.OBJECT);
@@ -139,7 +139,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
     }
 
     boolean hasCaps() {
-        return jobCaps.isEmpty() == false;
+        return !jobCaps.isEmpty();
     }
 
     public List<String> getRollupIndices() {

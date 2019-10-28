@@ -349,7 +349,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
 
             } else if ("PUT".equals(exchange.getRequestMethod())) {
                 final String uploadId = params.get("upload_id");
-                if (uploadId.equals(sessionUploadId.get()) == false) {
+                if (!uploadId.equals(sessionUploadId.get())) {
                     logger.debug("session id [{}] is gone", uploadId);
                     assertThat(wrongChunk, greaterThan(0));
                     Streams.readFully(exchange.getRequestBody());

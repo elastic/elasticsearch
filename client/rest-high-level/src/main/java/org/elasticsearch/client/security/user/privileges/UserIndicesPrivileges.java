@@ -87,7 +87,7 @@ public class UserIndicesPrivileges extends AbstractIndicesPrivileges {
 
     @Override
     public boolean isUsingDocumentLevelSecurity() {
-        return query.isEmpty() == false;
+        return !query.isEmpty();
     }
 
     @Override

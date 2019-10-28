@@ -297,20 +297,20 @@ public class DoSection implements ExecutableSection {
                      * We skip warnings related to types deprecation and transform rename so that we can continue to run the many
                      * mixed-version tests that used typed APIs.
                      */
-                } else if (expected.remove(message) == false) {
+                } else if (!expected.remove(message)) {
                     unexpected.add(header);
                 }
             } else {
                 unmatched.add(header);
             }
         }
-        if (expected.isEmpty() == false) {
+        if (!expected.isEmpty()) {
             for (final String header : expected) {
                 missing.add(header);
             }
         }
 
-        if (unexpected.isEmpty() == false || unmatched.isEmpty() == false || missing.isEmpty() == false) {
+        if (!unexpected.isEmpty() || !unmatched.isEmpty() || !missing.isEmpty()) {
             final StringBuilder failureMessage = new StringBuilder();
             appendBadHeaders(failureMessage, unexpected, "got unexpected warning header" + (unexpected.size() > 1 ? "s" : ""));
             appendBadHeaders(failureMessage, unmatched, "got unmatched warning header" + (unmatched.size() > 1 ? "s" : ""));
@@ -321,7 +321,7 @@ public class DoSection implements ExecutableSection {
     }
 
     private void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
-        if (headers.isEmpty() == false) {
+        if (!headers.isEmpty()) {
             sb.append(message).append(" [\n");
             for (final String header : headers) {
                 sb.append("\t").append(header).append("\n");
@@ -422,7 +422,7 @@ public class DoSection implements ExecutableSection {
     }
 
     private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
-        if (false == parser.currentToken().isValue()) {
+        if (!parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
         Version[] range = SkipSection.parseVersionRange(parser.text());
@@ -436,7 +436,7 @@ public class DoSection implements ExecutableSection {
                                 + node);
                     }
                     Version version = Version.fromString(node.getVersion());
-                    if (false == (version.onOrAfter(range[0]) && version.onOrBefore(range[1]))) {
+                    if (!(version.onOrAfter(range[0]) && version.onOrBefore(range[1]))) {
                         itr.remove();
                     }
                 }

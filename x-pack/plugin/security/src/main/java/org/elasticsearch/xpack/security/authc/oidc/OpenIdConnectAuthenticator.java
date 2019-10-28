@@ -246,7 +246,7 @@ public class OpenIdConnectAuthenticator {
             // We only try to update the cached JWK set once if a remote source is used and
             // RSA or ECDSA is used for signatures
             if (shouldRetry
-                && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
+                && !JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm())
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
                     .triggerReload(ActionListener.wrap(v -> {
@@ -283,13 +283,13 @@ public class OpenIdConnectAuthenticator {
                 assert (accessToken != null) : "Access Token cannot be null for Response Type " + rpConfig.getResponseType().toString();
                 final boolean isValidationOptional = rpConfig.getResponseType().equals(ResponseType.parse("code"));
                 // only "Bearer" is defined in the specification but check just in case
-                if (accessToken.getType().toString().equals("Bearer") == false) {
+                if (!accessToken.getType().toString().equals("Bearer")) {
                     throw new ElasticsearchSecurityException("Invalid access token type [{}], while [Bearer] was expected",
                         accessToken.getType());
                 }
                 String atHashValue = idToken.getJWTClaimsSet().getStringClaim("at_hash");
-                if (Strings.hasText(atHashValue) == false) {
-                    if (isValidationOptional == false) {
+                if (!Strings.hasText(atHashValue)) {
+                    if (!isValidationOptional) {
                         throw new ElasticsearchSecurityException("Failed to verify access token. ID Token doesn't contain at_hash claim ");
                     }
                 } else {
@@ -327,7 +327,7 @@ public class OpenIdConnectAuthenticator {
      * @throws ElasticsearchSecurityException if the response is not the expected one for the configured response type
      */
     private void validateResponseType(AuthenticationSuccessResponse response) {
-        if (rpConfig.getResponseType().equals(response.impliedResponseType()) == false) {
+        if (!rpConfig.getResponseType().equals(response.impliedResponseType())) {
             throw new ElasticsearchSecurityException("Unexpected response type [{}], while [{}] is configured",
                 response.impliedResponseType(), rpConfig.getResponseType());
         }
@@ -346,7 +346,7 @@ public class OpenIdConnectAuthenticator {
         } else if (null == expectedState) {
             throw new ElasticsearchSecurityException("Failed to validate the response, the user's session did not contain a state " +
                 "parameter");
-        } else if (state.equals(expectedState) == false) {
+        } else if (!state.equals(expectedState)) {
             throw new ElasticsearchSecurityException("Invalid state parameter [{}], while [{}] was expected", state, expectedState);
         }
     }
@@ -445,7 +445,7 @@ public class OpenIdConnectAuthenticator {
     private void validateUserInfoResponse(JWTClaimsSet userInfoClaims, String expectedSub, ActionListener<JWTClaimsSet> claimsListener) {
         if (userInfoClaims.getSubject().isEmpty()) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
-        } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
+        } else if (!userInfoClaims.getSubject().equals(expectedSub)) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response is not valid as it is for " +
                 "subject [{}] while the ID Token was for subject [{}]", userInfoClaims.getSubject(),
                 expectedSub));
@@ -508,7 +508,7 @@ public class OpenIdConnectAuthenticator {
             final HttpEntity entity = httpResponse.getEntity();
             final Header encodingHeader = entity.getContentEncoding();
             final Header contentHeader = entity.getContentType();
-            if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json") == false) {
+            if (!ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json")) {
                 tokensListener.onFailure(new IllegalStateException("Unable to parse Token Response. Content type was expected to be " +
                     "[application/json] but was [" + contentHeader.getValue() + "]"));
                 return;
@@ -520,7 +520,7 @@ public class OpenIdConnectAuthenticator {
                     httpResponse.getStatusLine().getStatusCode(), json);
             }
             final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(JSONObjectUtils.parse(json));
-            if (oidcTokenResponse.indicatesSuccess() == false) {
+            if (!oidcTokenResponse.indicatesSuccess()) {
                 TokenErrorResponse errorResponse = oidcTokenResponse.toErrorResponse();
                 tokensListener.onFailure(
                     new ElasticsearchSecurityException("Failed to exchange code for Id Token. Code=[{}], Description=[{}]",
@@ -651,13 +651,13 @@ public class OpenIdConnectAuthenticator {
                 idToken.put(entry.getKey(), mergeArrays((JSONArray) value1, value2));
             } else if (value1 instanceof JSONObject) {
                 idToken.put(entry.getKey(), mergeObjects((JSONObject) value1, value2));
-            } else if (value1.getClass().equals(value2.getClass()) == false) {
+            } else if (!value1.getClass().equals(value2.getClass())) {
                 throw new IllegalStateException("Error merging ID token and userinfo claim value for claim [" + entry.getKey() + "]. " +
                     "Cannot merge [" + value1.getClass().getName() + "] with [" + value2.getClass().getName() + "]");
             }
         }
         for (Map.Entry<String, Object> entry : userInfo.entrySet()) {
-            if (idToken.containsKey(entry.getKey()) == false) {
+            if (!idToken.containsKey(entry.getKey())) {
                 idToken.put(entry.getKey(), entry.getValue());
             }
         }

@@ -227,7 +227,7 @@ public class OperationRouting {
         final int partitionOffset;
 
         if (routing == null) {
-            assert(indexMetaData.isRoutingPartitionedIndex() == false) : "A routing value is required for gets from a partitioned index";
+            assert(!indexMetaData.isRoutingPartitionedIndex()) : "A routing value is required for gets from a partitioned index";
             effectiveRouting = id;
         } else {
             effectiveRouting = routing;

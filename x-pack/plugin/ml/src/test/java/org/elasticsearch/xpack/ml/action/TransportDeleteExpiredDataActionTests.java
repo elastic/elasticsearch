@@ -40,7 +40,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
     private static class DummyDataRemover implements MlDataRemover {
 
         public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
-            listener.onResponse(isTimedOutSupplier.get() == false);
+            listener.onResponse(!isTimedOutSupplier.get());
         }
     }
 

@@ -151,7 +151,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         aggregations.forEach(composite::subAggregation);
 
         final Map<String, Object> metadata = createMetadata(groupConfig);
-        if (metadata.isEmpty() == false) {
+        if (!metadata.isEmpty()) {
             composite.setMetaData(metadata);
         }
         composite.size(config.getPageSize());
@@ -269,7 +269,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         if (metricsConfigs != null) {
             for (MetricConfig metricConfig : metricsConfigs) {
                 final List<String> metrics = metricConfig.getMetrics();
-                if (metrics.isEmpty() == false) {
+                if (!metrics.isEmpty()) {
                     final String field = metricConfig.getField();
                     for (String metric : metrics) {
                         ValuesSourceAggregationBuilder.LeafOnly newBuilder;

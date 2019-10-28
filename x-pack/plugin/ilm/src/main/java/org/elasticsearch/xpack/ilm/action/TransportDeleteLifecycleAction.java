@@ -77,14 +77,14 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                             .filter((idxMeta) -> LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()).equals(policyToDelete))
                             .map((idxMeta) -> idxMeta.getIndex().getName())
                             .collect(Collectors.toList());
-                        if (indicesUsingPolicy.isEmpty() == false) {
+                        if (!indicesUsingPolicy.isEmpty()) {
                             throw new IllegalArgumentException("Cannot delete policy [" + request.getPolicyName()
                                 + "]. It is in use by one or more indices: " + indicesUsingPolicy);
                         }
                         ClusterState.Builder newState = ClusterState.builder(currentState);
                         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
                         if (currentMetadata == null
-                                || currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
+                                || !currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName())) {
                             throw new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
                         }
                         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());

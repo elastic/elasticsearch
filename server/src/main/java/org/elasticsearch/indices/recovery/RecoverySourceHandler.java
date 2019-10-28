@@ -178,7 +178,7 @@ public class RecoverySourceHandler {
                 = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                 && isTargetSameHistory()
                 && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo())
-                && (useRetentionLeases == false
+                && (!useRetentionLeases
                 || (retentionLeaseRef.get() != null && retentionLeaseRef.get().retainingSequenceNumber() <= request.startingSeqNo()));
             // NB check hasCompleteHistoryOperations when computing isSequenceNumberBasedRecovery, even if there is a retention lease,
             // because when doing a rolling upgrade from earlier than 7.4 we may create some leases that are initially unsatisfied. It's
@@ -304,7 +304,7 @@ public class RecoverySourceHandler {
                 final Translog.Snapshot phase2Snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo);
                 resources.add(phase2Snapshot);
 
-                if (useRetentionLeases == false || isSequenceNumberBasedRecovery == false) {
+                if (!useRetentionLeases || !isSequenceNumberBasedRecovery) {
                     // we can release the retention lock here because the snapshot itself will retain the required operations.
                     retentionLock.close();
                 }
@@ -362,7 +362,7 @@ public class RecoverySourceHandler {
             final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
-                    if (permit.complete(releasable) == false) {
+                    if (!permit.complete(releasable)) {
                         releasable.close();
                     }
                 }
@@ -402,7 +402,7 @@ public class RecoverySourceHandler {
         store.incRef();
         return Releasables.releaseOnce(() -> {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            assert threadPool.generic().isShutdown() == false;
+            assert !threadPool.generic().isShutdown();
             // TODO: We shouldn't use the generic thread pool here as we already execute this from the generic pool.
             //       While practically unlikely at a min pool size of 128 we could technically block the whole pool by waiting on futures
             //       below and thus make it impossible for the store release to execute which in turn would block the futures forever
@@ -467,7 +467,7 @@ public class RecoverySourceHandler {
                             recoverySourceMetadata.asMap().size() + " files", name);
                 }
             }
-            if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
+            if (!canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot())) {
                 final List<String> phase1FileNames = new ArrayList<>();
                 final List<Long> phase1FileSizes = new ArrayList<>();
                 final List<String> phase1ExistingFileNames = new ArrayList<>();
@@ -599,7 +599,7 @@ public class RecoverySourceHandler {
     }
 
     boolean canSkipPhase1(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
-        if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
+        if (source.getSyncId() == null || !source.getSyncId().equals(target.getSyncId())) {
             return false;
         }
         if (source.getNumDocs() != target.getNumDocs()) {
@@ -737,7 +737,7 @@ public class RecoverySourceHandler {
         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[send translog]");
         final List<Translog.Operation> operations = nextBatch.get();
         // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
-        if (operations.isEmpty() == false || firstBatch) {
+        if (!operations.isEmpty() || firstBatch) {
             cancellableThreads.checkForCancel();
             recoveryTarget.indexTranslogOperations(
                 operations,
@@ -938,7 +938,7 @@ public class RecoverySourceHandler {
             for (StoreFileMetaData md : mds) {
                 cancellableThreads.checkForCancel();
                 logger.debug("checking integrity for file {} after remove corruption exception", md);
-                if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
+                if (!store.checkIntegrityNoException(md)) { // we are corrupted on the primary -- fail!
                     logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
                     if (localException == null) {
                         localException = corruptIndexException;

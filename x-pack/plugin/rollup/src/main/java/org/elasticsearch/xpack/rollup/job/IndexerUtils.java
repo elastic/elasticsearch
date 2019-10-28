@@ -119,7 +119,7 @@ class IndexerUtils {
         metrics.forEach(m -> {
             if (m instanceof InternalNumericMetricsAggregation.SingleValue) {
                 Double value = ((InternalNumericMetricsAggregation.SingleValue) m).value();
-                if (value.isInfinite() == false) {
+                if (!value.isInfinite()) {
                     if (m.getName().endsWith(RollupField.COUNT_FIELD) && value == 0) {
                         emptyCounts.add(m.getName());
                     } else {

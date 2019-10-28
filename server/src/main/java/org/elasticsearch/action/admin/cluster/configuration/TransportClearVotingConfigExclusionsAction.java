@@ -87,7 +87,7 @@ public class TransportClearVotingConfigExclusionsAction
             return true;
         };
 
-        if (request.getWaitForRemoval() && allExclusionsRemoved.test(initialState) == false) {
+        if (request.getWaitForRemoval() && !allExclusionsRemoved.test(initialState)) {
             final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(initialState, clusterService, request.getTimeout(),
                 logger, threadPool.getThreadContext());
 

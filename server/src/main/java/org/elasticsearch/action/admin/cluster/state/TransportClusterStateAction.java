@@ -88,12 +88,12 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         final Predicate<ClusterState> acceptableClusterStateOrNotMasterPredicate = request.local()
             ? acceptableClusterStatePredicate
-            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
+            : acceptableClusterStatePredicate.or(clusterState -> !clusterState.nodes().isLocalNodeElectedMaster());
 
         if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
-            assert acceptableClusterStateOrNotMasterPredicate.test(state) == false;
+            assert !acceptableClusterStateOrNotMasterPredicate.test(state);
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
                 .waitForNextChange(new ClusterStateObserver.Listener() {
 
@@ -172,7 +172,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
             // filter out metadata that shouldn't be returned by the API
             for (ObjectObjectCursor<String, Custom> custom : currentState.metaData().customs()) {
-                if (custom.value.context().contains(MetaData.XContentContext.API) == false) {
+                if (!custom.value.context().contains(MetaData.XContentContext.API)) {
                     mdBuilder.removeCustom(custom.key);
                 }
             }
@@ -181,7 +181,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.customs()) {
             for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
-                if (custom.value.isPrivate() == false) {
+                if (!custom.value.isPrivate()) {
                     builder.putCustom(custom.key, custom.value);
                 }
             }

@@ -47,7 +47,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
 
     private boolean assertAllowedProperties(Setting.Property... properties) {
         for (Setting.Property property : properties) {
-            if (ALLOWED_PROPERTIES.contains(property) == false) {
+            if (!ALLOWED_PROPERTIES.contains(property)) {
                 return false;
             }
         }
@@ -79,7 +79,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
     public T get(Settings settings) {
         checkDeprecation(settings);
         final SecureSettings secureSettings = settings.getSecureSettings();
-        if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
+        if (secureSettings == null || !secureSettings.getSettingNames().contains(getKey())) {
             if (super.exists(settings)) {
                 throw new IllegalArgumentException("Setting [" + getKey() + "] is a secure setting" +
                     " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml");
@@ -100,7 +100,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
      */
     public byte[] getSecretDigest(Settings settings) {
         final SecureSettings secureSettings = settings.getSecureSettings();
-        if (secureSettings == null || false == secureSettings.getSettingNames().contains(getKey())) {
+        if (secureSettings == null || !secureSettings.getSettingNames().contains(getKey())) {
             return null;
         }
         try {

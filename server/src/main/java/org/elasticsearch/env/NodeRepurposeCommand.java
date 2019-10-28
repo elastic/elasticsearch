@@ -75,9 +75,9 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
-        assert DiscoveryNode.isDataNode(env.settings()) == false;
+        assert !DiscoveryNode.isDataNode(env.settings());
 
-        if (DiscoveryNode.isMasterNode(env.settings()) == false) {
+        if (!DiscoveryNode.isMasterNode(env.settings())) {
             processNoMasterNoDataNode(terminal, dataPaths);
         } else {
             processMasterNoDataNode(terminal, dataPaths);
@@ -155,7 +155,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     private void outputHowToSeeVerboseInformation(Terminal terminal) {
-        if (terminal.isPrintable(Terminal.Verbosity.VERBOSE) == false) {
+        if (!terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
             terminal.println("Use -v to see list of paths and indices affected");
         }
     }

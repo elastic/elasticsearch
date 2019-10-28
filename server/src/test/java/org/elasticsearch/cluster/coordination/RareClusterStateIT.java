@@ -197,7 +197,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         assertThat(nodeNames, hasItem(master));
         String otherNode = null;
         for (String node : nodeNames) {
-            if (node.equals(master) == false) {
+            if (!node.equals(master)) {
                 otherNode = node;
                 break;
             }
@@ -285,7 +285,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         assertThat(nodeNames, hasItem(master));
         String otherNode = null;
         for (String node : nodeNames) {
-            if (node.equals(master) == false) {
+            if (!node.equals(master)) {
                 otherNode = node;
                 break;
             }

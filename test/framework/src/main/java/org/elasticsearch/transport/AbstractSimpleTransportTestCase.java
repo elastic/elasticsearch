@@ -1872,7 +1872,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         logger.debug("waiting for response");
         fail.set(randomBoolean());
         boolean await = allRequestsDone.await(5, TimeUnit.SECONDS);
-        if (await == false) {
+        if (!await) {
             logger.debug("now failing forcefully");
             fail.set(true);
             assertTrue(allRequestsDone.await(5, TimeUnit.SECONDS));

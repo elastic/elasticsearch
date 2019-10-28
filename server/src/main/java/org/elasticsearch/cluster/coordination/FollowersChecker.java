@@ -125,14 +125,14 @@ public class FollowersChecker {
      */
     public void setCurrentNodes(DiscoveryNodes discoveryNodes) {
         synchronized (mutex) {
-            final Predicate<DiscoveryNode> isUnknownNode = n -> discoveryNodes.nodeExists(n) == false;
+            final Predicate<DiscoveryNode> isUnknownNode = n -> !discoveryNodes.nodeExists(n);
             followerCheckers.keySet().removeIf(isUnknownNode);
             faultyNodes.removeIf(isUnknownNode);
 
             discoveryNodes.mastersFirstStream().forEach(discoveryNode -> {
-                if (discoveryNode.equals(discoveryNodes.getLocalNode()) == false
-                    && followerCheckers.containsKey(discoveryNode) == false
-                    && faultyNodes.contains(discoveryNode) == false) {
+                if (!discoveryNode.equals(discoveryNodes.getLocalNode())
+                    && !followerCheckers.containsKey(discoveryNode)
+                    && !faultyNodes.contains(discoveryNode)) {
 
                     final FollowerChecker followerChecker = new FollowerChecker(discoveryNode);
                     followerCheckers.put(discoveryNode, followerChecker);
@@ -288,7 +288,7 @@ public class FollowersChecker {
         }
 
         private void handleWakeUp() {
-            if (running() == false) {
+            if (!running()) {
                 logger.trace("handleWakeUp: not running");
                 return;
             }
@@ -306,7 +306,7 @@ public class FollowersChecker {
 
                     @Override
                     public void handleResponse(Empty response) {
-                        if (running() == false) {
+                        if (!running()) {
                             logger.trace("{} no longer running", FollowerChecker.this);
                             return;
                         }
@@ -318,7 +318,7 @@ public class FollowersChecker {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        if (running() == false) {
+                        if (!running()) {
                             logger.debug(new ParameterizedMessage("{} no longer running", FollowerChecker.this), exp);
                             return;
                         }
@@ -355,7 +355,7 @@ public class FollowersChecker {
                 @Override
                 public void run() {
                     synchronized (mutex) {
-                        if (running() == false) {
+                        if (!running()) {
                             logger.trace("{} no longer running, not marking faulty", FollowerChecker.this);
                             return;
                         }

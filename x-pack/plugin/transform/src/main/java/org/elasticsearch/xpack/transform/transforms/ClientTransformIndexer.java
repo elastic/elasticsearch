@@ -361,7 +361,7 @@ class ClientTransformIndexer extends TransformIndexer {
         // This means that the indexer was triggered to discover changes, found none, and exited early.
         // If the state is `STOPPED` this means that TransformTask#stop was called while we were checking for changes.
         // Allow the stop call path to continue
-        if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
+        if (!hasSourceChanged && !indexerState.equals(IndexerState.STOPPED)) {
             next.run();
             return;
         }
@@ -370,7 +370,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
         if (indexerState.equals(IndexerState.STARTED)
             && transformTask.getCheckpoint() == 1
-            && this.isContinuous() == false) {
+            && !this.isContinuous()) {
             // set both to stopped so they are persisted as such
             indexerState = IndexerState.STOPPED;
 
@@ -480,7 +480,7 @@ class ClientTransformIndexer extends TransformIndexer {
         try {
             // This indicates an early exit since no changes were found.
             // So, don't treat this like a checkpoint being completed, as no work was done.
-            if (hasSourceChanged == false) {
+            if (!hasSourceChanged) {
                 if (shouldStopAtCheckpoint) {
                     stop();
                 }
@@ -639,7 +639,7 @@ class ClientTransformIndexer extends TransformIndexer {
         } else {
             // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
             // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
-            if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
+            if (!e.getMessage().equals(lastAuditedExceptionMessage)) {
                 auditor.warning(getJobId(),
                     "Transform encountered an exception: " + e.getMessage() +
                         " Will attempt again at next scheduled trigger.");

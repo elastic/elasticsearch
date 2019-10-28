@@ -142,14 +142,14 @@ final class SettingsUpdater {
             final Settings settings, final String settingsType, final Logger logger) {
         final Settings existingArchivedSettings = settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX));
         final Settings settingsExcludingExistingArchivedSettings =
-                settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false);
+                settings.filter(k -> !k.startsWith(ARCHIVED_SETTINGS_PREFIX));
         final Settings settingsWithUnknownOrInvalidArchived = clusterSettings.archiveUnknownOrInvalidSettings(
                 settingsExcludingExistingArchivedSettings,
                 e -> logUnknownSetting(settingsType, e, logger),
                 (e, ex) -> logInvalidSetting(settingsType, e, ex, logger));
         return Tuple.tuple(
                 Settings.builder()
-                        .put(settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false))
+                        .put(settingsWithUnknownOrInvalidArchived.filter(k -> !k.startsWith(ARCHIVED_SETTINGS_PREFIX)))
                         .put(existingArchivedSettings)
                         .build(),
                 settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX)));

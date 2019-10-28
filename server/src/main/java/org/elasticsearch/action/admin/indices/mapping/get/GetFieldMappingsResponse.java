@@ -146,7 +146,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
 
-            if (includeTypeName == false) {
+            if (!includeTypeName) {
                 Map<String, FieldMappingMetaData> mappings = null;
                 for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
                     assert mappings == null;

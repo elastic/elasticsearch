@@ -97,7 +97,7 @@ public class RejectionActionIT extends ESIntegTestCase {
                         assertTrue("got unexpected reason..." + failure.reason(),
                             failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
                     }
-                } else if ((unwrap instanceof EsRejectedExecutionException) == false) {
+                } else if (!(unwrap instanceof EsRejectedExecutionException)) {
                     throw new AssertionError("unexpected failure", (Throwable) response);
                 }
             }

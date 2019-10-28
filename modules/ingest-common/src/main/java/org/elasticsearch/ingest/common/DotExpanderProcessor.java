@@ -65,7 +65,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
                     String partialPath = path.substring(0, index);
                     if (ingestDocument.hasField(partialPath)) {
                         Object val = ingestDocument.getFieldValue(partialPath, Object.class);
-                        if ((val instanceof Map) == false) {
+                        if (!(val instanceof Map)) {
                             throw new IllegalArgumentException("cannot expend [" + path + "], because [" + partialPath +
                                 "] is not an object field, but a value field");
                         }
@@ -99,7 +99,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
         public Processor create(Map<String, Processor.Factory> processorFactories, String tag,
                                 Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
-            if (field.contains(".") == false) {
+            if (!field.contains(".")) {
                 throw ConfigurationUtils.newConfigurationException(ConfigurationUtils.TAG_KEY, tag, "field",
                         "field does not contain a dot");
             }

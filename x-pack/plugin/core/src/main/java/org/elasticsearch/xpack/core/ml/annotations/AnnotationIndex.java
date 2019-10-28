@@ -58,10 +58,10 @@ public class AnnotationIndex {
 
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
         SortedMap<String, AliasOrIndex> mlLookup = state.getMetaData().getAliasAndIndexLookup().tailMap(".ml");
-        if (mlLookup.isEmpty() == false && mlLookup.firstKey().startsWith(".ml")) {
+        if (!mlLookup.isEmpty() && mlLookup.firstKey().startsWith(".ml")) {
 
             // Create the annotations index if it doesn't exist already.
-            if (mlLookup.containsKey(INDEX_NAME) == false) {
+            if (!mlLookup.containsKey(INDEX_NAME)) {
 
                 final TimeValue delayedNodeTimeOutSetting;
                 // Whether we are using native process is a good way to detect whether we are in dev / test mode:
@@ -100,7 +100,7 @@ public class AnnotationIndex {
             }
 
             // Recreate the aliases if they've gone even though the index still exists.
-            if (mlLookup.containsKey(READ_ALIAS_NAME) == false || mlLookup.containsKey(WRITE_ALIAS_NAME) == false) {
+            if (!mlLookup.containsKey(READ_ALIAS_NAME) || !mlLookup.containsKey(WRITE_ALIAS_NAME)) {
                 createAliasListener.onResponse(true);
                 return;
             }

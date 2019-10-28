@@ -93,7 +93,7 @@ public class TransportGetTransformStatsAction extends
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
-        if (task.isCancelled() == false) {
+        if (!task.isCancelled()) {
             task.getCheckpointingInfo(transformCheckpointService, ActionListener.wrap(
                 checkpointingInfo -> listener.onResponse(new Response(
                     Collections.singletonList(deriveStats(task, checkpointingInfo)),
@@ -164,8 +164,8 @@ public class TransportGetTransformStatsAction extends
             transformState.getIndexerState());
         String reason = transformState.getReason();
         if (transformState.shouldStopAtNextCheckpoint() &&
-            derivedState.equals(TransformStats.State.STOPPED) == false &&
-            derivedState.equals(TransformStats.State.FAILED) == false) {
+            !derivedState.equals(TransformStats.State.STOPPED) &&
+            !derivedState.equals(TransformStats.State.FAILED)) {
             derivedState = TransformStats.State.STOPPING;
             reason = reason.isEmpty() ? "transform is set to stop at the next checkpoint" : reason;
         }

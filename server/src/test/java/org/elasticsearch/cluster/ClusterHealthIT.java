@@ -244,7 +244,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         Thread clusterHealthThread = new Thread() {
             @Override
             public void run() {
-                while (finished.get() == false) {
+                while (!finished.get()) {
                     ClusterHealthResponse health = client().admin().cluster().prepareHealth().get();
                     assertThat(health.getStatus(), not(equalTo(ClusterHealthStatus.RED)));
                 }

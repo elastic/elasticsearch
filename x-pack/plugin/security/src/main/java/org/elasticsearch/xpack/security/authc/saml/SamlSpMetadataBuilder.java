@@ -221,7 +221,7 @@ public class SamlSpMetadataBuilder {
         spRoleDescriptor.setWantAssertionsSigned(true);
         spRoleDescriptor.setAuthnRequestsSigned(this.authnRequestsSigned);
 
-        if (Strings.isNullOrEmpty(nameIdFormat) == false) {
+        if (!Strings.isNullOrEmpty(nameIdFormat)) {
             spRoleDescriptor.getNameIDFormats().add(buildNameIdFormat());
         }
         spRoleDescriptor.getAssertionConsumerServices().add(buildAssertionConsumerService());

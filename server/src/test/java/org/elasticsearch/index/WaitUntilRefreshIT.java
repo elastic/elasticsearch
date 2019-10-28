@@ -150,7 +150,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(singletonMap("index.refresh_interval", -1)).get();
         ActionFuture<IndexResponse> index = client().prepareIndex("test").setId("1").setSource("foo", "bar")
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
-        while (false == index.isDone()) {
+        while (!index.isDone()) {
             client().admin().indices().prepareRefresh("test").get();
         }
         assertEquals(RestStatus.CREATED, index.get().status());

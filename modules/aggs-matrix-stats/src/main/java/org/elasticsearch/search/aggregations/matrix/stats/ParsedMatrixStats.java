@@ -59,7 +59,7 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
 
     @Override
     public long getFieldCount(String field) {
-        if (counts.containsKey(field) == false) {
+        if (!counts.containsKey(field)) {
             return 0;
         }
         return counts.get(field);
@@ -104,7 +104,7 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
-        if (counts != null && counts.isEmpty() == false) {
+        if (counts != null && !counts.isEmpty()) {
             builder.startArray(InternalMatrixStats.Fields.FIELDS);
             for (String fieldName : counts.keySet()) {
                 builder.startObject();
@@ -145,7 +145,7 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         if (fieldName == null) {
             throw new IllegalArgumentException("field name cannot be null");
         }
-        if (values.containsKey(fieldName) == false) {
+        if (!values.containsKey(fieldName)) {
             throw new IllegalArgumentException("field " + fieldName + " does not exist");
         }
         return values.get(fieldName);

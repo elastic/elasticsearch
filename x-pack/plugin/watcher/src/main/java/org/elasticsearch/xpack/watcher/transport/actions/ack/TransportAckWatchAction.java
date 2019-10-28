@@ -81,7 +81,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(getResponse -> {
-                        if (getResponse.isExists() == false) {
+                        if (!getResponse.isExists()) {
                             listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
                         } else {
                             ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
@@ -95,7 +95,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
                             // exit early in case nothing changes
                             boolean isChanged = watch.ack(now, actionIds);
-                            if (isChanged == false) {
+                            if (!isChanged) {
                                 listener.onResponse(new AckWatchResponse(watch.status()));
                                 return;
                             }

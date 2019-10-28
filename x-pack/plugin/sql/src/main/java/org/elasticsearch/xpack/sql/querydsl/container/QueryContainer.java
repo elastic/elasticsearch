@@ -134,7 +134,7 @@ public class QueryContainer {
         boolean aggSort = false;
         for (Sort s : sort) {
             Tuple<Integer, Comparator> tuple = new Tuple<>(Integer.valueOf(-1), null);
-            
+
             if (s instanceof AttributeSort) {
                 AttributeSort as = (AttributeSort) s;
                 // find the relevant column of each aggregate function
@@ -163,7 +163,7 @@ public class QueryContainer {
             }
             sortingColumns.add(tuple);
         }
-        
+
         if (customSort == null) {
             customSort = Boolean.valueOf(aggSort);
         }
@@ -190,7 +190,7 @@ public class QueryContainer {
                 Tuple<FieldExtraction, ExpressionId> tuple = fields.get(i);
                 // if the index is already set there is a collision,
                 // so continue searching for the other tuple with the same id
-                if (mask.get(i)==false && (tuple.v2().equals(id) || (aliasId != null && tuple.v2().equals(aliasId)))) {
+                if (!mask.get(i) && (tuple.v2().equals(id) || (aliasId != null && tuple.v2().equals(aliasId)))) {
                     index = i;
                     break;
                 }
@@ -322,7 +322,7 @@ public class QueryContainer {
         FieldAttribute actualField = fieldAttr;
         FieldAttribute rootField = fieldAttr;
         StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-        
+
         // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
         // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
         // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
@@ -338,11 +338,11 @@ public class QueryContainer {
          *       }
          *     }
          */
-        if (fieldAttr.field().isAlias() == false) {
+        if (!fieldAttr.field().isAlias()) {
             while (actualField.parent() != null
                     && actualField.parent().field().getDataType() != DataType.OBJECT
                     && actualField.parent().field().getDataType() != DataType.NESTED
-                    && actualField.field().getDataType().isFromDocValuesOnly() == false) {
+                    && !actualField.field().getDataType().isFromDocValuesOnly()) {
                 actualField = actualField.parent();
             }
         }

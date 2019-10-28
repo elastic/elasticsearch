@@ -45,7 +45,7 @@ public class Distribution {
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
-        this.hasJdk = filename.contains("no-jdk") == false;
+        this.hasJdk = !filename.contains("no-jdk");
     }
 
     public boolean isDefault() {

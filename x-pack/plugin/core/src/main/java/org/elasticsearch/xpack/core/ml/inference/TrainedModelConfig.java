@@ -285,11 +285,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             ExceptionsHelper.requireNonNull(definition, DEFINITION);
             ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
 
-            if (MlStrings.isValidId(modelId) == false) {
+            if (!MlStrings.isValidId(modelId)) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, MODEL_ID.getPreferredName(), modelId));
             }
 
-            if (MlStrings.hasValidLengthForId(modelId) == false) {
+            if (!MlStrings.hasValidLengthForId(modelId)) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.ID_TOO_LONG,
                     MODEL_ID.getPreferredName(),
                     modelId,

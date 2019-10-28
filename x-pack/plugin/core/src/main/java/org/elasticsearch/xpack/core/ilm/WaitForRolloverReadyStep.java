@@ -95,7 +95,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         }
 
         // If indexing_complete is *not* set, and the alias does not point to this index, we can't roll over this index, so error out.
-        if (aliasPointsToThisIndex == false) {
+        if (!aliasPointsToThisIndex) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
                 indexMetaData.getIndex().getName())));

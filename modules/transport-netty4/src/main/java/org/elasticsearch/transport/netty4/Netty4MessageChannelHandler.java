@@ -96,7 +96,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     @Override
     public void flush(ChannelHandlerContext ctx) {
         Channel channel = ctx.channel();
-        if (channel.isWritable() || channel.isActive() == false) {
+        if (channel.isWritable() || !channel.isActive()) {
             doFlush(ctx);
         }
     }
@@ -110,7 +110,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     private void doFlush(ChannelHandlerContext ctx) {
         assert ctx.executor().inEventLoop();
         final Channel channel = ctx.channel();
-        if (channel.isActive() == false) {
+        if (!channel.isActive()) {
             if (currentWrite != null) {
                 currentWrite.promise.tryFailure(new ClosedChannelException());
             }
@@ -142,7 +142,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 writeBuffer = write.buf;
             }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
-            if (sliced == false || write.buf.readableBytes() == 0) {
+            if (!sliced || write.buf.readableBytes() == 0) {
                 currentWrite = null;
                 writeFuture.addListener(future -> {
                     assert ctx.executor().inEventLoop();
@@ -155,13 +155,13 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             } else {
                 writeFuture.addListener(future -> {
                     assert ctx.executor().inEventLoop();
-                    if (future.isSuccess() == false) {
+                    if (!future.isSuccess()) {
                         write.promise.tryFailure(future.cause());
                     }
                 });
             }
             ctx.flush();
-            if (channel.isActive() == false) {
+            if (!channel.isActive()) {
                 failQueuedWrites();
                 return;
             }

@@ -78,7 +78,7 @@ public class MatchAssertion extends Assertion {
         }
         assertNotNull("field [" + getField() + "] is null", actualValue);
 
-        if (actualValue.getClass().equals(safeClass(expectedValue)) == false) {
+        if (!actualValue.getClass().equals(safeClass(expectedValue))) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
                 //Double 1.0 is equal to Integer 1
                 assertThat("field [" + getField() + "] doesn't match the expected value",
@@ -87,7 +87,7 @@ public class MatchAssertion extends Assertion {
             }
         }
 
-        if (expectedValue.equals(actualValue) == false) {
+        if (!expectedValue.equals(actualValue)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compare(getField(), actualValue, expectedValue);
             throw new AssertionError(getField() + " didn't match expected value:\n" + message);

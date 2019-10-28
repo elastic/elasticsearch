@@ -86,7 +86,7 @@ public class Archives {
             installCommand = "tar -C " + baseInstallPath + " -xzpf " + distributionFile;
 
         } else if (distribution.packaging == Distribution.Packaging.ZIP) {
-            if (Platforms.WINDOWS == false) {
+            if (!Platforms.WINDOWS) {
                 throw new IllegalStateException("Distribution " + distribution + " is not supported on linux");
             }
             installCommand =
@@ -117,7 +117,7 @@ public class Archives {
     private static void setupArchiveUsersLinux(Path installPath) {
         final Shell sh = new Shell();
 
-        if (sh.runIgnoreExitCode("getent group elasticsearch").isSuccess() == false) {
+        if (!sh.runIgnoreExitCode("getent group elasticsearch").isSuccess()) {
             if (isDPKG()) {
                 sh.run("addgroup --system elasticsearch");
             } else {
@@ -125,7 +125,7 @@ public class Archives {
             }
         }
 
-        if (sh.runIgnoreExitCode("id elasticsearch").isSuccess() == false) {
+        if (!sh.runIgnoreExitCode("id elasticsearch").isSuccess()) {
             if (isDPKG()) {
                 sh.run("adduser " +
                     "--quiet " +

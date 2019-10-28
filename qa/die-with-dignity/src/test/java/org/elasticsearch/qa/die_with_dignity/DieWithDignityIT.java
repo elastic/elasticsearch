@@ -66,7 +66,7 @@ public class DieWithDignityIT extends ESRestTestCase {
         boolean fatalError = false;
         boolean fatalErrorInThreadExiting = false;
         try {
-            while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
+            while (it.hasNext() && (!fatalError || !fatalErrorInThreadExiting)) {
                 final String line = it.next();
                 if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*integTest-0.*fatal error.*")) {
                     fatalError = true;

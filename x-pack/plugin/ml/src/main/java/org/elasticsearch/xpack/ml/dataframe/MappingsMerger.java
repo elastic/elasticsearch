@@ -62,7 +62,7 @@ public final class MappingsMerger {
 
                     for (Map.Entry<String, Object> fieldMapping : fieldMappings.entrySet()) {
                         if (mergedMappings.containsKey(fieldMapping.getKey())) {
-                            if (mergedMappings.get(fieldMapping.getKey()).equals(fieldMapping.getValue()) == false) {
+                            if (!mergedMappings.get(fieldMapping.getKey()).equals(fieldMapping.getValue())) {
                                 throw ExceptionsHelper.badRequestException("cannot merge mappings because of differences for field [{}]",
                                     fieldMapping.getKey());
                             }

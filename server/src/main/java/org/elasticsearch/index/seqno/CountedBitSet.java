@@ -53,7 +53,7 @@ public final class CountedBitSet {
         // Ignore set when bitset is full.
         if (bitset != null) {
             final boolean wasOn = bitset.getAndSet(index);
-            if (wasOn == false) {
+            if (!wasOn) {
                 onBits++;
                 // Once all bits are set, we can simply just return YES for all indexes.
                 // This allows us to clear the internal bitset and use null check as the guard.

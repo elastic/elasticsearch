@@ -67,7 +67,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
             success = true;
             return newService;
         } finally {
-            if (success == false) {
+            if (!success) {
                 newService.close();
             }
         }

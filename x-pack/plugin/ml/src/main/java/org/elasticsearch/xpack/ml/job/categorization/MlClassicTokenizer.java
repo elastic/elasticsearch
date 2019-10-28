@@ -63,7 +63,7 @@ public class MlClassicTokenizer extends Tokenizer {
             } else if (length > 0) {
                 // If we get here, we've found a separator character having built up a candidate token
 
-                if (haveNonHex && Character.isDigit(termAtt.charAt(0)) == false) {
+                if (haveNonHex && !Character.isDigit(termAtt.charAt(0))) {
                     // The candidate token is valid to return
                     break;
                 }
@@ -82,7 +82,7 @@ public class MlClassicTokenizer extends Tokenizer {
             return false;
         }
 
-        if (haveNonHex == false || Character.isDigit(termAtt.charAt(0))) {
+        if (!haveNonHex || Character.isDigit(termAtt.charAt(0))) {
             ++skippedPositions;
             return false;
         }

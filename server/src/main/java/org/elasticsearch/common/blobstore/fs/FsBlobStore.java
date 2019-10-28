@@ -42,7 +42,7 @@ public class FsBlobStore implements BlobStore {
     public FsBlobStore(Settings settings, Path path, boolean readonly) throws IOException {
         this.path = path;
         this.readOnly = readonly;
-        if (this.readOnly == false) {
+        if (!this.readOnly) {
             Files.createDirectories(path);
         }
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size",
@@ -78,7 +78,7 @@ public class FsBlobStore implements BlobStore {
 
     private synchronized Path buildAndCreate(BlobPath path) throws IOException {
         Path f = buildPath(path);
-        if (readOnly == false) {
+        if (!readOnly) {
             Files.createDirectories(f);
         }
         return f;

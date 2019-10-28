@@ -141,10 +141,10 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
             if (description != null) {
                 builder.field(MlFilter.DESCRIPTION.getPreferredName(), description);
             }
-            if (addItems.isEmpty() == false) {
+            if (!addItems.isEmpty()) {
                 builder.field(ADD_ITEMS.getPreferredName(), addItems);
             }
-            if (removeItems.isEmpty() == false) {
+            if (!removeItems.isEmpty()) {
                 builder.field(REMOVE_ITEMS.getPreferredName(), removeItems);
             }
             builder.endObject();

@@ -77,7 +77,7 @@ public final class FieldPermissions implements Accountable {
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
      *  have precedence over include rules. */
     FieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition, Automaton permittedFieldsAutomaton) {
-        if (permittedFieldsAutomaton.isDeterministic() == false && permittedFieldsAutomaton.getNumStates() > 1) {
+        if (!permittedFieldsAutomaton.isDeterministic() && permittedFieldsAutomaton.getNumStates() > 1) {
             // we only accept deterministic automata so that the CharacterRunAutomaton constructor
             // directly wraps the provided automaton
             throw new IllegalArgumentException("Only accepts deterministic automata");
@@ -145,7 +145,7 @@ public final class FieldPermissions implements Accountable {
         grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
         deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
 
-        if (subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
+        if (!subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton)) {
             throw new ElasticsearchSecurityException("Exceptions for field permissions must be a subset of the " +
                     "granted fields but " + Strings.arrayToCommaDelimitedString(deniedFields) + " is not a subset of " +
                     Strings.arrayToCommaDelimitedString(grantedFields));
@@ -191,12 +191,12 @@ public final class FieldPermissions implements Accountable {
 
     /** Return whether field-level security is enabled, ie. whether any field might be filtered out. */
     public boolean hasFieldLevelSecurity() {
-        return permittedFieldsAutomatonIsTotal == false;
+        return !permittedFieldsAutomatonIsTotal;
     }
 
     /** Return a wrapped reader that only exposes allowed fields. */
     public DirectoryReader filter(DirectoryReader reader) throws IOException {
-        if (hasFieldLevelSecurity() == false) {
+        if (!hasFieldLevelSecurity()) {
             return reader;
         }
         return FieldSubsetReader.wrap(reader, permittedFieldsAutomaton);

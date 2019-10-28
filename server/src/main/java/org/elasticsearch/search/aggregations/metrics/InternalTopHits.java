@@ -138,7 +138,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         float maxScore = Float.NaN;
         for (InternalAggregation agg : aggregations) {
             InternalTopHits topHitsAgg = (InternalTopHits) agg;
-            if (Float.isNaN(topHitsAgg.topDocs.maxScore) == false) {
+            if (!Float.isNaN(topHitsAgg.topDocs.maxScore)) {
                 if (Float.isNaN(maxScore)) {
                     maxScore = topHitsAgg.topDocs.maxScore;
                 } else {
@@ -183,7 +183,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalTopHits other = (InternalTopHits) obj;
         if (from != other.from) return false;
@@ -198,12 +198,12 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             if (Double.compare(thisDoc.score, otherDoc.score) != 0) return false;
             if (thisDoc.shardIndex != otherDoc.shardIndex) return false;
             if (thisDoc instanceof FieldDoc) {
-                if (false == (otherDoc instanceof FieldDoc)) return false;
+                if (!(otherDoc instanceof FieldDoc)) return false;
                 FieldDoc thisFieldDoc = (FieldDoc) thisDoc;
                 FieldDoc otherFieldDoc = (FieldDoc) otherDoc;
                 if (thisFieldDoc.fields.length != otherFieldDoc.fields.length) return false;
                 for (int f = 0; f < thisFieldDoc.fields.length; f++) {
-                    if (false == thisFieldDoc.fields[f].equals(otherFieldDoc.fields[f])) return false;
+                    if (!thisFieldDoc.fields[f].equals(otherFieldDoc.fields[f])) return false;
                 }
             }
         }

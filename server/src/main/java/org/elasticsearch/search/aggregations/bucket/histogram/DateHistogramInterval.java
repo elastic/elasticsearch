@@ -120,7 +120,7 @@ public class DateHistogramInterval implements Writeable, ToXContentFragment {
      * require precise durations.
      */
     public long estimateMillis() {
-        if (Strings.isNullOrEmpty(expression) == false && DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(expression)) {
+        if (!Strings.isNullOrEmpty(expression) && DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(expression)) {
             Rounding.DateTimeUnit intervalUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expression);
             return intervalUnit.getField().getBaseUnit().getDuration().getSeconds() * 1000;
         } else {

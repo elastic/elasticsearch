@@ -138,7 +138,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.getDatabaseType()
                     + "]", new IllegalStateException());
         }
-        if (geoData.isEmpty() == false) {
+        if (!geoData.isEmpty()) {
             ingestDocument.setFieldValue(targetField, geoData);
         }
         return ingestDocument;
@@ -454,7 +454,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
             try {
                 Property property = valueOf(value.toUpperCase(Locale.ROOT));
-                if (validProperties.contains(property) == false) {
+                if (!validProperties.contains(property)) {
                     throw new IllegalArgumentException("invalid");
                 }
                 return property;

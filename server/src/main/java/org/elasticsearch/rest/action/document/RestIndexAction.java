@@ -76,7 +76,7 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         void validateOpType(String opType) {
-            if (null != opType && false == "create".equals(opType.toLowerCase(Locale.ROOT))) {
+            if (null != opType && !"create".equals(opType.toLowerCase(Locale.ROOT))) {
                 throw new IllegalArgumentException("opType must be 'create', found: [" + opType + "]");
             }
         }

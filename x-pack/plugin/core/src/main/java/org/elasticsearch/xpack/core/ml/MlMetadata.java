@@ -276,7 +276,7 @@ public class MlMetadata implements MetaData.Custom {
         }
 
         public Builder putJob(Job job, boolean overwrite) {
-            if (jobs.containsKey(job.getId()) && overwrite == false) {
+            if (jobs.containsKey(job.getId()) && !overwrite) {
                 throw ExceptionsHelper.jobAlreadyExists(job.getId());
             }
             this.jobs.put(job.getId(), job);
@@ -300,7 +300,7 @@ public class MlMetadata implements MetaData.Custom {
             Job job = jobs.get(jobId);
             DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
 
-            if (headers.isEmpty() == false) {
+            if (!headers.isEmpty()) {
                 // Adjust the request, adding security headers from the current thread context
                 DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
                 Map<String, String> securityHeaders = headers.entrySet().stream()

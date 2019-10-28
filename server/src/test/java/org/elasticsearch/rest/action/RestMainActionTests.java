@@ -77,7 +77,7 @@ public class RestMainActionTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
 
         Map<String, String> params = new HashMap<>();
-        if (prettyPrint == false) {
+        if (!prettyPrint) {
             params.put("pretty", String.valueOf(prettyPrint));
         }
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();

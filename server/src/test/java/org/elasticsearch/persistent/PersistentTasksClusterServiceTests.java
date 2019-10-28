@@ -281,7 +281,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 case "assign_me":
                     assertThat(task.getExecutorNode(), notNullValue());
                     assertThat(task.isAssigned(), equalTo(true));
-                    if (clusterState.nodes().nodeExists(task.getExecutorNode()) == false) {
+                    if (!clusterState.nodes().nodeExists(task.getExecutorNode())) {
                         logger.info(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE).toString());
                     }
                     assertThat("task should be assigned to a node that is in the cluster, was assigned to " + task.getExecutorNode(),
@@ -631,7 +631,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         boolean tasksOrNodesChanged = false;
         // add a new unassigned task
-        if (hasAssignableTasks(tasks, clusterState.nodes()) == false) {
+        if (!hasAssignableTasks(tasks, clusterState.nodes())) {
             // we don't have any unassigned tasks - add some
             if (randomBoolean()) {
                 logger.info("added random task");
@@ -651,7 +651,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             tasksOrNodesChanged = true;
         }
 
-        if (tasksOrNodesChanged == false) {
+        if (!tasksOrNodesChanged) {
             // change routing table to simulate a change
             logger.info("changed routing table");
             MetaData.Builder metaData = MetaData.builder(clusterState.metaData());
@@ -689,7 +689,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
 
         if (randomBoolean()) {
-            if (hasAssignableTasks(tasks, clusterState.nodes()) == false) {
+            if (!hasAssignableTasks(tasks, clusterState.nodes())) {
                 // we don't have any unassigned tasks - adding a node or changing a routing table shouldn't affect anything
                 if (randomBoolean()) {
                     logger.info("added random node");
@@ -712,7 +712,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         if (randomBoolean()) {
             // remove a node that doesn't have any tasks assigned to it and it's not the master node
             for (DiscoveryNode node : clusterState.nodes()) {
-                if (hasTasksAssignedTo(tasks, node.getId()) == false && "this_node".equals(node.getId()) == false) {
+                if (!hasTasksAssignedTo(tasks, node.getId()) && !"this_node".equals(node.getId())) {
                     logger.info("removed unassigned node {}", node.getId());
                     return builder.nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(node.getId())).build();
                 }
@@ -757,15 +757,15 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         return tasks.tasks().stream().anyMatch(task -> {
             if (task.getExecutorNode() == null || discoveryNodes.nodeExists(task.getExecutorNode())) {
-                return "never_assign".equals(((TestParams) task.getParams()).getTestParam()) == false;
+                return !"never_assign".equals(((TestParams) task.getParams()).getTestParam());
             }
             return false;
         });
     }
 
     private boolean hasTasksAssignedTo(PersistentTasksCustomMetaData tasks, String nodeId) {
-        return tasks != null && tasks.tasks().stream().anyMatch(
-                task -> nodeId.equals(task.getExecutorNode())) == false;
+        return tasks != null && !tasks.tasks().stream().anyMatch(
+            task -> nodeId.equals(task.getExecutorNode()));
     }
 
     private ClusterState.Builder addRandomTask(ClusterState.Builder clusterStateBuilder,

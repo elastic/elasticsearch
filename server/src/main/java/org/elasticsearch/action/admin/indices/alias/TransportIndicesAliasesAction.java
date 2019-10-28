@@ -142,7 +142,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 }
             }
         }
-        if (finalActions.isEmpty() && false == actions.isEmpty()) {
+        if (finalActions.isEmpty() && !actions.isEmpty()) {
             throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));
         }
         request.aliasActions().clear();

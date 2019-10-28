@@ -238,7 +238,7 @@ public class EsExecutors {
     }
 
     public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
-        assert nodeName != null && false == nodeName.isEmpty();
+        assert nodeName != null && !nodeName.isEmpty();
         return daemonThreadFactory(threadName(nodeName, namePrefix));
     }
 

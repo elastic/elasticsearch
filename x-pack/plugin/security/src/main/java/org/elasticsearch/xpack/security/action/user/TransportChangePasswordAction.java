@@ -47,7 +47,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         }
         final String requestPwdHashAlgo = Hasher.resolveFromHash(request.passwordHash()).name();
         final String configPwdHashAlgo = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)).name();
-        if (requestPwdHashAlgo.equalsIgnoreCase(configPwdHashAlgo) == false) {
+        if (!requestPwdHashAlgo.equalsIgnoreCase(configPwdHashAlgo)) {
             listener.onFailure(new IllegalArgumentException("incorrect password hashing algorithm [" + requestPwdHashAlgo + "] used while" +
                 " [" + configPwdHashAlgo + "] is configured."));
             return;

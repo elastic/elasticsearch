@@ -198,7 +198,7 @@ class DatafeedJob {
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
             List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
-            if (missingDataBuckets.isEmpty() == false) {
+            if (!missingDataBuckets.isEmpty()) {
                 long totalRecordsMissing = missingDataBuckets.stream()
                     .mapToLong(BucketWithMissingData::getMissingDocumentCount)
                     .sum();
@@ -472,7 +472,7 @@ class DatafeedJob {
     }
 
     private boolean shouldPersistAfterLookback(boolean isLookbackOnly) {
-        return isLookbackOnly == false && isIsolated == false && isRunning();
+        return !isLookbackOnly && !isIsolated && isRunning();
     }
 
     private void sendPersistRequest() {

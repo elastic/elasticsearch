@@ -246,14 +246,14 @@ public class ExecuteWatchRequest extends ActionRequest {
             validationException = ValidateActions.addValidationError("a watch execution request must either have a watch id or an inline " +
                     "watch source, but both are missing", validationException);
         }
-        if (id != null && WatcherUtils.isValidId(id) == false) {
+        if (id != null && !WatcherUtils.isValidId(id)) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
         for (String actionId : actionModes.keySet()) {
             if (actionId == null) {
                 validationException = ValidateActions.addValidationError(
                         String.format(Locale.ROOT, "action id may not be null"), validationException);
-            } else if (WatcherUtils.isValidId(actionId) == false) {
+            } else if (!WatcherUtils.isValidId(actionId)) {
                 validationException = ValidateActions.addValidationError(
                         String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId), validationException);
             }

@@ -253,7 +253,7 @@ public class AuthenticationService {
                             }
                         }, e -> {
                             if (e instanceof ElasticsearchSecurityException &&
-                                tokenService.isExpiredTokenException((ElasticsearchSecurityException) e) == false) {
+                                !tokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
                                 // intentionally ignore the returned exception; we call this primarily
                                 // for the auditing as we already have a purpose built exception
                                 request.tamperedRequest();
@@ -493,7 +493,7 @@ public class AuthenticationService {
                     logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
                 });
                 List<Realm> unlicensedRealms = realms.getUnlicensedRealms();
-                if (unlicensedRealms.isEmpty() == false) {
+                if (!unlicensedRealms.isEmpty()) {
                     logger.warn("Authentication failed using realms [{}]." +
                             " Realms [{}] were skipped because they are not permitted on the current license",
                         Strings.collectionToCommaDelimitedString(defaultOrderedRealmList),
@@ -504,7 +504,7 @@ public class AuthenticationService {
                 threadContext.putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, authenticationResult);
                 if (runAsEnabled) {
                     final String runAsUsername = threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
-                    if (runAsUsername != null && runAsUsername.isEmpty() == false) {
+                    if (runAsUsername != null && !runAsUsername.isEmpty()) {
                         lookupRunAsUser(user, runAsUsername, this::finishAuthentication);
                     } else if (runAsUsername == null) {
                         finishAuthentication(user);
@@ -551,7 +551,7 @@ public class AuthenticationService {
          * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
          */
         void finishAuthentication(User finalUser) {
-            if (finalUser.enabled() == false || finalUser.authenticatedUser().enabled() == false) {
+            if (!finalUser.enabled() || !finalUser.authenticatedUser().enabled()) {
                 // TODO: these should be different log messages if the runas vs auth user is disabled?
                 logger.debug("user [{}] is disabled. failing authentication", finalUser);
                 listener.onFailure(request.authenticationFailed(authenticationToken));

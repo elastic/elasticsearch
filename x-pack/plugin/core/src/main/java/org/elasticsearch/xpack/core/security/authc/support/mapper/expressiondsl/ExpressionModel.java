@@ -90,7 +90,7 @@ public class ExpressionModel {
         if (left.equals(other)) {
             return true;
         }
-        if ((other instanceof Number) == false) {
+        if (!(other instanceof Number)) {
             return false;
         }
         Number right = (Number) other;

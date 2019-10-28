@@ -127,13 +127,13 @@ public final class BlobStoreTestUtil {
         final BlobContainer indicesContainer = repoRoot.children().get("indices");
         for (IndexId index : shardGenerations.indices()) {
             final List<String> gens = shardGenerations.getGens(index);
-            if (gens.isEmpty() == false) {
+            if (!gens.isEmpty()) {
                 final BlobContainer indexContainer = indicesContainer.children().get(index.getId());
                 final Map<String, BlobContainer> shardContainers = indexContainer.children();
                 for (int i = 0; i < gens.size(); i++) {
                     final String generation = gens.get(i);
                     assertThat(generation, not(ShardGenerations.DELETED_SHARD_GEN));
-                    if (generation != null && generation.equals(ShardGenerations.NEW_SHARD_GEN) == false) {
+                    if (generation != null && !generation.equals(ShardGenerations.NEW_SHARD_GEN)) {
                         final String shardId = Integer.toString(i);
                         assertThat(shardContainers, hasKey(shardId));
                         assertThat(shardContainers.get(shardId).listBlobsByPrefix(BlobStoreRepository.INDEX_FILE_PREFIX),
@@ -154,7 +154,7 @@ public final class BlobStoreTestUtil {
         } else {
             // Skip Lucene MockFS extraN directory
             foundIndexUUIDs = indicesContainer.children().keySet().stream().filter(
-                s -> s.startsWith("extra") == false).collect(Collectors.toList());
+                s -> !s.startsWith("extra")).collect(Collectors.toList());
         }
         assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
     }
@@ -201,7 +201,7 @@ public final class BlobStoreTestUtil {
                     final BlobContainer shardContainer = entry.getValue();
                     // TODO: we shouldn't be leaking empty shard directories when a shard (but not all of the index it belongs to)
                     //       becomes unreferenced. We should fix that and remove this conditional once its fixed.
-                    if (shardContainer.listBlobs().keySet().stream().anyMatch(blob -> blob.startsWith("extra") == false)) {
+                    if (shardContainer.listBlobs().keySet().stream().anyMatch(blob -> !blob.startsWith("extra"))) {
                         final int impliedCount = shardId - 1;
                         maxShardCountsSeen.compute(
                             indexId, (i, existing) -> existing == null || existing < impliedCount ? impliedCount : existing);
@@ -244,8 +244,8 @@ public final class BlobStoreTestUtil {
         repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
             final BlobStore blobStore = repository.blobStore();
             for (String index : indexToFiles.keySet()) {
-                if (blobStore.blobContainer(repository.basePath().add("indices"))
-                    .children().containsKey(index) == false) {
+                if (!blobStore.blobContainer(repository.basePath().add("indices"))
+                    .children().containsKey(index)) {
                     return false;
                 }
                 for (String file : indexToFiles.get(index)) {

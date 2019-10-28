@@ -261,7 +261,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalFilters that = (InternalFilters) obj;
         return Objects.equals(buckets, that.buckets)

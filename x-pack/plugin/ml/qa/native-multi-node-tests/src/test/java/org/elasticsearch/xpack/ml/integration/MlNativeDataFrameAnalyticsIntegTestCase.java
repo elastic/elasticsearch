@@ -90,7 +90,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected void registerAnalytics(DataFrameAnalyticsConfig config) {
-        if (analytics.add(config) == false) {
+        if (!analytics.add(config)) {
             throw new IllegalArgumentException("analytics config [" + config.getId() + "] is already registered");
         }
     }

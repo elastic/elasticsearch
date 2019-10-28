@@ -18,7 +18,7 @@ public class RequestInfo {
     private static final String ODBC_64 = "odbc64";
     public static final Set<String> CLIENT_IDS;
     public static final Set<String> ODBC_CLIENT_IDS;
-    
+
     static {
         Set<String> clientIds = new HashSet<>(4);
         clientIds.add(CANVAS);
@@ -28,39 +28,39 @@ public class RequestInfo {
         Set<String> odbcClientIds = new HashSet<>(2);
         odbcClientIds.add(ODBC_32);
         odbcClientIds.add(ODBC_64);
-        
+
         CLIENT_IDS = Collections.unmodifiableSet(clientIds);
         ODBC_CLIENT_IDS = Collections.unmodifiableSet(odbcClientIds);
     }
-    
+
     private Mode mode;
     private String clientId;
-    
+
     public RequestInfo(Mode mode) {
         this(mode, null);
     }
-    
+
     public RequestInfo(Mode mode, String clientId) {
         mode(mode);
         clientId(clientId);
     }
-    
+
     public Mode mode() {
         return mode;
     }
-    
+
     public void mode(Mode mode) {
         this.mode = mode;
     }
-    
+
     public String clientId() {
         return clientId;
     }
-    
+
     public void clientId(String clientId) {
         if (clientId != null) {
             clientId = clientId.toLowerCase(Locale.ROOT);
-            if (false == CLIENT_IDS.contains(clientId)) {
+            if (!CLIENT_IDS.contains(clientId)) {
                 clientId = null;
             }
         }

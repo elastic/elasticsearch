@@ -79,7 +79,7 @@ public final class TcpTransportChannel implements TransportChannel {
         if (released.compareAndSet(false, true)) {
             assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
             breakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS).addWithoutBreaking(-reservedBytes);
-        } else if (isExceptionResponse == false) {
+        } else if (!isExceptionResponse) {
             // only fail if we are not sending an error - we might send the error triggered by the previous
             // sendResponse call
             throw new IllegalStateException("reserved bytes are already released", releaseBy);

@@ -105,7 +105,7 @@ public class LoggingListener extends RunListener {
 
         final Set<String> testLoggingKeys = new HashSet<>(testLoggingMap.keySet());
         testLoggingKeys.retainAll(testIssueLoggingMap.keySet());
-        if (testLoggingKeys.isEmpty() == false) {
+        if (!testLoggingKeys.isEmpty()) {
             throw new IllegalArgumentException("found intersection " + testLoggingKeys + " between TestLogging and TestIssueLogging");
         }
 

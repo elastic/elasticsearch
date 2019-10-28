@@ -158,7 +158,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                 try {
                                     BulkResponse bulkResponse = bulkRequest.get();
                                     for (BulkItemResponse bulkItemResponse : bulkResponse) {
-                                        if (bulkItemResponse.isFailed() == false) {
+                                        if (!bulkItemResponse.isFailed()) {
                                             boolean add = ids.add(bulkItemResponse.getId());
                                             assert add : "ID: " + bulkItemResponse.getId() + " already used";
                                         } else {
@@ -166,7 +166,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                         }
                                     }
                                 } catch (Exception e) {
-                                    if (ignoreIndexingFailures == false) {
+                                    if (!ignoreIndexingFailures) {
                                         throw e;
                                     }
                                 }
@@ -184,7 +184,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                         boolean add = ids.add(indexResponse.getId());
                                         assert add : "ID: " + indexResponse.getId() + " already used";
                                     } catch (Exception e) {
-                                        if (ignoreIndexingFailures == false) {
+                                        if (!ignoreIndexingFailures) {
                                             throw e;
                                         }
                                     }
@@ -195,7 +195,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                         boolean add = ids.add(indexResponse.getId());
                                         assert add : "ID: " + indexResponse.getId() + " already used";
                                     } catch (Exception e) {
-                                        if (ignoreIndexingFailures == false) {
+                                        if (!ignoreIndexingFailures) {
                                             throw e;
                                         }
                                     }

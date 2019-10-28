@@ -85,7 +85,7 @@ public final class BulkRequestHandler {
             logger.warn(() -> new ParameterizedMessage("Failed to execute bulk request {}.", executionId), e);
             listener.afterBulk(executionId, bulkRequest, e);
         } finally {
-            if (bulkRequestSetupSuccessful == false) {  // if we fail on client.bulk() release the semaphore
+            if (!bulkRequestSetupSuccessful) {  // if we fail on client.bulk() release the semaphore
                 toRelease.run();
             }
         }

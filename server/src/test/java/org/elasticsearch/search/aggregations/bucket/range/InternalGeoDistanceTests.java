@@ -111,7 +111,7 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
             name += randomAlphaOfLength(5);
             break;
         case 1:
-            keyed = keyed == false;
+            keyed = !keyed;
             break;
         case 2:
             buckets = new ArrayList<>(buckets);

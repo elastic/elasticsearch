@@ -642,7 +642,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     String[] superNodes = super.filterNodeIds(nodes, nodesIds);
                     List<String> filteredNodes = new ArrayList<>();
                     for (String node : superNodes) {
-                        if (filterNodes.contains(node) == false) {
+                        if (!filterNodes.contains(node)) {
                             filteredNodes.add(node);
                         }
                     }

@@ -72,7 +72,7 @@ public abstract class AggregateFunction extends Function {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (!super.equals(obj)) {
             return false;
         }
         AggregateFunction other = (AggregateFunction) obj;

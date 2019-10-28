@@ -50,7 +50,7 @@ public class TaskScheduler {
         while ((task = tasks.peek()) != null) {
             if (relativeNanos - task.deadline >= 0) {
                 tasks.remove();
-                if (task.cancelled == false) {
+                if (!task.cancelled) {
                     return task.runnable;
                 }
             } else {

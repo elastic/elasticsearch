@@ -296,7 +296,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
         if (this == other) {
             return true;
         }
-        if (other instanceof ModelPlot == false) {
+        if (!(other instanceof ModelPlot)) {
             return false;
         }
         ModelPlot that = (ModelPlot) other;

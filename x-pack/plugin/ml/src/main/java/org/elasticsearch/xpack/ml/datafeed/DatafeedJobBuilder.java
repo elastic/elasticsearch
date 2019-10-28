@@ -181,9 +181,9 @@ public class DatafeedJobBuilder {
                 configBuilder -> {
                     try {
                         datafeedConfigHolder.set(configBuilder.build());
-                        if (remoteClusterSearchSupported == false) {
+                        if (!remoteClusterSearchSupported) {
                             List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices());
-                            if (remoteIndices.isEmpty() == false) {
+                            if (!remoteIndices.isEmpty()) {
                                 listener.onFailure(
                                     ExceptionsHelper.badRequestException(Messages.getMessage(
                                         Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,

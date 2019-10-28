@@ -13,7 +13,7 @@ public class ErrorStep extends Step {
 
     public ErrorStep(StepKey key) {
         super(key, key);
-        if (NAME.equals(key.getName()) == false) {
+        if (!NAME.equals(key.getName())) {
             throw new IllegalArgumentException("An error step must have a step key whose step name is " + NAME);
         }
     }

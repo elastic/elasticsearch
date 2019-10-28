@@ -658,7 +658,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         for (String id : ids) {
             long expected;
             IDAndVersion idVersion = truth.get(id);
-            if (idVersion != null && idVersion.delete == false) {
+            if (idVersion != null && !idVersion.delete) {
                 expected = idVersion.version;
             } else {
                 expected = -1;

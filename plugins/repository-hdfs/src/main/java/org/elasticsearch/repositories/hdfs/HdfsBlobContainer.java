@@ -62,7 +62,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         try {
-            if (store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true)) == false) {
+            if (!store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true))) {
                 throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
             }
         } catch (FileNotFoundException fnfe) {

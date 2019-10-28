@@ -113,9 +113,9 @@ public class LeaderCheckerTests extends ESTestCase {
 
                 final boolean mustSucceed = leaderCheckRetryCount - 1 <= consecutiveFailedRequestsCount;
                 final long responseDelay = randomLongBetween(0, leaderCheckTimeoutMillis + (mustSucceed ? -1 : 60000));
-                final boolean successResponse = allResponsesFail.get() == false && (mustSucceed || randomBoolean());
+                final boolean successResponse = !allResponsesFail.get() && (mustSucceed || randomBoolean());
 
-                if (responseDelay >= leaderCheckTimeoutMillis || successResponse == false) {
+                if (responseDelay >= leaderCheckTimeoutMillis || !successResponse) {
                     consecutiveFailedRequestsCount += 1;
                 } else {
                     consecutiveFailedRequestsCount = 0;
@@ -187,7 +187,7 @@ public class LeaderCheckerTests extends ESTestCase {
             allResponsesFail.set(true);
             logger.info("--> failing at {}ms", failureTime);
 
-            while (leaderFailed.get() == false) {
+            while (!leaderFailed.get()) {
                 deterministicTaskQueue.advanceTime();
                 deterministicTaskQueue.runAllRunnableTasks();
             }

@@ -73,7 +73,7 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
         } catch (IllegalStateException e) {
             ctx.channel().close();
         } finally {
-            if (success == false) {
+            if (!success) {
                 promise.setFailure(new ClosedChannelException());
             }
         }
@@ -83,7 +83,7 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
         List<Tuple<NioHttpResponse, NettyListener>> inflightResponses = aggregator.removeAllInflightResponses();
 
-        if (inflightResponses.isEmpty() == false) {
+        if (!inflightResponses.isEmpty()) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
             for (Tuple<NioHttpResponse, NettyListener> inflightResponse : inflightResponses) {
                 try {

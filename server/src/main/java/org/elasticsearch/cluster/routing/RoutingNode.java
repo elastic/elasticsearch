@@ -107,7 +107,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     void update(ShardRouting oldShard, ShardRouting newShard) {
-        if (shards.containsKey(oldShard.shardId()) == false) {
+        if (!shards.containsKey(oldShard.shardId())) {
             // Shard was already removed by routing nodes iterator
             // TODO: change caller logic in RoutingNodes so that this check can go away
             return;

@@ -215,10 +215,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForNoInitializingShards()) {
             waitCount++;
         }
-        if (request.waitForActiveShards().equals(ActiveShardCount.NONE) == false) {
+        if (!request.waitForActiveShards().equals(ActiveShardCount.NONE)) {
             waitCount++;
         }
-        if (request.waitForNodes().isEmpty() == false) {
+        if (!request.waitForNodes().isEmpty()) {
             waitCount++;
         }
         if (request.indices() != null && request.indices().length > 0) { // check that they actually exists in the meta data
@@ -245,7 +245,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         // if the state is sufficient for what we where waiting for we don't need to mark this as timedOut.
         // We spend too much time in waiting for events such that we might already reached a valid state.
         // this should not mark the request as timed out
-        response.setTimedOut(timedOut && valid == false);
+        response.setTimedOut(timedOut && !valid);
         return response;
     }
 
@@ -261,9 +261,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForNoInitializingShards() && response.getInitializingShards() == 0) {
             waitForCounter++;
         }
-        if (request.waitForActiveShards().equals(ActiveShardCount.NONE) == false) {
+        if (!request.waitForActiveShards().equals(ActiveShardCount.NONE)) {
             ActiveShardCount waitForActiveShards = request.waitForActiveShards();
-            assert waitForActiveShards.equals(ActiveShardCount.DEFAULT) == false :
+            assert !waitForActiveShards.equals(ActiveShardCount.DEFAULT) :
                 "waitForActiveShards must not be DEFAULT on the request object, instead it should be NONE";
             if (waitForActiveShards.equals(ActiveShardCount.ALL)) {
                 if (response.getUnassignedShards() == 0 && response.getInitializingShards() == 0) {

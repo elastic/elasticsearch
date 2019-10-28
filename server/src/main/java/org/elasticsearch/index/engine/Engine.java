@@ -665,7 +665,7 @@ public abstract class Engine implements Closeable {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
-        if (store.tryIncRef() == false) {
+        if (!store.tryIncRef()) {
             throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
         }
         Releasable releasable = store::decRef;
@@ -817,7 +817,7 @@ public abstract class Engine implements Closeable {
         try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
-                if (segmentName.contains(segmentReader.getSegmentName()) == false) {
+                if (!segmentName.contains(segmentReader.getSegmentName())) {
                     fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
                 }
             }
@@ -938,7 +938,7 @@ public abstract class Engine implements Closeable {
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.INTERNAL)){
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
-                if (segments.containsKey(segmentReader.getSegmentName()) == false) {
+                if (!segments.containsKey(segmentReader.getSegmentName())) {
                     fillSegmentInfo(segmentReader, verbose, false, segments);
                 }
             }
@@ -977,7 +977,7 @@ public abstract class Engine implements Closeable {
 
     private void fillSegmentInfo(SegmentReader segmentReader, boolean verbose, boolean search, Map<String, Segment> segments) {
         SegmentCommitInfo info = segmentReader.getSegmentInfo();
-        assert segments.containsKey(info.info.name) == false;
+        assert !segments.containsKey(info.info.name);
         Segment segment = new Segment(info.info.name);
         segment.search = search;
         segment.docCount = segmentReader.numDocs();
@@ -1013,7 +1013,7 @@ public abstract class Engine implements Closeable {
              */
             try {
                 try (Searcher searcher = acquireSearcher("refresh_needed", SearcherScope.EXTERNAL)) {
-                    return searcher.getDirectoryReader().isCurrent() == false;
+                    return !searcher.getDirectoryReader().isCurrent();
                 }
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
@@ -1667,7 +1667,7 @@ public abstract class Engine implements Closeable {
      * translog) and close it.
      */
     public void flushAndClose() throws IOException {
-        if (isClosed.get() == false) {
+        if (!isClosed.get()) {
             logger.trace("flushAndClose now acquire writeLock");
             try (ReleasableLock lock = writeLock.acquire()) {
                 logger.trace("flushAndClose now acquired writeLock");
@@ -1690,7 +1690,7 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
+        if (!isClosed.get()) { // don't acquire the write lock if we are already closed
             logger.debug("close now acquiring writeLock");
             try (ReleasableLock lock = writeLock.acquire()) {
                 logger.debug("close acquired writeLock");

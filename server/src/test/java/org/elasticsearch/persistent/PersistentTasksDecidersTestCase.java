@@ -120,7 +120,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
 
     /** Asserts that the given cluster state contains nbTasks tasks that are NOT assigned **/
     protected static void assertNbUnassignedTasks(final long nbTasks, final ClusterState clusterState) {
-        assertPersistentTasks(nbTasks, clusterState, task -> task.isAssigned() == false);
+        assertPersistentTasks(nbTasks, clusterState, task -> !task.isAssigned());
     }
 
     /** Asserts that the cluster state contains nbTasks tasks that verify the given predicate **/

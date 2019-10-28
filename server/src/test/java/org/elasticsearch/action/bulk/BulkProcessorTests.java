@@ -250,7 +250,7 @@ public class BulkProcessorTests extends ESTestCase {
                 flushExecutor.shutdown();
                 try {
                     flushExecutor.awaitTermination(10L, TimeUnit.SECONDS);
-                    if (flushExecutor.isTerminated() == false) {
+                    if (!flushExecutor.isTerminated()) {
                         flushExecutor.shutdownNow();
                     }
                 } catch (InterruptedException ie) {
@@ -306,7 +306,7 @@ public class BulkProcessorTests extends ESTestCase {
                 "Successful Bulks: " + successCount.get() + "\n" +
                 "Failed Bulks: " + failureCount.get() + "\n" +
                 "Total Documents: " + docCount.get() + "\n" +
-                "Max Documents: " + maxDocuments + "\n" +   
+                "Max Documents: " + maxDocuments + "\n" +
                 "Max Batch Size: " + maxBatchSize + "\n" +
                 "Concurrent Clients: " + concurrentClients + "\n" +
                 "Concurrent Bulk Requests: " + concurrentBulkRequests + "\n"

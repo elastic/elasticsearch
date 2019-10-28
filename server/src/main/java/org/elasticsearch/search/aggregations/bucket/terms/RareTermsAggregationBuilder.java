@@ -189,7 +189,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         RareTermsAggregationBuilder other = (RareTermsAggregationBuilder) obj;
         return Objects.equals(includeExclude, other.includeExclude)
             && Objects.equals(maxDocCount, other.maxDocCount)

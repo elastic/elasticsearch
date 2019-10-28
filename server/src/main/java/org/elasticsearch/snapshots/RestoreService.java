@@ -180,7 +180,7 @@ public class RestoreService implements ClusterStateApplier {
             final String snapshotName = request.snapshot();
             final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                 .filter(s -> snapshotName.equals(s.getName())).findFirst();
-            if (matchingSnapshotId.isPresent() == false) {
+            if (!matchingSnapshotId.isPresent()) {
                 throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
             }
 
@@ -237,7 +237,7 @@ public class RestoreService implements ClusterStateApplier {
                     ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
                     Set<String> aliases = new HashSet<>();
 
-                    if (indices.isEmpty() == false) {
+                    if (!indices.isEmpty()) {
                         // We have some indices to restore
                         ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
                         final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
@@ -484,7 +484,7 @@ public class RestoreService implements ClusterStateApplier {
                         }
                     }
                     Predicate<String> settingsFilter = k -> {
-                        if (UNREMOVABLE_SETTINGS.contains(k) == false) {
+                        if (!UNREMOVABLE_SETTINGS.contains(k)) {
                             for (String filterKey : keyFilters) {
                                 if (k.equals(filterKey)) {
                                     return false;
@@ -661,17 +661,17 @@ public class RestoreService implements ClusterStateApplier {
         }
 
         public RestoreInProgress applyChanges(final RestoreInProgress oldRestore) {
-            if (shardChanges.isEmpty() == false) {
+            if (!shardChanges.isEmpty()) {
                 RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
                 for (RestoreInProgress.Entry entry : oldRestore) {
                     Map<ShardId, ShardRestoreStatus> updates = shardChanges.get(entry.uuid());
                     ImmutableOpenMap<ShardId, ShardRestoreStatus> shardStates = entry.shards();
-                    if (updates != null && updates.isEmpty() == false) {
+                    if (updates != null && !updates.isEmpty()) {
                         ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(shardStates);
                         for (Map.Entry<ShardId, ShardRestoreStatus> shard : updates.entrySet()) {
                             ShardId shardId = shard.getKey();
                             ShardRestoreStatus status = shardStates.get(shardId);
-                            if (status == null || status.state().completed() == false) {
+                            if (status == null || !status.state().completed()) {
                                 shardsBuilder.put(shardId, shard.getValue());
                             }
                         }
@@ -730,7 +730,7 @@ public class RestoreService implements ClusterStateApplier {
                     }
                 }
             }
-            if (changed == false) {
+            if (!changed) {
                 return resultBuilder.build(currentState);
             }
             ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(currentState.getCustoms());
@@ -864,7 +864,7 @@ public class RestoreService implements ClusterStateApplier {
             for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
                 Index index = shard.key.getIndex();
                 if (indicesToCheck.contains(index)
-                    && shard.value.state().completed() == false
+                    && !shard.value.state().completed()
                     && currentState.getMetaData().index(index) != null) {
                     indices.add(index);
                 }

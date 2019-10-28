@@ -176,11 +176,11 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // We only want to add random fields to the root, or the root of the named objects
         return field ->
-                (field.endsWith("frequency_encoding") ||
-                    field.endsWith("one_hot_encoding") ||
-                    field.endsWith("target_mean_encoding") ||
-                    field.startsWith("tree.tree_structure") ||
-                    field.isEmpty()) == false;
+            !(field.endsWith("frequency_encoding") ||
+                field.endsWith("one_hot_encoding") ||
+                field.endsWith("target_mean_encoding") ||
+                field.startsWith("tree.tree_structure") ||
+                field.isEmpty());
     }
 
     @Override

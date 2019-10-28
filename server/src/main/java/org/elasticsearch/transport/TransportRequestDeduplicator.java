@@ -72,7 +72,7 @@ public final class TransportRequestDeduplicator<T extends TransportRequest> {
 
         CompositeListener addListener(ActionListener<Void> listener) {
             synchronized (this) {
-                if (this.isNotified == false) {
+                if (!this.isNotified) {
                     listeners.add(listener);
                     return listeners.size() == 1 ? this : null;
                 }

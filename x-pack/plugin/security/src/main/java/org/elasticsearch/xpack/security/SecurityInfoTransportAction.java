@@ -43,6 +43,6 @@ public class SecurityInfoTransportAction extends XPackInfoFeatureTransportAction
 
     @Override
     public boolean enabled() {
-        return enabled && licenseState.isSecurityDisabledByLicenseDefaults() == false;
+        return enabled && !licenseState.isSecurityDisabledByLicenseDefaults();
     }
 }

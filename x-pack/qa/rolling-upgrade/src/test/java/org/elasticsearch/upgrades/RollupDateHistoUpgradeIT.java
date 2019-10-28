@@ -125,7 +125,7 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
                 "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA"));
         }
 
-        if (CLUSTER_TYPE == ClusterType.MIXED && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
+        if (CLUSTER_TYPE == ClusterType.MIXED && !Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
             final Request indexRequest = new Request("POST", "/target/_doc/3");
             indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.plusDays(2).toString() + "\",\"value\":456}");
             client().performRequest(indexRequest);
@@ -214,7 +214,7 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
                 break;
             }
         }
-        if (hasRollupTask == false) {
+        if (!hasRollupTask) {
             fail("Expected persistent task for [" + rollupJob + "] but none found.");
         }
 

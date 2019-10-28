@@ -196,7 +196,7 @@ public final class MockEngineSupport {
 
         @Override
         public synchronized void close() {
-            if (openSearchers.isEmpty() == false) {
+            if (!openSearchers.isEmpty()) {
                 AssertionError error = new AssertionError("Unreleased searchers found");
                 for (RuntimeException ex : openSearchers.values()) {
                     error.addSuppressed(ex);

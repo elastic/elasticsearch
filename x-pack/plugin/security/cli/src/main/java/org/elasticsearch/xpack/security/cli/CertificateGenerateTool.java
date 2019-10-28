@@ -210,7 +210,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
         } else {
             file = resolvePath(defaultFilename);
             String input = terminal.readText("Please enter the desired output file [" + file + "]: ");
-            if (input.isEmpty() == false) {
+            if (!input.isEmpty()) {
                 file = resolvePath(input);
             }
         }
@@ -237,9 +237,9 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
         }
         Map<String, CertificateInformation> map = new HashMap<>();
         boolean done = false;
-        while (done == false) {
+        while (!done) {
             String name = terminal.readText("Enter instance name: ");
-            if (name.isEmpty() == false) {
+            if (!name.isEmpty()) {
                 final boolean isNameValidFilename = Name.isValidFilename(name);
                 String filename = terminal.readText("Enter name for directories and files " + (isNameValidFilename ? "[" + name + "]" : "")
                     + ": ");
@@ -271,7 +271,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
 
             String exit = terminal.readText("Would you like to specify another instance? Press 'y' to continue entering instance " +
                 "information: ");
-            if ("y".equals(exit) == false) {
+            if (!"y".equals(exit)) {
                 done = true;
             }
         }
@@ -466,7 +466,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
 
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 Files.deleteIfExists(file);
             }
         }
@@ -544,7 +544,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
         terminal.println("      comma separated string. If no IP addresses or DNS names are provided, you may");
         terminal.println("      disable hostname verification in your SSL configuration.");
 
-        if (csr == false) {
+        if (!csr) {
             terminal.println("* Certificate Authority private key password");
             terminal.println("    * The password may be left empty if desired.");
         }
@@ -597,7 +597,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(resolvePath(path), () -> {
-                if (password != null || prompt == false) {
+                if (password != null || !prompt) {
                     return password;
                 }
                 char[] promptedValue = terminal.readSecret("Enter password for CA private key: ");
@@ -650,12 +650,12 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
                 errors.add(name.error);
             }
             for (String ip : ipAddresses) {
-                if (InetAddresses.isInetAddress(ip) == false) {
+                if (!InetAddresses.isInetAddress(ip)) {
                     errors.add("[" + ip + "] is not a valid IP address");
                 }
             }
             for (String dnsName : dnsNames) {
-                if (DERIA5String.isIA5String(dnsName) == false) {
+                if (!DERIA5String.isIA5String(dnsName)) {
                     errors.add("[" + dnsName + "] is not a valid DNS name");
                 }
             }
@@ -696,7 +696,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             }
 
             boolean validFilename = isValidFilename(filename);
-            if (validFilename == false) {
+            if (!validFilename) {
                 return new Name(name, principal, null, "[" + filename + "] is not a valid filename");
             }
             return new Name(name, principal, resolvePath(filename).toString(), null);
@@ -705,7 +705,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
         static boolean isValidFilename(String name) {
             return ALLOWED_FILENAME_CHAR_PATTERN.matcher(name).matches()
                 && ALLOWED_FILENAME_CHAR_PATTERN.matcher(resolvePath(name).toString()).matches()
-                && name.startsWith(".") == false;
+                && !name.startsWith(".");
         }
 
         @Override

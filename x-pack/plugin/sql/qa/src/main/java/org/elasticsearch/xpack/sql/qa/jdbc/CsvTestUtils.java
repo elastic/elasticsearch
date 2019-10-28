@@ -108,7 +108,7 @@ public final class CsvTestUtils {
              * If it is, then throw it out. If it isn't then keep it.
              */
             String maybeSeparator = bufferedReader.readLine();
-            if (maybeSeparator != null && false == maybeSeparator.startsWith("----")) {
+            if (maybeSeparator != null && !maybeSeparator.startsWith("----")) {
                 bufferedWriter.write(maybeSeparator);
                 bufferedWriter.newLine();
             }

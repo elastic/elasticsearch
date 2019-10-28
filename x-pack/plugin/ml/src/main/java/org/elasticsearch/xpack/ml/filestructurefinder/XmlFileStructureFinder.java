@@ -74,7 +74,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             }
         }
 
-        if (sample.endsWith("\n") == false) {
+        if (!sample.endsWith("\n")) {
             ++linesConsumed;
         }
 
@@ -194,13 +194,13 @@ public class XmlFileStructureFinder implements FileStructureFinder {
                 if (child.getChildNodes().getLength() == 1) {
                     Node grandChild = child.getChildNodes().item(0);
                     String value = grandChild.getNodeValue().trim();
-                    if (value.isEmpty() == false) {
+                    if (!value.isEmpty()) {
                         nodeAsMap.put(child.getNodeName(), value);
                     }
                 } else {
                     Map<String, Object> childNodeAsMap = new LinkedHashMap<>();
                     addNodeToMap(child, childNodeAsMap);
-                    if (childNodeAsMap.isEmpty() == false) {
+                    if (!childNodeAsMap.isEmpty()) {
                         nodeAsMap.put(child.getNodeName(), childNodeAsMap);
                     }
                 }

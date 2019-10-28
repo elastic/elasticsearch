@@ -150,7 +150,7 @@ public class MockNode extends Node {
 
     @Override
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
-        if (false == getPluginsService().filterPlugins(RecoverySettingsChunkSizePlugin.class).isEmpty()) {
+        if (!getPluginsService().filterPlugins(RecoverySettingsChunkSizePlugin.class).isEmpty()) {
             clusterSettings.addSettingsUpdateConsumer(RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING, recoverySettings::setChunkSize);
         }
     }

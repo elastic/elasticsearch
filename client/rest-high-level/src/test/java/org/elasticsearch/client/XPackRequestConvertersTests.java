@@ -33,7 +33,7 @@ public class XPackRequestConvertersTests extends ESTestCase {
         XPackInfoRequest infoRequest = new XPackInfoRequest();
         Map<String, String> expectedParams = new HashMap<>();
         infoRequest.setVerbose(ESTestCase.randomBoolean());
-        if (false == infoRequest.isVerbose()) {
+        if (!infoRequest.isVerbose()) {
             expectedParams.put("human", "false");
         }
         int option = ESTestCase.between(0, 2);

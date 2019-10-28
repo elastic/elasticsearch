@@ -171,7 +171,7 @@ public class PrecisionAtK implements EvaluationMetric {
                 } else {
                     falsePositives++;
                 }
-            } else if (ignoreUnlabeled == false) {
+            } else if (!ignoreUnlabeled) {
                 falsePositives++;
             }
         }

@@ -97,7 +97,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 validationException = addValidationError("action must be specified", validationException);
             }
             if (params != null) {
-                if (params.getWriteableName().equals(taskName) == false) {
+                if (!params.getWriteableName().equals(taskName)) {
                     validationException = addValidationError("params have to have the same writeable name as task. params: " +
                             params.getWriteableName() + " task: " + taskName, validationException);
                 }

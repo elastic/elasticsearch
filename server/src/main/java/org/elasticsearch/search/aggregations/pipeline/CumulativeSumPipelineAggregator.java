@@ -79,7 +79,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
 
             // Only increment the sum if it's a finite value, otherwise "increment by zero" is correct
-            if (thisBucketValue != null && thisBucketValue.isInfinite() == false && thisBucketValue.isNaN() == false) {
+            if (thisBucketValue != null && !thisBucketValue.isInfinite() && !thisBucketValue.isNaN()) {
                 sum += thisBucketValue;
             }
 

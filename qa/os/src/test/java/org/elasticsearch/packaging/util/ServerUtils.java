@@ -57,7 +57,7 @@ public class ServerUtils {
         final long startTime = System.currentTimeMillis();
         long timeElapsed = 0;
         boolean started = false;
-        while (started == false && timeElapsed < waitTime) {
+        while (!started && timeElapsed < waitTime) {
             try {
 
                 final HttpResponse response = Request.Get("http://localhost:9200/_cluster/health")
@@ -81,7 +81,7 @@ public class ServerUtils {
             timeElapsed = System.currentTimeMillis() - startTime;
         }
 
-        if (started == false) {
+        if (!started) {
             if (installation != null) {
                 FileUtils.logAllLogs(installation.logs, logger);
             }

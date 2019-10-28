@@ -132,7 +132,7 @@ public class Sniffer implements Closeable {
              * cases where future#cancel returns true yet the task runs. We want to make sure that such tasks do nothing otherwise they will
              * schedule another round at the end and so on, leaving us with multiple parallel sniffing "tracks" whish is undesirable.
              */
-            if (taskState.compareAndSet(TaskState.WAITING, TaskState.STARTED) == false) {
+            if (!taskState.compareAndSet(TaskState.WAITING, TaskState.STARTED)) {
                 return;
             }
             try {
@@ -145,7 +145,7 @@ public class Sniffer implements Closeable {
                 //tasks are run by a single threaded executor, so swapping is safe with a simple volatile variable
                 ScheduledTask previousTask = nextScheduledTask;
                 nextScheduledTask = new ScheduledTask(task, future);
-                assert initialized.get() == false ||
+                assert !initialized.get() ||
                         previousTask.task.isSkipped() || previousTask.task.hasStarted() : "task that we are replacing is neither " +
                         "cancelled nor has it ever started";
             }

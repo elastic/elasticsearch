@@ -305,7 +305,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             synchronized (lock) {
                 store = blobStore.get();
                 if (store == null) {
-                    if (lifecycle.started() == false) {
+                    if (!lifecycle.started()) {
                         throw new RepositoryException(metadata.name(), "repository is not in started state");
                     }
                     try {
@@ -482,7 +482,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         for (IndexId indexId : indices) {
             final Set<SnapshotId> survivingSnapshots = oldRepositoryData.getSnapshots(indexId).stream()
-                .filter(id -> id.equals(snapshotId) == false).collect(Collectors.toSet());
+                .filter(id -> !id.equals(snapshotId)).collect(Collectors.toSet());
             executor.execute(ActionRunnable.wrap(deleteIndexMetaDataListener, deleteIdxMetaListener -> {
                 final IndexMetaData indexMetaData;
                 try {
@@ -650,7 +650,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } else {
                         return false;
                     }
-                    return allSnapshotIds.contains(foundUUID) == false;
+                    return !allSnapshotIds.contains(foundUUID);
                 }
                 return false;
             }
@@ -685,7 +685,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
                 final String indexSnId = indexEntry.getKey();
                 try {
-                    if (survivingIndexIds.contains(indexSnId) == false) {
+                    if (!survivingIndexIds.contains(indexSnId)) {
                         logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
                         deleteResult = deleteResult.add(indexEntry.getValue().delete());
                         logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
@@ -886,7 +886,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void endVerification(String seed) {
-        if (isReadOnly() == false) {
+        if (!isReadOnly()) {
             try {
                 final String testPrefix = testBlobPrefix(seed);
                 final BlobContainer container = blobStore().blobContainer(basePath().add(testPrefix));
@@ -936,7 +936,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected void writeIndexGen(final RepositoryData repositoryData, final long expectedGen,
                                  final boolean writeShardGens) throws IOException {
-        assert isReadOnly() == false; // can not write to a read only repository
+        assert !isReadOnly(); // can not write to a read only repository
         final long currentGen = repositoryData.getGenId();
         if (currentGen != expectedGen) {
             // the index file was updated by a concurrent operation, so we were operating on stale
@@ -1015,7 +1015,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private long latestGeneration(Collection<String> rootBlobs) {
         long latest = RepositoryData.EMPTY_REPO_GEN;
         for (String blobName : rootBlobs) {
-            if (blobName.startsWith(INDEX_FILE_PREFIX) == false) {
+            if (!blobName.startsWith(INDEX_FILE_PREFIX)) {
                 continue;
             }
             try {
@@ -1182,7 +1182,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         "Failed to finalize snapshot creation [" + snapshotId + "] with shard index ["
                             + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
                 }
-                if (writeShardGens == false) {
+                if (!writeShardGens) {
                     try {
                         shardContainer.deleteBlobsIgnoringIfNotExists(blobsToDelete);
                     } catch (IOException e) {
@@ -1274,7 +1274,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             }
                             throw ex;
                         } finally {
-                            if (success == false) {
+                            if (!success) {
                                 store.deleteQuiet(fileInfo.physicalName());
                             }
                         }
@@ -1321,7 +1321,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             try (InputStream masterDat = testBlobContainer.readBlob("master.dat")) {
                 final String seedRead = Streams.readFully(masterDat).utf8ToString();
-                if (seedRead.equals(seed) == false) {
+                if (!seedRead.equals(seed)) {
                     throw new RepositoryVerificationException(metadata.name(), "Seed read from master.dat was [" + seedRead +
                         "] but expected seed [" + seed + "]");
                 }
@@ -1378,8 +1378,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void writeShardIndexBlob(BlobContainer shardContainer, String indexGeneration,
                                      BlobStoreIndexShardSnapshots updatedSnapshots) throws IOException {
-        assert ShardGenerations.NEW_SHARD_GEN.equals(indexGeneration) == false;
-        assert ShardGenerations.DELETED_SHARD_GEN.equals(indexGeneration) == false;
+        assert !ShardGenerations.NEW_SHARD_GEN.equals(indexGeneration);
+        assert !ShardGenerations.DELETED_SHARD_GEN.equals(indexGeneration);
         indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
     }
 
@@ -1400,8 +1400,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return blobs.stream().filter(blob ->
             blob.startsWith(SNAPSHOT_INDEX_PREFIX)
                 || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
-                    && survivingSnapshotUUIDs.contains(
-                        blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
+                    && !survivingSnapshotUUIDs.contains(
+                blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())))
                 || (blob.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                 || FsBlobContainer.isTempBlobName(blob)).collect(Collectors.toList());
     }

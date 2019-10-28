@@ -95,18 +95,18 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         for (InternalAggregation aggregation : aggregations) {
             // Unmapped rare terms don't have a cuckoo filter so we'll skip all this work
             // and save some type casting headaches later.
-            if (aggregation.isMapped() == false) {
+            if (!aggregation.isMapped()) {
                 continue;
             }
 
             @SuppressWarnings("unchecked")
             InternalRareTerms<A, B> terms = (InternalRareTerms<A, B>) aggregation;
-            if (referenceTerms == null && aggregation.getClass().equals(UnmappedRareTerms.class) == false) {
+            if (referenceTerms == null && !aggregation.getClass().equals(UnmappedRareTerms.class)) {
                 referenceTerms = terms;
             }
             if (referenceTerms != null &&
-                referenceTerms.getClass().equals(terms.getClass()) == false &&
-                terms.getClass().equals(UnmappedRareTerms.class) == false) {
+                !referenceTerms.getClass().equals(terms.getClass()) &&
+                !terms.getClass().equals(UnmappedRareTerms.class)) {
                 // control gets into this loop when the same field name against which the query is executed
                 // is of different types in different indices.
                 throw new AggregationExecutionException("Merging/Reducing the aggregations failed when computing the aggregation ["
@@ -129,7 +129,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         final List<B> rare = new ArrayList<>();
         for (List<B> sameTermBuckets : buckets.values()) {
             final B b = reduceBucket(sameTermBuckets, reduceContext);
-            if ((b.getDocCount() <= maxDocCount && containsTerm(filter, b) == false)) {
+            if ((b.getDocCount() <= maxDocCount && !containsTerm(filter, b))) {
                 rare.add(b);
                 reduceContext.consumeBucketsAndMaybeBreak(1);
             } else if (b.getDocCount() > maxDocCount) {
@@ -163,7 +163,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         InternalMappedRareTerms<?,?> that = (InternalMappedRareTerms<?,?>) obj;
         return Objects.equals(buckets, that.buckets)
             && Objects.equals(format, that.format)

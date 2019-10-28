@@ -134,10 +134,10 @@ public final class FileSystemUtils {
     @SuppressForbidden(reason = "Will only open url streams for local files")
     public static InputStream openFileURLStream(URL url) throws IOException {
         String protocol = url.getProtocol();
-        if ("file".equals(protocol) == false && "jar".equals(protocol) == false) {
+        if (!"file".equals(protocol) && !"jar".equals(protocol)) {
             throw new IllegalArgumentException("Invalid protocol [" + protocol + "], must be [file] or [jar]");
         }
-        if (Strings.isEmpty(url.getHost()) == false) {
+        if (!Strings.isEmpty(url.getHost())) {
             throw new IllegalArgumentException("URL cannot have host. Found: [" + url.getHost() + ']');
         }
         if (url.getPort() != -1) {

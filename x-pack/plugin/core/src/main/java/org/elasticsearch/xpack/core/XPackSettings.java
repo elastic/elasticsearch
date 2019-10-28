@@ -169,7 +169,7 @@ public class XPackSettings {
      */
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), v -> {
-        if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+        if (!Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
                 Hasher.getAvailableAlgoStoredHash().toString());
         } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {

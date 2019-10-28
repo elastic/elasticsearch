@@ -373,7 +373,7 @@ public class ShardStateActionTests extends ESTestCase {
         Phaser barrier = new Phaser(clientThreads.length + 2); // one for master thread, one for the main thread
         Thread masterThread = new Thread(() -> {
             barrier.arriveAndAwaitAdvance();
-            while (shutdown.get() == false) {
+            while (!shutdown.get()) {
                 for (CapturingTransport.CapturedRequest request : transport.getCapturedRequestsAndClear()) {
                     if (randomBoolean()) {
                         transport.handleResponse(request.requestId, TransportResponse.Empty.INSTANCE);

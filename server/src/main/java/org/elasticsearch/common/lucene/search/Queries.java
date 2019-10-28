@@ -95,7 +95,7 @@ public class Queries {
             return false;
         }
         List<BooleanClause> clauses = ((BooleanQuery) q).clauses();
-        return clauses.isEmpty() == false &&
+        return !clauses.isEmpty() &&
                 clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 

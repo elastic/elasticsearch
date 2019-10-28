@@ -91,12 +91,12 @@ public abstract class TaskBatcher {
     private void onTimeoutInternal(List<? extends BatchedTask> tasks, TimeValue timeout) {
         final ArrayList<BatchedTask> toRemove = new ArrayList<>();
         for (BatchedTask task : tasks) {
-            if (task.processed.getAndSet(true) == false) {
+            if (!task.processed.getAndSet(true)) {
                 logger.debug("task [{}] timed out after [{}]", task.source, timeout);
                 toRemove.add(task);
             }
         }
-        if (toRemove.isEmpty() == false) {
+        if (!toRemove.isEmpty()) {
             BatchedTask firstTask = toRemove.get(0);
             Object batchingKey = firstTask.batchingKey;
             assert tasks.stream().allMatch(t -> t.batchingKey == batchingKey) :
@@ -123,14 +123,14 @@ public abstract class TaskBatcher {
     void runIfNotProcessed(BatchedTask updateTask) {
         // if this task is already processed, it shouldn't execute other tasks with same batching key that arrived later,
         // to give other tasks with different batching key a chance to execute.
-        if (updateTask.processed.get() == false) {
+        if (!updateTask.processed.get()) {
             final List<BatchedTask> toExecute = new ArrayList<>();
             final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
             synchronized (tasksPerBatchingKey) {
                 LinkedHashSet<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
                 if (pending != null) {
                     for (BatchedTask task : pending) {
-                        if (task.processed.getAndSet(true) == false) {
+                        if (!task.processed.getAndSet(true)) {
                             logger.trace("will process {}", task);
                             toExecute.add(task);
                             processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task);
@@ -141,7 +141,7 @@ public abstract class TaskBatcher {
                 }
             }
 
-            if (toExecute.isEmpty() == false) {
+            if (!toExecute.isEmpty()) {
                 final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
                     String tasks = updateTask.describeTasks(entry.getValue());
                     return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";

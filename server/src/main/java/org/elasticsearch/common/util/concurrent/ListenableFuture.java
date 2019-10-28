@@ -125,7 +125,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     @Override
     public void onResponse(V v) {
         final boolean set = set(v);
-        if (set == false) {
+        if (!set) {
             throw new IllegalStateException("did not set value, value or exception already set?");
         }
     }
@@ -133,7 +133,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     @Override
     public void onFailure(Exception e) {
         final boolean set = setException(e);
-        if (set == false) {
+        if (!set) {
             throw new IllegalStateException("did not set exception, value already set or exception already set?");
         }
     }

@@ -82,10 +82,10 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (targetIndexRequest == null) {
             validationException = addValidationError("target index request is missing", validationException);
         }
-        if (targetIndexRequest.settings().getByPrefix("index.sort.").isEmpty() == false) {
+        if (!targetIndexRequest.settings().getByPrefix("index.sort.").isEmpty()) {
             validationException = addValidationError("can't override index sort when resizing an index", validationException);
         }
-        if (type == ResizeType.SPLIT && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
+        if (type == ResizeType.SPLIT && !IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings())) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
         }
         assert copySettings == null || copySettings;
@@ -178,7 +178,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     }
 
     public void setCopySettings(final Boolean copySettings) {
-        if (copySettings != null && copySettings == false) {
+        if (copySettings != null && !copySettings) {
             throw new IllegalArgumentException("[copySettings] can not be explicitly set to [false]");
         }
         this.copySettings = copySettings;

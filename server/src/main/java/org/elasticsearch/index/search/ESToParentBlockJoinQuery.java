@@ -96,7 +96,7 @@ public final class ESToParentBlockJoinQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (sameClassAs(obj) == false) {
+        if (!sameClassAs(obj)) {
             return false;
         }
         ESToParentBlockJoinQuery that = (ESToParentBlockJoinQuery) obj;

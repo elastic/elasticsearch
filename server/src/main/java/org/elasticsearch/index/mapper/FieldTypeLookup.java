@@ -84,7 +84,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             MappedFieldType fieldType = fieldMapper.fieldType();
             MappedFieldType fullNameFieldType = fullName.get(fieldType.name());
 
-            if (Objects.equals(fieldType, fullNameFieldType) == false) {
+            if (!Objects.equals(fieldType, fullNameFieldType)) {
                 fullName = fullName.copyAndPut(fieldType.name(), fieldType);
             }
 
@@ -99,7 +99,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             String path = fieldAliasMapper.path();
 
             String existingPath = aliases.get(aliasName);
-            if (Objects.equals(path, existingPath) == false) {
+            if (!Objects.equals(path, existingPath)) {
                 aliases = aliases.copyAndPut(aliasName, path);
             }
         }

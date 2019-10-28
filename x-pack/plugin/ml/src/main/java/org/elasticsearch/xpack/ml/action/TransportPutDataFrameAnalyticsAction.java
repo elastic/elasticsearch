@@ -203,7 +203,7 @@ public class TransportPutDataFrameAnalyticsAction
     }
 
     private void validateConfig(DataFrameAnalyticsConfig config) {
-        if (MlStrings.isValidId(config.getId()) == false) {
+        if (!MlStrings.isValidId(config.getId())) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, DataFrameAnalyticsConfig.ID,
                 config.getId()));
         }

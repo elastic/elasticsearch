@@ -469,7 +469,7 @@ public class StoreTests extends ESTestCase {
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
             if (!IndexWriter.WRITE_LOCK_NAME.equals(file) &&
-                    !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && file.startsWith("extra") == false) {
+                    !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && !file.startsWith("extra")) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " +
                     store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
@@ -687,7 +687,7 @@ public class StoreTests extends ESTestCase {
                     continue;
                 }
                 assertTrue(firstMeta.contains(file) || file.equals("write.lock"));
-                if (secondMeta.contains(file) == false) {
+                if (!secondMeta.contains(file)) {
                     numNotFound++;
                 }
 
@@ -702,7 +702,7 @@ public class StoreTests extends ESTestCase {
                     continue;
                 }
                 assertTrue(file, secondMeta.contains(file) || file.equals("write.lock"));
-                if (firstMeta.contains(file) == false) {
+                if (!firstMeta.contains(file)) {
                     numNotFound++;
                 }
 
@@ -788,7 +788,7 @@ public class StoreTests extends ESTestCase {
     public int numNonExtraFiles(Store store) throws IOException {
         int numNonExtra = 0;
         for (String file : store.directory().listAll()) {
-            if (file.startsWith("extra") == false) {
+            if (!file.startsWith("extra")) {
                 numNonExtra++;
             }
         }

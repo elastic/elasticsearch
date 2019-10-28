@@ -181,7 +181,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         static final Setting<String> BROKEN_SETTING = new Setting<>("setting.broken", "default", s->s,
                 s-> {
-                    if ((s.equals("default") == false && breakSetting)) {
+                    if ((!s.equals("default") && breakSetting)) {
                         throw EXCEPTION;
                     }
                 },

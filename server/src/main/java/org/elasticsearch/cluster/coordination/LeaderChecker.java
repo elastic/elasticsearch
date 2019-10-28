@@ -121,7 +121,7 @@ public class LeaderChecker {
      * @param leader the node to be checked as leader, or null if checks should be disabled
      */
     void updateLeader(@Nullable final DiscoveryNode leader) {
-        assert transportService.getLocalNode().equals(leader) == false;
+        assert !transportService.getLocalNode().equals(leader);
         final CheckScheduler checkScheduler;
         if (leader != null) {
             checkScheduler = new CheckScheduler(leader);
@@ -155,11 +155,11 @@ public class LeaderChecker {
         final DiscoveryNodes discoveryNodes = this.discoveryNodes;
         assert discoveryNodes != null;
 
-        if (discoveryNodes.isLocalNodeElectedMaster() == false) {
+        if (!discoveryNodes.isLocalNodeElectedMaster()) {
             logger.debug("rejecting leader check on non-master {}", request);
             throw new CoordinationStateRejectedException(
                 "rejecting leader check from [" + request.getSender() + "] sent to a node that is no longer the master");
-        } else if (discoveryNodes.nodeExists(request.getSender()) == false) {
+        } else if (!discoveryNodes.nodeExists(request.getSender())) {
             logger.debug("rejecting leader check from removed node: {}", request);
             throw new CoordinationStateRejectedException(
                 "rejecting leader check since [" + request.getSender() + "] has been removed from the cluster");
@@ -189,7 +189,7 @@ public class LeaderChecker {
 
         @Override
         public void close() {
-            if (isClosed.compareAndSet(false, true) == false) {
+            if (!isClosed.compareAndSet(false, true)) {
                 logger.trace("already closed, doing nothing");
             } else {
                 logger.debug("closed");

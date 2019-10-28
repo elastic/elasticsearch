@@ -78,7 +78,7 @@ public class Case extends ConditionalFunction {
     protected TypeResolution resolveType() {
         DataType expectedResultDataType = null;
         for (IfConditional ifConditional : conditions) {
-            if (DataTypes.isNull(ifConditional.result().dataType()) == false) {
+            if (!DataTypes.isNull(ifConditional.result().dataType())) {
                 expectedResultDataType = ifConditional.result().dataType();
                 break;
             }
@@ -94,7 +94,7 @@ public class Case extends ConditionalFunction {
                     Expressions.name(conditional.condition()),
                     conditional.condition().dataType().typeName));
             }
-            if (DataTypes.areTypesCompatible(expectedResultDataType, conditional.dataType()) == false) {
+            if (!DataTypes.areTypesCompatible(expectedResultDataType, conditional.dataType())) {
                 return new TypeResolution(format(null, "result of [{}] must be [{}], found value [{}] type [{}]",
                     conditional.sourceText(),
                     expectedResultDataType.typeName,
@@ -103,7 +103,7 @@ public class Case extends ConditionalFunction {
             }
         }
 
-        if (DataTypes.areTypesCompatible(expectedResultDataType, elseResult.dataType()) == false) {
+        if (!DataTypes.areTypesCompatible(expectedResultDataType, elseResult.dataType())) {
             return new TypeResolution(format(null, "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
                 elseResult.sourceText(),
                 expectedResultDataType.typeName,
@@ -126,7 +126,7 @@ public class Case extends ConditionalFunction {
 
     @Override
     public Object fold() {
-        if (conditions.isEmpty() == false && conditions.get(0).condition().fold() == Boolean.TRUE) {
+        if (!conditions.isEmpty() && conditions.get(0).condition().fold() == Boolean.TRUE) {
             return conditions.get(0).result().fold();
         }
         return elseResult.fold();

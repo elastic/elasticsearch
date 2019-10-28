@@ -308,7 +308,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         try {
             super.testMustRewrite();
         } catch (UnsupportedOperationException e) {
-            if (requiresRewrite == false) {
+            if (!requiresRewrite) {
                 throw e;
             }
         }

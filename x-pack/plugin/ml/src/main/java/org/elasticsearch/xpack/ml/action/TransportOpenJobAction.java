@@ -145,11 +145,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         for (String index : indices) {
             // Indices are created on demand from templates.
             // It is not an error if the index doesn't exist yet
-            if (clusterState.metaData().hasIndex(index) == false) {
+            if (!clusterState.metaData().hasIndex(index)) {
                 continue;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
                 unavailableIndices.add(index);
             }
         }
@@ -169,13 +169,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         String jobId = job.getId();
 
-        if (TransportOpenJobAction.nodeSupportsModelSnapshotVersion(node, job) == false) {
+        if (!TransportOpenJobAction.nodeSupportsModelSnapshotVersion(node, job)) {
             return "Not opening job [" + jobId + "] on node [" + JobNodeSelector.nodeNameAndVersion(node)
                 + "], because the job's model snapshot requires a node of version ["
                 + job.getModelSnapshotMinVersion() + "] or higher";
         }
 
-        if (Job.getCompatibleJobTypes(node.getVersion()).contains(job.getJobType()) == false) {
+        if (!Job.getCompatibleJobTypes(node.getVersion()).contains(job.getJobType())) {
             return "Not opening job [" + jobId + "] on node [" + JobNodeSelector.nodeNameAndVersion(node) +
                 "], because this node does not support jobs of type [" + job.getJobType() + "]";
         }
@@ -397,7 +397,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }
 
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-            if (isMemoryTrackerRecentlyRefreshed == false) {
+            if (!isMemoryTrackerRecentlyRefreshed) {
                 boolean scheduledRefresh = memoryTracker.asyncRefresh();
                 if (scheduledRefresh) {
                     String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
@@ -424,7 +424,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 throw makeCurrentlyBeingUpgradedException(logger, params.getJobId(), assignment.getExplanation());
             }
 
-            if (assignment.getExecutorNode() == null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT) == false) {
+            if (assignment.getExecutorNode() == null && !assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
                 throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
             }
         }
@@ -546,8 +546,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 // This logic is only appropriate when opening a job, not when reallocating following a failure,
                 // and this is why this class must only be used when opening a job
-                if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                        assignment.isAssigned() == false) {
+                if (assignment != null && !assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) &&
+                    !assignment.isAssigned()) {
                     OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
                     // Assignment has failed on the master node despite passing our "fast fail" validation
                     exception = makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());

@@ -1726,7 +1726,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         List<Comparable<T>> seen = new ArrayList<>();
         AtomicBoolean finish = new AtomicBoolean(false);
         int size = randomIntBetween(1,  expected.size());
-        while (finish.get() == false) {
+        while (!finish.get()) {
             testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery(field)), dataset,
                 () -> {
                     Map<String, Object> afterKey = null;

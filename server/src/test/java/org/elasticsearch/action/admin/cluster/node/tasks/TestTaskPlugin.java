@@ -308,7 +308,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                         if (((CancellableTask) task).isCancelled()) {
                             throw new RuntimeException("Cancelled!");
                         }
-                        return ((TestTask) task).isBlocked() == false;
+                        return !((TestTask) task).isBlocked();
                     });
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
@@ -474,7 +474,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         private boolean shouldHaveOrigin(String action, TransportRequest request) {
-            if (false == action.startsWith("indices:")) {
+            if (!action.startsWith("indices:")) {
                 /*
                  * The Tasks API never uses origin with non-indices actions.
                  */
@@ -488,7 +488,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                  */
                 return false;
             }
-            if (false == (request instanceof IndicesRequest)) {
+            if (!(request instanceof IndicesRequest)) {
                 return false;
             }
             IndicesRequest ir = (IndicesRequest) request;

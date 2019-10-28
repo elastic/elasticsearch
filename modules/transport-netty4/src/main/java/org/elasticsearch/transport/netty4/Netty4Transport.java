@@ -138,7 +138,7 @@ public class Netty4Transport extends TcpTransport {
             super.doStart();
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 doStop();
             }
         }
@@ -309,7 +309,7 @@ public class Netty4Transport extends TcpTransport {
         Releasables.close(() -> {
             Future<?> shutdownFuture = eventLoopGroup.shutdownGracefully(0, 5, TimeUnit.SECONDS);
             shutdownFuture.awaitUninterruptibly();
-            if (shutdownFuture.isSuccess() == false) {
+            if (!shutdownFuture.isSuccess()) {
                 logger.warn("Error closing netty event loop group", shutdownFuture.cause());
             }
 
@@ -363,7 +363,7 @@ public class Netty4Transport extends TcpTransport {
 
     private void addClosedExceptionLogger(Channel channel) {
         channel.closeFuture().addListener(f -> {
-            if (f.isSuccess() == false) {
+            if (!f.isSuccess()) {
                 logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), f.cause());
             }
         });

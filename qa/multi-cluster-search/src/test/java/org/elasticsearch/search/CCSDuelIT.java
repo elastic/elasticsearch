@@ -754,7 +754,7 @@ public class CCSDuelIT extends ESRestTestCase {
             assertEquals(1, fanOutSearchResponse.getNumReducePhases());
             Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
             Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-            if (minimizeRoundtripsResponseMap.equals(fanOutResponseMap) == false) {
+            if (!minimizeRoundtripsResponseMap.equals(fanOutResponseMap)) {
                 NotEqualMessageBuilder message = new NotEqualMessageBuilder();
                 message.compareMaps(minimizeRoundtripsResponseMap, fanOutResponseMap);
                 throw new AssertionError("Didn't match expected value:\n" + message);

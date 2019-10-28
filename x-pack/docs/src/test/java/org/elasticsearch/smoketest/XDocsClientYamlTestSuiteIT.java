@@ -132,7 +132,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         for (String user: users.keySet()) {
             Map<?, ?> metaDataMap = (Map<?, ?>) ((Map<?, ?>) users.get(user)).get("metadata");
             Boolean reserved = metaDataMap == null ? null : (Boolean) metaDataMap.get("_reserved");
-            if (reserved == null || reserved == false) {
+            if (reserved == null || !reserved) {
                 logger.warn("Deleting leftover user {}", user);
                 getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
             }

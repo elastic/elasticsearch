@@ -44,7 +44,7 @@ public class Vectors extends Plugin implements MapperPlugin, ActionPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        if (enabled == false) {
+        if (!enabled) {
             return emptyMap();
         }
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();

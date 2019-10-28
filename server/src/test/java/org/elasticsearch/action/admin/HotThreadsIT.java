@@ -131,7 +131,7 @@ public class HotThreadsIT extends ESIntegTestCase {
     }
 
     public void testIgnoreIdleThreads() throws ExecutionException, InterruptedException {
-        assumeTrue("no support for hot_threads on FreeBSD", Constants.FREE_BSD == false);
+        assumeTrue("no support for hot_threads on FreeBSD", !Constants.FREE_BSD);
 
         // First time, don't ignore idle threads:
         NodesHotThreadsRequestBuilder builder = client().admin().cluster().prepareNodesHotThreads();

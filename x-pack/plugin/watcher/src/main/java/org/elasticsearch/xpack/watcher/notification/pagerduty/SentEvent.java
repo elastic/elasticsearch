@@ -80,7 +80,7 @@ public class SentEvent implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(XField.EVENT.getPreferredName(), event, params);
-        if (successful() == false) {
+        if (!successful()) {
             builder.field(XField.REASON.getPreferredName(), failureReason);
             if (request != null) {
                 // this excludes the whole body, even though we should only exclude a small field inside of the body

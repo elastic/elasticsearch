@@ -111,7 +111,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             success = true;
             return metaData;
         } finally {
-            if (success == false) {
+            if (!success) {
                 onGoingRestores.remove(sessionUUID);
                 if (restore != null) {
                     restore.decRef();
@@ -237,7 +237,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         @Override
         protected void closeInternal() {
             logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
-            assert keyedLock.hasLockedKeys() == false : "Should not hold any file locks when closing";
+            assert !keyedLock.hasLockedKeys() : "Should not hold any file locks when closing";
             timeoutTask.cancel();
             IOUtils.closeWhileHandlingException(cachedInputs.values());
             IOUtils.closeWhileHandlingException(commitRef);

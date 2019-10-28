@@ -60,7 +60,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
         Map<String, List<String>> headers = response.headers();
         Map<String, Object> payloadMap = new HashMap<>();
         payloadMap.put("_status_code", response.status());
-        if (headers.isEmpty() == false) {
+        if (!headers.isEmpty()) {
             payloadMap.put("_headers", headers);
         }
 

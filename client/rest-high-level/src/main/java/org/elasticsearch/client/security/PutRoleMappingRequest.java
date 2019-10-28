@@ -55,7 +55,7 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
     public PutRoleMappingRequest(final String name, final boolean enabled, final List<String> roles, final List<TemplateRoleName> templates,
                                  final RoleMapperExpression rules, @Nullable final Map<String, Object> metadata,
                                  @Nullable final RefreshPolicy refreshPolicy) {
-        if (Strings.hasText(name) == false) {
+        if (!Strings.hasText(name)) {
             throw new IllegalArgumentException("role-mapping name is missing");
         }
         this.name = name;
@@ -65,7 +65,7 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
         if (this.roles.isEmpty() && this.roleTemplates.isEmpty()) {
             throw new IllegalArgumentException("in a role-mapping, one of roles or role_templates is required");
         }
-        if (this.roles.isEmpty() == false && this.roleTemplates.isEmpty() == false) {
+        if (!this.roles.isEmpty() && !this.roleTemplates.isEmpty()) {
             throw new IllegalArgumentException("in a role-mapping, cannot specify both roles and role_templates");
         }
         this.rules = Objects.requireNonNull(rules, "role-mapping rules are missing");

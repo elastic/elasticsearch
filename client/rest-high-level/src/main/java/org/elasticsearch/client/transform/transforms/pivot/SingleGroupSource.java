@@ -57,7 +57,7 @@ public abstract class SingleGroupSource implements ToXContentObject {
             return true;
         }
 
-        if (other instanceof SingleGroupSource == false) {
+        if (!(other instanceof SingleGroupSource)) {
             return false;
         }
 

@@ -56,7 +56,7 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
         if (nameIdSettings != null) {
             request.setNameIDPolicy(buildNameIDPolicy());
         }
-        if (super.serviceProvider.getReqAuthnCtxClassRef().isEmpty() == false) {
+        if (!super.serviceProvider.getReqAuthnCtxClassRef().isEmpty()) {
             request.setRequestedAuthnContext(buildRequestedAuthnContext());
         }
         request.setForceAuthn(forceAuthn);

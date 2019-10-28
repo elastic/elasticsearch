@@ -275,7 +275,7 @@ public class PublicationTransportHandler {
         for (DiscoveryNode node : discoveryNodes) {
             try {
                 if (sendFullVersion || !previousState.nodes().nodeExists(node)) {
-                    if (serializedStates.containsKey(node.getVersion()) == false) {
+                    if (!serializedStates.containsKey(node.getVersion())) {
                         serializedStates.put(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));
                     }
                 } else {
@@ -283,7 +283,7 @@ public class PublicationTransportHandler {
                     if (diff == null) {
                         diff = clusterState.diff(previousState);
                     }
-                    if (serializedDiffs.containsKey(node.getVersion()) == false) {
+                    if (!serializedDiffs.containsKey(node.getVersion())) {
                         serializedDiffs.put(node.getVersion(), serializeDiffClusterState(diff, node.getVersion()));
                     }
                 }
@@ -396,7 +396,7 @@ public class PublicationTransportHandler {
         // if the state is coming from the current node, use original request instead (see currentPublishRequestToSelf for explanation)
         if (transportService.getLocalNode().equals(incomingState.nodes().getMasterNode())) {
             final PublishRequest publishRequest = currentPublishRequestToSelf.get();
-            if (publishRequest == null || publishRequest.getAcceptedState().stateUUID().equals(incomingState.stateUUID()) == false) {
+            if (publishRequest == null || !publishRequest.getAcceptedState().stateUUID().equals(incomingState.stateUUID())) {
                 throw new IllegalStateException("publication to self failed for " + publishRequest);
             } else {
                 return handlePublishRequest.apply(publishRequest);

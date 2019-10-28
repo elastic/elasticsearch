@@ -110,7 +110,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.setNestedSort(nestedSort);
         }
         if (randomBoolean()) {
-            result.ignoreUnmapped(result.ignoreUnmapped() == false);
+            result.ignoreUnmapped(!result.ignoreUnmapped());
         }
         return result;
     }
@@ -178,7 +178,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
             break;
         case 8:
-            result.ignoreUnmapped(result.ignoreUnmapped() == false);
+            result.ignoreUnmapped(!result.ignoreUnmapped());
             break;
         }
         return result;

@@ -225,7 +225,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             }
         }
 
-        assert rows.isEmpty() == false;
+        assert !rows.isEmpty();
         assert lineNumbers.size() == rows.size();
 
         if (rows.get(0).size() != rows.get(rows.size() - 1).size()) {
@@ -242,7 +242,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     static Tuple<Boolean, String[]> findHeaderFromSample(List<String> explanation, List<List<String>> rows,
                                                          FileStructureOverrides overrides) {
 
-        assert rows.isEmpty() == false;
+        assert !rows.isEmpty();
 
         List<String> overriddenColumnNames = overrides.getColumnNames();
         List<String> firstRow = rows.get(0);
@@ -288,7 +288,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         HashSet<String> values = new HashSet<>();
 
         for (String value : row) {
-            if (value != null && value.isEmpty() == false && values.add(value) == false) {
+            if (value != null && !value.isEmpty() && !values.add(value)) {
                 return value;
             }
         }
@@ -372,7 +372,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
      */
     static BitSet makeShortFieldMask(List<List<String>> rows, int longFieldThreshold) {
 
-        assert rows.isEmpty() == false;
+        assert !rows.isEmpty();
 
         BitSet shortFieldMask = new BitSet();
 
@@ -577,6 +577,6 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     }
 
     private static boolean notUnexpectedEndOfFile(SuperCsvException e) {
-        return e.getMessage().startsWith("unexpected end of file while reading quoted column") == false;
+        return !e.getMessage().startsWith("unexpected end of file while reading quoted column");
     }
 }

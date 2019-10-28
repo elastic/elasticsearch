@@ -151,10 +151,10 @@ public class HttpRequest implements ToXContentObject {
         if (path != null) {
             builder.field(Field.PATH.getPreferredName(), path);
         }
-        if (this.params.isEmpty() == false) {
+        if (!this.params.isEmpty()) {
             builder.field(Field.PARAMS.getPreferredName(), this.params);
         }
-        if (headers.isEmpty() == false) {
+        if (!headers.isEmpty()) {
             if (WatcherParams.hideSecrets(toXContentParams)) {
                 builder.field(Field.HEADERS.getPreferredName(), sanitizeHeaders(headers));
             } else {
@@ -184,7 +184,7 @@ public class HttpRequest implements ToXContentObject {
     }
 
     private Map<String, String> sanitizeHeaders(Map<String, String> headers) {
-        if (headers.containsKey("Authorization") == false) {
+        if (!headers.containsKey("Authorization")) {
             return headers;
         }
         Map<String, String> sanitizedHeaders = new HashMap<>(headers);
@@ -451,13 +451,13 @@ public class HttpRequest implements ToXContentObject {
         }
 
         public Builder fromUrl(String supposedUrl) {
-            if (Strings.hasLength(supposedUrl) == false) {
+            if (!Strings.hasLength(supposedUrl)) {
                 throw new ElasticsearchParseException("Configured URL is empty, please configure a valid URL");
             }
 
             try {
                 URI uri = new URI(supposedUrl);
-                if (Strings.hasLength(uri.getScheme()) == false) {
+                if (!Strings.hasLength(uri.getScheme())) {
                     throw new ElasticsearchParseException("URL [{}] does not contain a scheme", uri);
                 }
                 scheme = Scheme.parse(uri.getScheme());

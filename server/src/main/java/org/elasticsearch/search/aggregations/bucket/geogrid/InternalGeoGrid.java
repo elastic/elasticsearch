@@ -99,7 +99,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
             }
         }
 
-        final int size = Math.toIntExact(reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size()));
+        final int size = Math.toIntExact(!reduceContext.isFinalReduce() ? buckets.size() : Math.min(requiredSize, buckets.size()));
         BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
         for (LongObjectPagedHashMap.Cursor<List<InternalGeoGridBucket>> cursor : buckets) {
             List<InternalGeoGridBucket> sameCellBuckets = cursor.value;
@@ -157,7 +157,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalGeoGrid other = (InternalGeoGrid) obj;
         return Objects.equals(requiredSize, other.requiredSize)

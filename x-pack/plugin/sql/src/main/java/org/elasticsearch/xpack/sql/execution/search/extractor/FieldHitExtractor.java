@@ -133,7 +133,7 @@ public class FieldHitExtractor implements HitExtractor {
             // if the field was ignored because it was malformed and ignore_malformed was turned on
             if (fullFieldName != null
                     && hit.getFields().containsKey(IgnoredFieldMapper.NAME)
-                    && dataType.isFromDocValuesOnly() == false
+                    && !dataType.isFromDocValuesOnly()
                     && dataType.isNumeric()) {
                 /*
                  * ignore_malformed makes sense for extraction from _source for numeric fields only.
@@ -166,7 +166,7 @@ public class FieldHitExtractor implements HitExtractor {
                 return null;
             } else {
                 // let's make sure first that we are not dealing with an geo_point represented as an array
-                if (isGeoPointArray(list) == false) {
+                if (!isGeoPointArray(list)) {
                     if (list.size() == 1 || arrayLeniency) {
                         return unwrapMultiValue(list.get(0));
                     } else {
@@ -212,7 +212,7 @@ public class FieldHitExtractor implements HitExtractor {
             if (dataType == null) {
                 return values;
             }
-            if (dataType.isNumeric() && dataType.isFromDocValuesOnly() == false) {
+            if (dataType.isNumeric() && !dataType.isFromDocValuesOnly()) {
                 if (dataType == DataType.DOUBLE || dataType == DataType.FLOAT || dataType == DataType.HALF_FLOAT) {
                     Number result = null;
                     try {

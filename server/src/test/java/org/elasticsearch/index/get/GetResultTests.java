@@ -142,7 +142,7 @@ public class GetResultTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
         GetResult getResult = tuple.v1();
-        if (getResult.isExists() && getResult.isSourceEmpty() == false) {
+        if (getResult.isExists() && !getResult.isSourceEmpty()) {
             assertNotNull(getResult.sourceRef());
         } else {
             assertNull(getResult.sourceRef());
@@ -173,7 +173,7 @@ public class GetResultTests extends ESTestCase {
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getId(),
             getResult.isExists() ? UNASSIGNED_SEQ_NO : getResult.getSeqNo(),
             getResult.isExists() ? 0 : getResult.getPrimaryTerm(),
-            getResult.getVersion(), getResult.isExists() == false, getResult.internalSourceRef(), getResult.getFields(), null));
+            getResult.getVersion(), !getResult.isExists(), getResult.internalSourceRef(), getResult.getFields(), null));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getId(),
             getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), getResult.isExists(),
             RandomObjects.randomSource(random()), getResult.getFields(), null));

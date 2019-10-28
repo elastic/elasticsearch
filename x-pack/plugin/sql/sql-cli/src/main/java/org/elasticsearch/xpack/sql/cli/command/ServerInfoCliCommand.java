@@ -18,7 +18,7 @@ public class ServerInfoCliCommand extends AbstractServerCliCommand {
 
     @Override
     public boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
-        if (false == "info".equals(line.toLowerCase(Locale.ROOT))) {
+        if (!"info".equals(line.toLowerCase(Locale.ROOT))) {
             return false;
         }
         MainResponse info;

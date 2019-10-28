@@ -100,7 +100,7 @@ public class TransportInfo implements Writeable, ToXContentFragment {
     private String formatPublishAddressString(String propertyName, TransportAddress publishAddress) {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
-        if (InetAddresses.isInetAddress(hostString) == false) {
+        if (!InetAddresses.isInetAddress(hostString)) {
             publishAddressString = hostString + '/' + publishAddress.toString();
             if (cnameInPublishAddressProperty) {
                 deprecationLogger.deprecated(

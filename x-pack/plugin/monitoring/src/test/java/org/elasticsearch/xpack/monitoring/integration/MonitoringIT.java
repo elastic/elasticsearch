@@ -432,7 +432,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         assertThat("Monitoring feature set does not exist", monitoringUsage.isPresent(), is(true));
 
-        return monitoringUsage.get().getExporters().isEmpty() == false;
+        return !monitoringUsage.get().getExporters().isEmpty();
     }
 
     /**

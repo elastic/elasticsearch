@@ -208,7 +208,7 @@ public class GetIndexResponse {
                 aliases.put(indexName, Collections.unmodifiableList(indexEntry.indexAliases));
                 mappings.put(indexName, indexEntry.indexMappings);
                 settings.put(indexName, indexEntry.indexSettings);
-                if (indexEntry.indexDefaultSettings.isEmpty() == false) {
+                if (!indexEntry.indexDefaultSettings.isEmpty()) {
                     defaultSettings.put(indexName, indexEntry.indexDefaultSettings);
                 }
             } else if (parser.currentToken() == Token.START_ARRAY) {

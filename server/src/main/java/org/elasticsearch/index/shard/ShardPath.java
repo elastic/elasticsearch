@@ -136,7 +136,7 @@ public final class ShardPath {
             // EMPTY is safe here because we never call namedObject
             ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
             if (load != null) {
-                if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
+                if (!load.indexUUID.equals(indexUUID) && !IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID)) {
                     logger.warn("{} found shard on path: [{}] with a different index UUID - this "
                         + "shard seems to be leftover from a different index with the same name. "
                         + "Remove the leftover shard in order to reuse the path with the current index", shardId, path);
@@ -178,7 +178,7 @@ public final class ShardPath {
             // EMPTY is safe here because we never call namedObject
             ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
             if (load != null) {
-                if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
+                if (!load.indexUUID.equals(indexUUID) && !IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID)) {
                     logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
                     assert Files.isDirectory(path) : path + " is not a directory";
                     NodeEnvironment.acquireFSLockForPaths(indexSettings, paths);
@@ -284,10 +284,10 @@ public final class ShardPath {
             return false;
         }
         final ShardPath shardPath = (ShardPath) o;
-        if (Objects.equals(shardId, shardPath.shardId) == false) {
+        if (!Objects.equals(shardId, shardPath.shardId)) {
             return false;
         }
-        if (Objects.equals(path, shardPath.path) == false) {
+        if (!Objects.equals(path, shardPath.path)) {
             return false;
         }
 

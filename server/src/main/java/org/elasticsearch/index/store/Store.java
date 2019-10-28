@@ -314,9 +314,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             String left = o1.getValue();
             String right = o2.getValue();
             if (left.startsWith(IndexFileNames.SEGMENTS) || right.startsWith(IndexFileNames.SEGMENTS)) {
-                if (left.startsWith(IndexFileNames.SEGMENTS) == false) {
+                if (!left.startsWith(IndexFileNames.SEGMENTS)) {
                     return -1;
-                } else if (right.startsWith(IndexFileNames.SEGMENTS) == false) {
+                } else if (!right.startsWith(IndexFileNames.SEGMENTS)) {
                     return 1;
                 }
             }
@@ -489,7 +489,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             output = new LuceneVerifyingIndexOutput(metadata, output);
             success = true;
         } finally {
-            if (success == false) {
+            if (!success) {
                 IOUtils.closeWhileHandlingException(output);
             }
         }
@@ -623,7 +623,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
             }
         }
-        if (ex.isEmpty() == false) {
+        if (!ex.isEmpty()) {
             ExceptionsHelper.rethrowAndSuppress(ex);
         }
     }
@@ -685,7 +685,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // come out as different in the diff. That's why we have to double check here again if the rest of it matches.
 
                     // all is fine this file is just part of a commit or a segment that is different
-                    if (local.isSame(remote) == false) {
+                    if (!local.isSame(remote)) {
                         logger.debug("Files are different on the recovery target: {} ", recoveryDiff);
                         throw new IllegalStateException("local version: " + local + " is different from remote version after recovery: " +
                             remote, null);
@@ -1015,7 +1015,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     if (storeFileMetaData == null) {
                         consistent = false;
                         missing.add(meta);
-                    } else if (storeFileMetaData.isSame(meta) == false) {
+                    } else if (!storeFileMetaData.isSame(meta)) {
                         consistent = false;
                         different.add(meta);
                     } else {
@@ -1506,12 +1506,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         metadataLock.writeLock().lock();
         try {
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
-            assert existingCommits.isEmpty() == false;
+            assert !existingCommits.isEmpty();
             final IndexCommit lastIndexCommit = existingCommits.get(existingCommits.size() - 1);
             final String translogUUID = lastIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
             final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
             final IndexCommit startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
-            if (startingIndexCommit.equals(lastIndexCommit) == false) {
+            if (!startingIndexCommit.equals(lastIndexCommit)) {
                 try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened
@@ -1536,7 +1536,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public Optional<SequenceNumbers.CommitInfo> findSafeIndexCommit(long globalCheckpoint) throws IOException {
         final List<IndexCommit> commits = DirectoryReader.listCommits(directory);
-        assert commits.isEmpty() == false : "no commit found";
+        assert !commits.isEmpty() : "no commit found";
         final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
         final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
         // all operations of the safe commit must be at most the global checkpoint.

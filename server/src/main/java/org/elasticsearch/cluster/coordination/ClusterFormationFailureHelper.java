@@ -145,7 +145,7 @@ public class ClusterFormationFailureHelper {
             final String discoveryStateIgnoringQuorum = String.format(Locale.ROOT, "have discovered %s; %s",
                 foundPeers, discoveryWillContinueDescription);
 
-            if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
+            if (!clusterState.nodes().getLocalNode().isMasterNode()) {
                 return String.format(Locale.ROOT, "master not discovered yet: %s", discoveryStateIgnoringQuorum);
             }
 
@@ -167,7 +167,7 @@ public class ClusterFormationFailureHelper {
                     bootstrappingDescription, discoveryStateIgnoringQuorum);
             }
 
-            assert clusterState.getLastCommittedConfiguration().isEmpty() == false;
+            assert !clusterState.getLastCommittedConfiguration().isEmpty();
 
             if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(Locale.ROOT,
@@ -198,7 +198,7 @@ public class ClusterFormationFailureHelper {
 
         private String describeQuorum(VotingConfiguration votingConfiguration) {
             final Set<String> nodeIds = votingConfiguration.getNodeIds();
-            assert nodeIds.isEmpty() == false;
+            assert !nodeIds.isEmpty();
             final int requiredNodes = nodeIds.size() / 2 + 1;
 
             final Set<String> realNodeIds = new HashSet<>(nodeIds);

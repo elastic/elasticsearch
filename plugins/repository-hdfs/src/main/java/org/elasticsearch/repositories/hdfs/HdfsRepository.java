@@ -74,17 +74,17 @@ public final class HdfsRepository extends BlobStoreRepository {
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
 
         String uriSetting = getMetadata().settings().get("uri");
-        if (Strings.hasText(uriSetting) == false) {
+        if (!Strings.hasText(uriSetting)) {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
         uri = URI.create(uriSetting);
-        if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
+        if (!"hdfs".equalsIgnoreCase(uri.getScheme())) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
                 "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore",
                 uri.getScheme(),
                 uriSetting));
         }
-        if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
+        if (Strings.hasLength(uri.getPath()) && !uri.getPath().equals("/")) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
                 "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
         }
@@ -149,8 +149,8 @@ public final class HdfsRepository extends BlobStoreRepository {
     private UserGroupInformation login(Configuration hadoopConfiguration, Settings repositorySettings) {
         // Validate the authentication method:
         AuthenticationMethod authMethod = SecurityUtil.getAuthenticationMethod(hadoopConfiguration);
-        if (authMethod.equals(AuthenticationMethod.SIMPLE) == false
-            && authMethod.equals(AuthenticationMethod.KERBEROS) == false) {
+        if (!authMethod.equals(AuthenticationMethod.SIMPLE)
+            && !authMethod.equals(AuthenticationMethod.KERBEROS)) {
             throw new RuntimeException("Unsupported authorization mode ["+authMethod+"]");
         }
 
@@ -200,7 +200,7 @@ public final class HdfsRepository extends BlobStoreRepository {
                 throw new UncheckedIOException(e);
             }
 
-            if (originalPrincipal.equals(finalPrincipal) == false) {
+            if (!originalPrincipal.equals(finalPrincipal)) {
                 logger.debug("Found service principal. Converted original principal name [{}] to server principal [{}]",
                     originalPrincipal, finalPrincipal);
             }

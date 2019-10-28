@@ -106,7 +106,7 @@ public class RollupJobIdentifierUtils {
                             : ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
 
                         // Ensure we are working on the same timezone
-                        if (thisTimezone.getRules().equals(sourceTimeZone.getRules()) == false) {
+                        if (!thisTimezone.getRules().equals(sourceTimeZone.getRules())) {
                             continue;
                         }
 
@@ -193,7 +193,7 @@ public class RollupJobIdentifierUtils {
                         } else if (source.interval() != 0) {
                             // Otherwise fall back to old style interval millis
                             // Need to verify that the config interval is not calendar here
-                            if (isCalendarInterval(configLegacyInterval) == false
+                            if (!isCalendarInterval(configLegacyInterval)
                                 && validateFixedInterval(new DateHistogramInterval(source.interval() + "ms"), configLegacyInterval)) {
 
                                 localCaps.add(cap);
@@ -378,7 +378,7 @@ public class RollupJobIdentifierUtils {
     }
 
     private static RollupJobCaps getTopEqualCaps(List<RollupJobCaps> caps) {
-        assert caps.isEmpty() == false;
+        assert !caps.isEmpty();
         caps.sort(COMPARATOR);
         return caps.get(0);
     }

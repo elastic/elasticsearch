@@ -290,7 +290,7 @@ public class FollowParameters implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o instanceof FollowParameters == false) return false;
+        if (!(o instanceof FollowParameters)) return false;
         FollowParameters that = (FollowParameters) o;
         return Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount) &&
             Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount) &&

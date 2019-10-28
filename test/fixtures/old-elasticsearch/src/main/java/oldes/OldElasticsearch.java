@@ -64,7 +64,7 @@ public class OldElasticsearch {
         }
 
         Iterator<Path> children = Files.list(unzipDir).iterator();
-        if (false == children.hasNext()) {
+        if (!children.hasNext()) {
             System.err.println("expected the es directory to contain a single child directory but contained none.");
             System.exit(1);
         }
@@ -74,7 +74,7 @@ public class OldElasticsearch {
                     + children.next() + "].");
             System.exit(1);
         }
-        if (false == Files.isDirectory(esDir)) {
+        if (!Files.isDirectory(esDir)) {
             System.err.println("expected the es directory to contains a single child directory but contained a single child file.");
             System.exit(1);
         }

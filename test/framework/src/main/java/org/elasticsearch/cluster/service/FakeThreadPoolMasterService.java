@@ -92,7 +92,7 @@ public class FakeThreadPoolMasterService extends MasterService {
     }
 
     private void scheduleNextTaskIfNecessary() {
-        if (taskInProgress == false && pendingTasks.isEmpty() == false && scheduledNextTask == false) {
+        if (!taskInProgress && !pendingTasks.isEmpty() && !scheduledNextTask) {
             scheduledNextTask = true;
             onTaskAvailableToRun.accept(new Runnable() {
                 @Override
@@ -102,8 +102,8 @@ public class FakeThreadPoolMasterService extends MasterService {
 
                 @Override
                 public void run() {
-                    assert taskInProgress == false;
-                    assert waitForPublish == false;
+                    assert !taskInProgress;
+                    assert !waitForPublish;
                     assert scheduledNextTask;
                     final int taskIndex = randomInt(pendingTasks.size() - 1);
                     logger.debug("next master service task: choosing task {} of {}", taskIndex, pendingTasks.size());
@@ -111,7 +111,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                     taskInProgress = true;
                     scheduledNextTask = false;
                     task.run();
-                    if (waitForPublish == false) {
+                    if (!waitForPublish) {
                         taskInProgress = false;
                     }
                     FakeThreadPoolMasterService.this.scheduleNextTaskIfNecessary();
@@ -128,7 +128,7 @@ public class FakeThreadPoolMasterService extends MasterService {
 
     @Override
     protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeMillis) {
-        assert waitForPublish == false;
+        assert !waitForPublish;
         waitForPublish = true;
         final AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterChangedEvent.state());
         clusterStatePublisher.publish(clusterChangedEvent, new ActionListener<Void>() {
@@ -137,7 +137,7 @@ public class FakeThreadPoolMasterService extends MasterService {
 
             @Override
             public void onResponse(Void aVoid) {
-                assert listenerCalled == false;
+                assert !listenerCalled;
                 listenerCalled = true;
                 assert waitForPublish;
                 waitForPublish = false;
@@ -151,7 +151,7 @@ public class FakeThreadPoolMasterService extends MasterService {
 
             @Override
             public void onFailure(Exception e) {
-                assert listenerCalled == false;
+                assert !listenerCalled;
                 listenerCalled = true;
                 assert waitForPublish;
                 waitForPublish = false;

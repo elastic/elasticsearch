@@ -327,7 +327,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 clusterApplierService.state();
                 error.set(new AssertionError("successfully sampled state"));
             } catch (AssertionError e) {
-                if (e.getMessage().contains("should not be called by a cluster state applier") == false) {
+                if (!e.getMessage().contains("should not be called by a cluster state applier")) {
                     error.set(e);
                 }
             }

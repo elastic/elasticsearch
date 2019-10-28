@@ -260,17 +260,17 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected RestClient buildLeaderClient() throws IOException {
-        assert "leader".equals(targetCluster) == false;
+        assert !"leader".equals(targetCluster);
         return buildClient(System.getProperty("tests.leader_host"));
     }
 
     protected RestClient buildLeaderClient(final Settings settings) throws IOException {
-        assert "leader".equals(targetCluster) == false;
+        assert !"leader".equals(targetCluster);
         return buildClient(System.getProperty("tests.leader_host"), settings);
     }
 
     protected RestClient buildMiddleClient() throws IOException {
-        assert "middle".equals(targetCluster) == false;
+        assert !"middle".equals(targetCluster);
         return buildClient(System.getProperty("tests.middle_host"));
     }
 

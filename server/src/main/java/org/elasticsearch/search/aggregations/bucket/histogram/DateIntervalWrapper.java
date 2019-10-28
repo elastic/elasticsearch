@@ -321,7 +321,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
                 }
 
                 // dateHistogramInterval() takes precedence over interval()
-                if (intervalType.equals(IntervalTypeEnum.LEGACY_DATE_HISTO) == false) {
+                if (!intervalType.equals(IntervalTypeEnum.LEGACY_DATE_HISTO)) {
                     intervalType = IntervalTypeEnum.LEGACY_INTERVAL;
                 }
                 break;

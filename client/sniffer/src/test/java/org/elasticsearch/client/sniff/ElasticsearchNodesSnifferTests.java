@@ -227,7 +227,7 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 generator.writeEndObject();
                 generator.writeEndArray();
             }
-            boolean isHttpEnabled = rarely() == false;
+            boolean isHttpEnabled = !rarely();
             if (isHttpEnabled) {
                 nodes.add(node);
                 generator.writeObjectFieldStart("http");

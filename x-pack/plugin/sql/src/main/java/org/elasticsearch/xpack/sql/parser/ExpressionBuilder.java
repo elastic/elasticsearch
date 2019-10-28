@@ -750,7 +750,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         Token token = node.getSymbol();
 
-        if (params.containsKey(token) == false) {
+        if (!params.containsKey(token)) {
             throw new ParsingException(source(node), "Unexpected parameter");
         }
 

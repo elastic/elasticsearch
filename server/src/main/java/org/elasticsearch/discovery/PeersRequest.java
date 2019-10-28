@@ -33,7 +33,7 @@ public class PeersRequest extends TransportRequest {
     private final List<DiscoveryNode> knownPeers;
 
     public PeersRequest(DiscoveryNode sourceNode, List<DiscoveryNode> knownPeers) {
-        assert knownPeers.contains(sourceNode) == false : "local node is not a peer";
+        assert !knownPeers.contains(sourceNode) : "local node is not a peer";
         this.sourceNode = sourceNode;
         this.knownPeers = knownPeers;
     }

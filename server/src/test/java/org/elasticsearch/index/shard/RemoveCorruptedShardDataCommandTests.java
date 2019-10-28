@@ -210,7 +210,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             logger.info("--> output:\n{}", t.getOutput());
         }
 
-        if (corruptSegments == false) {
+        if (!corruptSegments) {
 
             // run command without dry-run
             t.addTextInput("y");
@@ -477,7 +477,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .build();
 
         CheckedFunction<IndexSettings, Store, IOException> storeProvider =
-            corrupted == false ? null :
+            !corrupted ? null :
                 indexSettings -> {
                     final ShardId shardId = shardPath.getShardId();
                     final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(shardPath.resolveIndex());

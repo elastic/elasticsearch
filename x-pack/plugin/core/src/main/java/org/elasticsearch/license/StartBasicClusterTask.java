@@ -48,7 +48,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         logger.debug("license prior to starting basic license: {}", oldLicensesMetaData);
         License oldLicense = LicensesMetaData.extractLicense(oldLicensesMetaData);
         Map<String, String[]> acknowledgeMessages = ackMessages.get();
-        if (acknowledgeMessages.isEmpty() == false) {
+        if (!acknowledgeMessages.isEmpty()) {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages,
                     ACKNOWLEDGEMENT_HEADER));
         } else if (oldLicense != null && oldLicense.type().equals("basic")) {
@@ -63,7 +63,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         LicensesMetaData licensesMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
         License currentLicense = LicensesMetaData.extractLicense(licensesMetaData);
-        if (currentLicense == null || currentLicense.type().equals("basic") == false) {
+        if (currentLicense == null || !currentLicense.type().equals("basic")) {
             long issueDate = clock.millis();
             MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
             License.Builder specBuilder = License.builder()
@@ -74,9 +74,9 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
                     .type("basic")
                     .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
             License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
-            if (request.isAcknowledged() == false && currentLicense != null) {
+            if (!request.isAcknowledged() && currentLicense != null) {
                 Map<String, String[]> ackMessages = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
-                if (ackMessages.isEmpty() == false) {
+                if (!ackMessages.isEmpty()) {
                     this.ackMessages.set(ackMessages);
                     return currentState;
                 }

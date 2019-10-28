@@ -76,7 +76,7 @@ public abstract class AbstractBulkByQueryRestHandler<
      */
     private XContentParser extractRequestSpecificFields(RestRequest restRequest,
                                                         Map<String, Consumer<Object>> bodyConsumers) throws IOException {
-        if (restRequest.hasContentOrSourceParam() == false) {
+        if (!restRequest.hasContentOrSourceParam()) {
             return null; // body is optional
         }
         try (XContentParser parser = restRequest.contentOrSourceParamParser();

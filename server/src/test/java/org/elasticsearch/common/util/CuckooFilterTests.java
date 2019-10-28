@@ -84,7 +84,7 @@ public class CuckooFilterTests extends AbstractWireSerializingTestCase<CuckooFil
         boolean saturated = false;
         for (int i = 0; i < 100; i++) {
             logger.info("Value: " + i);
-            if (filter.add(hash(i)) == false) {
+            if (!filter.add(hash(i))) {
                 saturated = true;
             }
             counter += 1;

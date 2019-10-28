@@ -215,14 +215,14 @@ public class TestingConventionsTasks extends DefaultTask {
                             .collect(Collectors.joining(",")) + ")",
                     allTestClassFiles.getFiles().stream()
                         .filter(testFile ->
-                            classFilesPerTask.values().stream()
-                                .anyMatch(fileSet -> fileSet.contains(testFile)) == false
+                            !classFilesPerTask.values().stream()
+                                .anyMatch(fileSet -> fileSet.contains(testFile))
                         )
                         .map(classes::get)
                 ),
                 collectProblems(
                     suffixToBaseClass.entrySet().stream()
-                        .filter(entry -> entry.getValue().isEmpty() == false)
+                        .filter(entry -> !entry.getValue().isEmpty())
                         .map(entry -> {
                             return checkNoneExists(
                                 "Tests classes with suffix `" + entry.getKey() + "` should extend " +
@@ -230,8 +230,8 @@ public class TestingConventionsTasks extends DefaultTask {
                                     " but the following classes do not",
                                 classes.values().stream()
                                     .filter(clazz -> clazz.getName().endsWith(entry.getKey()))
-                                    .filter(clazz -> entry.getValue().stream()
-                                        .anyMatch(test -> test.isAssignableFrom(clazz)) == false)
+                                    .filter(clazz -> !entry.getValue().stream()
+                                        .anyMatch(test -> test.isAssignableFrom(clazz)))
                             );
                         }).sorted()
                         .collect(Collectors.joining("\n"))
@@ -256,7 +256,7 @@ public class TestingConventionsTasks extends DefaultTask {
     private String collectProblems(String... problems) {
         return Stream.of(problems)
             .map(String::trim)
-            .filter(s -> s.isEmpty() == false)
+            .filter(s -> !s.isEmpty())
             .collect(Collectors.joining("\n"));
     }
 
@@ -265,7 +265,7 @@ public class TestingConventionsTasks extends DefaultTask {
             .map(each -> "  * " + each.getName())
             .sorted()
             .collect(Collectors.joining("\n"));
-        if (problem.isEmpty() == false) {
+        if (!problem.isEmpty()) {
             return message + ":\n" + problem;
         } else {
             return "";
@@ -277,7 +277,7 @@ public class TestingConventionsTasks extends DefaultTask {
             .map(each -> "  * " + each)
             .sorted()
             .collect(Collectors.joining("\n"));
-        if (problem.isEmpty() == false) {
+        if (!problem.isEmpty()) {
             return message + ":\n" + problem;
         } else {
             return "";
@@ -340,7 +340,7 @@ public class TestingConventionsTasks extends DefaultTask {
 
     private boolean matchesTestMethodNamingConvention(Method method) {
         return method.getName().startsWith(TEST_METHOD_PREFIX) &&
-            Modifier.isStatic(method.getModifiers()) == false
+            !Modifier.isStatic(method.getModifiers())
             ;
     }
 

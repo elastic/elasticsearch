@@ -68,7 +68,7 @@ final class RamAccountingRefreshListener implements BiConsumer<ElasticsearchDire
             final SegmentReader segmentReader = Lucene.segmentReader(lrc.reader());
             // don't add the segment's memory unless it is not referenced by the previous reader
             // (only new segments)
-            if (prevReaders.contains(segmentReader.getCoreCacheHelper().getKey()) == false) {
+            if (!prevReaders.contains(segmentReader.getCoreCacheHelper().getKey())) {
                 final long ramBytesUsed = segmentReader.ramBytesUsed();
                 // add the segment memory to the breaker (non-breaking)
                 breaker.addWithoutBreaking(ramBytesUsed);

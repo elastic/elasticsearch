@@ -137,7 +137,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
 
         final List<String> requestedNames = new ArrayList<>();
         List<String> specificStoreNames = new ArrayList<>();
-        if (all == false) {
+        if (!all) {
             requestedNames.addAll(randomSubsetOf(randomIntBetween(1, ReservedRolesStore.names().size()), ReservedRolesStore.names()));
             specificStoreNames.addAll(randomSubsetOf(randomIntBetween(1, storeNames.size()), storeNames));
             requestedNames.addAll(specificStoreNames);

@@ -180,7 +180,7 @@ public final class ExceptionsHelper {
         if (t != null) {
             final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
             do {
-                if (seen.add(t) == false) {
+                if (!seen.add(t)) {
                     return null;
                 }
                 for (Class<?> clazz : clazzes) {
@@ -224,9 +224,9 @@ public final class ExceptionsHelper {
         final Queue<Throwable> queue = new LinkedList<>();
         queue.add(cause);
         final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        while (queue.isEmpty() == false) {
+        while (!queue.isEmpty()) {
             final Throwable current = queue.remove();
-            if (seen.add(current) == false) {
+            if (!seen.add(current)) {
                 continue;
             }
             if (predicate.test(current)) {
@@ -288,7 +288,7 @@ public final class ExceptionsHelper {
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {
             GroupBy reason = new GroupBy(failure);
-            if (reasons.contains(reason) == false) {
+            if (!reasons.contains(reason)) {
                 reasons.add(reason);
                 uniqueFailures.add(failure);
             }

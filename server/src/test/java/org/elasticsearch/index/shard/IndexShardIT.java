@@ -311,11 +311,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IOUtils.rm(newIndexDataPath);
 
         logger.info("--> copying data on disk from [{}] to [{}]", indexDataPath, newIndexDataPath);
-        assert Files.exists(newIndexDataPath) == false : "new index data path directory should not exist!";
+        assert !Files.exists(newIndexDataPath) : "new index data path directory should not exist!";
         try (Stream<Path> stream = Files.walk(indexDataPath)) {
             stream.forEach(path -> {
                 try {
-                    if (path.endsWith(".lock") == false) {
+                    if (!path.endsWith(".lock")) {
                         Files.copy(path, newIndexDataPath.resolve(indexDataPath.relativize(path)));
                     }
                 } catch (final Exception e) {

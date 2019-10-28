@@ -253,18 +253,18 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginId.split(":");
-        if (coordinates.length == 3 && pluginId.contains("/") == false && pluginId.startsWith("file:") == false) {
+        if (coordinates.length == 3 && !pluginId.contains("/") && !pluginId.startsWith("file:")) {
             String mavenUrl = getMavenUrl(terminal, coordinates, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from maven central");
             return downloadAndValidate(terminal, mavenUrl, tmpDir, false, isBatch);
         }
 
         // fall back to plain old URL
-        if (pluginId.contains(":") == false) {
+        if (!pluginId.contains(":")) {
             // definitely not a valid url, so assume it is a plugin name
             List<String> plugins = checkMisspelledPlugin(pluginId);
             String msg = "Unknown plugin " + pluginId;
-            if (plugins.isEmpty() == false) {
+            if (!plugins.isEmpty()) {
                 msg += ", did you mean " + (plugins.size() == 1 ? "[" + plugins.get(0) + "]": "any of " + plugins.toString()) + "?";
             }
             throw new UserException(ExitCodes.USAGE, msg);
@@ -451,7 +451,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         String checksumUrlString = urlString + ".sha512";
         URL checksumUrl = openUrl(checksumUrlString);
         String digestAlgo = "SHA-512";
-        if (checksumUrl == null && officialPlugin == false) {
+        if (checksumUrl == null && !officialPlugin) {
             // fallback to sha1, until 7.0, but with warning
             terminal.println("Warning: sha512 not found, falling back to sha1. This behavior is deprecated and will be removed in a " +
                              "future release. Please update the plugin to use a sha512 checksum.");
@@ -486,7 +486,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 expectedChecksum = fields[0];
                 final String[] segments = URI.create(urlString).getPath().split("/");
                 final String expectedFile = segments[segments.length - 1];
-                if (fields[1].equals(expectedFile) == false) {
+                if (!fields[1].equals(expectedFile)) {
                     final String message = String.format(
                             Locale.ROOT,
                             "checksum file at [%s] is not for this plugin, expected [%s] but was [%s]",
@@ -512,7 +512,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                     digest.update(bytes, 0, read);
                 }
                 final String actualChecksum = MessageDigests.toHexString(digest.digest());
-                if (expectedChecksum.equals(actualChecksum) == false) {
+                if (!expectedChecksum.equals(actualChecksum)) {
                     throw new UserException(
                         ExitCodes.IO_ERROR,
                         digestAlgo + " mismatch, expected " + expectedChecksum + " but got " + actualChecksum);
@@ -554,7 +554,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
             // validate the signature has key ID matching our public key ID
             final String keyId = Long.toHexString(signature.getKeyID()).toUpperCase(Locale.ROOT);
-            if (getPublicKeyId().equals(keyId) == false) {
+            if (!getPublicKeyId().equals(keyId)) {
                 throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
             }
 
@@ -569,7 +569,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
 
             // finally we verify the signature of the downloaded plugin zip matches the expected signature
-            if (signature.verify() == false) {
+            if (!signature.verify()) {
                 throw new IllegalStateException("signature verification for [" + urlString + "] failed");
             }
         }
@@ -640,7 +640,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 // entry like ../whatever. This check attempts to identify both cases by first
                 // normalizing the path (which removes foo/..) and ensuring the normalized entry
                 // is still rooted with the target plugin directory.
-                if (targetFile.normalize().startsWith(target) == false) {
+                if (!targetFile.normalize().startsWith(target)) {
                     throw new UserException(PLUGIN_MALFORMED, "Zip contains entry name '" +
                         entry.getName() + "' resolving outside of plugin directory");
                 }
@@ -650,7 +650,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 if (!Files.isSymbolicLink(targetFile.getParent())) {
                     Files.createDirectories(targetFile.getParent());
                 }
-                if (entry.isDirectory() == false) {
+                if (!entry.isDirectory()) {
                     try (OutputStream out = Files.newOutputStream(targetFile)) {
                         int len;
                         while ((len = zipInput.read(buffer)) >= 0) {
@@ -749,7 +749,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                         .stream()
                         .filter(url -> {
                             try {
-                                return url.toURI().getPath().matches(LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR) == false;
+                                return !url.toURI().getPath().matches(LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR);
                             } catch (final URISyntaxException e) {
                                 throw new AssertionError(e);
                             }
@@ -858,7 +858,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /** Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent. */
     private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
-        if (Files.isDirectory(tmpBinDir) == false) {
+        if (!Files.isDirectory(tmpBinDir)) {
             throw new UserException(PLUGIN_MALFORMED, "bin in plugin " + info.getName() + " is not a directory");
         }
         Files.createDirectories(destBinDir);
@@ -884,7 +884,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * Any files existing in both the source and destination will be skipped.
      */
     private void installConfig(PluginInfo info, Path tmpConfigDir, Path destConfigDir) throws Exception {
-        if (Files.isDirectory(tmpConfigDir) == false) {
+        if (!Files.isDirectory(tmpConfigDir)) {
             throw new UserException(PLUGIN_MALFORMED,
                 "config in plugin " + info.getName() + " is not a directory");
         }
@@ -907,7 +907,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 }
 
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));
-                if (Files.exists(destFile) == false) {
+                if (!Files.exists(destFile)) {
                     Files.copy(srcFile, destFile);
                     setFileAttributes(destFile, CONFIG_FILES_PERMS);
                     if (destConfigDirAttributes != null) {

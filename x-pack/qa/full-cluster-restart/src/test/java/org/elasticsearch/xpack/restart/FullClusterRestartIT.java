@@ -275,7 +275,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertRollUpJob("rollup-job-test");
         }
     }
-    
+
     public void testSlmStats() throws IOException {
         SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy("test-policy", "test-policy", "* * * 31 FEB ? *", "test-repo",
             Collections.singletonMap("indices", Collections.singletonList("*")), null);
@@ -298,7 +298,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createSlmPolicyRequest);
         }
 
-        if (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_5_0)) {
+        if (!isRunningAgainstOldCluster() || getOldClusterVersion().onOrAfter(Version.V_7_5_0)) {
             Response response = client().performRequest(new Request("GET", "_slm/stats"));
             XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
             try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
@@ -367,7 +367,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // password doesn't come back because it is hidden
         assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
         Request searchRequest = new Request("GET", ".watcher-history*/_search");
-        if (isRunningAgainstOldCluster() == false) {
+        if (!isRunningAgainstOldCluster()) {
             searchRequest.addParameter(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, "true");
         }
         Map<String, Object> history = entityAsMap(client().performRequest(searchRequest));
@@ -421,7 +421,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 Map<String, Object> hits = (Map<String, Object>) response.get("hits");
                 logger.info("Hits are: {}", hits);
                 int total;
-                if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
+                if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || !isRunningAgainstOldCluster()) {
                     total = (int) ((Map<String, Object>) hits.get("total")).get("value");
                 } else {
                     total = (int) hits.get("total");
@@ -536,7 +536,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 break;
             }
         }
-        if (hasRollupTask == false) {
+        if (!hasRollupTask) {
             fail("Expected persistent task for [" + rollupJob + "] but none found.");
         }
     }

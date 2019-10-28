@@ -168,7 +168,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             // expiration time
             if (this.minimumSnapshotCount != null) {
                 if (successfulSnapshotCount <= this.minimumSnapshotCount)
-                    if (unsuccessfulStates.contains(si.state()) == false) {
+                    if (!unsuccessfulStates.contains(si.state())) {
                         logger.trace("[{}]: INELIGIBLE as there are {} non-failed snapshots ({} total) and {} minimum snapshots needed",
                             snapName, successfulSnapshotCount, totalSnapshotCount, this.minimumSnapshotCount);
                         return false;
@@ -198,7 +198,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                         .concat(successfulSnapsEligibleForExpiration, unsucessfulSnaps)
                         .collect(Collectors.toSet());
 
-                    if (snapsEligibleForExpiration.contains(si) == false) {
+                    if (!snapsEligibleForExpiration.contains(si)) {
                         // This snapshot is *not* one of the N oldest snapshots, so even if it were
                         // old enough, the other snapshots would be deleted before it
                         logger.trace("[{}]: INELIGIBLE as snapshot expiration would pass the " +

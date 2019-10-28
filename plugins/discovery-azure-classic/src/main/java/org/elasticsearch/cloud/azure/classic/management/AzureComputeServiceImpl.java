@@ -88,7 +88,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
 
     private static String getRequiredSetting(Settings settings, Setting<String> setting) {
         String value = setting.get(settings);
-        if (value == null || Strings.hasLength(value) == false) {
+        if (value == null || !Strings.hasLength(value)) {
             throw new IllegalArgumentException("Missing required setting " + setting.getKey() + " for azure");
         }
         return value;

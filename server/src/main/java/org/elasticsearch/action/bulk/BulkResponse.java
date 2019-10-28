@@ -187,7 +187,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                     took = parser.longValue();
                 } else if (INGEST_TOOK.equals(currentFieldName)) {
                     ingestTook = parser.longValue();
-                } else if (ERRORS.equals(currentFieldName) == false) {
+                } else if (!ERRORS.equals(currentFieldName)) {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {

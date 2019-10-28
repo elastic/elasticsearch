@@ -232,7 +232,7 @@ public final class AnalysisRegistry implements Closeable {
         for (NameOrDefinition nod : tokenFilters) {
             TokenFilterFactory tff = getComponentFactory(indexSettings, nod, "filter",
                 this::getTokenFilterProvider, prebuiltAnalysis::getTokenFilterFactory, this::getTokenFilterProvider);
-            if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
+            if (normalizer && !(tff instanceof NormalizingTokenFilterFactory)) {
                 throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
             }
             tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {

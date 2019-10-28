@@ -115,7 +115,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         assert owningBucketOrdinal == 0;
 
         if (bucketCountThresholds.getMinDocCount() == 0
-            && (InternalOrder.isCountDesc(order) == false
+            && (!InternalOrder.isCountDesc(order)
                     || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {

@@ -108,7 +108,7 @@ public class ClusterStatsCollector extends Collector {
         final boolean clusterNeedsTLSEnabled = license.operationMode() == License.OperationMode.TRIAL &&
                                                settings.hasValue(SECURITY_ENABLED.getKey()) &&
                                                SECURITY_ENABLED.get(settings) &&
-                                               TRANSPORT_SSL_ENABLED.get(settings) == false;
+            !TRANSPORT_SSL_ENABLED.get(settings);
 
         // Adds a cluster stats document
         return Collections.singleton(

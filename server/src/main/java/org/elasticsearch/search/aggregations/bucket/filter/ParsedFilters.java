@@ -72,7 +72,7 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
         ParsedFilters aggregation = PARSER.parse(parser, null);
         aggregation.setName(name);
         // in case this is not a keyed aggregation, we need to add numeric keys to the buckets
-        if (aggregation.keyed == false) {
+        if (!aggregation.keyed) {
             int i = 0;
             for (ParsedBucket bucket : aggregation.buckets) {
                 assert bucket.key == null;

@@ -149,7 +149,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
                 throw new IllegalStateException("Cannot reduce other stats aggregations that have a different sigma");
             }
             double value = stats.getSumOfSquares();
-            if (Double.isFinite(value) == false) {
+            if (!Double.isFinite(value)) {
                 sumOfSqrs += value;
             } else if (Double.isFinite(sumOfSqrs)) {
                 double correctedOfSqrs = value - compensationOfSqrs;
@@ -223,7 +223,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalExtendedStats other = (InternalExtendedStats) obj;
         return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&

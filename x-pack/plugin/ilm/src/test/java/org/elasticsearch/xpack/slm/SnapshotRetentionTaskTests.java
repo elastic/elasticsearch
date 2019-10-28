@@ -181,7 +181,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
                     (historyItem) -> {
                         assertEquals(deletionSuccess, historyItem.isSuccess());
-                        if (historyItem.isSuccess() == false) {
+                        if (!historyItem.isSuccess()) {
                             assertThat(historyItem.getErrorDetails(), containsString("deletion_failed"));
                         }
                         assertEquals(policyId, historyItem.getPolicyId());
@@ -275,7 +275,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
                     (historyItem) -> {
                         assertEquals(deletionSuccess, historyItem.isSuccess());
-                        if (historyItem.isSuccess() == false) {
+                        if (!historyItem.isSuccess()) {
                             assertThat(historyItem.getErrorDetails(), containsString("deletion_failed"));
                         }
                         assertEquals(policyId, historyItem.getPolicyId());

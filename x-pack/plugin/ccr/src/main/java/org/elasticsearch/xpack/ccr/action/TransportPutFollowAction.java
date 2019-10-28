@@ -93,7 +93,7 @@ public final class TransportPutFollowAction
         Task task, final PutFollowAction.Request request,
         final ClusterState state,
         final ActionListener<PutFollowAction.Response> listener) {
-        if (ccrLicenseChecker.isCcrAllowed() == false) {
+        if (!ccrLicenseChecker.isCcrAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
@@ -118,7 +118,7 @@ public final class TransportPutFollowAction
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetaData.getSettings()) == false) {
+        if (!IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetaData.getSettings())) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
                 "] does not have soft deletes enabled"));
             return;

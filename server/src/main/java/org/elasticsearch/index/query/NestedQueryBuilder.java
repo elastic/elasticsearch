@@ -344,7 +344,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             QueryShardContext queryShardContext = parentSearchContext.getQueryShardContext();
             ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(path);
             if (nestedObjectMapper == null) {
-                if (innerHitBuilder.isIgnoreUnmapped() == false) {
+                if (!innerHitBuilder.isIgnoreUnmapped()) {
                     throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
                 } else {
                     return;
@@ -374,7 +374,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         @Override
         public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
-            assert seqNoAndPrimaryTerm() == false;
+            assert !seqNoAndPrimaryTerm();
             if (seqNoAndPrimaryTerm) {
                 throw new UnsupportedOperationException("nested documents are not assigned sequence numbers");
             }

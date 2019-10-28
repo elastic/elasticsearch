@@ -234,7 +234,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo s1 = makeInfo(1);
         SnapshotInfo s2 = makeInfo(2);
         SnapshotInfo s3 = makeFailureOrPartial(3, failureBeforePartial);
-        SnapshotInfo s4 = makeFailureOrPartial(4, failureBeforePartial == false);
+        SnapshotInfo s4 = makeFailureOrPartial(4, !failureBeforePartial);
 
         List<SnapshotInfo> infos = Arrays.asList(s1 , s2, s3, s4);
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));

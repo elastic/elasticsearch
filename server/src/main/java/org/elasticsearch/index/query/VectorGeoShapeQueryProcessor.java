@@ -160,7 +160,7 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         }
 
         private void validateIsGeoShapeFieldType() {
-            if (fieldType instanceof GeoShapeFieldMapper.GeoShapeFieldType == false) {
+            if (!(fieldType instanceof GeoShapeFieldMapper.GeoShapeFieldType)) {
                 throw new QueryShardException(context, "Expected " + GeoShapeFieldMapper.CONTENT_TYPE
                     + " field type for Field [" + fieldName + "] but found " + fieldType.typeName());
             }

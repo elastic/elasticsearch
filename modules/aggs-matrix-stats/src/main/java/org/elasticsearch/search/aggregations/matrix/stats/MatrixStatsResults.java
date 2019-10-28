@@ -84,7 +84,7 @@ class MatrixStatsResults implements Writeable {
 
     /** return the fied count for the requested field */
     public long getFieldCount(String field) {
-        if (results.counts.containsKey(field) == false) {
+        if (!results.counts.containsKey(field)) {
             return 0;
         }
         return results.counts.get(field);
@@ -164,7 +164,7 @@ class MatrixStatsResults implements Writeable {
     /** return the value for two fields in an upper triangular matrix, regardless of row col location. */
     static <M extends Map<String, Double>> double getValFromUpperTriangularMatrix(Map<String, M> map, String fieldX, String fieldY) {
         // for the co-value to exist, one of the two (or both) fields has to be a row key
-        if (map.containsKey(fieldX) == false && map.containsKey(fieldY) == false) {
+        if (!map.containsKey(fieldX) && !map.containsKey(fieldY)) {
             throw new IllegalArgumentException("neither field " + fieldX + " nor " + fieldY + " exist");
         } else if (map.containsKey(fieldX)) {
             // fieldX exists as a row key
@@ -186,7 +186,7 @@ class MatrixStatsResults implements Writeable {
         if (field == null) {
             throw new IllegalArgumentException("field name cannot be null");
         }
-        if (map.containsKey(field) == false) {
+        if (!map.containsKey(field)) {
             throw new IllegalArgumentException("field " + field + " does not exist");
         }
     }

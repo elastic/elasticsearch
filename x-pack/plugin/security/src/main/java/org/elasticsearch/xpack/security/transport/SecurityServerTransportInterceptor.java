@@ -105,7 +105,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                     new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
                                             , handler), sender, requireAuth));
                 } else if (securityContext.getAuthentication() != null &&
-                        securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
+                    !securityContext.getAuthentication().getVersion().equals(minVersion)) {
                     // re-write the authentication since we want the authentication version to match the version of the connection
                     securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
                         new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
@@ -130,7 +130,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         // So, we always send authentication headers for actions that have an implied user (system-user or explicit-origin)
         // and then for other (user originated) actions we enforce that there is an authentication header that we can send, iff the
         // current license allows authentication.
-        return licenseState.isAuthAllowed() && isStateNotRecovered == false;
+        return licenseState.isAuthAllowed() && !isStateNotRecovered;
     }
 
     private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,

@@ -421,7 +421,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
 
-        if (enabled == false) {
+        if (!enabled) {
             disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
             return Settings.EMPTY;
         }
@@ -477,7 +477,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false) {
+        if (!enabled) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
             return Collections.singletonList(new JobManagerHolder());
         }
@@ -629,7 +629,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                                        ThreadPool threadPool,
                                                                        Client client,
                                                                        SettingsModule settingsModule) {
-        if (enabled == false) {
+        if (!enabled) {
             return emptyList();
         }
 
@@ -647,7 +647,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (false == enabled) {
+        if (!enabled) {
             return emptyList();
         }
         return Arrays.asList(
@@ -714,7 +714,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new ActionHandler<>(XPackUsageFeatureAction.MACHINE_LEARNING, MachineLearningUsageTransportAction.class);
         var infoAction =
             new ActionHandler<>(XPackInfoFeatureAction.MACHINE_LEARNING, MachineLearningInfoTransportAction.class);
-        if (false == enabled) {
+        if (!enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(
@@ -782,7 +782,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled) {
+        if (!enabled) {
             return emptyList();
         }
 

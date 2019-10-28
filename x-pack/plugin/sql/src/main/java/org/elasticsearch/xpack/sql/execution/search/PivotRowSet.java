@@ -79,7 +79,7 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
                 }
             }
         }
-        
+
         // check the last group using the following:
         // a. limit has been reached, the rest of the data is ignored.
         if (limit > 0 && data.size() == limit) {
@@ -92,7 +92,7 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
         }
         // c. all the values are initialized (there might be another page but no need to ask for the group again)
         // d. or no data was added (typically because there's a null value such as the group)
-        else if (hasNull(currentRow) == false || data.isEmpty()) {
+        else if (!hasNull(currentRow) || data.isEmpty()) {
             data.add(currentRow);
             afterKey = currentRowGroupKey;
         }
@@ -128,7 +128,7 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
             if (keyIndex++ >= keys) {
                 return true;
             }
-            if (Objects.equals(entry.getValue(), previous.get(entry.getKey())) == false) {
+            if (!Objects.equals(entry.getValue(), previous.get(entry.getKey()))) {
                 return false;
             }
         }

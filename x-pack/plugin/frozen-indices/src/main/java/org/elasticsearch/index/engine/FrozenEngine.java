@@ -91,7 +91,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
-            if (success == false) {
+            if (!success) {
                 closeNoLock("failed on construction", new CountDownLatch(1));
             }
         }
@@ -178,7 +178,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             success = true;
             return reader;
         } finally {
-            if (success == false) {
+            if (!success) {
                 IOUtils.close(reader);
             }
         }
@@ -361,7 +361,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 reset(reader);
                 success = true;
             } finally {
-                if (success == false) {
+                if (!success) {
                     IOUtils.close(reader);
                 }
             }
@@ -371,7 +371,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             if (this.delegate != null) {
                 throw new AssertionError("lazy reader is not released");
             }
-            assert (delegate instanceof LazyDirectoryReader) == false : "must not be a LazyDirectoryReader";
+            assert !(delegate instanceof LazyDirectoryReader) : "must not be a LazyDirectoryReader";
             List<LeafReaderContext> leaves = delegate.leaves();
             int ord = 0;
             for (LeafReaderContext leaf : leaves()) {
@@ -592,7 +592,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         if (includeUnloadedSegments) {
             final SegmentsStats stats = new SegmentsStats();
             stats.add(this.stats);
-            if (includeSegmentFileSizes == false) {
+            if (!includeSegmentFileSizes) {
                 stats.clearFileSizes();
             }
             return stats;

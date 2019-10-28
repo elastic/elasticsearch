@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class AutoFollowIT extends ESCCRRestTestCase {
 
     public void testMultipleAutoFollowPatternsDifferentClusters() throws Exception {
-        if ("follow".equals(targetCluster) == false) {
+        if (!"follow".equals(targetCluster)) {
             logger.info("skipping test, waiting for target cluster [follow]" );
             return;
         }
@@ -69,7 +69,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
     }
 
     public void testAutoFollowPatterns() throws Exception {
-        if ("follow".equals(targetCluster) == false) {
+        if (!"follow".equals(targetCluster)) {
             logger.info("skipping test, waiting for target cluster [follow]" );
             return;
         }

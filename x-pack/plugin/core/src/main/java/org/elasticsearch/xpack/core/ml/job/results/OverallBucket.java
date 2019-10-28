@@ -117,7 +117,7 @@ public class OverallBucket implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof OverallBucket == false) {
+        if (!(other instanceof OverallBucket)) {
             return false;
         }
 
@@ -180,7 +180,7 @@ public class OverallBucket implements ToXContentObject, Writeable {
             if (this == other) {
                 return true;
             }
-            if (other instanceof JobInfo == false) {
+            if (!(other instanceof JobInfo)) {
                 return false;
             }
             JobInfo that = (JobInfo) other;

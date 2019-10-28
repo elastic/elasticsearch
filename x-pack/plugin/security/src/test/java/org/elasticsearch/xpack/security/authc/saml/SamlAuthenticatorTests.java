@@ -2413,7 +2413,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         for (String prefix : namespaces.keySet()) {
             final String uri = namespaces.get(prefix);
             Tuple<String, String> t = new Tuple<>(prefix, uri);
-            if (processed.contains(t) == false) {
+            if (!processed.contains(t)) {
                 processed.add(t);
                 if (Strings.isNullOrEmpty(element.getAttribute("xmlns:" + prefix))) {
                     element.setAttribute("xmlns:" + prefix, uri);
@@ -2432,7 +2432,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     private Map<String, String> getNamespaces(Node node) {
         Map<String, String> namespaces = new HashMap<>();
         final String prefix = node.getPrefix();
-        if (Strings.hasText(prefix) && "xmlns".equals(prefix) == false) {
+        if (Strings.hasText(prefix) && !"xmlns".equals(prefix)) {
             namespaces.put(prefix, node.getNamespaceURI());
         }
         final NamedNodeMap attributes = node.getAttributes();

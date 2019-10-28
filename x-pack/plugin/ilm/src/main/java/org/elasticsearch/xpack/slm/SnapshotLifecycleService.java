@@ -149,7 +149,7 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
 
             // Cancel all jobs that are *NOT* in the scheduled tasks map
             scheduledTasks.keySet().stream()
-                .filter(jobId -> policyJobIds.contains(jobId) == false)
+                .filter(jobId -> !policyJobIds.contains(jobId))
                 .forEach(this::cancelScheduledSnapshot);
         }
     }
@@ -168,7 +168,7 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
             // Find all jobs matching the `jobid-\d+` pattern
             .filter(jId -> existingJobPattern.matcher(jId).matches())
             // Filter out a job that has not been changed (matches the id exactly meaning the version is the same)
-            .filter(jId -> jId.equals(jobId) == false)
+            .filter(jId -> !jId.equals(jobId))
             .map(existingJobId -> {
                 // Cancel existing job so the new one can be scheduled
                 logger.debug("removing existing snapshot lifecycle job [{}] as it has been updated", existingJobId);

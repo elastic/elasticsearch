@@ -302,7 +302,7 @@ public class ClusterStateChanges {
         try {
             ClusterTasksResult<T> result = executor.execute(clusterState, entries);
             for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults.values()) {
-                if (taskResult.isSuccess() == false) {
+                if (!taskResult.isSuccess()) {
                     throw taskResult.getFailure();
                 }
             }

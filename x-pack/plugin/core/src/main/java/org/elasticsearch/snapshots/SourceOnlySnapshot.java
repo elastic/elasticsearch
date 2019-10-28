@@ -164,7 +164,7 @@ public class SourceOnlySnapshot {
             checkIndex.setFailFast(true);
             checkIndex.setInfoStream(new PrintStream(output, false, IOUtils.UTF_8), false);
             CheckIndex.Status status = checkIndex.checkIndex();
-            if (status == null || status.clean == false) {
+            if (status == null || !status.clean) {
                 throw new RuntimeException("CheckIndex failed: " + output.toString(IOUtils.UTF_8));
             }
             return true;
@@ -192,7 +192,7 @@ public class SourceOnlySnapshot {
         final TrackingDirectoryWrapper trackingDir = new TrackingDirectoryWrapper(targetDirectory);
         BytesRef segmentId = new BytesRef(si.getId());
         boolean exists = existingSegments.containsKey(segmentId);
-        if (exists == false) {
+        if (!exists) {
             SegmentInfo newSegmentInfo = new SegmentInfo(si.dir, si.getVersion(), si.getMinVersion(), si.name, si.maxDoc(), false,
                 si.getCodec(), si.getDiagnostics(), si.getId(), si.getAttributes(), null);
             // we drop the sort on purpose since the field we sorted on doesn't exist in the target index anymore.
@@ -219,7 +219,7 @@ public class SourceOnlySnapshot {
             }
         } else {
             newInfo = existingSegments.get(segmentId);
-            assert newInfo.info.getUseCompoundFile() == false;
+            assert !newInfo.info.getUseCompoundFile();
         }
         if (liveDocs.bits != null && liveDocs.numDeletes != 0 && liveDocs.numDeletes != newInfo.getDelCount()) {
             if (newInfo.getDelCount() != 0) {
@@ -232,7 +232,7 @@ public class SourceOnlySnapshot {
             info.info.setFiles(trackingDir.getCreatedFiles());
             newInfo = info;
         }
-        if (exists == false) {
+        if (!exists) {
             newInfo.info.setFiles(trackingDir.getCreatedFiles());
             codec.segmentInfoFormat().write(trackingDir, newInfo.info, IOContext.DEFAULT);
         }
@@ -243,7 +243,7 @@ public class SourceOnlySnapshot {
     private boolean assertLiveDocs(Bits liveDocs, int deletes) {
         int actualDeletes = 0;
         for (int i = 0; i < liveDocs.length(); i++) {
-            if (liveDocs.get(i) == false) {
+            if (!liveDocs.get(i)) {
                 actualDeletes++;
             }
         }

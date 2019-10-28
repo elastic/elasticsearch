@@ -49,7 +49,7 @@ public class CancellableLdapRunnableTests extends ESTestCase {
                 }, e -> {
                     listenerCalled.set(true);
                     throw new AssertionError("onFailure should not be called");
-                }), e -> null, () -> ran.set(ran.get() == false), logger);
+                }), e -> null, () -> ran.set(!ran.get()), logger);
 
         runnable.run();
         assertTrue(ran.get());

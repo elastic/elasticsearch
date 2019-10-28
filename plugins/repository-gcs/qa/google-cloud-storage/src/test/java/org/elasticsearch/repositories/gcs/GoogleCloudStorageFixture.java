@@ -104,7 +104,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         // https://cloud.google.com/storage/docs/json_api/v1/buckets/get
         handlers.insert("GET /storage/v1/b/{bucket}", (request) -> {
             final String name = request.getParam("bucket");
-            if (Strings.hasText(name) == false) {
+            if (!Strings.hasText(name)) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "bucket name is missing");
             }
 
@@ -120,7 +120,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         // https://cloud.google.com/storage/docs/json_api/v1/objects/get
         handlers.insert("GET /storage/v1/b/{bucket}/o/{object}", (request) -> {
             final String objectName = request.getParam("object");
-            if (Strings.hasText(objectName) == false) {
+            if (!Strings.hasText(objectName)) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "object name is missing");
             }
 
@@ -142,7 +142,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         // https://cloud.google.com/storage/docs/json_api/v1/objects/delete
         handlers.insert("DELETE /storage/v1/b/{bucket}/o/{object}", (request) -> {
             final String objectName = request.getParam("object");
-            if (Strings.hasText(objectName) == false) {
+            if (!Strings.hasText(objectName)) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "object name is missing");
             }
 
@@ -166,7 +166,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
             final String uploadType = request.getParam("uploadType");
             if ("resumable".equals(uploadType)) {
                 final String objectName = request.getParam("name");
-                if (Strings.hasText(objectName) == false) {
+                if (!Strings.hasText(objectName)) {
                     return newError(RestStatus.INTERNAL_SERVER_ERROR, "object name is missing");
                 }
                 final Bucket bucket = buckets.get(request.getParam("bucket"));
@@ -223,7 +223,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                     String line;
                     // read first part delimiter
                     line = reader.readLine();
-                    if ((line == null) || (line.equals("--" + boundary) == false)) {
+                    if ((line == null) || (!line.equals("--" + boundary))) {
                         return newError(RestStatus.INTERNAL_SERVER_ERROR,
                                 "Error parsing multipart request. Does not start with the part delimiter.");
                     }
@@ -260,7 +260,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                     final String bucketName = bucketNameMatcher.group(1);
                     // read second part delimiter
                     line = reader.readLine();
-                    if ((line == null) || (line.equals("--" + boundary) == false)) {
+                    if ((line == null) || (!line.equals("--" + boundary))) {
                         return newError(RestStatus.INTERNAL_SERVER_ERROR,
                                 "Error parsing multipart request. Second part does not start with delimiter. "
                                         + "Is the metadata multi-line?");
@@ -319,7 +319,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
         handlers.insert("PUT /upload/storage/v1/b/{bucket}/o", (request) -> {
             final String objectId = request.getParam("upload_id");
-            if (Strings.hasText(objectId) == false) {
+            if (!Strings.hasText(objectId)) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "upload id is missing");
             }
 
@@ -328,7 +328,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 return newError(RestStatus.NOT_FOUND, "bucket not found");
             }
 
-            if (bucket.objects.containsKey(objectId) == false) {
+            if (!bucket.objects.containsKey(objectId)) {
                 return newError(RestStatus.NOT_FOUND, "object name not found");
             }
 
@@ -359,7 +359,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
 
                 for (final Map.Entry<String, Item> object : bucket.objects.entrySet()) {
                     String objectKey = object.getKey();
-                    if ((prefixParam != null) && (objectKey.startsWith(prefixParam) == false)) {
+                    if ((prefixParam != null) && (!objectKey.startsWith(prefixParam))) {
                         continue;
                     }
 
@@ -380,7 +380,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 builder.endArray();
             }
             {
-                if (prefixes.isEmpty() == false) {
+                if (!prefixes.isEmpty()) {
                     builder.array("prefixes", prefixes.toArray());
                 }
             }
@@ -393,7 +393,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         // https://cloud.google.com/storage/docs/request-body
         handlers.insert("GET /download/storage/v1/b/{bucket}/o/{object}", (request) -> {
             final String object = request.getParam("object");
-            if (Strings.hasText(object) == false) {
+            if (!Strings.hasText(object)) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "object id is missing");
             }
 
@@ -402,7 +402,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 return newError(RestStatus.NOT_FOUND, "bucket not found");
             }
 
-            if (bucket.objects.containsKey(object) == false) {
+            if (!bucket.objects.containsKey(object)) {
                 return newError(RestStatus.NOT_FOUND, "object name not found");
             }
 
@@ -477,7 +477,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                         // Reads the body
                         line = reader.readLine();
                         byte[] batchedBody = new byte[0];
-                        if ((line != null) || (line.startsWith("--" + boundary) == false)) {
+                        if ((line != null) || (!line.startsWith("--" + boundary))) {
                             batchedBody = line.getBytes(StandardCharsets.UTF_8);
                         }
 

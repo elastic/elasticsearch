@@ -92,7 +92,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      * returns {@code false} otherwise.
      */
     public boolean hasDeletionsInProgress() {
-        return entries.isEmpty() == false;
+        return !entries.isEmpty();
     }
 
     @Override

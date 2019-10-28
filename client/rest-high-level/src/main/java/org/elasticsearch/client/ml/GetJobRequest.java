@@ -124,7 +124,7 @@ public class GetJobRequest implements Validatable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (jobIds.isEmpty() == false) {
+        if (!jobIds.isEmpty()) {
             builder.field(JOB_IDS.getPreferredName(), jobIds);
         }
 

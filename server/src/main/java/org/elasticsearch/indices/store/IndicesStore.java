@@ -148,7 +148,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             // Note, closed indices will not have any routing information, so won't be deleted
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 ShardId shardId = indexShardRoutingTable.shardId();
-                if (folderNotFoundCache.contains(shardId) == false && shardCanBeDeleted(localNodeId, indexShardRoutingTable)) {
+                if (!folderNotFoundCache.contains(shardId) && shardCanBeDeleted(localNodeId, indexShardRoutingTable)) {
                     IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
                     final IndexSettings indexSettings;
                     if (indexService == null) {
@@ -191,7 +191,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
         for (ShardRouting shardRouting : indexShardRoutingTable) {
             // be conservative here, check on started, not even active
-            if (shardRouting.started() == false) {
+            if (!shardRouting.started()) {
                 return false;
             }
 

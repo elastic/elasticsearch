@@ -174,7 +174,7 @@ public final class AggregationResultUtils {
         public Object value(Aggregation agg, String fieldType) {
             SingleValue aggregation = (SingleValue)agg;
             // If the double is invalid, this indicates sparse data
-            if (Numbers.isValidDouble(aggregation.value()) == false) {
+            if (!Numbers.isValidDouble(aggregation.value())) {
                 return null;
             }
             // If the type is numeric or if the formatted string is the same as simply making the value a string,

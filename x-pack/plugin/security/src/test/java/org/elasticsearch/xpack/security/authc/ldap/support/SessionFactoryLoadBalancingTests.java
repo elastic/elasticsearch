@@ -330,7 +330,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                         }
                         final List<InetAddress> inetAddressesToBind = Arrays.stream(allAddresses)
                             .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
-                            .filter(addr -> blacklistedAddress.contains(addr) == false)
+                            .filter(addr -> !blacklistedAddress.contains(addr))
                             .collect(Collectors.toList());
                         for (InetAddress localAddress : inetAddressesToBind) {
                             try {

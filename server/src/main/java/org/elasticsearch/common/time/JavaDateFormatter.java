@@ -112,7 +112,7 @@ class JavaDateFormatter implements DateFormatter {
 
     private List<DateTimeFormatter> createRoundUpParser(String format,
                                                         Consumer<DateTimeFormatterBuilder> roundupParserConsumer) {
-        if (format.contains("||") == false) {
+        if (!format.contains("||")) {
             DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
             builder.append(this.parsers.get(0));
             roundupParserConsumer.accept(builder);
@@ -189,7 +189,7 @@ class JavaDateFormatter implements DateFormatter {
             for (DateTimeFormatter formatter : parsers) {
                 ParsePosition pos = new ParsePosition(0);
                 Object object = formatter.toFormat().parseObject(input, pos);
-                if (parsingSucceeded(object, input, pos) == true) {
+                if (parsingSucceeded(object, input, pos)) {
                     return (TemporalAccessor) object;
                 }
             }
@@ -262,7 +262,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj.getClass().equals(this.getClass()) == false) {
+        if (!obj.getClass().equals(this.getClass())) {
             return false;
         }
         JavaDateFormatter other = (JavaDateFormatter) obj;

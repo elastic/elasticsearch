@@ -142,7 +142,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         ArgumentCaptor<Exception> failure = ArgumentCaptor.forClass(Exception.class);
         // Rethrow any failures just so we get a nice exception if there were any. We don't expect any though.
         verify(listener, atMost(1)).onFailure(failure.capture());
-        if (false == failure.getAllValues().isEmpty()) {
+        if (!failure.getAllValues().isEmpty()) {
             throw new AssertionError(failure.getValue());
         }
         ArgumentCaptor<T> response = ArgumentCaptor.forClass(responseClass);

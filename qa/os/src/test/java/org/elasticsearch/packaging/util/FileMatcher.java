@@ -67,7 +67,7 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
     @Override
     protected boolean matchesSafely(Path path) {
-        if (Files.exists(path) == false) {
+        if (!Files.exists(path)) {
             mismatch = "Does not exist";
             return false;
         }
@@ -81,7 +81,7 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
                 return false;
             }
 
-            if (attributeViewOwner.contains(owner) == false) {
+            if (!attributeViewOwner.contains(owner)) {
                 mismatch = "Owned by " + attributeViewOwner;
                 return false;
             }
@@ -93,17 +93,17 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
                 return false;
             }
 
-            if (owner.equals(attributes.owner().getName()) == false) {
+            if (!owner.equals(attributes.owner().getName())) {
                 mismatch = "Owned by " + attributes.owner().getName();
                 return false;
             }
 
-            if (group != null && group.equals(attributes.group().getName()) == false) {
+            if (group != null && !group.equals(attributes.group().getName())) {
                 mismatch = "Owned by group " + attributes.group().getName();
                 return false;
             }
 
-            if (posixPermissions != null && posixPermissions.equals(attributes.permissions()) == false) {
+            if (posixPermissions != null && !posixPermissions.equals(attributes.permissions())) {
                 mismatch = "Has permissions " + attributes.permissions();
                 return false;
             }

@@ -141,7 +141,7 @@ public class SkipSection {
         }
         boolean skip = lowerVersion != null && upperVersion != null && currentVersion.onOrAfter(lowerVersion)
             && currentVersion.onOrBefore(upperVersion);
-        skip |= Features.areAllSupported(features) == false;
+        skip |= !Features.areAllSupported(features);
         return skip;
     }
 
@@ -179,7 +179,7 @@ public class SkipSection {
         if (reason != null) {
              messageBuilder.append(" reason: [").append(getReason()).append("]");
         }
-        if (features.isEmpty() == false) {
+        if (!features.isEmpty()) {
             messageBuilder.append(" unsupported features ").append(getFeatures());
         }
         return messageBuilder.toString();

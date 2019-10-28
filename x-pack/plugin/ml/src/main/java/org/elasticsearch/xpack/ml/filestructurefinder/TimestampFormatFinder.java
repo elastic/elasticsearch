@@ -272,7 +272,7 @@ public final class TimestampFormatFinder {
                 if (grokPatternAndRegexForGroup == null) {
                     // Special case of fractional seconds
                     if (curChar != 'S' || FRACTIONAL_SECOND_SEPARATORS.indexOf(prevChar) == -1 ||
-                        "ss".equals(prevLetterGroup) == false || endPos - startPos > 9) {
+                        !"ss".equals(prevLetterGroup) || endPos - startPos > 9) {
                         String msg = "Letter group [" + letterGroup + "] in [" + overrideFormat + "] is not supported";
                         if (curChar == 'S') {
                             msg += " because it is not preceded by [ss] and a separator from [" + FRACTIONAL_SECOND_SEPARATORS + "]";
@@ -456,7 +456,7 @@ public final class TimestampFormatFinder {
                     }
                 }
                 if (mustAdd) {
-                    if (errorOnMultiplePatterns && matchedFormats.isEmpty() == false) {
+                    if (errorOnMultiplePatterns && !matchedFormats.isEmpty()) {
                         throw new IllegalArgumentException("Multiple timestamp formats found ["
                             + matchedFormats.get(0) + "] and [" + newFormat + "]");
                     }
@@ -611,7 +611,7 @@ public final class TimestampFormatFinder {
     public String getGrokPatternName() {
         if (matchedFormats.isEmpty()) {
             // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
-            assert errorOnNoTimestamp == false;
+            assert !errorOnNoTimestamp;
             return null;
         }
         return matchedFormats.get(0).grokPatternName;
@@ -625,7 +625,7 @@ public final class TimestampFormatFinder {
     public Map<String, String> getCustomGrokPatternDefinitions() {
         if (matchedFormats.isEmpty()) {
             // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
-            assert errorOnNoTimestamp == false;
+            assert !errorOnNoTimestamp;
             return Collections.emptyMap();
         }
         return matchedFormats.get(0).customGrokPatternDefinitions;
@@ -639,7 +639,7 @@ public final class TimestampFormatFinder {
     public List<String> getPrefaces() {
         if (matchedFormats.isEmpty()) {
             // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
-            assert errorOnNoTimestamp == false;
+            assert !errorOnNoTimestamp;
             return Collections.emptyList();
         }
         return matches.stream().filter(match -> matchedFormats.size() < 2 || matchedFormats.get(0).canMergeWith(match.timestampFormat))
@@ -654,7 +654,7 @@ public final class TimestampFormatFinder {
     public Pattern getSimplePattern() {
         if (matchedFormats.isEmpty()) {
             // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
-            assert errorOnNoTimestamp == false;
+            assert !errorOnNoTimestamp;
             return null;
         }
         return matchedFormats.get(0).simplePattern;
@@ -668,7 +668,7 @@ public final class TimestampFormatFinder {
     public List<String> getRawJavaTimestampFormats() {
         if (matchedFormats.isEmpty()) {
             // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
-            assert errorOnNoTimestamp == false;
+            assert !errorOnNoTimestamp;
             return Collections.emptyList();
         }
         return matchedFormats.get(0).rawJavaTimestampFormats;
@@ -927,7 +927,7 @@ public final class TimestampFormatFinder {
     public boolean hasTimezoneDependentParsing() {
         if (matchedFormats.isEmpty()) {
             // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
-            assert errorOnNoTimestamp == false;
+            assert !errorOnNoTimestamp;
             return false;
         }
         return matches.stream().filter(match -> matchedFormats.size() < 2 || matchedFormats.get(0).canMergeWith(match.timestampFormat))
@@ -959,7 +959,7 @@ public final class TimestampFormatFinder {
                     return format;
             }
         }).collect(Collectors.joining("||"));
-        if (formats.isEmpty() == false) {
+        if (!formats.isEmpty()) {
             mapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, formats);
         }
         return mapping;
@@ -1143,7 +1143,7 @@ public final class TimestampFormatFinder {
         TimestampFormat mergeWith(TimestampFormat other) {
 
             if (canMergeWith(other)) {
-                if (rawJavaTimestampFormats.equals(other.rawJavaTimestampFormats) == false) {
+                if (!rawJavaTimestampFormats.equals(other.rawJavaTimestampFormats)) {
                     // Do the merge like this to preserve ordering
                     Set<String> mergedJavaTimestampFormats = new LinkedHashSet<>(rawJavaTimestampFormats);
                     if (mergedJavaTimestampFormats.addAll(other.rawJavaTimestampFormats)) {
@@ -1253,7 +1253,7 @@ public final class TimestampFormatFinder {
             switch (format) {
                 case "ISO8601":
                     assert matchedDate.length() > 6;
-                    return ISO8601_TIMEZONE_PATTERN.matcher(matchedDate).find(matchedDate.length() - 6) == false;
+                    return !ISO8601_TIMEZONE_PATTERN.matcher(matchedDate).find(matchedDate.length() - 6);
                 case "UNIX_MS":
                 case "UNIX":
                 case "TAI64N":
@@ -1487,7 +1487,7 @@ public final class TimestampFormatFinder {
                     ++examplePos;
                 }
 
-                if (patternChar == 's' || examplePos >= example.length() || foundDigit == false) {
+                if (patternChar == 's' || examplePos >= example.length() || !foundDigit) {
                     break;
                 }
 

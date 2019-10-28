@@ -153,7 +153,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         // find shard with given node
         final boolean primary = randomBoolean();
         ShardRoutingState[] replicaStates = new ShardRoutingState[0];
-        if (primary == false) {
+        if (!primary) {
             replicaStates = new ShardRoutingState[] { ShardRoutingState.STARTED };
         }
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED, replicaStates);
@@ -167,7 +167,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         // shard is not assigned to given node
         String explainNode = null;
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
-            if (routingNode.nodeId().equals(shardToExplain.currentNodeId()) == false) {
+            if (!routingNode.nodeId().equals(shardToExplain.currentNodeId())) {
                 explainNode = routingNode.nodeId();
                 break;
             }

@@ -85,10 +85,10 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
 
         Arrays.stream(fields).forEach(field -> {
             Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
-            if (fieldCaps != null && fieldCaps.isEmpty() == false) {
+            if (fieldCaps != null && !fieldCaps.isEmpty()) {
                 fieldCaps.forEach((key, value) -> {
                     if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
-                        if (value.isAggregatable() == false) {
+                        if (!value.isAggregatable()) {
                             validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
                                     "but is not.");
                         }

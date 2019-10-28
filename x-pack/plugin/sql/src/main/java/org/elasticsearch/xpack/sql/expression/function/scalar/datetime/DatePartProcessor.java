@@ -45,7 +45,7 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
         if (part == null || timestamp == null) {
             return null;
         }
-        if (part instanceof String == false) {
+        if (!(part instanceof String)) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", part);
         }
         Part datePartField = Part.resolve((String) part);
@@ -60,7 +60,7 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
             }
         }
 
-        if (timestamp instanceof ZonedDateTime == false) {
+        if (!(timestamp instanceof ZonedDateTime)) {
             throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", timestamp);
         }
 

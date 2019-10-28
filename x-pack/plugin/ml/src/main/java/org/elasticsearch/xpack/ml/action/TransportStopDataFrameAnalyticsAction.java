@@ -83,7 +83,7 @@ public class TransportStopDataFrameAnalyticsAction
                              ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
         ClusterState state = clusterService.state();
         DiscoveryNodes nodes = state.nodes();
-        if (nodes.isLocalNodeElectedMaster() == false) {
+        if (!nodes.isLocalNodeElectedMaster()) {
             redirectToMasterNode(nodes.getMasterNode(), request, listener);
             return;
         }
@@ -123,7 +123,7 @@ public class TransportStopDataFrameAnalyticsAction
         Set<String> failedAnalytics = new HashSet<>();
         sortAnalyticsByTaskState(ids, tasks, startedAnalytics, stoppingAnalytics, failedAnalytics);
 
-        if (force == false && failedAnalytics.isEmpty() == false) {
+        if (!force && !failedAnalytics.isEmpty()) {
             ElasticsearchStatusException e = failedAnalytics.size() == 1 ? ExceptionsHelper.conflictStatusException(
                 "cannot close data frame analytics [{}] because it failed, use force stop instead", failedAnalytics.iterator().next()) :
                 ExceptionsHelper.conflictStatusException("one or more data frame analytics are in failed state, " +
@@ -215,9 +215,9 @@ public class TransportStopDataFrameAnalyticsAction
                                                                 List<TaskOperationFailure> taskOperationFailures,
                                                                 List<FailedNodeException> failedNodeExceptions) {
         if (request.getExpandedIds().size() != tasks.size()) {
-            if (taskOperationFailures.isEmpty() == false) {
+            if (!taskOperationFailures.isEmpty()) {
                 throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
-            } else if (failedNodeExceptions.isEmpty() == false) {
+            } else if (!failedNodeExceptions.isEmpty()) {
                 throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
             } else {
                 // This can happen when the actual task in the node no longer exists,

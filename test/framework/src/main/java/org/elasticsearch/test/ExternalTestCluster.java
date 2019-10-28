@@ -92,7 +92,7 @@ public final class ExternalTestCluster extends TestCluster {
             .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
             .putList("discovery.seed_hosts",
                 Arrays.stream(transportAddresses).map(TransportAddress::toString).collect(Collectors.toList()));
-        if (Environment.PATH_HOME_SETTING.exists(additionalSettings) == false) {
+        if (!Environment.PATH_HOME_SETTING.exists(additionalSettings)) {
             clientSettingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         }
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
@@ -100,7 +100,7 @@ public final class ExternalTestCluster extends TestCluster {
         if (addMockTcpTransport) {
             String transport = getTestTransportType();
             clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
-            if (pluginClasses.contains(MockNioTransportPlugin.class) == false) {
+            if (!pluginClasses.contains(MockNioTransportPlugin.class)) {
                 pluginClasses = new ArrayList<>(pluginClasses);
                 pluginClasses.add(MockNioTransportPlugin.class);
             }

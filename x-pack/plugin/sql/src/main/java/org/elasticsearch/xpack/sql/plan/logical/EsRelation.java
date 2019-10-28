@@ -53,7 +53,7 @@ public class EsRelation extends LeafPlan {
                 FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t);
                 list.add(f);
                 // object or nested
-                if (t.getProperties().isEmpty() == false) {
+                if (!t.getProperties().isEmpty()) {
                     list.addAll(flatten(source, t.getProperties(), f));
                 }
             }

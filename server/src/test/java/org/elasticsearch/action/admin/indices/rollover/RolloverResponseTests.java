@@ -96,7 +96,7 @@ public class RolloverResponseTests extends AbstractSerializingTestCase<RolloverR
                     List<String> keys = randomSubsetOf(randomIntBetween(1, response.getConditionStatus().size()),
                             response.getConditionStatus().keySet());
                     for (Map.Entry<String, Boolean> entry : response.getConditionStatus().entrySet()) {
-                        boolean value = keys.contains(entry.getKey()) ? entry.getValue() == false : entry.getValue();
+                        boolean value = keys.contains(entry.getKey()) ? !entry.getValue() : entry.getValue();
                         results.put(entry.getKey(), value);
                     }
                 }
@@ -104,21 +104,21 @@ public class RolloverResponseTests extends AbstractSerializingTestCase<RolloverR
                         response.isRolledOver(), response.isAcknowledged(), response.isShardsAcknowledged());
             case 3:
                 return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
-                        response.getConditionStatus(), response.isDryRun() == false, response.isRolledOver(),
+                        response.getConditionStatus(), !response.isDryRun(), response.isRolledOver(),
                         response.isAcknowledged(), response.isShardsAcknowledged());
             case 4:
                 return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
-                        response.getConditionStatus(), response.isDryRun(), response.isRolledOver() == false,
+                        response.getConditionStatus(), response.isDryRun(), !response.isRolledOver(),
                         response.isAcknowledged(), response.isShardsAcknowledged());
             case 5: {
-                boolean acknowledged = response.isAcknowledged() == false;
+                boolean acknowledged = !response.isAcknowledged();
                 boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
                 return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
                         response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
                         acknowledged, shardsAcknowledged);
             }
             case 6: {
-                boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+                boolean shardsAcknowledged = !response.isShardsAcknowledged();
                 boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
                 return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
                         response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),

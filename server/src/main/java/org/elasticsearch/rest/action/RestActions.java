@@ -142,7 +142,7 @@ public class RestActions {
         builder.field("successful", successful);
         builder.field("failed", failed);
 
-        if (failures.isEmpty() == false) {
+        if (!failures.isEmpty()) {
             builder.startArray("failures");
             for (FailedNodeException failure : failures) {
                 builder.startObject();

@@ -74,7 +74,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
+        if (!collectsFromSingleBucket) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         Map<String, Object> aggParams = this.aggParams;

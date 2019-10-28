@@ -80,7 +80,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             assertEquals(expectedClientSettings.getApplicationName(), actualClientSettings.getApplicationName());
         }
 
-        if (deprecationWarnings.isEmpty() == false) {
+        if (!deprecationWarnings.isEmpty()) {
             assertSettingDeprecationsAndWarnings(deprecationWarnings.toArray(new Setting<?>[0]));
         }
     }

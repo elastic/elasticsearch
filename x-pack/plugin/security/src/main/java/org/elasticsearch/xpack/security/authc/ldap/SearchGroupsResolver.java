@@ -108,7 +108,7 @@ class SearchGroupsResolver implements GroupsResolver {
         searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER,
                 Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
                 ActionListener.wrap((entry) -> {
-                    if (entry == null || entry.hasAttribute(userAttribute) == false) {
+                    if (entry == null || !entry.hasAttribute(userAttribute)) {
                         listener.onResponse(null);
                     } else {
                         listener.onResponse(entry.getAttributeValue(userAttribute));

@@ -33,7 +33,7 @@ public class AnonymousUser extends User {
     }
 
     public static boolean isAnonymousEnabled(Settings settings) {
-        return ROLES_SETTING.exists(settings) && ROLES_SETTING.get(settings).isEmpty() == false;
+        return ROLES_SETTING.exists(settings) && !ROLES_SETTING.get(settings).isEmpty();
     }
 
     public static boolean isAnonymousUsername(String username, Settings settings) {

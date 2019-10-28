@@ -304,7 +304,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertNotNull(restoreSnapshotResponseListener.result());
         assertTrue(documentCountVerified.get());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
-        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> !entry.state().completed()));
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
@@ -404,7 +404,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         assertNotNull(createAnotherSnapshotResponseStepListener.result());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
-        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> !entry.state().completed()));
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
@@ -476,7 +476,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         });
 
         runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
-            if (createdSnapshot.get() == false) {
+            if (!createdSnapshot.get()) {
                 return false;
             }
             final SnapshotsInProgress snapshotsInProgress = master.clusterService.state().custom(SnapshotsInProgress.TYPE);
@@ -561,7 +561,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertNotNull(createSnapshotResponseStepListener.result());
         assertNotNull(restoreSnapshotResponseStepListener.result());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
-        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> !entry.state().completed()));
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
@@ -640,7 +640,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 List<String> masterNodeIds = testClusterNodes.nodes.values().stream()
                     .map(node -> node.clusterService.state().nodes().getMasterNodeId())
                     .distinct().collect(Collectors.toList());
-                return masterNodeIds.size() == 1 && masterNodeIds.contains(null) == false;
+                return masterNodeIds.size() == 1 && !masterNodeIds.contains(null);
             },
             TimeUnit.SECONDS.toMillis(30L)
         );
@@ -896,7 +896,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             return ConnectionStatus.CONNECTED;
                         }
                         // Check if both nodes are still part of the cluster
-                        if (nodes.containsKey(node.getName()) == false || nodes.containsKey(destination.getName()) == false) {
+                        if (!nodes.containsKey(node.getName()) || !nodes.containsKey(destination.getName())) {
                             return ConnectionStatus.DISCONNECTED;
                         }
                         return disconnectedNodes.contains(node.getId()) || disconnectedNodes.contains(destination.getId())

@@ -61,7 +61,7 @@ public abstract class AsyncIOProcessor<Item> {
 
         // we first try make a promise that we are responsible for the processing
         final boolean promised = promiseSemaphore.tryAcquire();
-        if (promised == false) {
+        if (!promised) {
             // in this case we are not responsible and can just block until there is space
             try {
                 queue.put(new Tuple<>(item, preserveContext(listener)));
@@ -82,7 +82,7 @@ public abstract class AsyncIOProcessor<Item> {
             }
             // since we made the promise to process we gotta do it here at least once
             drainAndProcessAndRelease(candidates);
-            while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
+            while (!queue.isEmpty() && promiseSemaphore.tryAcquire()) {
                 // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
                 drainAndProcessAndRelease(candidates);
             }
@@ -103,7 +103,7 @@ public abstract class AsyncIOProcessor<Item> {
 
     private Exception processList(List<Tuple<Item, Consumer<Exception>>> candidates) {
         Exception exception = null;
-        if (candidates.isEmpty() == false) {
+        if (!candidates.isEmpty()) {
             try {
                 write(candidates);
             } catch (Exception ex) { // if this fails we are in deep shit - fail the request

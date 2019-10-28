@@ -63,8 +63,8 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             while (true) {
                 electionCount++;
 
-                while (electionStarted.get() == false) {
-                    if (deterministicTaskQueue.hasRunnableTasks() == false) {
+                while (!electionStarted.get()) {
+                    if (!deterministicTaskQueue.hasRunnableTasks()) {
                         deterministicTaskQueue.advanceTime();
                     }
                     deterministicTaskQueue.runAllRunnableTasks();

@@ -125,7 +125,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
 
             long bucket = bucketFunction.applyAsLong(packedValue);
-            if (first == false && bucket != lastBucket) {
+            if (!first && bucket != lastBucket) {
                 final DocIdSet docIdSet = bucketDocsBuilder.build();
                 if (processBucket(queue, context, docIdSet.iterator(), lastBucket, builder) &&
                         // lower bucket is inclusive
@@ -173,7 +173,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         }
 
         public void flush() throws IOException {
-            if (first == false)  {
+            if (!first)  {
                 final DocIdSet docIdSet = bucketDocsBuilder.build();
                 processBucket(queue, context, docIdSet.iterator(), lastBucket, builder);
                 bucketDocsBuilder = null;

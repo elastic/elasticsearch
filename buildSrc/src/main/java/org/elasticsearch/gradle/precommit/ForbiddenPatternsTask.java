@@ -120,7 +120,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
                 )
                 .collect(Collectors.toList()));
         }
-        if (failures.isEmpty() == false) {
+        if (!failures.isEmpty()) {
             throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));
         }
 
@@ -152,7 +152,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
         if (pattern == null) {
             throw new InvalidUserDataException("Missing [pattern] for invalid pattern rule");
         }
-        if (props.isEmpty() == false) {
+        if (!props.isEmpty()) {
             throw new InvalidUserDataException("Unknown arguments for ForbiddenPatterns rule mapping: "
                 + props.keySet().toString());
         }

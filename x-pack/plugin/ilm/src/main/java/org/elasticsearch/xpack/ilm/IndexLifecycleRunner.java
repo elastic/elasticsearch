@@ -104,7 +104,7 @@ public class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
-            if (stepRegistry.policyExists(policy) == false) {
+            if (!stepRegistry.policyExists(policy)) {
                 markPolicyDoesNotExist(policy, indexMetaData.getIndex(), lifecycleState);
                 return;
             } else {
@@ -169,7 +169,7 @@ public class IndexLifecycleRunner {
 
         logger.trace("[{}] maybe running async action step ({}) with current step {}",
             index, currentStep.getClass().getSimpleName(), currentStep.getKey());
-        if (currentStep.getKey().equals(expectedStepKey) == false) {
+        if (!currentStep.getKey().equals(expectedStepKey)) {
             throw new IllegalStateException("expected index [" + indexMetaData.getIndex().getName() + "] with policy [" + policy +
                 "] to have current step consistent with provided step key (" + expectedStepKey + ") but it was " + currentStep.getKey());
         }
@@ -205,7 +205,7 @@ public class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
-            if (stepRegistry.policyExists(policy) == false) {
+            if (!stepRegistry.policyExists(policy)) {
                 markPolicyDoesNotExist(policy, indexMetaData.getIndex(), lifecycleState);
                 return;
             } else {
@@ -256,8 +256,8 @@ public class IndexLifecycleRunner {
             assert Strings.isNullOrEmpty(currentAction) : "Current action is not empty: " + currentAction;
             return null;
         } else {
-            assert Strings.isNullOrEmpty(currentPhase) == false;
-            assert Strings.isNullOrEmpty(currentAction) == false;
+            assert !Strings.isNullOrEmpty(currentPhase);
+            assert !Strings.isNullOrEmpty(currentAction);
             return new StepKey(currentPhase, currentAction, currentStep);
         }
     }
@@ -300,11 +300,11 @@ public class IndexLifecycleRunner {
         }
 
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-        if (currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(lifecycleState)) == false) {
+        if (!currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(lifecycleState))) {
             throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey + "]");
         }
 
-        if (stepRegistry.stepExists(indexPolicySetting, nextStepKey) == false) {
+        if (!stepRegistry.stepExists(indexPolicySetting, nextStepKey)) {
             throw new IllegalArgumentException("step [" + nextStepKey + "] for index [" + idxMeta.getIndex().getName() +
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }
@@ -361,7 +361,7 @@ public class IndexLifecycleRunner {
             StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
             String failedStep = lifecycleState.getFailedStep();
             if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName())
-                    && Strings.isNullOrEmpty(failedStep) == false) {
+                    && !Strings.isNullOrEmpty(failedStep)) {
                 StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
                 newState = moveClusterStateToStep(index, currentState, currentStepKey, nextStepKey, nowSupplier, stepRegistry, true);
             } else {
@@ -388,7 +388,7 @@ public class IndexLifecycleRunner {
         updatedState.setFailedStep(null);
         updatedState.setStepInfo(null);
 
-        if (currentStep.getPhase().equals(nextStep.getPhase()) == false || forcePhaseDefinitionRefresh) {
+        if (!currentStep.getPhase().equals(nextStep.getPhase()) || forcePhaseDefinitionRefresh) {
             final String newPhaseDefinition;
             final Phase nextPhase;
             if ("new".equals(nextStep.getPhase()) || TerminalPolicyStep.KEY.equals(nextStep)) {
@@ -409,7 +409,7 @@ public class IndexLifecycleRunner {
             updatedState.setPhaseTime(nowAsMillis);
         }
 
-        if (currentStep.getAction().equals(nextStep.getAction()) == false) {
+        if (!currentStep.getAction().equals(nextStep.getAction())) {
             updatedState.setActionTime(nowAsMillis);
         }
         return updatedState.build();

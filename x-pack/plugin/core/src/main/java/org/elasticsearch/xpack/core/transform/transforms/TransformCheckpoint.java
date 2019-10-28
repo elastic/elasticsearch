@@ -272,10 +272,10 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
      */
     public static long getBehind(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint) {
         if (oldCheckpoint.isTransient()) {
-            if (newCheckpoint.isTransient() == false) {
+            if (!newCheckpoint.isTransient()) {
                 throw new IllegalArgumentException("can not compare transient against a non transient checkpoint");
             } // else: both are transient
-        } else if (newCheckpoint.isTransient() == false && oldCheckpoint.getCheckpoint() > newCheckpoint.getCheckpoint()) {
+        } else if (!newCheckpoint.isTransient() && oldCheckpoint.getCheckpoint() > newCheckpoint.getCheckpoint()) {
             throw new IllegalArgumentException("old checkpoint is newer than new checkpoint");
         }
 

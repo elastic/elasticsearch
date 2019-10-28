@@ -304,13 +304,13 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
      * @return a new {@link DatafeedConfig} that contains the update
      */
     public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers) {
-        if (id.equals(datafeedConfig.getId()) == false) {
+        if (!id.equals(datafeedConfig.getId())) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
         if (jobId != null) {
-            if (datafeedConfig.getJobId() != null && datafeedConfig.getJobId().equals(jobId) == false) {
+            if (datafeedConfig.getJobId() != null && !datafeedConfig.getJobId().equals(jobId)) {
                 throw ExceptionsHelper.badRequestException(ERROR_MESSAGE_ON_JOB_ID_UPDATE);
             }
             builder.setJobId(jobId);
@@ -347,7 +347,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setMaxEmptySearches(maxEmptySearches);
         }
 
-        if (headers.isEmpty() == false) {
+        if (!headers.isEmpty()) {
             // Adjust the request, adding security headers from the current thread context
             Map<String, String> securityHeaders = headers.entrySet().stream()
                     .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
@@ -369,7 +369,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return true;
         }
 
-        if (other instanceof DatafeedUpdate == false) {
+        if (!(other instanceof DatafeedUpdate)) {
             return false;
         }
 

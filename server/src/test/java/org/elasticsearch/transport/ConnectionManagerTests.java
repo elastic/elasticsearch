@@ -167,7 +167,7 @@ public class ConnectionManagerTests extends ESTestCase {
                 connectionManager.connectToNode(node, connectionProfile, validator,
                     ActionListener.wrap(c -> {
                         nodeConnectedCount.incrementAndGet();
-                        if (connectionManager.nodeConnected(node) == false) {
+                        if (!connectionManager.nodeConnected(node)) {
                             throw new AssertionError("Expected node to be connected");
                         }
                         assert latch.getCount() == 1;

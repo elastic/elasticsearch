@@ -74,11 +74,11 @@ public class Stash implements ToXContentFragment {
      * as arguments for following requests (e.g. scroll_id)
      */
     public boolean containsStashedValue(Object key) {
-        if (key == null || false == key instanceof CharSequence) {
+        if (key == null || !(key instanceof CharSequence)) {
             return false;
         }
         String stashKey = key.toString();
-        if (false == Strings.hasLength(stashKey)) {
+        if (!Strings.hasLength(stashKey)) {
             return false;
         }
         if (stashKey.startsWith("$")) {
@@ -102,7 +102,7 @@ public class Stash implements ToXContentFragment {
          * very cheap so that should not be a problem.
          */
         StringBuffer result = new StringBuffer(key.length());
-        if (false == matcher.find()) {
+        if (!matcher.find()) {
             throw new IllegalArgumentException("Doesn't contain any stash keys [" + key + "]");
         }
         do {
@@ -178,7 +178,7 @@ public class Stash implements ToXContentFragment {
      */
     private Object getValue(List<Object> path, String key) throws IOException {
         Matcher matcher = PATH.matcher(key);
-        if (false == matcher.find()) {
+        if (!matcher.find()) {
             return getValue(key);
         }
         StringBuilder pathBuilder = new StringBuilder();

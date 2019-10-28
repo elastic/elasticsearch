@@ -290,7 +290,7 @@ public class RestSearchAction extends BaseRestHandler {
      */
     public static void checkRestTotalHits(RestRequest restRequest, SearchRequest searchRequest) {
         boolean totalHitsAsInt = restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false);
-        if (totalHitsAsInt == false) {
+        if (!totalHitsAsInt) {
             return;
         }
         if (searchRequest.source() == null) {

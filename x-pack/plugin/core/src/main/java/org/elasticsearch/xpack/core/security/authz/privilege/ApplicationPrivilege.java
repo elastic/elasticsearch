@@ -100,7 +100,7 @@ public final class ApplicationPrivilege extends Privilege {
         }
         final int asterisk = application.indexOf('*');
         if (asterisk != -1) {
-            if (allowWildcard == false) {
+            if (!allowWildcard) {
                 throw new IllegalArgumentException("Application names may not contain '*' (found '" + application + "')");
             }
             if (application.equals("*")) {
@@ -121,7 +121,7 @@ public final class ApplicationPrivilege extends Privilege {
         if (prefix.endsWith("*")) {
             prefix = prefix.substring(0, prefix.length() - 1);
         }
-        if (VALID_APPLICATION_PREFIX.matcher(prefix).matches() == false) {
+        if (!VALID_APPLICATION_PREFIX.matcher(prefix).matches()) {
             throw new IllegalArgumentException("An application name prefix must match the pattern " + VALID_APPLICATION_PREFIX.pattern()
                 + " (found '" + prefix + "')");
         }
@@ -134,7 +134,7 @@ public final class ApplicationPrivilege extends Privilege {
             if (allowWildcard && suffix.endsWith("*")) {
                 suffix = suffix.substring(0, suffix.length() - 1);
             }
-            if (Strings.validFileName(suffix) == false) {
+            if (!Strings.validFileName(suffix)) {
                 throw new IllegalArgumentException("An application name suffix may not contain any of the characters '" +
                     Strings.collectionToDelimitedString(Strings.INVALID_FILENAME_CHARS, "") + "' (found '" + suffix + "')");
             }
@@ -147,7 +147,7 @@ public final class ApplicationPrivilege extends Privilege {
      * @throws IllegalArgumentException if the name is not valid
      */
     public static void validatePrivilegeName(String name) {
-        if (isValidPrivilegeName(name) == false) {
+        if (!isValidPrivilegeName(name)) {
             throw new IllegalArgumentException("Application privilege names must match the pattern " + VALID_NAME.pattern()
                 + " (found '" + name + "')");
         }
@@ -163,7 +163,7 @@ public final class ApplicationPrivilege extends Privilege {
      * @throws IllegalArgumentException if the name is not valid
      */
     public static void validatePrivilegeOrActionName(String name) {
-        if (VALID_NAME_OR_ACTION.matcher(name).matches() == false) {
+        if (!VALID_NAME_OR_ACTION.matcher(name).matches()) {
             throw new IllegalArgumentException("Application privilege names and actions must match the pattern "
                 + VALID_NAME_OR_ACTION.pattern() + " (found '" + name + "')");
         }

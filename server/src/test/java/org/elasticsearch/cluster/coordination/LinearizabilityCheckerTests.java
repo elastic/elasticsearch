@@ -48,15 +48,15 @@ public class LinearizabilityCheckerTests extends ESTestCase {
             if (input != null) {
                 throw new AssertionError("invalid history: input must be null");
             }
-            if (output instanceof Boolean == false) {
+            if (!(output instanceof Boolean)) {
                 throw new AssertionError("invalid history: output must be boolean");
             }
-            if (false == (boolean) currentState) {
-                if (false == (boolean) output) {
+            if (!((boolean) currentState)) {
+                if (!((boolean) output)) {
                     return Optional.empty();
                 }
                 return Optional.of(true);
-            } else if (false == (boolean) output) {
+            } else if (!((boolean) output)) {
                 return Optional.of(currentState);
             }
             return Optional.empty();

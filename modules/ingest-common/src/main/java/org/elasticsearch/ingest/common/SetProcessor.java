@@ -66,7 +66,7 @@ public final class SetProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        if (overrideEnabled || document.hasField(field) == false || document.getFieldValue(field, Object.class) == null) {
+        if (overrideEnabled || !document.hasField(field) || document.getFieldValue(field, Object.class) == null) {
             document.setFieldValue(field, value);
         }
         return document;

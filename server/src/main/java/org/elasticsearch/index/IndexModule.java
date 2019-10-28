@@ -426,7 +426,7 @@ public final class IndexModule {
             success = true;
             return indexService;
         } finally {
-            if (success == false) {
+            if (!success) {
                 IOUtils.closeWhileHandlingException(queryCache, indexAnalyzers);
             }
         }
@@ -446,7 +446,7 @@ public final class IndexModule {
                 type = null;
             }
         }
-        if (allowMmap == false && (type == Type.MMAPFS || type == Type.HYBRIDFS)) {
+        if (!allowMmap && (type == Type.MMAPFS || type == Type.HYBRIDFS)) {
             throw new IllegalArgumentException("store type [" + storeType + "] is not allowed because mmap is disabled");
         }
         final IndexStorePlugin.DirectoryFactory factory;

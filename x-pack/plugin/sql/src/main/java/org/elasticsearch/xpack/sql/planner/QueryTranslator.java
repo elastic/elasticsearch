@@ -307,7 +307,7 @@ final class QueryTranslator {
                                 if (value instanceof IntervalYearMonth
                                         && ((IntervalYearMonth) value).interval().equals(Period.of(1, 0, 0))) {
                                     String calendarInterval = Year.YEAR_INTERVAL;
-                                    
+
                                     // When the histogram is `INTERVAL '1' YEAR`, the interval used in the ES date_histogram will be
                                     // a calendar_interval with value "1y". All other intervals will be fixed_intervals expressed in ms.
                                     if (field instanceof FieldAttribute) {
@@ -317,14 +317,14 @@ final class QueryTranslator {
                                     }
                                 } else {
                                     long intervalAsMillis = Intervals.inMillis(h.interval());
-    
+
                                     // When the histogram in SQL is applied on DATE type instead of DATETIME, the interval
                                     // specified is truncated to the multiple of a day. If the interval specified is less
                                     // than 1 day, then the interval used will be `INTERVAL '1' DAY`.
                                     if (h.dataType() == DATE) {
                                         intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
                                     }
-    
+
                                     if (field instanceof FieldAttribute) {
                                         key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());
                                     } else if (field instanceof Function) {
@@ -746,7 +746,7 @@ final class QueryTranslator {
                     name = ((FieldAttribute) bc.left()).exactAttribute().name();
                 }
                 Query query;
-                if (isDateLiteralComparison == true) {
+                if (isDateLiteralComparison) {
                     // dates equality uses a range query because it's the one that has a "format" parameter
                     query = new RangeQuery(source, name, value, true, value, true, format);
                 } else {
@@ -849,7 +849,7 @@ final class QueryTranslator {
                             format.set(formatter.pattern());
                         }
                     }
-                    
+
                     query = handleQuery(r, r.value(),
                         () -> new RangeQuery(r.source(), nameOf(r.value()), lower.get(), r.includeLower(),
                             upper.get(), r.includeUpper(), format.get()));

@@ -198,7 +198,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ShrinkAction action = new ShrinkAction(1);
         action.toSteps(mock(Client.class), "warm", randomStepKey()).stream()
             .map(sk -> sk.getKey().getName())
-            .filter(name -> name.equals(ShrinkStep.NAME) == false)
+            .filter(name -> !name.equals(ShrinkStep.NAME))
             .forEach(this::verifyCanStopWithStep);
     }
 

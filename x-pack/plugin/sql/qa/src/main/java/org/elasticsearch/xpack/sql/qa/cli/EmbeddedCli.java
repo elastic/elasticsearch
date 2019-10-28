@@ -96,7 +96,7 @@ public class EmbeddedCli implements Closeable {
                 args.add(security.keystoreLocation);
             }
         }
-        if (false == checkConnectionOnStartup) {
+        if (!checkConnectionOnStartup) {
             args.add("-check");
             args.add("false");
         }
@@ -164,7 +164,7 @@ public class EmbeddedCli implements Closeable {
                     isLogoOrException = true;
                 }
             }
-            
+
             assertConnectionTest();
         } catch (IOException e) {
             try {
@@ -218,7 +218,7 @@ public class EmbeddedCli implements Closeable {
                 if (line.contains("Bye!")) {
                     break;
                 }
-                if (false == line.isEmpty()) {
+                if (!line.isEmpty()) {
                     nonQuit.add(line);
                 }
             }

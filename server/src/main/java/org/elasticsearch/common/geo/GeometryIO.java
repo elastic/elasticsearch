@@ -220,7 +220,7 @@ public final class GeometryIO {
     }
 
     private static LinearRing buildLinearRing(double[][] arr, boolean orientation) {
-        if (orientation == false) {
+        if (!orientation) {
             reverse(arr);
         }
         if (arr.length == 3) {

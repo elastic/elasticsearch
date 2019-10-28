@@ -167,7 +167,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         if (maxConcurrentGroupRequests > 0) {
             builder.field(MAX_CONCURRENT_GROUP_REQUESTS_FIELD.getPreferredName(), maxConcurrentGroupRequests);
         }
-        if (innerHits.isEmpty() == false) {
+        if (!innerHits.isEmpty()) {
             if (innerHits.size() == 1) {
                 builder.field(INNER_HITS_FIELD.getPreferredName(), innerHits.get(0));
             } else {
@@ -204,13 +204,13 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false &&
-            fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
+        if (!(fieldType instanceof KeywordFieldMapper.KeywordFieldType) &&
+            !(fieldType instanceof NumberFieldMapper.NumberFieldType)) {
             throw new IllegalArgumentException("unknown type for collapse field `" + field +
                 "`, only keywords and numbers are accepted");
         }
 
-        if (fieldType.hasDocValues() == false) {
+        if (!fieldType.hasDocValues()) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
         if (fieldType.indexOptions() == IndexOptions.NONE && (innerHits != null && !innerHits.isEmpty())) {

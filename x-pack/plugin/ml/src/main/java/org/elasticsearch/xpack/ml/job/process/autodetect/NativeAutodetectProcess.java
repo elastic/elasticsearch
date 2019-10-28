@@ -62,7 +62,7 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
                 stateStreamer.restoreStateToStream(jobId(), modelSnapshot, r);
             } catch (Exception e) {
                 // TODO: should we fail to start?
-                if (isProcessKilled() == false) {
+                if (!isProcessKilled()) {
                     LOGGER.error("Error restoring model state for job " + jobId(), e);
                 }
             }

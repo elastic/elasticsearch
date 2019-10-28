@@ -90,7 +90,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         this.dailyRoleCache = Collections.newSetFromMap(new LinkedHashMap<String, Boolean>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Boolean> eldest) {
-                return false == eldest.getKey().startsWith(todayISODate());
+                return !eldest.getKey().startsWith(todayISODate());
             }
         });
     }
@@ -103,7 +103,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                     workQueue.add(roleDescriptor);
                 }
             }
-            if (false == workerBusy) {
+            if (!workerBusy) {
                 workerBusy = true;
                 try {
                     // spawn another worker on the generic thread pool
@@ -195,7 +195,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                     // compute automaton once per index no matter how many times it is pointed to
                     final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName,
                             i -> IndexPrivilege.get(indexPrivileges).getAutomaton());
-                    if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
+                    if (!Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
                         inferiorIndexNames.add(indexName);
                     }
                 } else {
@@ -203,7 +203,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                 }
             }
             // log inferior indices for this role, for this alias
-            if (false == inferiorIndexNames.isEmpty()) {
+            if (!inferiorIndexNames.isEmpty()) {
                 final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
                         aliasName, String.join(", ", inferiorIndexNames));
                 deprecationLogger.deprecated(logMessage);

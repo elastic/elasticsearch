@@ -47,7 +47,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             excludes = randomBoolean() ? null : Collections.emptyMap();
         }
         Map<String, String> requires;
-        if (hasAtLeastOneMap == false || randomBoolean()) {
+        if (!hasAtLeastOneMap || randomBoolean()) {
             requires = randomMap(1, 100);
         } else {
             requires = randomBoolean() ? null : Collections.emptyMap();

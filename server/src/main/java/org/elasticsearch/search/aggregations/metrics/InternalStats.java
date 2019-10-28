@@ -159,7 +159,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             // Compute the sum of double values with Kahan summation algorithm which is more
             // accurate than naive summation.
             double value = stats.getSum();
-            if (Double.isFinite(value) == false) {
+            if (!Double.isFinite(value)) {
                 sum += value;
             } else if (Double.isFinite(sum)) {
                 double corrected = value - compensation;
@@ -220,7 +220,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
 
         InternalStats other = (InternalStats) obj;
         return count == other.count &&

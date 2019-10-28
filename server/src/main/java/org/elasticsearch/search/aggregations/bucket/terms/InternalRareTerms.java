@@ -184,7 +184,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (!super.equals(obj)) return false;
         InternalRareTerms<?,?> that = (InternalRareTerms<?,?>) obj;
         return Objects.equals(maxDocCount, that.maxDocCount)
             && Objects.equals(order, that.order);

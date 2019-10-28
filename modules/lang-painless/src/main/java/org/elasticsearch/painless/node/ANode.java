@@ -114,7 +114,7 @@ public abstract class ANode {
     protected String singleLineToStringWithOptionalArgs(Collection<? extends ANode> arguments, Object... restOfSubs) {
         List<Object> subs = new ArrayList<>();
         Collections.addAll(subs, restOfSubs);
-        if (false == arguments.isEmpty()) {
+        if (!arguments.isEmpty()) {
             subs.add(joinWithName("Args", arguments, emptyList()));
         }
         return singleLineToString(subs);

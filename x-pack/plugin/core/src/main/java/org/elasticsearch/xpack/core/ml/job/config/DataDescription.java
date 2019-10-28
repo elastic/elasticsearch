@@ -298,7 +298,7 @@ public class DataDescription implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (other instanceof DataDescription == false) {
+        if (!(other instanceof DataDescription)) {
             return false;
         }
 

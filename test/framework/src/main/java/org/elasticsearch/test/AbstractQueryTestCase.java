@@ -182,11 +182,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             } catch (ParsingException | ElasticsearchParseException | XContentParseException e) {
                 // different kinds of exception wordings depending on location
                 // of mutation, so no simple asserts possible here
-                if (expectedException == false) {
+                if (!expectedException) {
                     throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
                 }
             } catch (IllegalArgumentException e) {
-                if (expectedException == false) {
+                if (!expectedException) {
                     throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
                 }
                 assertThat(e.getMessage(), containsString("unknown field [newField], parser not found"));
@@ -236,7 +236,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         List<Tuple<String, Boolean>> results = new ArrayList<>();
 
         // Indicate if a part of the query can hold any arbitrary content
-        boolean hasArbitraryContent = (arbitraryMarkers != null && arbitraryMarkers.isEmpty() == false);
+        boolean hasArbitraryContent = (arbitraryMarkers != null && !arbitraryMarkers.isEmpty());
 
         for (String query : queries) {
             // Track the number of query mutations

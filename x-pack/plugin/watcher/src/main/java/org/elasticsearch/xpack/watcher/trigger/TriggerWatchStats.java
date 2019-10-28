@@ -43,7 +43,7 @@ public class TriggerWatchStats {
     }
 
     public static TriggerWatchStats create(Watch watch) {
-        final boolean metadata = watch.metadata() != null && watch.metadata().isEmpty() == false;
+        final boolean metadata = watch.metadata() != null && !watch.metadata().isEmpty();
         final String triggerType = watch.trigger().type();
         String scheduleTriggerType = null;
         if (ScheduleTrigger.TYPE.equals(watch.trigger().type())) {

@@ -73,7 +73,7 @@ public class ModelPlotConfig implements ToXContentObject {
             return true;
         }
 
-        if (other instanceof ModelPlotConfig == false) {
+        if (!(other instanceof ModelPlotConfig)) {
             return false;
         }
 

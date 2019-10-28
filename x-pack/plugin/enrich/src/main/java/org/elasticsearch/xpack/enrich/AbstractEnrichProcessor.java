@@ -95,7 +95,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                     return;
                 }
 
-                if (overrideEnabled || ingestDocument.hasField(targetField) == false) {
+                if (overrideEnabled || !ingestDocument.hasField(targetField)) {
                     if (maxMatches == 1) {
                         Map<String, Object> firstDocument = searchHits[0].getSourceAsMap();
                         ingestDocument.setFieldValue(targetField, firstDocument);

@@ -142,7 +142,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             final Path shardParent = path.getParent();
             final Path shardParentParent = shardParent.getParent();
             final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
-            if (Files.exists(indexPath) == false || Files.isDirectory(indexPath) == false) {
+            if (!Files.exists(indexPath) || !Files.isDirectory(indexPath)) {
                 throw new ElasticsearchException("index directory [" + indexPath + "], must exist and be a directory");
             }
 
@@ -172,7 +172,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     // have to scan all index uuid folders to resolve from index name
                     try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
                         for (Path file : stream) {
-                            if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+                            if (!Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
                                 continue;
                             }
 
@@ -183,13 +183,13 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                             }
                             final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
                             final Index index = indexMetaData.getIndex();
-                            if (indexName.equals(index.getName()) == false) {
+                            if (!indexName.equals(index.getName())) {
                                 continue;
                             }
                             final ShardId shId = new ShardId(index, shardId);
 
                             final Path shardPathLocation = nodePath.resolve(shId);
-                            if (Files.exists(shardPathLocation) == false) {
+                            if (!Files.exists(shardPathLocation)) {
                                 continue;
                             }
                             final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
@@ -251,7 +251,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     private static void confirm(String msg, Terminal terminal) {
         terminal.println(msg);
         String text = terminal.readText("Confirm [y/N] ");
-        if (text.equalsIgnoreCase("y") == false) {
+        if (!text.equalsIgnoreCase("y")) {
             throw new ElasticsearchException("aborted by user");
         }
     }
@@ -274,7 +274,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         findAndProcessShardPath(options, environment, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();
             final Path translogPath = shardPath.resolveTranslog();
-            if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {
+            if (!Files.exists(translogPath) || !Files.isDirectory(translogPath)) {
                 throw new ElasticsearchException("translog directory [" + translogPath + "], must exist and be a directory");
             }
 
@@ -494,7 +494,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
     private Path getNodePath(ShardPath shardPath) {
         final Path nodePath = shardPath.getDataPath().getParent().getParent().getParent();
-        if (Files.exists(nodePath) == false || Files.exists(nodePath.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+        if (!Files.exists(nodePath) || !Files.exists(nodePath.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
             throw new ElasticsearchException("Unable to resolve node path for " + shardPath);
         }
         return nodePath;

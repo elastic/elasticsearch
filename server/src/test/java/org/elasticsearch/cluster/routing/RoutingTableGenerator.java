@@ -118,7 +118,7 @@ public class RoutingTableGenerator {
 
             if (shardRouting.primary()) {
                 primaryInactive++;
-                if (inactivePrimaryCausesRed == false) {
+                if (!inactivePrimaryCausesRed) {
                     inactivePrimaryCausesRed = getInactivePrimaryHealth(shardRouting) == ClusterHealthStatus.RED;
                 }
             }

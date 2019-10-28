@@ -161,7 +161,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 boolean ignoreZValue = builder.ignoreZValue == null ? Defaults.IGNORE_Z_VALUE.value() : builder.ignoreZValue;
                 boolean ignoreMalformed = builder.ignoreMalformed == null ? Defaults.IGNORE_MALFORMED.value() : builder.ignoreZValue;
                 GeoPoint point = GeoUtils.parseGeoPoint(nullValue, ignoreZValue);
-                if (ignoreMalformed == false) {
+                if (!ignoreMalformed) {
                     if (point.lat() > 90.0 || point.lat() < -90.0) {
                         throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "]");
                     }
@@ -252,7 +252,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
     protected void parse(ParseContext context, GeoPoint point) throws IOException {
 
-        if (ignoreMalformed.value() == false) {
+        if (!ignoreMalformed.value()) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {
                 throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());
             }
@@ -340,7 +340,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         try {
             parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse, ignoreZValue.value()));
         } catch (ElasticsearchParseException e) {
-            if (ignoreMalformed.value() == false) {
+            if (!ignoreMalformed.value()) {
                 throw e;
             }
             context.addIgnoredField(fieldType.name());
@@ -367,6 +367,6 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
     }
 
     private boolean isNormalizable(double coord) {
-        return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
+        return !Double.isNaN(coord) && !Double.isInfinite(coord);
     }
 }

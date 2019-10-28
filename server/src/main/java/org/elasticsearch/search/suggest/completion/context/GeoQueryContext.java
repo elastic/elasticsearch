@@ -222,7 +222,7 @@ public final class GeoQueryContext implements ToXContentObject {
 
         public GeoQueryContext build() {
             if (geoPoint == null) {
-                if (Double.isNaN(lat) == false && Double.isNaN(lon) == false) {
+                if (!Double.isNaN(lat) && !Double.isNaN(lon)) {
                     geoPoint = new GeoPoint(lat, lon);
                 }
             }

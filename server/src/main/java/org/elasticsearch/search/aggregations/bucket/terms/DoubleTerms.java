@@ -156,7 +156,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
                 break;
             }
         }
-        if (promoteToDouble == false) {
+        if (!promoteToDouble) {
             return super.doReduce(aggregations, reduceContext);
         }
         List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());

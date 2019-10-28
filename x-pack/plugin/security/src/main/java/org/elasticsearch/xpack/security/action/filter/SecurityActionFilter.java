@@ -72,7 +72,7 @@ public class SecurityActionFilter implements ActionFilter {
          A functional requirement - when the license of security is disabled (invalid/expires), security will continue
          to operate normally, except all read operations will be blocked.
          */
-        if (licenseState.isStatsAndHealthAllowed() == false && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
+        if (!licenseState.isStatsAndHealthAllowed() && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
                     "operations are blocked on license expiration. All data operations (read and write) continue to work. \n" +
                     "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
@@ -156,7 +156,7 @@ public class SecurityActionFilter implements ActionFilter {
                 ActionListener.wrap((authc) -> {
                     if (authc != null) {
                         authorizeRequest(authc, securityAction, request, listener);
-                    } else if (licenseState.isAuthAllowed() == false) {
+                    } else if (!licenseState.isAuthAllowed()) {
                         listener.onResponse(null);
                     } else {
                         listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));

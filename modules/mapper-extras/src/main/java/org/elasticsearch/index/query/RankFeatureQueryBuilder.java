@@ -105,7 +105,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
 
             @Override
             Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException {
-                if (positiveScoreImpact == false) {
+                if (!positiveScoreImpact) {
                     throw new IllegalArgumentException("Cannot use the [log] function with a field that has a negative score impact as " +
                             "it would trigger negative scores");
                 }

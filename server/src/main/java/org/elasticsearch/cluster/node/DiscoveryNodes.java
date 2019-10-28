@@ -170,7 +170,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
         return Stream.concat(StreamSupport.stream(masterNodes.spliterator(), false).map(cur -> cur.value),
-            StreamSupport.stream(this.spliterator(), false).filter(n -> n.isMasterNode() == false));
+            StreamSupport.stream(this.spliterator(), false).filter(n -> !n.isMasterNode()));
     }
 
     /**
@@ -420,12 +420,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         final List<DiscoveryNode> removed = new ArrayList<>();
         final List<DiscoveryNode> added = new ArrayList<>();
         for (DiscoveryNode node : other) {
-            if (this.nodeExists(node) == false) {
+            if (!this.nodeExists(node)) {
                 removed.add(node);
             }
         }
         for (DiscoveryNode node : this) {
-            if (other.nodeExists(node) == false) {
+            if (!other.nodeExists(node)) {
                 added.add(node);
             }
         }
@@ -473,7 +473,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean masterNodeChanged() {
-            return Objects.equals(newMasterNode, previousMasterNode) == false;
+            return !Objects.equals(newMasterNode, previousMasterNode);
         }
 
         @Nullable
@@ -523,7 +523,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             }
             if (added()) {
                 final String addedNodesExceptLocalNode = addedNodes().stream()
-                    .filter(node -> node.getId().equals(localNodeId) == false).map(DiscoveryNode::toString)
+                    .filter(node -> !node.getId().equals(localNodeId)).map(DiscoveryNode::toString)
                     .collect(Collectors.joining(","));
                 if (addedNodesExceptLocalNode.length() > 0) {
                     // ignore ourselves when reporting on nodes being added
@@ -664,11 +664,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
                 final DiscoveryNode existingNode = cursor.value;
                 if (node.getAddress().equals(existingNode.getAddress()) &&
-                    node.getId().equals(existingNode.getId()) == false) {
+                    !node.getId().equals(existingNode.getId())) {
                     return "can't add node " + node + ", found existing node " + existingNode + " with same address";
                 }
                 if (node.getId().equals(existingNode.getId()) &&
-                    node.equals(existingNode) == false) {
+                    !node.equals(existingNode)) {
                     return "can't add node " + node + ", found existing node " + existingNode
                         + " with the same id but is a different node instance";
                 }

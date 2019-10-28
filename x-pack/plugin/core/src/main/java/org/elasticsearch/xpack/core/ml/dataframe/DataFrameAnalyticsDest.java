@@ -98,7 +98,7 @@ public class DataFrameAnalyticsDest implements Writeable, ToXContentObject {
     public void validate() {
         if (index != null) {
             validateIndexOrAliasName(index, InvalidIndexNameException::new);
-            if (index.toLowerCase(Locale.ROOT).equals(index) == false) {
+            if (!index.toLowerCase(Locale.ROOT).equals(index)) {
                 throw new InvalidIndexNameException(index, "dest.index must be lowercase");
             }
         }

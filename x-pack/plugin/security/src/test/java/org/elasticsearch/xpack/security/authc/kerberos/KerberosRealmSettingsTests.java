@@ -27,7 +27,7 @@ public class KerberosRealmSettingsTests extends ESTestCase {
     public void testKerberosRealmSettings() throws IOException {
         final Path dir = createTempDir();
         Path configDir = dir.resolve("config");
-        if (Files.exists(configDir) == false) {
+        if (!Files.exists(configDir)) {
             configDir = Files.createDirectory(configDir);
         }
         final String keytabPathConfig = "config" + dir.getFileSystem().getSeparator() + "http.keytab";

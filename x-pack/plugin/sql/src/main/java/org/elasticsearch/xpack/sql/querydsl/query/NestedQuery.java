@@ -68,7 +68,7 @@ public class NestedQuery extends Query {
 
     @Override
     public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        if (false == this.path.equals(path)) {
+        if (!this.path.equals(path)) {
             // I'm not at the right path so let my child query have a crack at it
             Query rewrittenChild = child.addNestedField(path, field, format, hasDocValues);
             if (rewrittenChild == child) {
@@ -89,7 +89,7 @@ public class NestedQuery extends Query {
     @Override
     public void enrichNestedSort(NestedSortBuilder sort) {
         child.enrichNestedSort(sort);
-        if (false == sort.getPath().equals(path)) {
+        if (!sort.getPath().equals(path)) {
             return;
         }
 
@@ -97,7 +97,7 @@ public class NestedQuery extends Query {
         // Adding multiple filters to sort sections makes sense for nested queries where multiple conditions belong to the same
         // nested query. The current functionality creates one nested query for each condition involving a nested field.
         QueryBuilder childAsBuilder = child.asBuilder();
-        if (sort.getFilter() != null && false == sort.getFilter().equals(childAsBuilder)) {
+        if (sort.getFilter() != null && !sort.getFilter().equals(childAsBuilder)) {
             // throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
             return;
         }
@@ -161,7 +161,7 @@ public class NestedQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (!super.equals(obj)) {
             return false;
         }
         NestedQuery other = (NestedQuery) obj;

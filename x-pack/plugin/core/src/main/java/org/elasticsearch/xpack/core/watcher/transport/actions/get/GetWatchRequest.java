@@ -52,7 +52,7 @@ public class GetWatchRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (id == null) {
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
-        } else if (WatcherUtils.isValidId(id) == false) {
+        } else if (!WatcherUtils.isValidId(id)) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
 

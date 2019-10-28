@@ -250,7 +250,7 @@ final class StoreRecovery {
                     };
                 }
             }, src, dest, context);
-            if (copies.get() == false) {
+            if (!copies.get()) {
                 index.addFileDetail(dest, l, true); // hardlinked - we treat it as reused since the file was already somewhat there
             } else {
                 assert index.getFileDetails(dest) != null : "File [" + dest + "] has no file details";
@@ -286,7 +286,7 @@ final class StoreRecovery {
             // got closed on us, just ignore this recovery
             return false;
         }
-        if (indexShard.routingEntry().primary() == false) {
+        if (!indexShard.routingEntry().primary()) {
             throw new IndexShardRecoveryException(shardId, "Trying to recover when the shard is in backup state", null);
         }
         return true;
@@ -374,7 +374,7 @@ final class StoreRecovery {
                             "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
                     }
                 }
-                if (si != null && indexShouldExists == false) {
+                if (si != null && !indexShouldExists) {
                     // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
                     // its a "new index create" API, we have to do something, so better to clean it than use same data
                     logger.trace("cleaning existing shard, shouldn't exists");

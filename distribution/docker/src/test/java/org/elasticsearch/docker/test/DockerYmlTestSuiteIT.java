@@ -75,7 +75,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private String getDistribution() {
         String distribution = System.getProperty("tests.distribution", "default");
-        if (distribution.equals("oss") == false && distribution.equals("default") == false) {
+        if (!distribution.equals("oss") && !distribution.equals("default")) {
             throw new IllegalArgumentException("supported values for tests.distribution are oss or default but it was " + distribution);
         }
         return distribution;
@@ -112,7 +112,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
         } catch (URISyntaxException e) {
             throw new ElasticsearchException("exception while reading the store", e);
         }
-        if (Files.exists(keyStore) == false) {
+        if (!Files.exists(keyStore)) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
         }
     }

@@ -287,7 +287,7 @@ public class Job implements ToXContentObject {
         builder.field(ID.getPreferredName(), jobId);
         builder.field(JOB_TYPE.getPreferredName(), jobType);
 
-        if (groups.isEmpty() == false) {
+        if (!groups.isEmpty()) {
             builder.field(GROUPS.getPreferredName(), groups);
         }
         if (description != null) {

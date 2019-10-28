@@ -256,7 +256,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {
         SparseFixedBitSet sparseFixedBitSet = new SparseFixedBitSet(leaf.reader().maxDoc());
         TermsEnum tenum = leaf.reader().terms(field).iterator();
-        while (tenum.next().utf8ToString().equals(value) == false) {
+        while (!tenum.next().utf8ToString().equals(value)) {
         }
         PostingsEnum penum = tenum.postings(null);
         sparseFixedBitSet.or(penum);

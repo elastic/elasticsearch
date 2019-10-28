@@ -162,7 +162,7 @@ public class MetaDataIndexAliasesService {
                 final IndexMetaData currentIndexMetaData = currentState.metaData().index(maybeModifiedIndex);
                 final IndexMetaData newIndexMetaData = metadata.get(maybeModifiedIndex);
                 // only increment the aliases version if the aliases actually changed for this index
-                if (currentIndexMetaData.getAliases().equals(newIndexMetaData.getAliases()) == false) {
+                if (!currentIndexMetaData.getAliases().equals(newIndexMetaData.getAliases())) {
                     assert currentIndexMetaData.getAliasesVersion() == newIndexMetaData.getAliasesVersion();
                     metadata.put(new IndexMetaData.Builder(newIndexMetaData).aliasesVersion(1 + currentIndexMetaData.getAliasesVersion()));
                 }

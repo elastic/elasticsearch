@@ -107,7 +107,7 @@ public class FieldRoleMapperExpression implements RoleMapperExpression {
     }
 
     public static FieldRoleMapperExpression ofMetadata(String key, Object... values) {
-        if (key.startsWith("metadata.") == false) {
+        if (!key.startsWith("metadata.")) {
             throw new IllegalArgumentException("metadata key must have prefix 'metadata.'");
         }
         return ofKeyValues(key, values);

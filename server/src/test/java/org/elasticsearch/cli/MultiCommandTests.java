@@ -39,7 +39,7 @@ public class MultiCommandTests extends CommandTestCase {
         @Override
         public void close() throws IOException {
             super.close();
-            if (this.closed.compareAndSet(false, true) == false) {
+            if (!this.closed.compareAndSet(false, true)) {
                 throw new IllegalStateException("DummyMultiCommand already closed");
             }
         }
@@ -66,7 +66,7 @@ public class MultiCommandTests extends CommandTestCase {
 
         @Override
         public void close() throws IOException {
-            if (this.closeCalled.compareAndSet(false, true) == false) {
+            if (!this.closeCalled.compareAndSet(false, true)) {
                 throw new IllegalStateException("DummySubCommand already closed");
             }
             if (throwsExceptionOnClose) {

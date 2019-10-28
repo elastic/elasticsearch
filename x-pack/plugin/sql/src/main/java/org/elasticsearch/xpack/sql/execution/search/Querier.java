@@ -154,7 +154,7 @@ public class Querier {
 
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
-     * 
+     *
      * This listener consumes the whole result set, sorts it in memory then sends the paginated
      * results back to the client.
      */
@@ -320,7 +320,7 @@ public class Querier {
         }
     }
 
-        
+
     /**
      * Dedicated listener for composite aggs/group-by results.
      */
@@ -337,13 +337,13 @@ public class Querier {
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
-            
+
             Supplier<CompositeAggRowSet> makeRowSet = isPivot ?
                     () -> new PivotRowSet(schema, initBucketExtractors(response), mask, response,
                             query.sortingColumns().isEmpty() ? query.limit() : -1, null) :
                     () -> new SchemaCompositeAggRowSet(schema, initBucketExtractors(response), mask, response,
                             query.sortingColumns().isEmpty() ? query.limit() : -1);
-                    
+
             BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ?
                     (q, r) -> {
                         Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
@@ -352,7 +352,7 @@ public class Querier {
                     } :
                     (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData, query.shouldIncludeFrozen(),
                             request.indices());
-                    
+
             CompositeAggCursor.handle(response, request.source(),
                     makeRowSet,
                     makeCursor,
@@ -608,7 +608,7 @@ public class Querier {
                 else {
                     // check the values - if they are equal move to the next comparator
                     // otherwise return the row order
-                    if (Objects.equals(vl, vr) == false) {
+                    if (!Objects.equals(vl, vr)) {
                         return l.v2().compareTo(r.v2()) > 0;
                     }
                 }

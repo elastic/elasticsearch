@@ -130,7 +130,7 @@ public final class FileStructureUtils {
                                                                              FileStructureOverrides overrides,
                                                                              TimeoutChecker timeoutChecker) {
 
-        assert sampleRecords.isEmpty() == false;
+        assert !sampleRecords.isEmpty();
         Map<String, ?> firstRecord = sampleRecords.get(0);
 
         String onlyConsiderField = overrides.getTimestampField();
@@ -262,7 +262,7 @@ public final class FileStructureUtils {
      */
     static Map<String, String> findTimestampMapping(List<String> explanation, Collection<String> fieldValues,
                                                     TimeoutChecker timeoutChecker) {
-        assert fieldValues.isEmpty() == false;
+        assert !fieldValues.isEmpty();
 
         TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, timeoutChecker);
         fieldValues.forEach(timestampFormatFinder::addSample);
@@ -285,7 +285,7 @@ public final class FileStructureUtils {
      */
     static Map<String, String> guessScalarMapping(List<String> explanation, String fieldName, Collection<String> fieldValues,
                                                   TimeoutChecker timeoutChecker) {
-        assert fieldValues.isEmpty() == false;
+        assert !fieldValues.isEmpty();
 
         if (fieldValues.stream().allMatch(value -> "true".equals(value) || "false".equals(value))) {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "boolean");
@@ -376,7 +376,7 @@ public final class FileStructureUtils {
             Map<String, Object> grokProcessorSettings = new LinkedHashMap<>();
             grokProcessorSettings.put("field", "message");
             grokProcessorSettings.put("patterns", Collections.singletonList(grokPattern));
-            if (customGrokPatternDefinitions.isEmpty() == false) {
+            if (!customGrokPatternDefinitions.isEmpty()) {
                 grokProcessorSettings.put("pattern_definitions", customGrokPatternDefinitions);
             }
             processors.add(Collections.singletonMap("grok", grokProcessorSettings));

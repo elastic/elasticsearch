@@ -330,8 +330,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                         r -> {},
                                         e -> {
                                             final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                                            assert cause instanceof ElasticsearchSecurityException == false : cause;
-                                            if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
+                                            assert !(cause instanceof ElasticsearchSecurityException) : cause;
+                                            if (!(cause instanceof RetentionLeaseInvalidRetainingSeqNoException)) {
                                                 logger.warn(new ParameterizedMessage(
                                                     "{} background renewal of retention lease [{}] failed during restore", shardId,
                                                     retentionLeaseId), cause);

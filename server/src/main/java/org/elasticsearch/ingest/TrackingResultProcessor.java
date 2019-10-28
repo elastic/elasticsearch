@@ -76,7 +76,7 @@ public final class TrackingResultProcessor implements Processor {
         final Processor processor;
         if (actualProcessor instanceof ConditionalProcessor) {
             ConditionalProcessor conditionalProcessor = (ConditionalProcessor) actualProcessor;
-            if (conditionalProcessor.evaluate(ingestDocument) == false) {
+            if (!conditionalProcessor.evaluate(ingestDocument)) {
                 handler.accept(ingestDocument, null);
                 return;
             }

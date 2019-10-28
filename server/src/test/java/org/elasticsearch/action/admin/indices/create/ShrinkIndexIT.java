@@ -314,7 +314,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         final int size = docs > 0 ? 2 * docs : 1;
         assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
 
-        if (createWithReplicas == false) {
+        if (!createWithReplicas) {
             // bump replicas
             client().admin().indices().prepareUpdateSettings("target")
                 .setSettings(Settings.builder()

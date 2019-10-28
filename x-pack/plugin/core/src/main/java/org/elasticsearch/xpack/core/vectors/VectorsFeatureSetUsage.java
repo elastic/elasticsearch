@@ -70,7 +70,7 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof VectorsFeatureSetUsage == false) return false;
+        if (!(obj instanceof VectorsFeatureSetUsage)) return false;
         VectorsFeatureSetUsage other = (VectorsFeatureSetUsage) obj;
         return available == other.available && enabled == other.enabled && numDenseVectorFields == other.numDenseVectorFields
             && numSparseVectorFields == other.numSparseVectorFields && avgDenseVectorDims == other.avgDenseVectorDims;

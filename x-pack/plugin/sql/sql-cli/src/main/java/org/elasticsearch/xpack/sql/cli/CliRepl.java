@@ -67,7 +67,7 @@ public class CliRepl {
                 cliTerminal.flush();
                 return;
             }
-            if (cliCommand.handle(cliTerminal, cliSession, line) == false) {
+            if (!cliCommand.handle(cliTerminal, cliSession, line)) {
                 cliTerminal.error("Unrecognized command", line);
             }
             cliTerminal.println();

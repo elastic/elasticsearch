@@ -102,7 +102,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     protected void doExecute(Task task, StopDatafeedAction.Request request, ActionListener<StopDatafeedAction.Response> listener) {
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();
-        if (nodes.isLocalNodeElectedMaster() == false) {
+        if (!nodes.isLocalNodeElectedMaster()) {
             // Delegates stop datafeed to elected master node, so it becomes the coordinating node.
             // See comment in TransportStartDatafeedAction for more information.
             if (nodes.getMasterNode() == null) {
@@ -196,8 +196,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     @Override
                     public void onFailure(Exception e) {
                         final int slot = counter.incrementAndGet();
-                        if ((ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException &&
-                            Strings.isAllOrWildcard(new String[]{request.getDatafeedId()})) == false) {
+                        if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException &&
+                            Strings.isAllOrWildcard(new String[]{request.getDatafeedId()}))) {
                             failures.set(slot - 1, e);
                         }
                         if (slot == startedDatafeeds.size()) {
@@ -305,10 +305,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         // number of resolved data feeds should be equal to the number of
         // tasks, otherwise something went wrong
         if (request.getResolvedStartedDatafeedIds().length != tasks.size()) {
-            if (taskOperationFailures.isEmpty() == false) {
+            if (!taskOperationFailures.isEmpty()) {
                 throw org.elasticsearch.ExceptionsHelper
                         .convertToElastic(taskOperationFailures.get(0).getCause());
-            } else if (failedNodeExceptions.isEmpty() == false) {
+            } else if (!failedNodeExceptions.isEmpty()) {
                 throw org.elasticsearch.ExceptionsHelper
                         .convertToElastic(failedNodeExceptions.get(0));
             } else {

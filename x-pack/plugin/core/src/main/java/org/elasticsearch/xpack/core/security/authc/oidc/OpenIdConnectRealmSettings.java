@@ -59,7 +59,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<String> RP_RESPONSE_TYPE
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.response_type",
         key -> Setting.simpleString(key, v -> {
-            if (RESPONSE_TYPES.contains(v) == false) {
+            if (!RESPONSE_TYPES.contains(v)) {
                 throw new IllegalArgumentException(
                     "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + RESPONSE_TYPES + "");
             }
@@ -67,7 +67,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<String> RP_SIGNATURE_ALGORITHM
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.signature_algorithm",
         key -> new Setting<>(key, "RS256", Function.identity(), v -> {
-            if (SUPPORTED_SIGNATURE_ALGORITHMS.contains(v) == false) {
+            if (!SUPPORTED_SIGNATURE_ALGORITHMS.contains(v)) {
                 throw new IllegalArgumentException(
                     "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + SUPPORTED_SIGNATURE_ALGORITHMS + "}]");
             }

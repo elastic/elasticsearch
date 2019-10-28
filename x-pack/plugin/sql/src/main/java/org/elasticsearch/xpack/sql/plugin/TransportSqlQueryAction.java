@@ -75,7 +75,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 request.filter(), request.mode(), request.clientId(), username, clusterName, request.fieldMultiValueLeniency(),
                 request.indexIncludeFrozen());
 
-        if (Strings.hasText(request.cursor()) == false) {
+        if (!Strings.hasText(request.cursor())) {
             planExecutor.sql(cfg, request.query(), request.params(),
                     wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), listener::onFailure));
         } else {
@@ -87,7 +87,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
 
     static SqlQueryResponse createResponseWithSchema(SqlQueryRequest request, Page page) {
         RowSet rset = page.rowSet();
-        if ((rset instanceof SchemaRowSet) == false) {
+        if (!(rset instanceof SchemaRowSet)) {
             throw new SqlIllegalArgumentException("No schema found inside {}", rset.getClass());
         }
         SchemaRowSet rowSet = (SchemaRowSet) rset;

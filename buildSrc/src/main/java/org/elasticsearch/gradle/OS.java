@@ -71,7 +71,7 @@ public enum OS {
         public T supply() {
             HashSet<OS> missingOS = new HashSet<>(Arrays.asList(OS.values()));
             missingOS.removeAll(conditions.keySet());
-            if (missingOS.isEmpty() == false) {
+            if (!missingOS.isEmpty()) {
                 throw new IllegalArgumentException("No condition specified for " + missingOS);
             }
             return conditions.get(OS.current()).get();

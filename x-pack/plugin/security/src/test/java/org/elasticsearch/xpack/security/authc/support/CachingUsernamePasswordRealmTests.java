@@ -446,7 +446,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                         UsernamePasswordToken token = new UsernamePasswordToken(username, password);
 
                         realm.authenticate(token, ActionListener.wrap((result) -> {
-                            if (result.isAuthenticated() == false) {
+                            if (!result.isAuthenticated()) {
                                 throw new IllegalStateException("proper password led to an unauthenticated result: " + result);
                             }
                         }, (e) -> {
@@ -600,7 +600,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                             assertThat(threadPool.getThreadContext().getTransient("key"), is(threadNum));
                             if (invalidPassword && result.isAuthenticated()) {
                                 throw new RuntimeException("invalid password led to an authenticated user: " + result);
-                            } else if (invalidPassword == false && result.isAuthenticated() == false) {
+                            } else if (!invalidPassword && !result.isAuthenticated()) {
                                 throw new RuntimeException("proper password led to an unauthenticated result: " + result);
                             }
                         }, (e) -> {

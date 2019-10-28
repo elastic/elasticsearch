@@ -88,7 +88,7 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (sameClassAs(obj) == false) {
+        if (!sameClassAs(obj)) {
             return false;
         }
         MoreLikeThisQuery other = (MoreLikeThisQuery) obj;

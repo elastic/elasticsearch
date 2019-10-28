@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -18,6 +20,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -34,15 +37,18 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -73,17 +79,28 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     public static final String COMPOSITE_AGGREGATION_NAME = "_transform";
     private static final Logger logger = LogManager.getLogger(TransformIndexer.class);
 
+    protected final TransformConfigManager transformsConfigManager;
+    protected final CheckpointProvider checkpointProvider;
     protected final TransformAuditor auditor;
+    protected final TransformContext context;
 
     protected volatile TransformConfig transformConfig;
     protected volatile TransformProgress progress;
+    protected volatile boolean auditBulkFailures = true;
+    // Indicates that the source has changed for the current run
+    protected volatile boolean hasSourceChanged = true;
+
     private final Map<String, String> fieldMappings;
 
     private Pivot pivot;
     private int pageSize = 0;
+    private long logEvery = 1;
+    private long logCount = 0;
     protected volatile TransformCheckpoint lastCheckpoint;
     protected volatile TransformCheckpoint nextCheckpoint;
 
+    // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
+    private volatile String lastAuditedExceptionMessage = null;
     private volatile RunState runState;
 
     // hold information for continuous mode (partial updates)
@@ -92,6 +109,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     public TransformIndexer(
         Executor executor,
+        TransformConfigManager transformsConfigManager,
+        CheckpointProvider checkpointProvider,
         TransformAuditor auditor,
         TransformConfig transformConfig,
         Map<String, String> fieldMappings,
@@ -100,20 +119,23 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformIndexerStats jobStats,
         TransformProgress transformProgress,
         TransformCheckpoint lastCheckpoint,
-        TransformCheckpoint nextCheckpoint
+        TransformCheckpoint nextCheckpoint,
+        TransformContext context
     ) {
         super(executor, initialState, initialPosition, jobStats);
-        this.auditor = Objects.requireNonNull(auditor);
+        this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
+        this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
+        this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
         this.progress = transformProgress;
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
+        this.context = ExceptionsHelper.requireNonNull(context, "context");
+
         // give runState a default
         this.runState = RunState.FULL_RUN;
     }
-
-    protected abstract void failIndexer(String message);
 
     public int getPageSize() {
         return pageSize;
@@ -148,10 +170,50 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return nextCheckpoint;
     }
 
+    public CheckpointProvider getCheckpointProvider() {
+        return checkpointProvider;
+    }
+
     /**
      * Request a checkpoint
      */
-    protected abstract void createCheckpoint(ActionListener<TransformCheckpoint> listener);
+    protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
+        checkpointProvider.createNextCheckpoint(
+            getLastCheckpoint(),
+            ActionListener.wrap(
+                checkpoint -> transformsConfigManager.putTransformCheckpoint(
+                    checkpoint,
+                    ActionListener.wrap(
+                        putCheckPointResponse -> listener.onResponse(checkpoint),
+                        createCheckpointException -> {
+                            logger.warn(
+                                new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()),
+                                createCheckpointException
+                            );
+                            listener.onFailure(
+                                new RuntimeException(
+                                    "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
+                                    createCheckpointException
+                                )
+                            );
+                        }
+                    )
+                ),
+                getCheckPointException -> {
+                    logger.warn(
+                        new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()),
+                        getCheckPointException
+                    );
+                    listener.onFailure(
+                        new RuntimeException(
+                            "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
+                            getCheckPointException
+                        )
+                    );
+                }
+            )
+        );
+    }
 
     @Override
     protected void onStart(long now, ActionListener<Boolean> listener) {
@@ -176,10 +238,64 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void onFinish(ActionListener<Void> listener) {
-        // reset the page size, so we do not memorize a low page size forever
-        pageSize = pivot.getInitialPageSize();
-        // reset the changed bucket to free memory
-        changedBuckets = null;
+        try {
+            // This indicates an early exit since no changes were found.
+            // So, don't treat this like a checkpoint being completed, as no work was done.
+            if (hasSourceChanged == false) {
+                listener.onResponse(null);
+                return;
+            }
+
+            // reset the page size, so we do not memorize a low page size forever
+            pageSize = pivot.getInitialPageSize();
+            // reset the changed bucket to free memory
+            changedBuckets = null;
+
+            long checkpoint = context.getAndIncrementCheckpoint();
+            lastCheckpoint = getNextCheckpoint();
+            nextCheckpoint = null;
+            // Reset our failure count as we have finished and may start again with a new checkpoint
+            context.resetReasonAndFailureCounter();
+
+            // With bucket_selector we could have read all the buckets and completed the transform
+            // but not "see" all the buckets since they were filtered out. Consequently, progress would
+            // show less than 100% even though we are done.
+            // NOTE: this method is called in the same thread as the processing thread.
+            // Theoretically, there should not be a race condition with updating progress here.
+            // NOTE 2: getPercentComplete should only NOT be null on the first (batch) checkpoint
+            if (progress != null && progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
+                progress.incrementDocsProcessed(progress.getTotalDocs() - progress.getDocumentsProcessed());
+            }
+            // If the last checkpoint is now greater than 1, that means that we have just processed the first
+            // continuous checkpoint and should start recording the exponential averages
+            if (lastCheckpoint != null && lastCheckpoint.getCheckpoint() > 1) {
+                long docsIndexed = 0;
+                long docsProcessed = 0;
+                // This should not happen as we simply create a new one when we reach continuous checkpoints
+                // but this is a paranoid `null` check
+                if (progress != null) {
+                    docsIndexed = progress.getDocumentsIndexed();
+                    docsProcessed = progress.getDocumentsProcessed();
+                }
+                long durationMs = System.currentTimeMillis() - lastCheckpoint.getTimestamp();
+                getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
+            }
+            if (shouldAuditOnFinish(checkpoint)) {
+                auditor.info(
+                    getJobId(),
+                    "Finished indexing for transform checkpoint [" + checkpoint + "]."
+                );
+            }
+            logger.debug(
+                "[{}] finished indexing for transform checkpoint [{}].",
+                getJobId(),
+                checkpoint
+            );
+            auditBulkFailures = true;
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override
@@ -216,6 +332,86 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 logger.warn("Encountered unexpected run state [" + runState + "]");
                 throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
         }
+    }
+
+    @Override
+    public synchronized boolean maybeTriggerAsyncJob(long now) {
+        if (context.getTaskState() == TransformTaskState.FAILED) {
+            logger.debug("[{}] schedule was triggered for transform but task is failed. Ignoring trigger.", getJobId());
+            return false;
+        }
+
+        // ignore trigger if indexer is running, prevents log spam in A2P indexer
+        IndexerState indexerState = getState();
+        if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
+            logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getJobId(), indexerState);
+            return false;
+        }
+
+        return super.maybeTriggerAsyncJob(now);
+    }
+
+    @Override
+    protected void onFailure(Exception exc) {
+        // the failure handler must not throw an exception due to internal problems
+        try {
+            handleFailure(exc);
+        } catch (Exception e) {
+            logger.error(
+                new ParameterizedMessage("[{}] transform encountered an unexpected internal exception: ", getJobId()),
+                e
+            );
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        auditor.info(transformConfig.getId(), "Transform has stopped.");
+        logger.info("[{}] transform has stopped.", transformConfig.getId());
+    }
+
+    @Override
+    protected void onAbort() {
+        auditor.info(transformConfig.getId(), "Received abort request, stopping transform.");
+        logger.info("[{}] transform received abort request. Stopping indexer.", transformConfig.getId());
+        context.shutdown();
+    }
+
+    synchronized void handleFailure(Exception e) {
+        logger.warn(
+            new ParameterizedMessage(
+                "[{}] transform encountered an exception: ",
+                getJobId()
+            ),
+            e
+        );
+        if (handleCircuitBreakingException(e)) {
+            return;
+        }
+
+        if (isIrrecoverableFailure(e) || context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
+            String failureMessage = isIrrecoverableFailure(e)
+                ? "task encountered irrecoverable failure: " + e.getMessage()
+                : "task encountered more than " + context.getNumFailureRetries() + " failures; latest failure: " + e.getMessage();
+            failIndexer(failureMessage);
+        } else {
+            // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
+            // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
+            if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
+                auditor.warning(
+                    getJobId(),
+                    "Transform encountered an exception: " + e.getMessage() +
+                        " Will attempt again at next scheduled trigger."
+                );
+                lastAuditedExceptionMessage = e.getMessage();
+            }
+        }
+    }
+
+    private boolean isIrrecoverableFailure(Exception e) {
+        return e instanceof IndexNotFoundException
+            || e instanceof AggregationResultUtils.AggregationExtractionException
+            || e instanceof TransformConfigReloadingException;
     }
 
     private IterationResult<TransformIndexerPosition> processBuckets(final CompositeAggregation agg) {
@@ -515,6 +711,35 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return true;
     }
 
+    protected void failIndexer(String failureMessage) {
+        logger.error("[{}] transform has failed; experienced: [{}].", getJobId(), failureMessage);
+        auditor.error(getJobId(), failureMessage);
+        context.markAsFailed(failureMessage);
+    }
+
+    /**
+     * Indicates if an audit message should be written when onFinish is called for the given checkpoint
+     * We audit the first checkpoint, and then every 10 checkpoints until completedCheckpoint == 99
+     * Then we audit every 100, until completedCheckpoint == 999
+     *
+     * Then we always audit every 1_000 checkpoints
+     *
+     * @param completedCheckpoint The checkpoint that was just completed
+     * @return {@code true} if an audit message should be written
+     */
+    protected boolean shouldAuditOnFinish(long completedCheckpoint) {
+        if (++logCount % logEvery != 0) {
+            return false;
+        }
+        if (completedCheckpoint == 0) {
+            return true;
+        }
+        int log10Checkpoint = (int) Math.floor(Math.log10(completedCheckpoint));
+        logEvery = log10Checkpoint >= 3 ? 1_000 : (int) Math.pow(10.0, log10Checkpoint);
+        logCount = 0;
+        return true;
+    }
+
     private RunState determineRunStateAtStart() {
         // either 1st run or not a continuous data frame
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
@@ -556,5 +781,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return null;
     }
 
-    protected abstract void sourceHasChanged(ActionListener<Boolean> hasChangedListener);
+    static class TransformConfigReloadingException extends ElasticsearchException {
+        TransformConfigReloadingException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
+        }
+    }
 }

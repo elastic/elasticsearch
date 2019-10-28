@@ -304,7 +304,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }
 
         IndexerState state = getIndexer().stop();
-        context.setStateReason(null);
+        context.resetReasonAndFailureCounter();
 
         // No reason to keep it in the potentially failed state.
         // Since we have called `stop` against the indexer, we have no more fear of triggering again.

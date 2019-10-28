@@ -29,14 +29,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.junit.Before;
 
@@ -80,17 +83,20 @@ public class TransformIndexerTests extends ESTestCase {
 
         MockedTransformIndexer(
                 Executor executor,
+                TransformConfigManager transformsConfigManager,
+                CheckpointProvider checkpointProvider,
                 TransformConfig transformConfig,
                 Map<String, String> fieldMappings,
                 TransformAuditor auditor,
                 AtomicReference<IndexerState> initialState,
                 TransformIndexerPosition initialPosition,
                 TransformIndexerStats jobStats,
+                TransformContext context,
                 Function<SearchRequest, SearchResponse> searchFunction,
                 Function<BulkRequest, BulkResponse> bulkFunction,
                 Consumer<Exception> failureConsumer) {
-            super(executor, auditor, transformConfig, fieldMappings, initialState, initialPosition, jobStats,
-                    /* TransformProgress */ null, TransformCheckpoint.EMPTY, TransformCheckpoint.EMPTY);
+            super(executor, transformsConfigManager, checkpointProvider, auditor, transformConfig, fieldMappings, initialState, initialPosition, jobStats,
+                    /* TransformProgress */ null, TransformCheckpoint.EMPTY, TransformCheckpoint.EMPTY, context);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -180,11 +186,6 @@ public class TransformIndexerTests extends ESTestCase {
             fail("failIndexer should not be called, received error: " + message);
         }
 
-        @Override
-        protected void sourceHasChanged(ActionListener<Boolean> listener) {
-            listener.onResponse(false);
-        }
-
     }
 
     @Before
@@ -224,9 +225,11 @@ public class TransformIndexerTests extends ESTestCase {
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
             TransformAuditor auditor = new TransformAuditor(client, "node_1");
+            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
-            MockedTransformIndexer indexer = new MockedTransformIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
-                    new TransformIndexerStats(), searchFunction, bulkFunction, failureConsumer);
+            MockedTransformIndexer indexer = new MockedTransformIndexer(executor, mock(TransformConfigManager.class),
+                    mock(CheckpointProvider.class), config, Collections.emptyMap(), auditor, state, null,
+                    new TransformIndexerStats(), context, searchFunction, bulkFunction, failureConsumer);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -291,9 +294,11 @@ public class TransformIndexerTests extends ESTestCase {
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
             TransformAuditor auditor = mock(TransformAuditor.class);
+            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
-            MockedTransformIndexer indexer = new MockedTransformIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
-                new TransformIndexerStats(), searchFunction, bulkFunction, failureConsumer);
+            MockedTransformIndexer indexer = new MockedTransformIndexer(executor, mock(TransformConfigManager.class),
+                    mock(CheckpointProvider.class), config, Collections.emptyMap(), auditor, state, null,
+                new TransformIndexerStats(), context, searchFunction, bulkFunction, failureConsumer);
 
             IterationResult<TransformIndexerPosition> newPosition = indexer.doProcess(searchResponse);
             assertThat(newPosition.getToIndex(), is(empty()));

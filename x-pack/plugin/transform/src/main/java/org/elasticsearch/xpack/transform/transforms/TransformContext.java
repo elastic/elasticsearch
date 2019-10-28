@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -25,6 +26,7 @@ class TransformContext {
     private final AtomicReference<String> stateReason;
     private final Listener taskListener;
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
+    private final AtomicInteger failureCount;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
@@ -35,6 +37,7 @@ class TransformContext {
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
         this.taskListener = taskListener;
+        this.failureCount = new AtomicInteger(0);
     }
 
     TransformTaskState getTaskState() {
@@ -59,8 +62,9 @@ class TransformContext {
         stateReason.set(reason);
     }
 
-    void setStateReason(String reason) {
-        stateReason.set(reason);
+    void resetReasonAndFailureCounter() {
+        stateReason.set(null);
+        failureCount.set(0);
     }
 
     String getStateReason() {
@@ -75,7 +79,7 @@ class TransformContext {
         return currentCheckpoint.get();
     }
 
-    long incrementCheckpoint() {
+    long getAndIncrementCheckpoint() {
         return currentCheckpoint.getAndIncrement();
     }
 
@@ -87,12 +91,20 @@ class TransformContext {
         return numFailureRetries;
     }
 
+    int getAndIncrementFailureCount () {
+        return failureCount.getAndIncrement();
+    }
+
     void shutdown() {
         taskListener.shutdown();
     }
 
-    void markAsFailed(String failureMessage, ActionListener<Void> listener) {
-        taskListener.fail(failureMessage, listener);
+    void markAsFailed(String failureMessage) {
+        taskListener.fail(failureMessage, ActionListener.wrap(r -> {
+            // Successfully marked as failed, reset counter so that task can be restarted
+            failureCount.set(0);
+        }, e -> {
+        }));
     }
 
 }

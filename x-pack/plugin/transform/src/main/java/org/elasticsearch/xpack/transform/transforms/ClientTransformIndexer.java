@@ -22,7 +22,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -39,31 +38,18 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexer extends TransformIndexer {
 
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
-    private long logEvery = 1;
-    private long logCount = 0;
     private final Client client;
-    private final TransformConfigManager transformsConfigManager;
-    private final CheckpointProvider checkpointProvider;
-    private final TransformContext context;
-    private final AtomicInteger failureCount;
-    private volatile boolean auditBulkFailures = true;
-    // Indicates that the source has changed for the current run
-    private volatile boolean hasSourceChanged = true;
-    // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
-    private volatile String lastAuditedExceptionMessage = null;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
     private volatile Instant changesLastDetectedAt;
 
@@ -88,7 +74,9 @@ class ClientTransformIndexer extends TransformIndexer {
     ) {
         super(
             ExceptionsHelper.requireNonNull(executor, "executor"),
-            ExceptionsHelper.requireNonNull(auditor, "auditor"),
+            transformsConfigManager,
+            checkpointProvider,
+            auditor,
             transformConfig,
             fieldMappings,
             ExceptionsHelper.requireNonNull(initialState, "initialState"),
@@ -96,13 +84,10 @@ class ClientTransformIndexer extends TransformIndexer {
             initialStats == null ? new TransformIndexerStats() : initialStats,
             transformProgress,
             lastCheckpoint,
-            nextCheckpoint
+            nextCheckpoint,
+            context
         );
-        this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
-        this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.client = ExceptionsHelper.requireNonNull(client, "client");
-        this.context = ExceptionsHelper.requireNonNull(context, "context");
-        this.failureCount = new AtomicInteger(0);
         this.seqNoPrimaryTermAndIndex = new AtomicReference<>(seqNoPrimaryTermAndIndex);
     }
 
@@ -226,29 +211,8 @@ class ClientTransformIndexer extends TransformIndexer {
         }
     }
 
-    public CheckpointProvider getCheckpointProvider() {
-        return checkpointProvider;
-    }
-
     Instant getChangesLastDetectedAt() {
         return changesLastDetectedAt;
-    }
-
-    @Override
-    public synchronized boolean maybeTriggerAsyncJob(long now) {
-        if (context.getTaskState() == TransformTaskState.FAILED) {
-            logger.debug("[{}] schedule was triggered for transform but task is failed. Ignoring trigger.", getJobId());
-            return false;
-        }
-
-        // ignore trigger if indexer is running, prevents log spam in A2P indexer
-        IndexerState indexerState = getState();
-        if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
-            logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getJobId(), indexerState);
-            return false;
-        }
-
-        return super.maybeTriggerAsyncJob(now);
     }
 
     @Override
@@ -444,156 +408,7 @@ class ClientTransformIndexer extends TransformIndexer {
         );
     }
 
-    @Override
-    protected void onFailure(Exception exc) {
-        // the failure handler must not throw an exception due to internal problems
-        try {
-            handleFailure(exc);
-        } catch (Exception e) {
-            logger.error(
-                new ParameterizedMessage("[{}] transform encountered an unexpected internal exception: ", getJobId()),
-                e
-            );
-        }
-    }
-
-    @Override
-    protected void onFinish(ActionListener<Void> listener) {
-        try {
-            // This indicates an early exit since no changes were found.
-            // So, don't treat this like a checkpoint being completed, as no work was done.
-            if (hasSourceChanged == false) {
-                listener.onResponse(null);
-                return;
-            }
-            // TODO: needs cleanup super is called with a listener, but listener.onResponse is called below
-            // super.onFinish() fortunately ignores the listener
-            super.onFinish(listener);
-            long checkpoint = context.incrementCheckpoint();
-            lastCheckpoint = getNextCheckpoint();
-            nextCheckpoint = null;
-            // Reset our failure count as we have finished and may start again with a new checkpoint
-            failureCount.set(0);
-            context.setStateReason(null);
-
-            // With bucket_selector we could have read all the buckets and completed the transform
-            // but not "see" all the buckets since they were filtered out. Consequently, progress would
-            // show less than 100% even though we are done.
-            // NOTE: this method is called in the same thread as the processing thread.
-            // Theoretically, there should not be a race condition with updating progress here.
-            // NOTE 2: getPercentComplete should only NOT be null on the first (batch) checkpoint
-            if (progress != null && progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
-                progress.incrementDocsProcessed(progress.getTotalDocs() - progress.getDocumentsProcessed());
-            }
-            // If the last checkpoint is now greater than 1, that means that we have just processed the first
-            // continuous checkpoint and should start recording the exponential averages
-            if (lastCheckpoint != null && lastCheckpoint.getCheckpoint() > 1) {
-                long docsIndexed = 0;
-                long docsProcessed = 0;
-                // This should not happen as we simply create a new one when we reach continuous checkpoints
-                // but this is a paranoid `null` check
-                if (progress != null) {
-                    docsIndexed = progress.getDocumentsIndexed();
-                    docsProcessed = progress.getDocumentsProcessed();
-                }
-                long durationMs = System.currentTimeMillis() - lastCheckpoint.getTimestamp();
-                getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
-            }
-            if (shouldAuditOnFinish(checkpoint)) {
-                auditor.info(
-                    getJobId(),
-                    "Finished indexing for transform checkpoint [" + checkpoint + "]."
-                );
-            }
-            logger.debug(
-                "[{}] finished indexing for transform checkpoint [{}].",
-                getJobId(),
-                checkpoint
-            );
-            auditBulkFailures = true;
-            listener.onResponse(null);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Indicates if an audit message should be written when onFinish is called for the given checkpoint
-     * We audit the first checkpoint, and then every 10 checkpoints until completedCheckpoint == 99
-     * Then we audit every 100, until completedCheckpoint == 999
-     *
-     * Then we always audit every 1_000 checkpoints
-     *
-     * @param completedCheckpoint The checkpoint that was just completed
-     * @return {@code true} if an audit message should be written
-     */
-    protected boolean shouldAuditOnFinish(long completedCheckpoint) {
-        if (++logCount % logEvery != 0) {
-            return false;
-        }
-        if (completedCheckpoint == 0) {
-            return true;
-        }
-        int log10Checkpoint = (int) Math.floor(Math.log10(completedCheckpoint));
-        logEvery = log10Checkpoint >= 3 ? 1_000 : (int) Math.pow(10.0, log10Checkpoint);
-        logCount = 0;
-        return true;
-    }
-
-    @Override
-    protected void onStop() {
-        auditor.info(transformConfig.getId(), "Transform has stopped.");
-        logger.info("[{}] transform has stopped.", transformConfig.getId());
-    }
-
-    @Override
-    protected void onAbort() {
-        auditor.info(transformConfig.getId(), "Received abort request, stopping transform.");
-        logger.info("[{}] transform received abort request. Stopping indexer.", transformConfig.getId());
-        context.shutdown();
-    }
-
-    @Override
-    protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
-        checkpointProvider.createNextCheckpoint(
-            getLastCheckpoint(),
-            ActionListener.wrap(
-                checkpoint -> transformsConfigManager.putTransformCheckpoint(
-                    checkpoint,
-                    ActionListener.wrap(
-                        putCheckPointResponse -> listener.onResponse(checkpoint),
-                        createCheckpointException -> {
-                            logger.warn(
-                                new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()),
-                                createCheckpointException
-                            );
-                            listener.onFailure(
-                                new RuntimeException(
-                                    "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
-                                    createCheckpointException
-                                )
-                            );
-                        }
-                    )
-                ),
-                getCheckPointException -> {
-                    logger.warn(
-                        new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()),
-                        getCheckPointException
-                    );
-                    listener.onFailure(
-                        new RuntimeException(
-                            "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
-                            getCheckPointException
-                        )
-                    );
-                }
-            )
-        );
-    }
-
-    @Override
-    protected void sourceHasChanged(ActionListener<Boolean> hasChangedListener) {
+    private void sourceHasChanged(ActionListener<Boolean> hasChangedListener) {
         checkpointProvider.sourceHasChanged(
             getLastCheckpoint(),
             ActionListener.wrap(
@@ -620,59 +435,6 @@ class ClientTransformIndexer extends TransformIndexer {
         );
     }
 
-    private boolean isIrrecoverableFailure(Exception e) {
-        return e instanceof IndexNotFoundException
-            || e instanceof AggregationResultUtils.AggregationExtractionException
-            || e instanceof TransformConfigReloadingException;
-    }
-
-    synchronized void handleFailure(Exception e) {
-        logger.warn(
-            new ParameterizedMessage(
-                "[{}] transform encountered an exception: ",
-                getJobId()
-            ),
-            e
-        );
-        if (handleCircuitBreakingException(e)) {
-            return;
-        }
-
-        if (isIrrecoverableFailure(e) || failureCount.incrementAndGet() > context.getNumFailureRetries()) {
-            String failureMessage = isIrrecoverableFailure(e)
-                ? "task encountered irrecoverable failure: " + e.getMessage()
-                : "task encountered more than " + context.getNumFailureRetries() + " failures; latest failure: " + e.getMessage();
-            failIndexer(failureMessage);
-        } else {
-            // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
-            // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
-            if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                auditor.warning(
-                    getJobId(),
-                    "Transform encountered an exception: " + e.getMessage() +
-                        " Will attempt again at next scheduled trigger."
-                );
-                lastAuditedExceptionMessage = e.getMessage();
-            }
-        }
-    }
-
-    @Override
-    protected void failIndexer(String failureMessage) {
-        logger.error("[{}] transform has failed; experienced: [{}].", getJobId(), failureMessage);
-        auditor.error(getJobId(), failureMessage);
-        context.markAsFailed(
-            failureMessage,
-            ActionListener.wrap(
-                r -> {
-                    // Successfully marked as failed, reset counter so that task can be restarted
-                    failureCount.set(0);
-                },
-                e -> {}
-            )
-        );
-    }
-
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
         boolean updated = seqNoPrimaryTermAndIndex.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
@@ -692,9 +454,4 @@ class ClientTransformIndexer extends TransformIndexer {
         }
     }
 
-    private static class TransformConfigReloadingException extends ElasticsearchException {
-        TransformConfigReloadingException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
-    }
 }

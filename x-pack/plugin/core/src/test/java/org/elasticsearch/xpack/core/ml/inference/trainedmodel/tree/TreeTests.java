@@ -154,6 +154,12 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         assertThat(0.2,
             closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
+        // This should still work if the internal values are strings
+        List<String> featureVectorStrings = Arrays.asList("0.3", "0.9");
+        featureMap = zipObjMap(featureNames, featureVectorStrings);
+        assertThat(0.2,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+
         // This should handle missing values and take the default_left path
         featureMap = new HashMap<>(2) {{
             put("foo", 0.3);
@@ -294,7 +300,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         assertThat(ex.getMessage(), equalTo(msg));
     }
 
-    private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {
+    private static Map<String, Object> zipObjMap(List<String> keys, List<? extends Object> values) {
         return IntStream.range(0, keys.size()).boxed().collect(Collectors.toMap(keys::get, values::get));
     }
 }

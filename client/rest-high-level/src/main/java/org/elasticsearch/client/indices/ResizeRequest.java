@@ -19,32 +19,58 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Request class to shrink an index into a single shard
  */
 public class ResizeRequest extends TimedRequest implements Validatable, ToXContentObject {
 
-    private CreateIndexRequest targetIndexRequest;
-    private String sourceIndex;
-    private ResizeType type = ResizeType.SHRINK;
-    private Boolean copySettings = true;
+    private ActiveShardCount waitForActiveShards;
+    private final String sourceIndex;
+    private final String targetIndex;
+    private Settings settings = Settings.EMPTY;
+    private Set<Alias> aliases = new HashSet<>();
 
     public ResizeRequest(String targetIndex, String sourceIndex) {
-        this.targetIndexRequest = new CreateIndexRequest(targetIndex);
+        this.targetIndex = targetIndex;
         this.sourceIndex = sourceIndex;
+    }
+
+    public ResizeRequest setSettings(Settings settings) {
+        this.settings = settings;
+        return this;
+    }
+
+    public Settings getSettings() {
+        return this.settings;
+    }
+
+    public ResizeRequest addAlias(Alias alias) {
+        this.aliases.add(alias);
+        return this;
+    }
+
+    public ResizeRequest addAliases(List<Alias> aliases) {
+        this.aliases.addAll(aliases);
+        return this;
+    }
+
+    public Set<Alias> getAliases() {
+        return Collections.unmodifiableSet(this.aliases);
     }
 
     @Override
@@ -53,32 +79,17 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
         if (sourceIndex == null) {
             validationException.addValidationError("source index is missing");
         }
-        if (targetIndexRequest == null) {
-            validationException.addValidationError("target index request is missing");
+        if (targetIndex == null) {
+            validationException.addValidationError("target index is missing");
         }
-        if (targetIndexRequest.settings().getByPrefix("index.sort.").isEmpty() == false) {
+        if (settings.getByPrefix("index.sort.").isEmpty() == false) {
             validationException.addValidationError("can't override index sort when resizing an index");
         }
-        if (type == ResizeType.SPLIT && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
-            validationException.addValidationError("index.number_of_shards is required for split operations");
-        }
-        assert copySettings == null || copySettings;
         return validationException.validationErrors().isEmpty() ? Optional.empty() : Optional.of(validationException);
     }
 
-    public void setSourceIndex(String index) {
-        this.sourceIndex = index;
-    }
-
-    public void setTargetIndex(CreateIndexRequest targetIndexRequest) {
-        this.targetIndexRequest = Objects.requireNonNull(targetIndexRequest, "target index request must not be null");
-    }
-
-    /**
-     * Returns the {@link CreateIndexRequest} for the shrink index
-     */
-    public CreateIndexRequest getTargetIndexRequest() {
-        return targetIndexRequest;
+    public String getTargetIndex() {
+        return targetIndex;
     }
 
     /**
@@ -102,8 +113,9 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
      *
      * @param waitForActiveShards number of active shard copies to wait on
      */
-    public void setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
-        this.getTargetIndexRequest().waitForActiveShards(waitForActiveShards);
+    public ResizeRequest setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
+        return this;
     }
 
     /**
@@ -111,33 +123,12 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
      * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
      * to get the ActiveShardCount.
      */
-    public void setWaitForActiveShards(final int waitForActiveShards) {
-        setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    public ResizeRequest setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
-    /**
-     * The type of the resize operation
-     */
-    public void setResizeType(ResizeType type) {
-        this.type = Objects.requireNonNull(type);
-    }
-
-    /**
-     * Returns the type of the resize operation
-     */
-    public ResizeType getResizeType() {
-        return type;
-    }
-
-    public void setCopySettings(final Boolean copySettings) {
-        if (copySettings != null && copySettings == false) {
-            throw new IllegalArgumentException("[copySettings] can not be explicitly set to [false]");
-        }
-        this.copySettings = copySettings;
-    }
-
-    public Boolean getCopySettings() {
-        return copySettings;
+    public ActiveShardCount getWaitForActiveShards() {
+        return waitForActiveShards;
     }
 
     @Override
@@ -146,12 +137,12 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
         {
             builder.startObject(CreateIndexRequest.SETTINGS.getPreferredName());
             {
-                targetIndexRequest.settings().toXContent(builder, params);
+                settings.toXContent(builder, params);
             }
             builder.endObject();
             builder.startObject(CreateIndexRequest.ALIASES.getPreferredName());
             {
-                for (Alias alias : targetIndexRequest.aliases()) {
+                for (Alias alias : aliases) {
                     alias.toXContent(builder, params);
                 }
             }

@@ -62,7 +62,7 @@ final class SystemJvmOptions {
              * Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
              * parsing will break in an incompatible way for some date patterns and locales.
              */
-            "-Djava.locale.providers=COMPAT");
+            "-Djava.locale.providers=SPI,COMPAT");
     }
 
 }

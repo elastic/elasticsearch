@@ -211,7 +211,6 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
                     .setProgress(stateAndStats.getTransformState().getProgress())
                     .setIndexerState(currentIndexerState(transformState))
-                    // TODO should be obviated in 8.x with TransformTaskState::STOPPING
                     .setShouldStopAtCheckpoint(transformState.shouldStopAtNextCheckpoint());
                 logger.debug("[{}] Loading existing state: [{}], position [{}]",
                     transformId,

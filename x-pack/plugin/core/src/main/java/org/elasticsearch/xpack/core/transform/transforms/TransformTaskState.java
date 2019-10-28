@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.util.Locale;
 
 public enum TransformTaskState implements Writeable {
-    // TODO 8.x add a `STOPPING` state and BWC handling in ::fromString
     STOPPED, STARTED, FAILED;
 
     public static TransformTaskState fromString(String name) {

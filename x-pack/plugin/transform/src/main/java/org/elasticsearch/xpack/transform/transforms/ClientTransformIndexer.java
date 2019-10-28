@@ -64,7 +64,6 @@ class ClientTransformIndexer extends TransformIndexer {
     // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
     private volatile String lastAuditedExceptionMessage = null;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
-    // TODO should be obviated in 8.x with TransformTaskState::STOPPING
     private volatile boolean shouldStopAtCheckpoint = false;
     private volatile Instant changesLastDetectedAt;
 
@@ -482,7 +481,6 @@ class ClientTransformIndexer extends TransformIndexer {
             // This indicates an early exit since no changes were found.
             // So, don't treat this like a checkpoint being completed, as no work was done.
             if (hasSourceChanged == false) {
-                // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
                 if (shouldStopAtCheckpoint) {
                     stop();
                 }
@@ -529,7 +527,6 @@ class ClientTransformIndexer extends TransformIndexer {
             logger.debug(
                 "[{}] finished indexing for transform checkpoint [{}].", getJobId(), checkpoint);
             auditBulkFailures = true;
-            // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
             if (shouldStopAtCheckpoint) {
                 stop();
             }

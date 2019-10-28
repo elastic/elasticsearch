@@ -43,7 +43,6 @@ public class TransformState implements Task.Status, PersistentTaskState {
     @Nullable
     private NodeAttributes node;
 
-    // TODO: 8.x this needs to be deprecated and we move towards a STOPPING TASK_STATE
     private final boolean shouldStopAtNextCheckpoint;
 
     public static final ParseField TASK_STATE = new ParseField("task_state");

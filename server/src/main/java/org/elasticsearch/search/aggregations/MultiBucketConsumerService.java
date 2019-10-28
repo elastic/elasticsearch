@@ -51,16 +51,11 @@ public class MultiBucketConsumerService {
     private final CircuitBreakerService circuitBreakerService;
 
     private volatile int maxBucket;
-    private volatile int checkBucketsStepSize;
 
     public MultiBucketConsumerService(ClusterService clusterService, Settings settings, CircuitBreakerService circuitBreakerService) {
         this.circuitBreakerService = circuitBreakerService;
         this.maxBucket = MAX_BUCKET_SETTING.get(settings);
-        this.checkBucketsStepSize = CHECK_BUCKETS_STEP_SIZE_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBucket);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(CHECK_BUCKETS_STEP_SIZE_SETTING, value -> {
-            checkBucketsStepSize = value;
-        });
     }
 
     private void setMaxBucket(int maxBucket) {
@@ -109,16 +104,14 @@ public class MultiBucketConsumerService {
      */
     public static class MultiBucketConsumer implements IntConsumer {
         private final int limit;
-        private final int checkBucketsStepSizeLimit;
-        private final CircuitBreakerService circuitBreakerService;
+        private final CircuitBreaker breaker;
 
         // aggregations execute in a single thread so no atomic here
         private int count;
 
-        public MultiBucketConsumer(int limit, int checkBucketsStepSizeLimit, CircuitBreakerService circuitBreakerService) {
+        public MultiBucketConsumer(int limit, CircuitBreaker breaker) {
             this.limit = limit;
-            this.checkBucketsStepSizeLimit = checkBucketsStepSizeLimit;
-            this.circuitBreakerService = circuitBreakerService;
+            this.breaker = breaker;
         }
 
         @Override
@@ -130,9 +123,8 @@ public class MultiBucketConsumerService {
                     MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
             }
 
-            if (value > 0 && checkBucketsStepSizeLimit > 0 && count % checkBucketsStepSizeLimit == 0) {
-                CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
-                breaker.addEstimateBytesAndMaybeBreak(0, "check_allocation_buckets");
+            if (value > 0 && (count & 0x3FF) == 0) {
+                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
             }
         }
 
@@ -150,6 +142,6 @@ public class MultiBucketConsumerService {
     }
 
     public MultiBucketConsumer create() {
-        return new MultiBucketConsumer(maxBucket, checkBucketsStepSize, this.circuitBreakerService);
+        return new MultiBucketConsumer(maxBucket, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
     }
 }

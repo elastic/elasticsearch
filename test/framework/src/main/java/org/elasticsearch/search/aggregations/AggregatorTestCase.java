@@ -34,6 +34,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -132,7 +133,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         IndexSearcher indexSearcher,
                                                         MappedFieldType... fieldTypes) throws IOException {
         return createAggregator(aggregationBuilder, indexSearcher, createIndexSettings(),
-            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS, DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService()), fieldTypes);
+            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS, new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)), fieldTypes);
     }
 
     protected <A extends Aggregator> A createAggregator(Query query,
@@ -141,7 +142,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         IndexSettings indexSettings,
                                                         MappedFieldType... fieldTypes) throws IOException {
         return createAggregator(query, aggregationBuilder, indexSearcher, indexSettings,
-            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS, DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService()), fieldTypes);
+            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS, new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)), fieldTypes);
     }
 
     protected <A extends Aggregator> A createAggregator(Query query, AggregationBuilder aggregationBuilder,
@@ -255,12 +256,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected IndexSettings createIndexSettings() {
         return new IndexSettings(
-            IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .creationDate(System.currentTimeMillis())
-                .build(),
-            Settings.EMPTY
+                IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .creationDate(System.currentTimeMillis())
+                        .build(),
+                Settings.EMPTY
         );
     }
 
@@ -316,7 +317,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                              int maxBucket,
                                                                              MappedFieldType... fieldTypes) throws IOException {
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket,
-            DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService());
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         C a = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
         a.preCollection();
         searcher.search(query, a);
@@ -364,12 +365,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Query rewritten = searcher.rewrite(query);
         Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket,
-            DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService());
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
 
         for (ShardSearcher subSearcher : subSearchers) {
             MultiBucketConsumer shardBucketConsumer = new MultiBucketConsumer(maxBucket,
-                DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService());
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
             C a = createAggregator(query, builder, subSearcher, shardBucketConsumer, fieldTypes);
             a.preCollection();
             subSearcher.search(weight, a);
@@ -388,7 +389,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 int r = randomIntBetween(1, toReduceSize);
                 List<InternalAggregation> toReduce = aggs.subList(0, r);
                 MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket,
-                    DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService());
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
                 InternalAggregation.ReduceContext context =
                     new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(),
                         reduceBucketConsumer, false);
@@ -399,7 +400,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
             // now do the final reduce
             MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket,
-                DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService());
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
             InternalAggregation.ReduceContext context =
                 new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(), reduceBucketConsumer, true);
 

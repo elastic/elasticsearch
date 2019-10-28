@@ -296,26 +296,27 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
     public void testAllocationBucketsBreaker() throws Exception {
         Settings clusterSettings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "20mb")
-            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "true")
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "false")
             .build();
 
         try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
 
             long parentLimitBytes = ((HierarchyCircuitBreakerService) service).getParentLimit();
-            assertEquals(new ByteSizeValue(20, ByteSizeUnit.MB).getBytes(), parentLimitBytes);
+            assertEquals(new ByteSizeValue(100, ByteSizeUnit.BYTES).getBytes(), parentLimitBytes);
 
+            CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
             MultiBucketConsumerService.MultiBucketConsumer multiBucketConsumer =
-                new MultiBucketConsumerService.MultiBucketConsumer(10000, 10000, service);
+                new MultiBucketConsumerService.MultiBucketConsumer(10000, breaker);
 
-            long currentMemory = ((HierarchyCircuitBreakerService) service).currentMemoryUsage();
-            if (currentMemory > parentLimitBytes) {
-                CircuitBreakingException exception =
-                    expectThrows(CircuitBreakingException.class, () -> multiBucketConsumer.accept(10000));
-                assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [check_allocation_buckets] would be"));
-                assertThat(exception.getMessage(), containsString("which is larger than the limit of [20971520/20mb]"));
-            }
+            // make sure used bytes is greater than the total circuit breaker limit
+            breaker.addWithoutBreaking(200);
+
+            CircuitBreakingException exception =
+                expectThrows(CircuitBreakingException.class, () -> multiBucketConsumer.accept(1024));
+            assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [allocated_buckets] would be"));
+            assertThat(exception.getMessage(), containsString("which is larger than the limit of [100/100b]"));
         }
     }
 

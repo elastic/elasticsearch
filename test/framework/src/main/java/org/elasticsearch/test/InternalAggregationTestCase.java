@@ -21,6 +21,7 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -271,7 +272,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
             MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-                DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService());
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
             InternalAggregation.ReduceContext context =
                 new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer,false);
             @SuppressWarnings("unchecked")
@@ -288,7 +289,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             toReduce.add(reduced);
         }
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-            DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService());
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context =
             new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer, true);
         @SuppressWarnings("unchecked")

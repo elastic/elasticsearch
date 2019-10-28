@@ -1,5 +1,8 @@
 ---
 "Test put batch data frame transforms on mixed cluster":
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
+      version: all
   - do:
       cluster.health:
         index: "transform-airline-data"
@@ -106,6 +109,9 @@
 
 ---
 "Test put continuous data frame transform on mixed cluster":
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
+      version: all
   - do:
       cluster.health:
         index: "transform-airline-data-cont"
@@ -168,6 +174,9 @@
 
 ---
 "Test GET, start, and stop old cluster batch transforms":
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
+      version: all
   - do:
       cluster.health:
         index: "transform-airline-data"
@@ -245,6 +254,9 @@
 
 ---
 "Test GET, stop, start, old continuous transforms":
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
+      version: all
   - do:
       cluster.health:
         index: "transform-airline-data-cont"

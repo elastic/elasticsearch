@@ -103,7 +103,7 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
     }
 
     private void putPolicy(PutEnrichPolicyAction.Request request, ActionListener<AcknowledgedResponse> listener ) {
-        EnrichStore.putPolicy(request.getName(), request.getPolicy(), clusterService, e -> {
+        EnrichStore.putPolicy(request.getName(), request.getPolicy(), clusterService, indexNameExpressionResolver, e -> {
             if (e == null) {
                 listener.onResponse(new AcknowledgedResponse(true));
             } else {

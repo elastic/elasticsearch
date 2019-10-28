@@ -39,7 +39,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
                         .endObject().endObject().endObject()));
         ensureGreen();
 
-        client().prepareIndex("test", "type", "1").setSource("name", "name").get();
+        client().prepareIndex("test").setId("1").setSource("name", "name").get();
         client().admin().indices().prepareRefresh("test").get();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();

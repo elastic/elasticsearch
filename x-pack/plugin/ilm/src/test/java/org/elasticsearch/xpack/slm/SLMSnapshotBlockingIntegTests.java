@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.slm;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -124,7 +123,6 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48441")
     public void testRetentionWhileSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyId = "slm-policy";
@@ -144,8 +142,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         logger.info("--> kicked off snapshot {}", completedSnapshotName);
         assertBusy(() -> {
             try {
-                SnapshotsStatusResponse s =
-                    client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(completedSnapshotName).get();
+                SnapshotsStatusResponse s = getSnapshotStatus(completedSnapshotName);
                 assertThat("expected a snapshot but none were returned", s.getSnapshots().size(), equalTo(1));
                 SnapshotStatus status = s.getSnapshots().get(0);
                 logger.info("--> waiting for snapshot {} to be completed, got: {}", completedSnapshotName, status.getState());
@@ -213,13 +210,8 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 client().admin().cluster().prepareReroute().get();
                 logger.info("--> waiting for snapshot to be deleted");
                 try {
-                    SnapshotsStatusResponse s =
-                        client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(completedSnapshotName).get();
+                    SnapshotsStatusResponse s = getSnapshotStatus(completedSnapshotName);
                     assertNull("expected no snapshot but one was returned", s.getSnapshots().get(0));
-                } catch (RepositoryException e) {
-                    // Concurrent status calls and write operations may lead to failures in determining the current repository generation
-                    // TODO: Remove this hack once tracking the current repository generation has been made consistent
-                    throw new AssertionError(e);
                 } catch (SnapshotMissingException e) {
                     // Great, we wanted it to be deleted!
                 }
@@ -380,6 +372,18 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                     throw new AssertionError(re);
                 }
             });
+        }
+    }
+
+    private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {
+        try {
+            return client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(snapshotName).get();
+        } catch (RepositoryException e) {
+            // Convert this to an AssertionError so that it can be retried in an assertBusy - this is often a transient error because
+            // concurrent status calls and write operations may lead to failures in determining the current repository generation
+            // TODO: Remove this hack once tracking the current repository generation has been made consistent
+            logger.warn(e);
+            throw new AssertionError(e);
         }
     }
 

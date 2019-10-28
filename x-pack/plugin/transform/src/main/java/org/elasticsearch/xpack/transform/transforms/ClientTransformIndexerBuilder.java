@@ -45,7 +45,8 @@ class ClientTransformIndexerBuilder {
     ClientTransformIndexer build(Executor executor, TransformContext context) {
         CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(transformConfig);
 
-        return new ClientTransformIndexer(executor,
+        return new ClientTransformIndexer(
+            executor,
             transformsConfigManager,
             checkpointProvider,
             new AtomicReference<>(this.indexerState),
@@ -59,7 +60,8 @@ class ClientTransformIndexerBuilder {
             TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? TransformCheckpoint.EMPTY : lastCheckpoint,
             TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
             seqNoPrimaryTermAndIndex,
-            context);
+            context
+        );
     }
 
     ClientTransformIndexerBuilder setClient(Client client) {

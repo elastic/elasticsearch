@@ -90,16 +90,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile Map<String, Set<String>> changedBuckets;
     private volatile Map<String, Object> changedBucketsAfterKey;
 
-    public TransformIndexer(Executor executor,
-                            TransformAuditor auditor,
-                            TransformConfig transformConfig,
-                            Map<String, String> fieldMappings,
-                            AtomicReference<IndexerState> initialState,
-                            TransformIndexerPosition initialPosition,
-                            TransformIndexerStats jobStats,
-                            TransformProgress transformProgress,
-                            TransformCheckpoint lastCheckpoint,
-                            TransformCheckpoint nextCheckpoint) {
+    public TransformIndexer(
+        Executor executor,
+        TransformAuditor auditor,
+        TransformConfig transformConfig,
+        Map<String, String> fieldMappings,
+        AtomicReference<IndexerState> initialState,
+        TransformIndexerPosition initialPosition,
+        TransformIndexerStats jobStats,
+        TransformProgress transformProgress,
+        TransformCheckpoint lastCheckpoint,
+        TransformCheckpoint nextCheckpoint
+    ) {
         super(executor, initialState, initialPosition, jobStats);
         this.auditor = Objects.requireNonNull(auditor);
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
@@ -186,29 +188,33 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // Treat this as a "we reached the end".
         // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
         if (aggregations == null) {
-            logger.info("[" + getJobId() + "] unexpected null aggregations in search response. " +
-                "Source indices have been deleted or closed.");
-            auditor.info(getJobId(),
+            logger.info(
+                "[" + getJobId() + "] unexpected null aggregations in search response. " +
+                    "Source indices have been deleted or closed."
+            );
+            auditor.info(
+                getJobId(),
                 "Source indices have been deleted or closed. " +
                     "Please verify that these indices exist and are open [" +
                     Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex()) +
-                    "].");
+                    "]."
+            );
             return new IterationResult<>(Collections.emptyList(), null, true);
         }
         final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
 
         switch (runState) {
-        case FULL_RUN:
-            return processBuckets(agg);
-        case PARTIAL_RUN_APPLY_CHANGES:
-            return processPartialBucketUpdates(agg);
-        case PARTIAL_RUN_IDENTIFY_CHANGES:
-            return processChangedBuckets(agg);
+            case FULL_RUN:
+                return processBuckets(agg);
+            case PARTIAL_RUN_APPLY_CHANGES:
+                return processPartialBucketUpdates(agg);
+            case PARTIAL_RUN_IDENTIFY_CHANGES:
+                return processChangedBuckets(agg);
 
-        default:
-            // Any other state is a bug, should not happen
-            logger.warn("Encountered unexpected run state [" + runState + "]");
-            throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
+            default:
+                // Any other state is a bug, should not happen
+                logger.warn("Encountered unexpected run state [" + runState + "]");
+                throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
         }
     }
 
@@ -221,13 +227,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         long docsBeforeProcess = getStats().getNumDocuments();
 
         TransformIndexerPosition oldPosition = getPosition();
-        TransformIndexerPosition newPosition = new TransformIndexerPosition(agg.afterKey(),
-                oldPosition != null ? getPosition().getBucketsPosition() : null);
+        TransformIndexerPosition newPosition = new TransformIndexerPosition(
+            agg.afterKey(),
+            oldPosition != null ? getPosition().getBucketsPosition() : null
+        );
 
         IterationResult<TransformIndexerPosition> result = new IterationResult<>(
-                processBucketsToIndexRequests(agg).collect(Collectors.toList()),
-                newPosition,
-                agg.getBuckets().isEmpty());
+            processBucketsToIndexRequests(agg).collect(Collectors.toList()),
+            newPosition,
+            agg.getBuckets().isEmpty()
+        );
 
         // NOTE: progress is also mutated in ClientDataFrameIndexer#onFinished
         if (progress != null) {
@@ -247,13 +256,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // reset the runState to fetch changed buckets
             runState = RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
             // advance the cursor for changed bucket detection
-            return new IterationResult<>(Collections.emptyList(),
-                    new TransformIndexerPosition(null, changedBucketsAfterKey), false);
+            return new IterationResult<>(
+                Collections.emptyList(),
+                new TransformIndexerPosition(null, changedBucketsAfterKey),
+                false
+            );
         }
 
         return processBuckets(agg);
     }
-
 
     private IterationResult<TransformIndexerPosition> processChangedBuckets(final CompositeAggregation agg) {
         // initialize the map of changed buckets, the map might be empty if source do not require/implement
@@ -270,11 +281,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // else
 
         // collect all buckets that require the update
-        agg.getBuckets().stream().forEach(bucket -> {
-            bucket.getKey().forEach((k, v) -> {
-                changedBuckets.get(k).add(v.toString());
-            });
-        });
+        agg.getBuckets()
+            .stream()
+            .forEach(
+                bucket -> {
+                    bucket.getKey()
+                        .forEach(
+                            (k, v) -> {
+                                changedBuckets.get(k).add(v.toString());
+                            }
+                        );
+                }
+            );
 
         // remember the after key but do not store it in the state yet (in the failure we need to retrieve it again)
         changedBucketsAfterKey = agg.afterKey();
@@ -354,25 +372,25 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         assert nextCheckpoint != null;
 
         SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex())
-                .allowPartialSearchResults(false)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+            .allowPartialSearchResults(false)
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-                .size(0);
+            .size(0);
 
         switch (runState) {
-        case FULL_RUN:
-            buildFullRunQuery(sourceBuilder);
-            break;
-        case PARTIAL_RUN_IDENTIFY_CHANGES:
-            buildChangedBucketsQuery(sourceBuilder);
-            break;
-        case PARTIAL_RUN_APPLY_CHANGES:
-            buildPartialUpdateQuery(sourceBuilder);
-            break;
-        default:
-            // Any other state is a bug, should not happen
-            logger.warn("Encountered unexpected run state [" + runState + "]");
-            throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
+            case FULL_RUN:
+                buildFullRunQuery(sourceBuilder);
+                break;
+            case PARTIAL_RUN_IDENTIFY_CHANGES:
+                buildChangedBucketsQuery(sourceBuilder);
+                break;
+            case PARTIAL_RUN_APPLY_CHANGES:
+                buildPartialUpdateQuery(sourceBuilder);
+                break;
+            default:
+                // Any other state is a bug, should not happen
+                logger.warn("Encountered unexpected run state [" + runState + "]");
+                throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
         }
 
         searchRequest.source(sourceBuilder);
@@ -388,9 +406,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
         if (isContinuous()) {
             BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-                    .filter(pivotQueryBuilder)
-                    .filter(config.getSyncConfig()
-                            .getRangeQuery(nextCheckpoint));
+                .filter(pivotQueryBuilder)
+                .filter(
+                    config.getSyncConfig()
+                        .getRangeQuery(nextCheckpoint)
+                );
             sourceBuilder.query(filteredQuery);
         } else {
             sourceBuilder.query(pivotQueryBuilder);
@@ -413,9 +433,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
         TransformConfig config = getConfig();
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().
-                filter(pivotQueryBuilder).
-                filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
+            .filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
 
         sourceBuilder.query(filteredQuery);
 
@@ -434,9 +453,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
 
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-                .filter(pivotQueryBuilder)
-                .filter(config.getSyncConfig()
-                        .getRangeQuery(nextCheckpoint));
+            .filter(pivotQueryBuilder)
+            .filter(
+                config.getSyncConfig()
+                    .getRangeQuery(nextCheckpoint)
+            );
 
         if (changedBuckets != null && changedBuckets.isEmpty() == false) {
             QueryBuilder pivotFilter = pivot.filterBuckets(changedBuckets);
@@ -469,8 +490,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return false;
         }
 
-        double reducingFactor = Math.min((double) circuitBreakingException.getByteLimit() / circuitBreakingException.getBytesWanted(),
-                1 - (Math.log10(pageSize) * 0.1));
+        double reducingFactor = Math.min(
+            (double) circuitBreakingException.getByteLimit() / circuitBreakingException.getBytesWanted(),
+            1 - (Math.log10(pageSize) * 0.1)
+        );
 
         int newPageSize = (int) Math.round(reducingFactor * pageSize);
 
@@ -480,8 +503,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return true;
         }
 
-        String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize,
-                newPageSize);
+        String message = TransformMessages.getMessage(
+            TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE,
+            pageSize,
+            newPageSize
+        );
         auditor.info(getJobId(), message);
         logger.info("Data frame transform [" + getJobId() + "]:" + message);
 

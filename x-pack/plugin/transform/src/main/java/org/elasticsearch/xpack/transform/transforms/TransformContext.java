@@ -30,7 +30,7 @@ class TransformContext {
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
 
-    TransformContext (final TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
+    TransformContext(final TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);

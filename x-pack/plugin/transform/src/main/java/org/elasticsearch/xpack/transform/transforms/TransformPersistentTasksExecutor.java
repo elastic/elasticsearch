@@ -68,14 +68,16 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final TransformAuditor auditor;
     private volatile int numFailureRetries;
 
-    public TransformPersistentTasksExecutor(Client client,
-                                            TransformConfigManager transformsConfigManager,
-                                            TransformCheckpointService transformsCheckpointService,
-                                            SchedulerEngine schedulerEngine,
-                                            TransformAuditor auditor,
-                                            ThreadPool threadPool,
-                                            ClusterService clusterService,
-                                            Settings settings) {
+    public TransformPersistentTasksExecutor(
+        Client client,
+        TransformConfigManager transformsConfigManager,
+        TransformCheckpointService transformsCheckpointService,
+        SchedulerEngine schedulerEngine,
+        TransformAuditor auditor,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        Settings settings
+    ) {
         super(TransformField.TASK_NAME, Transform.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.transformsConfigManager = transformsConfigManager;
@@ -99,18 +101,21 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             logger.debug(reason);
             return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
-        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, (node) ->
-            node.isDataNode() && node.getVersion().onOrAfter(params.getVersion())
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(
+            clusterState,
+            (node) -> node.isDataNode() && node.getVersion().onOrAfter(params.getVersion())
         );
         return discoveryNode == null ? NO_NODE_FOUND : new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
-        String[] indices = resolver.concreteIndexNames(clusterState,
+        String[] indices = resolver.concreteIndexNames(
+            clusterState,
             IndicesOptions.lenientExpandOpen(),
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
-            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED);
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        );
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
@@ -146,54 +151,66 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(
             response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId),
             failure -> {
-                auditor.error(transformId, "Failed to start transform. " +
-                    "Please stop and attempt to start again. Failure: " + failure.getMessage());
-                logger.error("Failed to start task ["+ transformId +"] in node operation", failure);
+                auditor.error(
+                    transformId,
+                    "Failed to start transform. " +
+                        "Please stop and attempt to start again. Failure: " + failure.getMessage()
+                );
+                logger.error("Failed to start task [" + transformId + "] in node operation", failure);
             }
         );
 
         // <7> load next checkpoint
         ActionListener<TransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(
-                nextCheckpoint -> {
+            nextCheckpoint -> {
 
-                    if (nextCheckpoint.isEmpty()) {
-                        // extra safety: reset position and progress if next checkpoint is empty
-                        // prevents a failure if for some reason the next checkpoint has been deleted
-                        indexerBuilder.setInitialPosition(null);
-                        indexerBuilder.setProgress(null);
-                    } else {
-                        logger.trace("[{}] Loaded next checkpoint [{}] found, starting the task", transformId,
-                                nextCheckpoint.getCheckpoint());
-                        indexerBuilder.setNextCheckpoint(nextCheckpoint);
-                    }
-
-                    final long lastCheckpoint = stateHolder.get().getCheckpoint();
-
-                    startTask(buildTask, indexerBuilder, lastCheckpoint, startTaskListener);
-                },
-                error -> {
-                    // TODO: do not use the same error message as for loading the last checkpoint
-                    String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
-                    logger.error(msg, error);
-                    markAsFailed(buildTask, msg);
+                if (nextCheckpoint.isEmpty()) {
+                    // extra safety: reset position and progress if next checkpoint is empty
+                    // prevents a failure if for some reason the next checkpoint has been deleted
+                    indexerBuilder.setInitialPosition(null);
+                    indexerBuilder.setProgress(null);
+                } else {
+                    logger.trace(
+                        "[{}] Loaded next checkpoint [{}] found, starting the task",
+                        transformId,
+                        nextCheckpoint.getCheckpoint()
+                    );
+                    indexerBuilder.setNextCheckpoint(nextCheckpoint);
                 }
+
+                final long lastCheckpoint = stateHolder.get().getCheckpoint();
+
+                startTask(buildTask, indexerBuilder, lastCheckpoint, startTaskListener);
+            },
+            error -> {
+                // TODO: do not use the same error message as for loading the last checkpoint
+                String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
+                logger.error(msg, error);
+                markAsFailed(buildTask, msg);
+            }
         );
 
         // <6> load last checkpoint
         ActionListener<TransformCheckpoint> getTransformLastCheckpointListener = ActionListener.wrap(
-                lastCheckpoint -> {
-                    indexerBuilder.setLastCheckpoint(lastCheckpoint);
+            lastCheckpoint -> {
+                indexerBuilder.setLastCheckpoint(lastCheckpoint);
 
-                    logger.trace("[{}] Loaded last checkpoint [{}], looking for next checkpoint", transformId,
-                            lastCheckpoint.getCheckpoint());
-                    transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint.getCheckpoint() + 1,
-                            getTransformNextCheckpointListener);
-                },
-                error -> {
-                    String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
-                    logger.error(msg, error);
-                    markAsFailed(buildTask, msg);
-                }
+                logger.trace(
+                    "[{}] Loaded last checkpoint [{}], looking for next checkpoint",
+                    transformId,
+                    lastCheckpoint.getCheckpoint()
+                );
+                transformsConfigManager.getTransformCheckpoint(
+                    transformId,
+                    lastCheckpoint.getCheckpoint() + 1,
+                    getTransformNextCheckpointListener
+                );
+            },
+            error -> {
+                String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
+                logger.error(msg, error);
+                markAsFailed(buildTask, msg);
+            }
         );
 
         // <5> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
@@ -210,10 +227,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     .setProgress(stateAndStats.getTransformState().getProgress())
                     .setIndexerState(currentIndexerState(stateAndStats.getTransformState()))
                     .setSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex);
-                logger.debug("[{}] Loading existing state: [{}], position [{}]",
+                logger.debug(
+                    "[{}] Loading existing state: [{}], position [{}]",
                     transformId,
                     stateAndStats.getTransformState(),
-                    stateAndStats.getTransformState().getPosition());
+                    stateAndStats.getTransformState().getPosition()
+                );
 
                 stateHolder.set(stateAndStats.getTransformState());
                 final long lastCheckpoint = stateHolder.get().getCheckpoint();
@@ -222,7 +241,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     logger.trace("[{}] No last checkpoint found, looking for next checkpoint", transformId);
                     transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint + 1, getTransformNextCheckpointListener);
                 } else {
-                    logger.trace ("[{}] Restore last checkpoint: [{}]", transformId, lastCheckpoint);
+                    logger.trace("[{}] Restore last checkpoint: [{}]", transformId, lastCheckpoint);
                     transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint, getTransformLastCheckpointListener);
                 }
             },
@@ -245,8 +264,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 transformsConfigManager.getTransformStoredDoc(transformId, transformStatsActionListener);
             },
             error -> {
-                String msg = TransformMessages.getMessage(TransformMessages.UNABLE_TO_GATHER_FIELD_MAPPINGS,
-                    indexerBuilder.getTransformConfig().getDestination().getIndex());
+                String msg = TransformMessages.getMessage(
+                    TransformMessages.UNABLE_TO_GATHER_FIELD_MAPPINGS,
+                    indexerBuilder.getTransformConfig().getDestination().getIndex()
+                );
                 logger.error(msg, error);
                 markAsFailed(buildTask, msg);
             }
@@ -259,8 +280,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     indexerBuilder.setTransformConfig(config);
                     SchemaUtil.getDestinationFieldMappings(client, config.getDestination().getIndex(), getFieldMappingsListener);
                 } else {
-                    markAsFailed(buildTask,
-                        TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId));
+                    markAsFailed(
+                        buildTask,
+                        TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId)
+                    );
                 }
             },
             error -> {
@@ -288,14 +311,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         if (previousState == null) {
             return IndexerState.STOPPED;
         }
-        switch(previousState.getIndexerState()){
+        switch (previousState.getIndexerState()) {
             // If it is STARTED or INDEXING we want to make sure we revert to started
             // Otherwise, the internal indexer will never get scheduled and execute
             case STARTED:
             case INDEXING:
                 return IndexerState.STARTED;
             // If we are STOPPED, STOPPING, or ABORTING and just started executing on this node,
-            //  then it is safe to say we should be STOPPED
+            // then it is safe to say we should be STOPPED
             case STOPPED:
             case STOPPING:
             case ABORTING:
@@ -307,10 +330,16 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private void markAsFailed(TransformTask task, String reason) {
         CountDownLatch latch = new CountDownLatch(1);
 
-        task.fail(reason, new LatchedActionListener<>(ActionListener.wrap(
-            nil -> {},
-            failure -> logger.error("Failed to set task [" + task.getTransformId() +"] to failed", failure)
-        ), latch));
+        task.fail(
+            reason,
+            new LatchedActionListener<>(
+                ActionListener.wrap(
+                    nil -> {},
+                    failure -> logger.error("Failed to set task [" + task.getTransformId() + "] to failed", failure)
+                ),
+                latch
+            )
+        );
         try {
             latch.await(MARK_AS_FAILED_TIMEOUT_SEC, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
@@ -318,10 +347,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
     }
 
-    private void startTask(TransformTask buildTask,
-                           ClientTransformIndexerBuilder indexerBuilder,
-                           Long previousCheckpoint,
-                           ActionListener<StartTransformAction.Response> listener) {
+    private void startTask(
+        TransformTask buildTask,
+        ClientTransformIndexerBuilder indexerBuilder,
+        Long previousCheckpoint,
+        ActionListener<StartTransformAction.Response> listener
+    ) {
         buildTask.initializeIndexer(indexerBuilder);
         // TransformTask#start will fail if the task state is FAILED
         buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
@@ -332,9 +363,25 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-            PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> persistentTask, Map<String, String> headers) {
-        return new TransformTask(id, type, action, parentTaskId, persistentTask.getParams(),
-            (TransformState) persistentTask.getState(), schedulerEngine, auditor, threadPool, headers);
+    protected AllocatedPersistentTask createTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> persistentTask,
+        Map<String, String> headers
+    ) {
+        return new TransformTask(
+            id,
+            type,
+            action,
+            parentTaskId,
+            persistentTask.getParams(),
+            (TransformState) persistentTask.getState(),
+            schedulerEngine,
+            auditor,
+            threadPool,
+            headers
+        );
     }
 }

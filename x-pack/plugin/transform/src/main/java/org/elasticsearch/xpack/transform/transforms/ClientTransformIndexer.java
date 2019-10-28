@@ -69,22 +69,25 @@ class ClientTransformIndexer extends TransformIndexer {
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
 
-    ClientTransformIndexer(Executor executor,
-                           TransformConfigManager transformsConfigManager,
-                           CheckpointProvider checkpointProvider,
-                           AtomicReference<IndexerState> initialState,
-                           TransformIndexerPosition initialPosition,
-                           Client client,
-                           TransformAuditor auditor,
-                           TransformIndexerStats initialStats,
-                           TransformConfig transformConfig,
-                           Map<String, String> fieldMappings,
-                           TransformProgress transformProgress,
-                           TransformCheckpoint lastCheckpoint,
-                           TransformCheckpoint nextCheckpoint,
-                           SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
-                           TransformContext context) {
-        super(ExceptionsHelper.requireNonNull(executor, "executor"),
+    ClientTransformIndexer(
+        Executor executor,
+        TransformConfigManager transformsConfigManager,
+        CheckpointProvider checkpointProvider,
+        AtomicReference<IndexerState> initialState,
+        TransformIndexerPosition initialPosition,
+        Client client,
+        TransformAuditor auditor,
+        TransformIndexerStats initialStats,
+        TransformConfig transformConfig,
+        Map<String, String> fieldMappings,
+        TransformProgress transformProgress,
+        TransformCheckpoint lastCheckpoint,
+        TransformCheckpoint nextCheckpoint,
+        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+        TransformContext context
+    ) {
+        super(
+            ExceptionsHelper.requireNonNull(executor, "executor"),
             ExceptionsHelper.requireNonNull(auditor, "auditor"),
             transformConfig,
             fieldMappings,
@@ -93,7 +96,8 @@ class ClientTransformIndexer extends TransformIndexer {
             initialStats == null ? new TransformIndexerStats() : initialStats,
             transformProgress,
             lastCheckpoint,
-            nextCheckpoint);
+            nextCheckpoint
+        );
         this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.client = ExceptionsHelper.requireNonNull(client, "client");
@@ -124,20 +128,29 @@ class ClientTransformIndexer extends TransformIndexer {
                             super.onStart(now, listener);
                             return;
                         }
-                        TransformProgressGatherer.getInitialProgress(this.client, buildFilterQuery(), getConfig(), ActionListener.wrap(
-                            newProgress -> {
-                                logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
-                                progress = newProgress;
-                                super.onStart(now, listener);
-                            },
-                            failure -> {
-                                progress = null;
-                                logger.warn(new ParameterizedMessage("[{}] unable to load progress information for task.",
-                                    getJobId()),
-                                    failure);
-                                super.onStart(now, listener);
-                            }
-                        ));
+                        TransformProgressGatherer.getInitialProgress(
+                            this.client,
+                            buildFilterQuery(),
+                            getConfig(),
+                            ActionListener.wrap(
+                                newProgress -> {
+                                    logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
+                                    progress = newProgress;
+                                    super.onStart(now, listener);
+                                },
+                                failure -> {
+                                    progress = null;
+                                    logger.warn(
+                                        new ParameterizedMessage(
+                                            "[{}] unable to load progress information for task.",
+                                            getJobId()
+                                        ),
+                                        failure
+                                    );
+                                    super.onStart(now, listener);
+                                }
+                            )
+                        );
                     }, listener::onFailure));
                 } else {
                     super.onStart(now, listener);
@@ -150,27 +163,31 @@ class ClientTransformIndexer extends TransformIndexer {
         ActionListener<Void> changedSourceListener = ActionListener.wrap(
             r -> {
                 if (isContinuous()) {
-                    transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(
-                        config -> {
-                            transformConfig = config;
-                            logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
-                            updateConfigListener.onResponse(null);
-                        },
-                        failure -> {
-                            String msg = TransformMessages.getMessage(
-                                TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION,
-                                getJobId());
-                            logger.error(msg, failure);
-                            // If the transform config index or the transform config is gone, something serious occurred
-                            // We are in an unknown state and should fail out
-                            if (failure instanceof ResourceNotFoundException) {
-                                updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
-                            } else {
-                                auditor.warning(getJobId(), msg);
+                    transformsConfigManager.getTransformConfiguration(
+                        getJobId(),
+                        ActionListener.wrap(
+                            config -> {
+                                transformConfig = config;
+                                logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
                                 updateConfigListener.onResponse(null);
+                            },
+                            failure -> {
+                                String msg = TransformMessages.getMessage(
+                                    TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION,
+                                    getJobId()
+                                );
+                                logger.error(msg, failure);
+                                // If the transform config index or the transform config is gone, something serious occurred
+                                // We are in an unknown state and should fail out
+                                if (failure instanceof ResourceNotFoundException) {
+                                    updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
+                                } else {
+                                    auditor.warning(getJobId(), msg);
+                                    updateConfigListener.onResponse(null);
+                                }
                             }
-                        }
-                    ));
+                        )
+                    );
                 } else {
                     updateConfigListener.onResponse(null);
                 }
@@ -181,26 +198,28 @@ class ClientTransformIndexer extends TransformIndexer {
         // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
-            sourceHasChanged(ActionListener.wrap(
-                hasChanged -> {
-                    hasSourceChanged = hasChanged;
-                    if (hasChanged) {
-                        changesLastDetectedAt = Instant.now();
-                        logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
-                        changedSourceListener.onResponse(null);
-                    } else {
-                        logger.trace("[{}] source has not changed, finish indexer early.", getJobId());
-                        // No changes, stop executing
-                        listener.onResponse(false);
+            sourceHasChanged(
+                ActionListener.wrap(
+                    hasChanged -> {
+                        hasSourceChanged = hasChanged;
+                        if (hasChanged) {
+                            changesLastDetectedAt = Instant.now();
+                            logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
+                            changedSourceListener.onResponse(null);
+                        } else {
+                            logger.trace("[{}] source has not changed, finish indexer early.", getJobId());
+                            // No changes, stop executing
+                            listener.onResponse(false);
+                        }
+                    },
+                    failure -> {
+                        // If we failed determining if the source changed, it's safer to assume there were changes.
+                        // We should allow the failure path to complete as normal
+                        hasSourceChanged = true;
+                        listener.onFailure(failure);
                     }
-                },
-                failure -> {
-                    // If we failed determining if the source changed, it's safer to assume there were changes.
-                    // We should allow the failure path to complete as normal
-                    hasSourceChanged = true;
-                    listener.onFailure(failure);
-                }
-            ));
+                )
+            );
         } else {
             hasSourceChanged = true;
             changedSourceListener.onResponse(null);
@@ -236,23 +255,38 @@ class ClientTransformIndexer extends TransformIndexer {
     protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to search while failed.", getJobId());
-            nextPhase.onFailure(new ElasticsearchException("Attempted to do a search request for failed transform [{}].",
-                getJobId()));
+            nextPhase.onFailure(
+                new ElasticsearchException(
+                    "Attempted to do a search request for failed transform [{}].",
+                    getJobId()
+                )
+            );
             return;
         }
-        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.TRANSFORM_ORIGIN, client,
-                SearchAction.INSTANCE, request, nextPhase);
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            request,
+            nextPhase
+        );
     }
 
     @Override
     protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to bulk index while failed.", getJobId());
-            nextPhase.onFailure(new ElasticsearchException("Attempted to do a bulk index request for failed transform [{}].",
-                getJobId()));
+            nextPhase.onFailure(
+                new ElasticsearchException(
+                    "Attempted to do a bulk index request for failed transform [{}].",
+                    getJobId()
+                )
+            );
             return;
         }
-        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(),
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             BulkAction.INSTANCE,
@@ -260,7 +294,7 @@ class ClientTransformIndexer extends TransformIndexer {
             ActionListener.wrap(bulkResponse -> {
                 if (bulkResponse.hasFailures()) {
                     int failureCount = 0;
-                    for(BulkItemResponse item : bulkResponse.getItems()) {
+                    for (BulkItemResponse item : bulkResponse.getItems()) {
                         if (item.isFailed()) {
                             failureCount++;
                         }
@@ -269,23 +303,29 @@ class ClientTransformIndexer extends TransformIndexer {
                     if (auditBulkFailures) {
                         String failureMessage = bulkResponse.buildFailureMessage();
                         logger.debug("[{}] Bulk index failure encountered: {}", failureMessage);
-                        auditor.warning(getJobId(),
+                        auditor.warning(
+                            getJobId(),
                             "Experienced at least [" +
                                 failureCount +
                                 "] bulk index failures. See the logs of the node running the transform for details. " +
-                                failureMessage);
+                                failureMessage
+                        );
                         auditBulkFailures = false;
                     }
                     // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
                     // It increments the indexing failure, and then calls the `onFailure` logic
                     nextPhase.onFailure(
-                        new BulkIndexingException("Bulk index experienced failures. " +
-                            "See the logs of the node running the transform for details."));
+                        new BulkIndexingException(
+                            "Bulk index experienced failures. " +
+                                "See the logs of the node running the transform for details."
+                        )
+                    );
                 } else {
                     auditBulkFailures = true;
                     nextPhase.onResponse(bulkResponse);
                 }
-            }, nextPhase::onFailure));
+            }, nextPhase::onFailure)
+        );
     }
 
     @Override
@@ -337,7 +377,8 @@ class ClientTransformIndexer extends TransformIndexer {
             position,
             context.getCheckpoint(),
             context.getStateReason(),
-            getProgress());
+            getProgress()
+        );
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
@@ -347,48 +388,60 @@ class ClientTransformIndexer extends TransformIndexer {
         // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
         // often when doing bulk indexing calls or at the end of one indexing run.
         transformsConfigManager.putOrUpdateTransformStoredDoc(
-                new TransformStoredDoc(getJobId(), state, getStats()),
-                seqNoPrimaryTermAndIndex,
-                ActionListener.wrap(
-                        r -> {
-                            updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
-                            // for auto stop shutdown the task
-                            if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
-                                context.shutdown();
-                            }
-                            // Only do this clean up once, if it succeeded, no reason to do the query again.
-                            if (oldStatsCleanedUp.compareAndSet(false, true)) {
-                                transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(
-                                    nil -> {
-                                        logger.trace("[{}] deleted old transform stats and state document", getJobId());
-                                        next.run();
-                                    },
-                                    e -> {
-                                        String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.",
-                                            getJobId());
-                                        logger.warn(msg, e);
-                                        // If we have failed, we should attempt the clean up again later
-                                        oldStatsCleanedUp.set(false);
-                                        next.run();
-                                    }
-                                ));
-                            } else {
-                                next.run();
-                            }
-                        },
-                        statsExc -> {
-                            logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.",
-                                transformConfig.getId()),
-                                statsExc);
-                            auditor.warning(getJobId(),
-                                "Failure updating stats of transform: " + statsExc.getMessage());
-                            // for auto stop shutdown the task
-                            if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
-                                context.shutdown();
-                            }
-                            next.run();
-                        }
-                ));
+            new TransformStoredDoc(getJobId(), state, getStats()),
+            seqNoPrimaryTermAndIndex,
+            ActionListener.wrap(
+                r -> {
+                    updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
+                    // for auto stop shutdown the task
+                    if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                        context.shutdown();
+                    }
+                    // Only do this clean up once, if it succeeded, no reason to do the query again.
+                    if (oldStatsCleanedUp.compareAndSet(false, true)) {
+                        transformsConfigManager.deleteOldTransformStoredDocuments(
+                            getJobId(),
+                            ActionListener.wrap(
+                                nil -> {
+                                    logger.trace("[{}] deleted old transform stats and state document", getJobId());
+                                    next.run();
+                                },
+                                e -> {
+                                    String msg = LoggerMessageFormat.format(
+                                        "[{}] failed deleting old transform configurations.",
+                                        getJobId()
+                                    );
+                                    logger.warn(msg, e);
+                                    // If we have failed, we should attempt the clean up again later
+                                    oldStatsCleanedUp.set(false);
+                                    next.run();
+                                }
+                            )
+                        );
+                    } else {
+                        next.run();
+                    }
+                },
+                statsExc -> {
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] updating stats of transform failed.",
+                            transformConfig.getId()
+                        ),
+                        statsExc
+                    );
+                    auditor.warning(
+                        getJobId(),
+                        "Failure updating stats of transform: " + statsExc.getMessage()
+                    );
+                    // for auto stop shutdown the task
+                    if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                        context.shutdown();
+                    }
+                    next.run();
+                }
+            )
+        );
     }
 
     @Override
@@ -399,7 +452,8 @@ class ClientTransformIndexer extends TransformIndexer {
         } catch (Exception e) {
             logger.error(
                 new ParameterizedMessage("[{}] transform encountered an unexpected internal exception: ", getJobId()),
-                e);
+                e
+            );
         }
     }
 
@@ -446,11 +500,16 @@ class ClientTransformIndexer extends TransformIndexer {
                 getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
             }
             if (shouldAuditOnFinish(checkpoint)) {
-                auditor.info(getJobId(),
-                    "Finished indexing for transform checkpoint [" + checkpoint + "].");
+                auditor.info(
+                    getJobId(),
+                    "Finished indexing for transform checkpoint [" + checkpoint + "]."
+                );
             }
             logger.debug(
-                "[{}] finished indexing for transform checkpoint [{}].", getJobId(), checkpoint);
+                "[{}] finished indexing for transform checkpoint [{}].",
+                getJobId(),
+                checkpoint
+            );
             auditBulkFailures = true;
             listener.onResponse(null);
         } catch (Exception e) {
@@ -476,7 +535,7 @@ class ClientTransformIndexer extends TransformIndexer {
             return true;
         }
         int log10Checkpoint = (int) Math.floor(Math.log10(completedCheckpoint));
-        logEvery = log10Checkpoint >= 3  ? 1_000 : (int)Math.pow(10.0, log10Checkpoint);
+        logEvery = log10Checkpoint >= 3 ? 1_000 : (int) Math.pow(10.0, log10Checkpoint);
         logCount = 0;
         return true;
     }
@@ -496,31 +555,47 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
-        checkpointProvider.createNextCheckpoint(getLastCheckpoint(), ActionListener.wrap(
-                checkpoint -> transformsConfigManager.putTransformCheckpoint(checkpoint,
+        checkpointProvider.createNextCheckpoint(
+            getLastCheckpoint(),
+            ActionListener.wrap(
+                checkpoint -> transformsConfigManager.putTransformCheckpoint(
+                    checkpoint,
                     ActionListener.wrap(
                         putCheckPointResponse -> listener.onResponse(checkpoint),
                         createCheckpointException -> {
-                            logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()),
-                                createCheckpointException);
+                            logger.warn(
+                                new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()),
+                                createCheckpointException
+                            );
                             listener.onFailure(
-                                new RuntimeException("Failed to create checkpoint due to " + createCheckpointException.getMessage(),
-                                    createCheckpointException));
+                                new RuntimeException(
+                                    "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
+                                    createCheckpointException
+                                )
+                            );
                         }
-                )),
+                    )
+                ),
                 getCheckPointException -> {
-                    logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()),
-                        getCheckPointException);
+                    logger.warn(
+                        new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()),
+                        getCheckPointException
+                    );
                     listener.onFailure(
-                        new RuntimeException("Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
-                            getCheckPointException));
+                        new RuntimeException(
+                            "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
+                            getCheckPointException
+                        )
+                    );
                 }
-        ));
+            )
+        );
     }
 
     @Override
     protected void sourceHasChanged(ActionListener<Boolean> hasChangedListener) {
-        checkpointProvider.sourceHasChanged(getLastCheckpoint(),
+        checkpointProvider.sourceHasChanged(
+            getLastCheckpoint(),
             ActionListener.wrap(
                 hasChanged -> {
                     logger.trace("[{}] change detected [{}].", getJobId(), hasChanged);
@@ -530,13 +605,19 @@ class ClientTransformIndexer extends TransformIndexer {
                     logger.warn(
                         new ParameterizedMessage(
                             "[{}] failed to detect changes for transform. Skipping update till next check.",
-                            getJobId()),
-                        e);
-                    auditor.warning(getJobId(),
+                            getJobId()
+                        ),
+                        e
+                    );
+                    auditor.warning(
+                        getJobId(),
                         "Failed to detect changes for transform, skipping update till next check. Exception: "
-                            + e.getMessage());
+                            + e.getMessage()
+                    );
                     hasChangedListener.onResponse(false);
-                }));
+                }
+            )
+        );
     }
 
     private boolean isIrrecoverableFailure(Exception e) {
@@ -546,25 +627,31 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     synchronized void handleFailure(Exception e) {
-        logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ",
-            getJobId()),
-            e);
+        logger.warn(
+            new ParameterizedMessage(
+                "[{}] transform encountered an exception: ",
+                getJobId()
+            ),
+            e
+        );
         if (handleCircuitBreakingException(e)) {
             return;
         }
 
         if (isIrrecoverableFailure(e) || failureCount.incrementAndGet() > context.getNumFailureRetries()) {
-            String failureMessage = isIrrecoverableFailure(e) ?
-                "task encountered irrecoverable failure: " + e.getMessage() :
-                "task encountered more than " + context.getNumFailureRetries() + " failures; latest failure: " + e.getMessage();
+            String failureMessage = isIrrecoverableFailure(e)
+                ? "task encountered irrecoverable failure: " + e.getMessage()
+                : "task encountered more than " + context.getNumFailureRetries() + " failures; latest failure: " + e.getMessage();
             failIndexer(failureMessage);
         } else {
             // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
             // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
             if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                auditor.warning(getJobId(),
+                auditor.warning(
+                    getJobId(),
                     "Transform encountered an exception: " + e.getMessage() +
-                        " Will attempt again at next scheduled trigger.");
+                        " Will attempt again at next scheduled trigger."
+                );
                 lastAuditedExceptionMessage = e.getMessage();
             }
         }
@@ -574,19 +661,23 @@ class ClientTransformIndexer extends TransformIndexer {
     protected void failIndexer(String failureMessage) {
         logger.error("[{}] transform has failed; experienced: [{}].", getJobId(), failureMessage);
         auditor.error(getJobId(), failureMessage);
-        context.markAsFailed(failureMessage, ActionListener.wrap(
-            r -> {
-                // Successfully marked as failed, reset counter so that task can be restarted
-                failureCount.set(0);
-            }, e -> {}));
+        context.markAsFailed(
+            failureMessage,
+            ActionListener.wrap(
+                r -> {
+                    // Successfully marked as failed, reset counter so that task can be restarted
+                    failureCount.set(0);
+                },
+                e -> {}
+            )
+        );
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
         boolean updated = seqNoPrimaryTermAndIndex.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
         // famous last words...
-        assert updated :
-            "[" + getJobId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
+        assert updated : "[" + getJobId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
     }
 
     @Nullable

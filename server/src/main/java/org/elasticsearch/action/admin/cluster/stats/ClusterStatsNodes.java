@@ -65,7 +65,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final NetworkTypes networkTypes;
     private final DiscoveryTypes discoveryTypes;
     private final PackagingTypes packagingTypes;
-    private IngestStats ingestStats;
+    private final IngestStats ingestStats;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -713,7 +713,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
                         for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
                             stats.compute(stat.getType(), (k, v) -> {
                                 if (v == null) {
-                                    return new long[] { stat.getStats().getIngestCount(), stat.getStats().getIngestFailedCount() };
+                                    return new long[] {
+                                        stat.getStats().getIngestCount(),
+                                        stat.getStats().getIngestFailedCount(),
+                                    };
                                 } else {
                                     v[0] += stat.getStats().getIngestCount();
                                     v[1] += stat.getStats().getIngestFailedCount();
@@ -725,7 +728,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 }
             }
             this.pipelineCount = pipelineIds.size();
-            this.stats = Collections.unmodifiableMap(stats);
+            this.stats = Map.copyOf(stats);
         }
 
         @Override

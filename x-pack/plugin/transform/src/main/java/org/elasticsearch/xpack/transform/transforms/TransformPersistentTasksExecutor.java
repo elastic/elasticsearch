@@ -222,11 +222,13 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = stateAndStatsAndSeqNoPrimaryTermAndIndex.v2();
                 // Since we have not set the value for this yet, it SHOULD be null
                 logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
+                TransformState transformState = stateAndStats.getTransformState();
                 indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
                     .setProgress(stateAndStats.getTransformState().getProgress())
-                    .setIndexerState(currentIndexerState(stateAndStats.getTransformState()))
-                    .setSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex);
+                    .setIndexerState(currentIndexerState(transformState))
+                    .setSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex)
+                    .setShouldStopAtCheckpoint(transformState.shouldStopAtNextCheckpoint());
                 logger.debug(
                     "[{}] Loading existing state: [{}], position [{}]",
                     transformId,
@@ -234,7 +236,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     stateAndStats.getTransformState().getPosition()
                 );
 
-                stateHolder.set(stateAndStats.getTransformState());
+                stateHolder.set(transformState);
                 final long lastCheckpoint = stateHolder.get().getCheckpoint();
 
                 if (lastCheckpoint == 0) {

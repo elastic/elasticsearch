@@ -48,8 +48,8 @@ class TransformContext {
         taskState.set(newState);
     }
 
-    void setTaskState(TransformTaskState oldState, TransformTaskState newState) {
-        taskState.compareAndSet(oldState, newState);
+    boolean setTaskState(TransformTaskState oldState, TransformTaskState newState) {
+        return taskState.compareAndSet(oldState, newState);
     }
 
     void resetTaskState() {

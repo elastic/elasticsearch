@@ -64,7 +64,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 Instant.now().toEpochMilli()
             ),
             new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
-            mock(TransformContext.class)
+            mock(TransformContext.class),
+            false
         );
 
         List<Boolean> shouldAudit = IntStream.range(0, 100_000).boxed().map(indexer::shouldAuditOnFinish).collect(Collectors.toList());

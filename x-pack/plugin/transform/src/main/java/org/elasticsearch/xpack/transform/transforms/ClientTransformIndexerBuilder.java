@@ -37,6 +37,7 @@ class ClientTransformIndexerBuilder {
     private TransformCheckpoint lastCheckpoint;
     private TransformCheckpoint nextCheckpoint;
     private SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex;
+    private boolean shouldStopAtCheckpoint;
 
     ClientTransformIndexerBuilder() {
         this.initialStats = new TransformIndexerStats();
@@ -60,8 +61,13 @@ class ClientTransformIndexerBuilder {
             TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? TransformCheckpoint.EMPTY : lastCheckpoint,
             TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
             seqNoPrimaryTermAndIndex,
-            context
-        );
+            context,
+            shouldStopAtCheckpoint);
+    }
+
+    ClientTransformIndexerBuilder setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
+        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+        return this;
     }
 
     ClientTransformIndexerBuilder setClient(Client client) {

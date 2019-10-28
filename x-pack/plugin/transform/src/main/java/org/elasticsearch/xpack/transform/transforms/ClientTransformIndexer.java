@@ -51,6 +51,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     private final Client client;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
+    private volatile boolean shouldStopAtCheckpoint = false;
     private volatile Instant changesLastDetectedAt;
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
@@ -70,8 +71,8 @@ class ClientTransformIndexer extends TransformIndexer {
         TransformCheckpoint lastCheckpoint,
         TransformCheckpoint nextCheckpoint,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
-        TransformContext context
-    ) {
+        TransformContext context,
+        boolean shouldStopAtCheckpoint) {
         super(
             ExceptionsHelper.requireNonNull(executor, "executor"),
             transformsConfigManager,
@@ -89,6 +90,50 @@ class ClientTransformIndexer extends TransformIndexer {
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.seqNoPrimaryTermAndIndex = new AtomicReference<>(seqNoPrimaryTermAndIndex);
+        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+    }
+
+    boolean shouldStopAtCheckpoint() {
+        return shouldStopAtCheckpoint;
+    }
+
+    void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
+        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+    }
+
+    void persistShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+        if (this.shouldStopAtCheckpoint == shouldStopAtCheckpoint ||
+            getState() == IndexerState.STOPPED ||
+            getState() == IndexerState.STOPPING) {
+            shouldStopAtCheckpointListener.onResponse(null);
+            return;
+        }
+        TransformState state = new TransformState(
+            context.getTaskState(),
+            getState(),
+            getPosition(),
+            context.getCheckpoint(),
+            context.getStateReason(),
+            getProgress(),
+            null, //Node attributes
+            shouldStopAtCheckpoint);
+        doSaveState(state,
+            ActionListener.wrap(
+                r -> {
+                    // We only want to update this internal value if it is persisted as such
+                    this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+                    logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]",
+                        getJobId(),
+                        shouldStopAtCheckpoint);
+                    shouldStopAtCheckpointListener.onResponse(null);
+                },
+                statsExc -> {
+                    logger.warn("[{}] failed to persist should_stop_at_checkpoint update [{}]",
+                        getJobId(),
+                        shouldStopAtCheckpoint);
+                    shouldStopAtCheckpointListener.onFailure(statsExc);
+                }
+            ));
     }
 
     @Override
@@ -306,6 +351,21 @@ class ClientTransformIndexer extends TransformIndexer {
             return;
         }
 
+        boolean shouldStopAtCheckpoint = shouldStopAtCheckpoint();
+
+        // If we should stop at the next checkpoint, are STARTED, and with `initialRun()` we are in one of two states
+        // 1. We have just called `onFinish` completing our request, but `shouldStopAtCheckpoint` was set to `true` before our check
+        //    there and now
+        // 2. We are on the very first run of a NEW checkpoint and got here either through a failure, or the very first save state call.
+        //
+        // In either case, we should stop so that we guarantee a consistent state and that there are no partially completed checkpoints
+        if (shouldStopAtCheckpoint && initialRun() && indexerState.equals(IndexerState.STARTED)) {
+            indexerState = IndexerState.STOPPED;
+            auditor.info(transformConfig.getId(), "Transform is no longer in the middle of a checkpoint, initiating stop.");
+            logger.info("[{}] transform is no longer in the middle of a checkpoint, initiating stop.",
+                transformConfig.getId());
+        }
+
         // This means that the indexer was triggered to discover changes, found none, and exited early.
         // If the state is `STOPPED` this means that TransformTask#stop was called while we were checking for changes.
         // Allow the stop call path to continue
@@ -330,6 +390,12 @@ class ClientTransformIndexer extends TransformIndexer {
         // OR we called `doSaveState` manually as the indexer was not actively running.
         // Since we save the state to an index, we should make sure that our task state is in parity with the indexer state
         if (indexerState.equals(IndexerState.STOPPED)) {
+            // If we are going to stop after the state is saved, we should NOT persist `shouldStopAtCheckpoint: true` as this may
+            // cause problems if the task starts up again.
+            // Additionally, we don't have to worry about inconsistency with the ClusterState (if it is persisted there) as the
+            // when we stop, we mark the task as complete and that state goes away.
+            shouldStopAtCheckpoint = false;
+
             // We don't want adjust the stored taskState because as soon as it is `STOPPED` a user could call
             // .start again.
             taskState = TransformTaskState.STOPPED;
@@ -341,9 +407,18 @@ class ClientTransformIndexer extends TransformIndexer {
             position,
             context.getCheckpoint(),
             context.getStateReason(),
-            getProgress()
-        );
+            getProgress(),
+            null,
+            shouldStopAtCheckpoint);
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
+
+        doSaveState(state, ActionListener.wrap(
+            r -> next.run(),
+            e -> next.run()
+        ));
+    }
+
+    private void doSaveState(TransformState state, ActionListener<Void> listener) {
 
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = getSeqNoPrimaryTermAndIndex();
@@ -368,7 +443,7 @@ class ClientTransformIndexer extends TransformIndexer {
                             ActionListener.wrap(
                                 nil -> {
                                     logger.trace("[{}] deleted old transform stats and state document", getJobId());
-                                    next.run();
+                                        listener.onResponse(null);
                                 },
                                 e -> {
                                     String msg = LoggerMessageFormat.format(
@@ -378,12 +453,12 @@ class ClientTransformIndexer extends TransformIndexer {
                                     logger.warn(msg, e);
                                     // If we have failed, we should attempt the clean up again later
                                     oldStatsCleanedUp.set(false);
-                                    next.run();
+                                        listener.onResponse(null);
                                 }
                             )
                         );
                     } else {
-                        next.run();
+                                listener.onResponse(null);
                     }
                 },
                 statsExc -> {
@@ -402,10 +477,16 @@ class ClientTransformIndexer extends TransformIndexer {
                     if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
                         context.shutdown();
                     }
-                    next.run();
+                            listener.onFailure(statsExc);
                 }
             )
         );
+                if (shouldStopAtCheckpoint) {
+                    stop();
+                }
+            if (shouldStopAtCheckpoint) {
+                stop();
+            }
     }
 
     private void sourceHasChanged(ActionListener<Boolean> hasChangedListener) {

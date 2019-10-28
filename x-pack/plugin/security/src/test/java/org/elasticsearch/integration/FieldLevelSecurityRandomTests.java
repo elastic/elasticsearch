@@ -142,7 +142,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .addMapping("type1", (Object[])fieldMappers)
         );
-        client().prepareIndex("test", "type1", "1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
 
         for (String allowedField : allowedFields) {
             logger.info("Checking allowed field [{}]", allowedField);
@@ -174,7 +174,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
         for (int i = 1; i <= numDocs; i++) {
             String field = randomFrom("field1", "field2", "field3");
             String value = "value";
-            requests.add(client().prepareIndex("test", "type1", value).setSource(field, value));
+            requests.add(client().prepareIndex("test").setId(value).setSource(field, value));
         }
         indexRandom(true, requests);
 

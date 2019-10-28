@@ -110,7 +110,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
+        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
             .setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
             client().admin().indices().prepareUpdateSettings(sourceIdx)
@@ -135,7 +135,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
+        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
             .setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
         client().admin().indices().prepareUpdateSettings(sourceIdx).setSettings(Settings.builder().put("index.number_of_replicas", 1))
@@ -255,8 +255,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            builders[i] = client().prepareIndex(sourceIdx, "_doc",
-                Integer.toString(i)).setSource(source).setRouting("r" + i);
+            builders[i] = client().prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

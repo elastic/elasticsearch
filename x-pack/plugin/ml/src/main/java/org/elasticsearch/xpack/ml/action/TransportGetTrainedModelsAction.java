@@ -79,8 +79,10 @@ public class TransportGetTrainedModelsAction extends AbstractTransportGetResourc
     }
 
     @Override
-    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder) {
-        return searchSourceBuilder.sort("_index", SortOrder.DESC);
+    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder, Request request) {
+        return searchSourceBuilder
+            .sort("_index", SortOrder.DESC)
+            .fetchSource(null, request.isIncludeModelDefinition() ? null : TrainedModelConfig.DEFINITION.getPreferredName());
     }
 
     @Nullable

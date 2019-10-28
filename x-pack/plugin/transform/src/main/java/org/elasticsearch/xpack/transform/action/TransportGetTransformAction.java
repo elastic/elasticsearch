@@ -94,7 +94,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
     }
 
     @Override
-    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder) {
+    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder, Request _request) {
         return searchSourceBuilder.sort("_index", SortOrder.DESC);
     }
 

@@ -78,7 +78,17 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/test_regression*?human"));
+            MachineLearning.BASE_PATH + "inference/test_regression*"));
+        assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
+
+        response = EntityUtils.toString(getModel.getEntity());
+        assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
+        assertThat(response, containsString("\"model_id\":\"test_regression_model-2\""));
+        assertThat(response, not(containsString("\"definition\"")));
+        assertThat(response, containsString("\"count\":2"));
+
+        getModel = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH + "inference/test_regression*?human=true&include_model_definition=true"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
@@ -86,6 +96,7 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"model_id\":\"test_regression_model-2\""));
         assertThat(response, containsString("\"heap_memory_estimation_bytes\""));
         assertThat(response, containsString("\"heap_memory_estimation\""));
+        assertThat(response, containsString("\"definition\""));
         assertThat(response, containsString("\"count\":2"));
 
         getModel = client().performRequest(new Request("GET",

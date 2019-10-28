@@ -14,7 +14,7 @@ public class GetTrainedModelsRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLength(20));
+        Request request = new Request(randomAlphaOfLength(20), randomBoolean());
         request.setPageParams(new PageParams(randomIntBetween(0, 100), randomIntBetween(0, 100)));
         return request;
     }

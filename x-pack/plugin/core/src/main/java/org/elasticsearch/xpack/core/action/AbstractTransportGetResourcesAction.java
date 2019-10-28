@@ -68,7 +68,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
     }
 
-    protected void searchResources(AbstractGetResourcesRequest request, ActionListener<QueryPage<Resource>> listener) {
+    protected void searchResources(Request request, ActionListener<QueryPage<Resource>> listener) {
         String[] tokens = Strings.tokenizeToStringArray(request.getResourceId(), ",");
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
             .sort(SortBuilders.fieldSort(request.getResourceIdField())
@@ -89,7 +89,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                 indicesOptions.expandWildcardsOpen(),
                 indicesOptions.expandWildcardsClosed(),
                 indicesOptions))
-            .source(customSearchOptions(sourceBuilder));
+            .source(customSearchOptions(sourceBuilder, request));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             executionOrigin(),
@@ -164,7 +164,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
         return boolQuery.hasClauses() ? boolQuery : QueryBuilders.matchAllQuery();
     }
 
-    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder) {
+    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder, Request request) {
         return searchSourceBuilder;
     }
 

@@ -103,6 +103,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(INPUT.getPreferredName(), input);
         NamedXContentObjectHelper.writeNamedObjects(builder,
             params,
             false,
@@ -113,7 +114,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
             true,
             PREPROCESSORS.getPreferredName(),
             preProcessors);
-        builder.field(INPUT.getPreferredName(), input);
         if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
             builder.humanReadableField(HEAP_MEMORY_ESTIMATION + "_bytes",
                 HEAP_MEMORY_ESTIMATION,

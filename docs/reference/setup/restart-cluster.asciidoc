@@ -68,13 +68,13 @@ cluster and elect a master. At that point, you can use
 <<cat-health,`_cat/health`>> and <<cat-nodes,`_cat/nodes`>> to monitor nodes
 joining the cluster:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET _cat/health
 
 GET _cat/nodes
 --------------------------------------------------
-// CONSOLE
+
 
 The `status` column returned by `_cat/health` shows the health of each node
 in the cluster: `red`, `yellow`, or `green`.
@@ -102,7 +102,7 @@ When all nodes have joined the cluster and recovered their primary shards,
 reenable allocation by restoring `cluster.routing.allocation.enable` to its
 default:
 
-[source,js]
+[source,console]
 ------------------------------------------------------
 PUT _cluster/settings
 {
@@ -111,7 +111,7 @@ PUT _cluster/settings
   }
 }
 ------------------------------------------------------
-// CONSOLE
+
 
 Once allocation is reenabled, the cluster starts allocating replica shards to
 the data nodes. At this point it is safe to resume indexing and searching,
@@ -122,13 +122,12 @@ is `green`.
 You can monitor progress with the <<cat-health,`_cat/health`>> and
 <<cat-recovery,`_cat/recovery`>> APIs:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET _cat/health
 
 GET _cat/recovery
 --------------------------------------------------
-// CONSOLE
 --
 
 . *Restart machine learning jobs.*

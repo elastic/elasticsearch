@@ -24,6 +24,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -118,6 +119,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
         } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
             config = new ValuesSourceConfig<>(ValuesSourceType.RANGE);
+        } else if (indexFieldData instanceof IndexHistogramFieldData) {
+            config = new ValuesSourceConfig<>(ValuesSourceType.HISTOGRAM);
         } else {
             if (valueType == null) {
                 config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
@@ -325,6 +328,9 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         if (valueSourceType() == ValuesSourceType.RANGE) {
             return (VS) rangeField();
         }
+        if (valueSourceType() == ValuesSourceType.HISTOGRAM) {
+            return (VS) histogramField();
+        }
         // falling back to bytes values
         return (VS) bytesField();
     }
@@ -383,5 +389,13 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
         RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType)fieldType;
         return new ValuesSource.Range(fieldContext().indexFieldData(), rangeFieldType.rangeType());
+    }
+
+    private ValuesSource histogramField() {
+        if (!(fieldContext().indexFieldData() instanceof IndexHistogramFieldData)) {
+            throw new IllegalArgumentException("Expected histogram type on field [" + fieldContext().field() +
+                "], but got [" + fieldContext().fieldType().typeName() + "]");
+        }
+        return new ValuesSource.Histogram.Fielddata((IndexHistogramFieldData) fieldContext().indexFieldData());
     }
 }

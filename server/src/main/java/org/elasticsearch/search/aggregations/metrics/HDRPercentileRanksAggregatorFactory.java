@@ -35,13 +35,13 @@ import java.util.List;
 import java.util.Map;
 
 class HDRPercentileRanksAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+        extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final double[] values;
     private final int numberOfSignificantValueDigits;
     private final boolean keyed;
 
-    HDRPercentileRanksAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double[] values,
+    HDRPercentileRanksAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double[] values,
                                         int numberOfSignificantValueDigits, boolean keyed, QueryShardContext queryShardContext,
                                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                         Map<String, Object> metaData) throws IOException {
@@ -61,7 +61,7 @@ class HDRPercentileRanksAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,

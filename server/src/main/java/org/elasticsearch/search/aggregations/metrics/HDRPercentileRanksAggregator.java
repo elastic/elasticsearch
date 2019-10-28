@@ -23,6 +23,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -32,9 +33,9 @@ import java.util.Map;
 
 class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregator {
 
-    HDRPercentileRanksAggregator(String name, Numeric valuesSource, SearchContext context, Aggregator parent,
-            double[] percents, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat format,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    HDRPercentileRanksAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                 double[] percents, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat format,
+                                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, format, pipelineAggregators,
                 metaData);
     }

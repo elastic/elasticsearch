@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -44,7 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric, PercentilesAggregationBuilder> {
+public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, PercentilesAggregationBuilder> {
     public static final String NAME = Percentiles.TYPE_NAME;
 
     private static final double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
@@ -59,7 +58,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     }
 
     private static final ObjectParser<TDigestOptions, Void> TDIGEST_OPTIONS_PARSER =
-            new ObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), TDigestOptions::new);
+        new ObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), TDigestOptions::new);
     static {
         TDIGEST_OPTIONS_PARSER.declareDouble((opts, compression) -> opts.compression = compression, COMPRESSION_FIELD);
     }
@@ -69,21 +68,21 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     }
 
     private static final ObjectParser<HDROptions, Void> HDR_OPTIONS_PARSER =
-            new ObjectParser<>(PercentilesMethod.HDR.getParseField().getPreferredName(), HDROptions::new);
+        new ObjectParser<>(PercentilesMethod.HDR.getParseField().getPreferredName(), HDROptions::new);
     static {
         HDR_OPTIONS_PARSER.declareInt(
-                (opts, numberOfSigDigits) -> opts.numberOfSigDigits = numberOfSigDigits,
-                NUMBER_SIGNIFICANT_DIGITS_FIELD);
+            (opts, numberOfSigDigits) -> opts.numberOfSigDigits = numberOfSigDigits,
+            NUMBER_SIGNIFICANT_DIGITS_FIELD);
     }
 
     private static final ObjectParser<InternalBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(PercentilesAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
 
         PARSER.declareDoubleArray(
-                (b, v) -> b.percentiles(v.stream().mapToDouble(Double::doubleValue).toArray()),
-                PERCENTS_FIELD);
+            (b, v) -> b.percentiles(v.stream().mapToDouble(Double::doubleValue).toArray()),
+            PERCENTS_FIELD);
 
         PARSER.declareBoolean(PercentilesAggregationBuilder::keyed, KEYED_FIELD);
 
@@ -263,19 +262,19 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext,
-                                                                    ValuesSourceConfig<Numeric> config,
-                                                                    AggregatorFactory parent,
-                                                                    Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                ValuesSourceConfig<ValuesSource> config,
+                                                                AggregatorFactory parent,
+                                                                Builder subFactoriesBuilder) throws IOException {
         switch (method) {
-        case TDIGEST:
-            return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, queryShardContext, parent,
+            case TDIGEST:
+                return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, queryShardContext, parent,
                     subFactoriesBuilder, metaData);
-        case HDR:
-            return new HDRPercentilesAggregatorFactory(name, config, percents,
-                numberOfSignificantValueDigits, keyed, queryShardContext, parent, subFactoriesBuilder, metaData);
-        default:
-            throw new IllegalStateException("Illegal method [" + method + "]");
+            case HDR:
+                return new HDRPercentilesAggregatorFactory(name, config, percents,
+                    numberOfSignificantValueDigits, keyed, queryShardContext, parent, subFactoriesBuilder, metaData);
+            default:
+                throw new IllegalStateException("Illegal method [" + method + "]");
         }
     }
 

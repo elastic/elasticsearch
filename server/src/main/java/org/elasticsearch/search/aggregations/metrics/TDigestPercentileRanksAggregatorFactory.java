@@ -35,14 +35,14 @@ import java.util.List;
 import java.util.Map;
 
 class TDigestPercentileRanksAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+        extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final double[] percents;
     private final double compression;
     private final boolean keyed;
 
     TDigestPercentileRanksAggregatorFactory(String name,
-                                                ValuesSourceConfig<Numeric> config,
+                                                ValuesSourceConfig<ValuesSource> config,
                                                 double[] percents,
                                                 double compression,
                                                 boolean keyed,
@@ -66,7 +66,7 @@ class TDigestPercentileRanksAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,

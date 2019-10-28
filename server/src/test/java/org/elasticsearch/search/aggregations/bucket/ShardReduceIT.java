@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardReduceIT extends ESIntegTestCase {
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
-        return client().prepareIndex("idx", "type").setSource(jsonBuilder()
+        return client().prepareIndex("idx").setSource(jsonBuilder()
                 .startObject()
                 .field("value", value)
                 .field("ip", "10.0.0." + value)

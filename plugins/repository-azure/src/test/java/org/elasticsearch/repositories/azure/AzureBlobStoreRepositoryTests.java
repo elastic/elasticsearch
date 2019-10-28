@@ -265,10 +265,4 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 + (range != null ? " " + range : "");
         }
     }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47948")
-    public void testIndicesDeletedFromRepository() throws Exception {
-
-    }
 }

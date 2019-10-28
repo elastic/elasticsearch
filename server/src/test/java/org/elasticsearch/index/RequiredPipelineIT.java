@@ -39,7 +39,7 @@ public class RequiredPipelineIT extends ESIntegTestCase {
         // this asserts that the required_pipeline was used, without us having to actually create the pipeline etc.
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex("index", "_doc", "1").setSource(Map.of("field", "value")).get());
+            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get());
         assertThat(e, hasToString(containsString("pipeline with id [required_pipeline] does not exist")));
     }
 
@@ -84,7 +84,7 @@ public class RequiredPipelineIT extends ESIntegTestCase {
             .get();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex("index", "_doc", "1").setSource(Map.of("field", "value")).get());
+            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get());
         assertThat(
             e,
             hasToString(containsString(
@@ -114,14 +114,14 @@ public class RequiredPipelineIT extends ESIntegTestCase {
         // this asserts that the high_order_required_pipeline was selected, without us having to actually create the pipeline etc.
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex("index", "_doc", "1").setSource(Map.of("field", "value")).get());
+            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get());
         assertThat(e, hasToString(containsString("pipeline with id [high_order_required_pipeline] does not exist")));
     }
 
     public void testRequiredPipelineAndRequestPipeline() {
         final Settings settings = Settings.builder().put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required_pipeline").build();
         createIndex("index", settings);
-        final IndexRequestBuilder builder = client().prepareIndex("index", "_doc", "1");
+        final IndexRequestBuilder builder = client().prepareIndex("index").setId("1");
         builder.setSource(Map.of("field", "value"));
         builder.setPipeline("request_pipeline");
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::get);

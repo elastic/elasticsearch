@@ -137,7 +137,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         logger.info("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex(leaderIndex, "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
             }
@@ -572,7 +572,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         logger.debug("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex(leaderIndex, "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
             }

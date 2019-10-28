@@ -395,7 +395,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       project.jdks {
         "bundled_${platform}" {
           it.platform = platform
-          it.version = VersionProperties.bundledJdk
+          it.version = VersionProperties.getBundledJdk(platform)
           it.vendor = VersionProperties.bundledJdkVendor
         }
       }

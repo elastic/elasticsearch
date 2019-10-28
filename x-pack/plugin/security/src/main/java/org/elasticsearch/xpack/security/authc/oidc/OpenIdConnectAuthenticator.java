@@ -531,7 +531,7 @@ public class OpenIdConnectAuthenticator {
                 final AccessToken accessToken = oidcTokens.getAccessToken();
                 final JWT idToken = oidcTokens.getIDToken();
                 if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Successfully exchanged code for ID Token [{}] and Access Token [{}]", truncateJWT(idToken),
+                    LOGGER.trace("Successfully exchanged code for ID Token [{}] and Access Token [{}]", idToken,
                         truncateToken(accessToken.toString()));
                 }
                 if (idToken == null) {
@@ -546,21 +546,6 @@ public class OpenIdConnectAuthenticator {
                 new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint. " +
                     "Unable to parse Token Response", e));
         }
-    }
-
-    private static String truncateJWT(JWT jwt) {
-        if (jwt == null) {
-            return null;
-        }
-        final Base64URL[] input = jwt.getParsedParts();
-        String truncated = "";
-        for (int i = 0; i < input.length; i++) {
-            if (i > 0) {
-                truncated += ".";
-            }
-            truncated += truncateToken(input[i].toString());
-        }
-        return truncated;
     }
 
     private static String truncateToken(String input) {

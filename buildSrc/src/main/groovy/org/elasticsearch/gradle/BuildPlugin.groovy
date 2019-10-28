@@ -738,7 +738,6 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
         project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
-            project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).extendsFrom(project.configurations.getByName('shadow'))
             project.tasks.getByName(ShadowJavaPlugin.SHADOW_JAR_TASK_NAME).configure { ShadowJar shadowJar ->
                 /*
                  * Replace the default "-all" classifier with null

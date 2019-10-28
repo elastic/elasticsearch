@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -93,25 +94,14 @@ public class TransportGetTransformStatsAction extends
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
-            TransformState transformState = task.getState();
             task.getCheckpointingInfo(transformCheckpointService, ActionListener.wrap(
                 checkpointingInfo -> listener.onResponse(new Response(
-                    Collections.singletonList(new TransformStats(task.getTransformId(),
-                        TransformStats.State.fromComponents(transformState.getTaskState(), transformState.getIndexerState()),
-                        transformState.getReason(),
-                        null,
-                        task.getStats(),
-                        checkpointingInfo)),
+                    Collections.singletonList(deriveStats(task, checkpointingInfo)),
                     1L)),
                 e -> {
                     logger.warn("Failed to retrieve checkpointing info for transform [" + task.getTransformId() + "]", e);
                     listener.onResponse(new Response(
-                    Collections.singletonList(new TransformStats(task.getTransformId(),
-                        TransformStats.State.fromComponents(transformState.getTaskState(), transformState.getIndexerState()),
-                        transformState.getReason(),
-                        null,
-                        task.getStats(),
-                        TransformCheckpointingInfo.EMPTY)),
+                    Collections.singletonList(deriveStats(task, null)),
                     1L,
                     Collections.emptyList(),
                     Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))));
@@ -168,6 +158,26 @@ public class TransportGetTransformStatsAction extends
         if (pTask != null) {
             transformStats.setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));
         }
+    }
+
+    static TransformStats deriveStats(TransformTask task, @Nullable TransformCheckpointingInfo checkpointingInfo) {
+        TransformState transformState = task.getState();
+        TransformStats.State derivedState = TransformStats.State.fromComponents(transformState.getTaskState(),
+            transformState.getIndexerState());
+        String reason = transformState.getReason();
+        if (transformState.shouldStopAtNextCheckpoint() &&
+            derivedState.equals(TransformStats.State.STOPPED) == false &&
+            derivedState.equals(TransformStats.State.FAILED) == false) {
+            derivedState = TransformStats.State.STOPPING;
+            reason = reason.isEmpty() ? "transform is set to stop at the next checkpoint" : reason;
+        }
+        return new TransformStats(
+            task.getTransformId(),
+            derivedState,
+            reason,
+            null,
+            task.getStats(),
+            checkpointingInfo == null ? TransformCheckpointingInfo.EMPTY : checkpointingInfo);
     }
 
     private void collectStatsForTransformsWithoutTasks(Request request,

@@ -141,7 +141,9 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 initialPosition,
                 currentCheckpoint.get(),
                 stateReason.get(),
-                null);
+                null,
+                null,
+            false);
         } else {
            return new TransformState(
                taskState.get(),
@@ -149,7 +151,9 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                indexer.get().getPosition(),
                currentCheckpoint.get(),
                stateReason.get(),
-               getIndexer().getProgress());
+               getIndexer().getProgress(),
+               null,
+               getIndexer().shouldStopAtCheckpoint());
         }
     }
 
@@ -247,7 +251,9 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             getIndexer().getPosition(),
             currentCheckpoint.get(),
             null,
-            getIndexer().getProgress());
+            getIndexer().getProgress(),
+            null,
+            getIndexer().shouldStopAtCheckpoint());
 
         logger.info("[{}] updating state for transform to [{}].", transform.getId(), state.toString());
         // Even though the indexer information is persisted to an index, we still need TransformTaskState in the clusterstate
@@ -275,8 +281,34 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         ));
     }
 
-    public synchronized void stop(boolean force) {
-        logger.debug("[{}] stop called with force [{}] and state [{}]", getTransformId(), force, getState());
+    /**
+     * This sets the flag for the task to stop at the next checkpoint.
+     *
+     * If first persists the flag to cluster state, and then mutates the local variable.
+     *
+     * It only persists to cluster state if the value is different than what is currently held in memory.
+     * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
+     * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
+     */
+    public synchronized void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint,
+                                                       ActionListener<Void> shouldStopAtCheckpointListener) {
+        logger.debug("[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
+            getTransformId(),
+            shouldStopAtCheckpoint,
+            getState());
+        if (taskState.get() != TransformTaskState.STARTED || getIndexer() == null) {
+            shouldStopAtCheckpointListener.onResponse(null);
+            return;
+        }
+        getIndexer().persistShouldStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
+    }
+
+    public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {
+        logger.debug("[{}] stop called with force [{}], shouldStopAtCheckpoint [{}], state [{}]",
+            getTransformId(),
+            force,
+            shouldStopAtCheckpoint,
+            getState());
         if (getIndexer() == null) {
             // If there is no indexer the task has not been triggered
             // but it still needs to be stopped and removed
@@ -296,16 +328,23 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 RestStatus.CONFLICT);
         }
 
-        IndexerState state = getIndexer().stop();
         stateReason.set(null);
         // No reason to keep it in the potentially failed state.
-        // Since we have called `stop` against the indexer, we have no more fear of triggering again.
-        // But, since `doSaveState` is asynchronous, it is best to set the state as STARTED so that another `start` call cannot be
-        // executed while we are wrapping up.
-        taskState.compareAndSet(TransformTaskState.FAILED, TransformTaskState.STARTED);
-        if (state == IndexerState.STOPPED) {
-            getIndexer().onStop();
-            getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
+        boolean wasFailed = taskState.compareAndSet(TransformTaskState.FAILED, TransformTaskState.STARTED);
+        // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after).
+        // if it is false, stop immediately
+        if (shouldStopAtCheckpoint == false ||
+            // If state was in a failed state, we should stop immediately as we will never reach the next checkpoint
+            wasFailed ||
+            // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
+            // or has yet to even start one.
+            // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
+            (getIndexer().getState() == IndexerState.STARTED && getIndexer().initialRun())) {
+            IndexerState state = getIndexer().stop();
+            if (state == IndexerState.STOPPED) {
+                getIndexer().onStop();
+                getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
+            }
         }
     }
 
@@ -400,6 +439,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.
         deregisterSchedulerJob();
+        // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
+        // we should set this flag to false.
+        if (getIndexer() != null) {
+            getIndexer().setShouldStopAtCheckpoint(false);
+        }
+        // The end user should see that the task is in a failed state, and attempt to stop it again but with force=true
         taskState.set(TransformTaskState.FAILED);
         stateReason.set(reason);
         TransformState newState = getState();

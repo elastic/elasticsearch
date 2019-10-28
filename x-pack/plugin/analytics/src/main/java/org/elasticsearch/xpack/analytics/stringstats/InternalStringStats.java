@@ -26,15 +26,9 @@ public class InternalStringStats extends InternalAggregation {
 
     enum Metrics {
         count, min_length, max_length, avg_length, entropy;
-
-        public static Metrics resolve(String name) {
-            return Metrics.valueOf(name);
-        }
     }
-
-    private static final DocValueFormat DEFAULT_FORMAT = DocValueFormat.RAW;
-
-    private DocValueFormat format = DEFAULT_FORMAT;
+    
+    private final DocValueFormat format;
     private final boolean showDistribution;
     private final long count;
     private final long totalLength;
@@ -127,7 +121,7 @@ public class InternalStringStats extends InternalAggregation {
      * @return A map with the character as key and the probability of
      * this character to occur as value. The map is ordered by frequency descending.
      */
-    public Map<String, Double> getDistribution() {
+    Map<String, Double> getDistribution() {
        return charOccurrences.entrySet().stream()
             .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
             .collect(

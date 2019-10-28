@@ -71,7 +71,7 @@ public class StringStatsAggregator extends MetricsAggregator {
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return (valuesSource != null && valuesSource.needsScores()) ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override

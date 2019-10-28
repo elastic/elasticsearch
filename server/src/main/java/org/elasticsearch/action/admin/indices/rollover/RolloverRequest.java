@@ -29,8 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -46,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
  */
-public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest, ToXContentObject {
+public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
     private static final ObjectParser<RolloverRequest, Boolean> PARSER = new ObjectParser<>("rollover");
     private static final ObjectParser<Map<String, Condition<?>>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
@@ -223,21 +221,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      */
     public CreateIndexRequest getCreateIndexRequest() {
         return createIndexRequest;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        createIndexRequest.innerToXContent(builder, params);
-
-        builder.startObject(CONDITIONS.getPreferredName());
-        for (Condition<?> condition : conditions.values()) {
-            condition.toXContent(builder, params);
-        }
-        builder.endObject();
-
-        builder.endObject();
-        return builder;
     }
 
     // param isTypeIncluded decides how mappings should be parsed from XContent

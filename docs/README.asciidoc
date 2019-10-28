@@ -16,7 +16,7 @@ the change is related to upgrading from the last minor version of the previous m
 
 * Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions]. 
 
-Doc PRs opened against released (non-EOL) versions can be merged to that version, 
+* Doc PRs opened against released (non-EOL) versions can be merged to that version, 
 applied to master, and backported to the current version (where applicable).  
 
 === Snippet testing

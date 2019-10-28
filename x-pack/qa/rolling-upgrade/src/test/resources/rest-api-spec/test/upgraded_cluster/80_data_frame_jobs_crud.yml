@@ -7,9 +7,6 @@ setup:
         timeout: 70s
 ---
 "Get start, stop, and delete old cluster batch data frame transforms":
-  - skip:
-      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
-      version: all
   # Simple and complex OLD transforms
   - do:
       transform.get_transform:
@@ -89,9 +86,6 @@ setup:
 
 ---
 "Get start, stop mixed cluster batch data frame transforms":
-  - skip:
-      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
-      version: all
   # Simple and complex Mixed cluster transforms
   - do:
       transform.get_transform:
@@ -175,9 +169,6 @@ setup:
 
 ---
 "Test GET, stop, delete, old continuous transforms":
-  - skip:
-      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
-      version: all
   - do:
       transform.get_transform:
         transform_id: "old-simple-continuous-transform"
@@ -224,9 +215,6 @@ setup:
         transform_id: "old-simple-continuous-transform"
 ---
 "Test GET, mixed continuous transforms":
-  - skip:
-      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
-      version: all
   - do:
       transform.get_transform:
         transform_id: "mixed-simple-continuous-transform"
@@ -274,9 +262,6 @@ setup:
 
 ---
 "Test index mappings for latest internal index":
-  - skip:
-      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
-      version: all
   - do:
       transform.put_transform:
         transform_id: "upgraded-simple-transform"

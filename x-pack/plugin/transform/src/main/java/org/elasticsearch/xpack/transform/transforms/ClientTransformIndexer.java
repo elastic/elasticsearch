@@ -302,7 +302,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     }
                     if (auditBulkFailures) {
                         String failureMessage = bulkResponse.buildFailureMessage();
-                        logger.debug("[{}] Bulk index failure encountered: {}", failureMessage);
+                        logger.debug("[{}] Bulk index failure encountered: {}", getJobId(), failureMessage);
                         auditor.warning(
                             getJobId(),
                             "Experienced at least [" +

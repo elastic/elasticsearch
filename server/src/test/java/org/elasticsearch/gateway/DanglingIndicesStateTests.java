@@ -36,15 +36,20 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class DanglingIndicesStateTests extends ESTestCase {
 
     private static Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
+        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+        .build();
+
+    private static final Settings allocateSettings = Settings.builder().put("index.allocate_dangling", true).build();
 
     public void testCleanupWhenEmpty() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
@@ -57,6 +62,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
             assertTrue(danglingState.getDanglingIndices().isEmpty());
         }
     }
+
     public void testDanglingIndicesDiscovery() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
@@ -181,7 +187,61 @@ public class DanglingIndicesStateTests extends ESTestCase {
         }
     }
 
+    public void testDanglingIndicesAreNotAllocatedWhenDisabled() throws Exception {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
+            LocalAllocateDangledIndices localAllocateDangledIndices = mock(LocalAllocateDangledIndices.class);
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService, localAllocateDangledIndices);
+
+            assertTrue(danglingState.getDanglingIndices().isEmpty());
+
+            // Given a metadata that does not enable allocation of dangling indices
+            MetaData metaData = MetaData.builder().build();
+
+            final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
+
+            danglingState.findNewAndAddDanglingIndices(metaData);
+
+            // When calling the allocate method
+            danglingState.allocateDanglingIndices(metaData);
+
+            // Ensure that allocation is not attempted
+            verify(localAllocateDangledIndices, never()).allocateDangled(any(), any());
+        }
+    }
+
+    public void testDanglingIndicesAreAllocatedWhenEnabled() throws Exception {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
+            LocalAllocateDangledIndices localAllocateDangledIndices = mock(LocalAllocateDangledIndices.class);
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService, localAllocateDangledIndices);
+
+            assertTrue(danglingState.getDanglingIndices().isEmpty());
+
+            // Given a metadata that enables allocation of dangling indices
+            MetaData metaData = MetaData.builder().persistentSettings(allocateSettings).build();
+
+            final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
+
+            danglingState.findNewAndAddDanglingIndices(metaData);
+
+            // When calling the allocate method
+            danglingState.allocateDanglingIndices(metaData);
+
+            // Ensure that allocation is attempted
+            verify(localAllocateDangledIndices).allocateDangled(any(), any());
+        }
+    }
+
     private DanglingIndicesState createDanglingIndicesState(NodeEnvironment env, MetaStateService metaStateService) {
-        return new DanglingIndicesState(env, metaStateService, null, mock(ClusterService.class));
+        return createDanglingIndicesState(env, metaStateService, null);
+    }
+
+    private DanglingIndicesState createDanglingIndicesState(NodeEnvironment env, MetaStateService metaStateService, LocalAllocateDangledIndices allocateDangledIndices) {
+        return new DanglingIndicesState(env, metaStateService, allocateDangledIndices, mock(ClusterService.class));
     }
 }

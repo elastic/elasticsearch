@@ -1867,7 +1867,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             )
         );
 
-        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new TermQuery(new Term("foo", "bar"))),
+        executeTestCase(true, false, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -1882,11 +1882,12 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=c, long=100}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertTrue(result.isTerminatedEarly());
             }
         );
 
         // source field and index sorting config have the different order
-        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new TermQuery(new Term("foo", "bar"))),
+        executeTestCase(true, false, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -1903,6 +1904,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=a, long=100}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertTrue(result.isTerminatedEarly());
             }
         );
     }
@@ -1940,6 +1942,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     addToDocument(document, fields);
                     indexWriter.addDocument(document);
                     document.clear();
+                }
+                if (reduced == false) {
+                    indexWriter.forceMerge(1);
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -2035,9 +2040,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         for (CompositeValuesSourceBuilder<?> source : sources) {
             MappedFieldType type = fieldTypes.get(source.field());
             if (type instanceof KeywordFieldMapper.KeywordFieldType) {
-                sortFields.add(new SortedSetSortField(type.name(), source.order() == SortOrder.DESC));
+                sortFields.add(new SortedSetSortField(type.name(), false));
             } else if (type instanceof DateFieldMapper.DateFieldType) {
-                sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.LONG, source.order() == SortOrder.DESC));
+                sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.LONG, false));
             } else if (type instanceof NumberFieldMapper.NumberFieldType) {
                 boolean comp = false;
                 switch (type.typeName()) {
@@ -2045,13 +2050,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     case "short":
                     case "integer":
                         comp = true;
-                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.INT, source.order() == SortOrder.DESC));
+                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.INT, false));
                         break;
 
                     case "float":
                     case "double":
                         comp = true;
-                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, source.order() == SortOrder.DESC));
+                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false));
                         break;
 
                     default:

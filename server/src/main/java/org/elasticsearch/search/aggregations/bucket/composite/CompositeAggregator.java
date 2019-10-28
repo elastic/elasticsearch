@@ -85,6 +85,8 @@ final class CompositeAggregator extends BucketsAggregator {
     private RoaringDocIdSet.Builder docIdSetBuilder;
     private BucketCollector deferredCollectors;
 
+    private boolean earlyTerminated;
+
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
@@ -149,13 +151,13 @@ final class CompositeAggregator extends BucketsAggregator {
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
         return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
-            pipelineAggregators(), metaData());
+            earlyTerminated, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls,
-            pipelineAggregators(), metaData());
+            false, pipelineAggregators(), metaData());
     }
 
     private void finishLeaf() {
@@ -167,21 +169,25 @@ final class CompositeAggregator extends BucketsAggregator {
         }
     }
 
-    /** Return true if the provided field has multiple values per document in the leaf **/
-    private boolean isMultiValued(LeafReaderContext context, SortField sortField) throws IOException {
+    /** Return true if the provided field may have multiple values per document in the leaf **/
+    private boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
-        if (type == SortField.Type.STRING) {
-            final SortedSetDocValues values = context.reader().getSortedSetDocValues(sortField.getField());
-            if (values != null && DocValues.unwrapSingleton(values) != null) {
-                return false;
-            }
-        } else {
-            final SortedNumericDocValues values = context.reader().getSortedNumericDocValues(sortField.getField());
-            if (values != null && DocValues.unwrapSingleton(values) != null) {
-                return false;
-            }
+        switch (type) {
+            case STRING:
+                final SortedSetDocValues v1 = context.reader().getSortedSetDocValues(sortField.getField());
+                return v1 != null && DocValues.unwrapSingleton(v1) == null;
+
+            case DOUBLE:
+            case FLOAT:
+            case LONG:
+            case INT:
+                final SortedNumericDocValues v2 = context.reader().getSortedNumericDocValues(sortField.getField());
+                return v2 != null && DocValues.unwrapSingleton(v2) == null;
+
+            default:
+                // we have no clue whether the field is multi-valued or not so we assume it is.
+                return true;
         }
-        return true;
     }
 
     /**
@@ -201,7 +207,7 @@ final class CompositeAggregator extends BucketsAggregator {
                     // TODO: can we handle missing bucket when using index sort optimization ?
                     || source.missingBucket
                     || indexSortField.getField().equals(source.fieldType.name()) == false
-                    || isMultiValued(context, indexSortField)) {
+                    || isMaybeMultivalued(context, indexSortField)) {
                     // TODO: ignore fields that change the value with a script
                 break;
             }
@@ -290,6 +296,7 @@ final class CompositeAggregator extends BucketsAggregator {
             // We can bypass search entirely for this segment, the processing is done in the previous call.
             // Throwing this exception will terminate the execution of the search for this root aggregation,
             // see {@link MultiCollector} for more details on how we handle early termination in aggregations.
+            earlyTerminated = true;
             throw new CollectionTerminatedException();
         } else {
             if (fillDocIdSet) {
@@ -324,11 +331,16 @@ final class CompositeAggregator extends BucketsAggregator {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (queue.addIfCompetitive(indexSortPrefix)) {
-                    if (builder != null && lastDoc != doc) {
-                        builder.add(doc);
-                        lastDoc = doc;
+                try {
+                    if (queue.addIfCompetitive(indexSortPrefix)) {
+                        if (builder != null && lastDoc != doc) {
+                            builder.add(doc);
+                            lastDoc = doc;
+                        }
                     }
+                } catch (CollectionTerminatedException exc) {
+                    earlyTerminated = true;
+                    throw exc;
                 }
             }
         };

@@ -261,7 +261,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      *                              and a negative value indicates that the index sort match the source field but the order is reversed.
      * @return <code>true</code> if the candidate is competitive (added or already in the queue).
      *
-     * @throws CollectionTerminatedException if the current collection can be terminated early due to index sorting
+     * @throws CollectionTerminatedException if the current collection can be terminated early due to index sorting.
      */
     boolean addIfCompetitive(int indexSortSourcePrefix) {
         // checks if the candidate key is competitive
@@ -274,7 +274,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         if (afterKeyIsSet) {
             int cmp = compareCurrentWithAfter();
             if (cmp <= 0) {
-                if (indexSortSourcePrefix < 0 && -cmp == indexSortSourcePrefix) {
+                if (indexSortSourcePrefix < 0 && cmp == indexSortSourcePrefix) {
                     // the leading index sort is in the reverse order of the leading source
                     // so we can early terminate when we reach a document that is smaller
                     // than the after key (collected on a previous page).

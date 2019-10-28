@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -27,7 +26,7 @@ public class InternalStringStats extends InternalAggregation {
     enum Metrics {
         count, min_length, max_length, avg_length, entropy;
     }
-    
+
     private final DocValueFormat format;
     private final boolean showDistribution;
     private final long count;
@@ -60,7 +59,7 @@ public class InternalStringStats extends InternalAggregation {
         totalLength = in.readVLong();
         minLength = in.readVInt();
         maxLength = in.readVInt();
-        charOccurrences = in.<String, Long>readMap(StreamInput::readString, StreamInput::readLong);
+        charOccurrences = in.readMap(StreamInput::readString, StreamInput::readLong);
     }
 
     @Override
@@ -75,7 +74,7 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     public String getWriteableName() {
-        return StatsAggregationBuilder.NAME;
+        return StringStatsAggregationBuilder.NAME;
     }
 
     public long getCount() {

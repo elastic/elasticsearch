@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchContextException;
+import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -54,7 +54,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
-        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
         try {
             client().prepareSearch("test")
                     .addSort("field1", SortOrder.ASC)
@@ -67,7 +67,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchException.class));
                 assertThat(failure.getCause().getMessage(), Matchers.equalTo("`search_after` cannot be used in a scroll context."));
             }
         }
@@ -83,7 +83,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchException.class));
                 assertThat(failure.getCause().getMessage(),
                         Matchers.equalTo("`from` parameter must be set to 0 when `search_after` is used."));
             }
@@ -157,8 +157,8 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
         indexRandom(true,
-                client().prepareIndex("test", "type1", "0").setSource("field1", 0),
-                client().prepareIndex("test", "type1", "1").setSource("field1", 100, "field2", "toto"));
+                client().prepareIndex("test").setId("0").setSource("field1", 0),
+                client().prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto"));
         SearchResponse searchResponse = client().prepareSearch("test")
                 .addSort("field1", SortOrder.ASC)
                 .addSort("field2", SortOrder.ASC)
@@ -255,7 +255,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     builder.field("field" + Integer.toString(j), documents.get(i).get(j));
                 }
                 builder.endObject();
-                requests.add(client().prepareIndex(INDEX_NAME, TYPE_NAME, Integer.toString(i)).setSource(builder));
+                requests.add(client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
             }
             indexRandom(true, requests);
         }

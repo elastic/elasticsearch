@@ -24,7 +24,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -107,7 +106,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     }
 
     public void testGlobalIndex() throws IOException {
-        BulkRequest request = new BulkRequest("global_index", null);
+        BulkRequest request = new BulkRequest("global_index");
         request.add(new IndexRequest().id("1")
             .source(XContentType.JSON, "field", "bulk1"));
         request.add(new IndexRequest().id("2")
@@ -121,7 +120,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
     @SuppressWarnings("unchecked")
     public void testIndexGlobalAndPerRequest() throws IOException {
-        BulkRequest request = new BulkRequest("global_index", null);
+        BulkRequest request = new BulkRequest("global_index");
         request.add(new IndexRequest("local_index").id("1")
             .source(XContentType.JSON, "field", "bulk1"));
         request.add(new IndexRequest().id("2") // will take global index
@@ -167,26 +166,6 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
         Iterable<SearchHit> hits = searchAll(new SearchRequest("index").routing("globalRouting", "localRouting"));
         assertThat(hits, containsInAnyOrder(hasId("1"), hasId("2")));
-    }
-
-    public void testGlobalIndexNoTypes() throws IOException {
-        BulkRequest request = new BulkRequest("global_index");
-        request.add(new IndexRequest().id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest().id("2")
-            .source(XContentType.JSON, "field", "bulk2"));
-
-        bulk(request);
-
-        Iterable<SearchHit> hits = searchAll("global_index");
-        assertThat(hits, everyItem(hasIndex("global_index")));
-    }
-
-    private BulkResponse bulkWithTypes(BulkRequest request) throws IOException {
-        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync,
-                expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
-        assertFalse(bulkResponse.hasFailures());
-        return bulkResponse;
     }
 
     private BulkResponse bulk(BulkRequest request) throws IOException {

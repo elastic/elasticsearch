@@ -139,8 +139,13 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
-import org.elasticsearch.client.ml.dataframe.Regression;
+import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
@@ -1149,7 +1154,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a bucket
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-buckets\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
                         "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 80.0}", XContentType.JSON);
@@ -1617,7 +1622,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a record
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-records\", \"result_type\":\"record\", \"timestamp\": 1533081600000," +
                 "\"bucket_span\": 600,\"is_interim\": false, \"record_score\": 80.0}", XContentType.JSON);
@@ -1836,7 +1841,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a record
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-influencers\", \"result_type\":\"influencer\", \"timestamp\": 1533081600000," +
                 "\"bucket_span\": 600,\"is_interim\": false, \"influencer_score\": 80.0, \"influencer_field_name\": \"my_influencer\"," +
@@ -1927,7 +1932,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a category
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\": \"test-get-categories\", \"category_id\": 1, \"terms\": \"AAL\"," +
                 " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}", XContentType.JSON);
@@ -2048,7 +2053,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a snapshot
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2114,7 +2119,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a snapshot
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-model-snapshots\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2212,7 +2217,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Let us index a snapshot
         String documentId = jobId + "_model_snapshot_" + snapshotId;
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2288,7 +2293,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a snapshot
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-update-model-snapshot\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2821,7 +2826,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             List<DataFrameAnalyticsConfig> configs = response.getAnalytics();
             // end::get-data-frame-analytics-response
 
-            assertThat(configs.size(), equalTo(1));
+            assertThat(configs, hasSize(1));
         }
         {
             GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("my-analytics-config");
@@ -2871,7 +2876,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             List<DataFrameAnalyticsStats> stats = response.getAnalyticsStats();
             // end::get-data-frame-analytics-stats-response
 
-            assertThat(stats.size(), equalTo(1));
+            assertThat(stats, hasSize(1));
         }
         {
             GetDataFrameAnalyticsStatsRequest request = new GetDataFrameAnalyticsStatsRequest("my-analytics-config");
@@ -2932,11 +2937,28 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DataFrameAnalysis outlierDetectionCustomized = OutlierDetection.builder() // <1>
                 .setMethod(OutlierDetection.Method.DISTANCE_KNN) // <2>
                 .setNNeighbors(5) // <3>
+                .setFeatureInfluenceThreshold(0.1) // <4>
+                .setComputeFeatureInfluence(true) // <5>
+                .setOutlierFraction(0.05) // <6>
+                .setStandardizationEnabled(true) // <7>
                 .build();
             // end::put-data-frame-analytics-outlier-detection-customized
 
+            // tag::put-data-frame-analytics-classification
+            DataFrameAnalysis classification = org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable") // <1>
+                .setLambda(1.0) // <2>
+                .setGamma(5.5) // <3>
+                .setEta(5.5) // <4>
+                .setMaximumNumberTrees(50) // <5>
+                .setFeatureBagFraction(0.4) // <6>
+                .setPredictionFieldName("my_prediction_field_name") // <7>
+                .setTrainingPercent(50.0) // <8>
+                .setNumTopClasses(1) // <9>
+                .build();
+            // end::put-data-frame-analytics-classification
+
             // tag::put-data-frame-analytics-regression
-            DataFrameAnalysis regression = Regression.builder("my_dependent_variable") // <1>
+            DataFrameAnalysis regression = org.elasticsearch.client.ml.dataframe.Regression.builder("my_dependent_variable") // <1>
                 .setLambda(1.0) // <2>
                 .setGamma(5.5) // <3>
                 .setEta(5.5) // <4>
@@ -3205,18 +3227,24 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
         {
+            // tag::evaluate-data-frame-evaluation-softclassification
+            Evaluation evaluation =
+                new BinarySoftClassification( // <1>
+                    "label", // <2>
+                    "p", // <3>
+                    // Evaluation metrics // <4>
+                    PrecisionMetric.at(0.4, 0.5, 0.6), // <5>
+                    RecallMetric.at(0.5, 0.7), // <6>
+                    ConfusionMatrixMetric.at(0.5), // <7>
+                    AucRocMetric.withCurve()); // <8>
+            // end::evaluate-data-frame-evaluation-softclassification
+
             // tag::evaluate-data-frame-request
-            EvaluateDataFrameRequest request = new EvaluateDataFrameRequest( // <1>
-                indexName, // <2>
-                new QueryConfig(QueryBuilders.termQuery("dataset", "blue")),  // <3>
-                new BinarySoftClassification( // <4>
-                    "label", // <5>
-                    "p", // <6>
-                    // Evaluation metrics // <7>
-                    PrecisionMetric.at(0.4, 0.5, 0.6), // <8>
-                    RecallMetric.at(0.5, 0.7), // <9>
-                    ConfusionMatrixMetric.at(0.5), // <10>
-                    AucRocMetric.withCurve())); // <11>
+            EvaluateDataFrameRequest request =
+                new EvaluateDataFrameRequest( // <1>
+                    indexName, // <2>
+                    new QueryConfig(QueryBuilders.termQuery("dataset", "blue")), // <3>
+                    evaluation); // <4>
             // end::evaluate-data-frame-request
 
             // tag::evaluate-data-frame-execute
@@ -3225,16 +3253,18 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::evaluate-data-frame-response
             List<EvaluationMetric.Result> metrics = response.getMetrics(); // <1>
-
-            PrecisionMetric.Result precisionResult = response.getMetricByName(PrecisionMetric.NAME); // <2>
-            double precision = precisionResult.getScoreByThreshold("0.4"); // <3>
-
-            ConfusionMatrixMetric.Result confusionMatrixResult = response.getMetricByName(ConfusionMatrixMetric.NAME); // <4>
-            ConfusionMatrix confusionMatrix = confusionMatrixResult.getScoreByThreshold("0.5"); // <5>
             // end::evaluate-data-frame-response
 
+            // tag::evaluate-data-frame-results-softclassification
+            PrecisionMetric.Result precisionResult = response.getMetricByName(PrecisionMetric.NAME); // <1>
+            double precision = precisionResult.getScoreByThreshold("0.4"); // <2>
+
+            ConfusionMatrixMetric.Result confusionMatrixResult = response.getMetricByName(ConfusionMatrixMetric.NAME); // <3>
+            ConfusionMatrix confusionMatrix = confusionMatrixResult.getScoreByThreshold("0.5"); // <4>
+            // end::evaluate-data-frame-results-softclassification
+
             assertThat(
-                metrics.stream().map(m -> m.getMetricName()).collect(Collectors.toList()),
+                metrics.stream().map(EvaluationMetric.Result::getMetricName).collect(Collectors.toList()),
                 containsInAnyOrder(PrecisionMetric.NAME, RecallMetric.NAME, ConfusionMatrixMetric.NAME, AucRocMetric.NAME));
             assertThat(precision, closeTo(0.6, 1e-9));
             assertThat(confusionMatrix.getTruePositives(), equalTo(2L));  // docs #8 and #9
@@ -3277,6 +3307,138 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::evaluate-data-frame-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testEvaluateDataFrame_Classification() throws Exception {
+        String indexName = "evaluate-classification-test-index";
+        CreateIndexRequest createIndexRequest =
+            new CreateIndexRequest(indexName)
+                .mapping(XContentFactory.jsonBuilder().startObject()
+                    .startObject("properties")
+                        .startObject("actual_class")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("predicted_class")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                    .endObject());
+        BulkRequest bulkRequest =
+            new BulkRequest(indexName)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "cat", "predicted_class", "cat")) // #0
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "cat", "predicted_class", "cat")) // #1
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "cat", "predicted_class", "cat")) // #2
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "cat", "predicted_class", "dog")) // #3
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "cat", "predicted_class", "fox")) // #4
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "dog", "predicted_class", "cat")) // #5
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "dog", "predicted_class", "dog")) // #6
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "dog", "predicted_class", "dog")) // #7
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "dog", "predicted_class", "dog")) // #8
+                .add(new IndexRequest().source(XContentType.JSON, "actual_class", "ant", "predicted_class", "cat")); // #9
+        RestHighLevelClient client = highLevelClient();
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        client.bulk(bulkRequest, RequestOptions.DEFAULT);
+        {
+            // tag::evaluate-data-frame-evaluation-classification
+            Evaluation evaluation =
+                new org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification( // <1>
+                    "actual_class", // <2>
+                    "predicted_class", // <3>
+                    // Evaluation metrics // <4>
+                    new MulticlassConfusionMatrixMetric(3)); // <5>
+            // end::evaluate-data-frame-evaluation-classification
+
+            EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(indexName, null, evaluation);
+            EvaluateDataFrameResponse response = client.machineLearning().evaluateDataFrame(request, RequestOptions.DEFAULT);
+
+            // tag::evaluate-data-frame-results-classification
+            MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
+                response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <1>
+
+            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <2>
+            long otherClassesCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <3>
+            // end::evaluate-data-frame-results-classification
+
+            assertThat(multiclassConfusionMatrix.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
+            assertThat(
+                confusionMatrix,
+                equalTo(
+                    List.of(
+                        new ActualClass(
+                            "ant",
+                            1L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
+                            0L),
+                        new ActualClass(
+                            "cat",
+                            5L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
+                            1L),
+                        new ActualClass(
+                            "dog",
+                            4L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
+                            0L))));
+            assertThat(otherClassesCount, equalTo(0L));
+        }
+    }
+
+    public void testEvaluateDataFrame_Regression() throws Exception {
+        String indexName = "evaluate-classification-test-index";
+        CreateIndexRequest createIndexRequest =
+            new CreateIndexRequest(indexName)
+                .mapping(XContentFactory.jsonBuilder().startObject()
+                    .startObject("properties")
+                        .startObject("actual_value")
+                            .field("type", "double")
+                        .endObject()
+                        .startObject("predicted_value")
+                            .field("type", "double")
+                        .endObject()
+                    .endObject()
+                    .endObject());
+        BulkRequest bulkRequest =
+            new BulkRequest(indexName)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.0, "predicted_value", 1.0)) // #0
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.0, "predicted_value", 0.9)) // #1
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.0, "predicted_value", 2.0)) // #2
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.5, "predicted_value", 1.4)) // #3
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.2, "predicted_value", 1.3)) // #4
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.7, "predicted_value", 2.0)) // #5
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.1, "predicted_value", 2.1)) // #6
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.5, "predicted_value", 2.7)) // #7
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 0.8, "predicted_value", 1.0)) // #8
+                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.5, "predicted_value", 2.4)); // #9
+        RestHighLevelClient client = highLevelClient();
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        client.bulk(bulkRequest, RequestOptions.DEFAULT);
+        {
+            // tag::evaluate-data-frame-evaluation-regression
+            Evaluation evaluation =
+                new org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression( // <1>
+                    "actual_value", // <2>
+                    "predicted_value", // <3>
+                    // Evaluation metrics // <4>
+                    new MeanSquaredErrorMetric(), // <5>
+                    new RSquaredMetric()); // <6>
+            // end::evaluate-data-frame-evaluation-regression
+
+            EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(indexName, null, evaluation);
+            EvaluateDataFrameResponse response = client.machineLearning().evaluateDataFrame(request, RequestOptions.DEFAULT);
+
+            // tag::evaluate-data-frame-results-regression
+            MeanSquaredErrorMetric.Result meanSquaredErrorResult = response.getMetricByName(MeanSquaredErrorMetric.NAME); // <1>
+            double meanSquaredError = meanSquaredErrorResult.getError(); // <2>
+
+            RSquaredMetric.Result rSquaredResult = response.getMetricByName(RSquaredMetric.NAME); // <3>
+            double rSquared = rSquaredResult.getValue(); // <4>
+            // end::evaluate-data-frame-results-regression
+
+            assertThat(meanSquaredError, closeTo(0.021, 1e-3));
+            assertThat(rSquared, closeTo(0.941, 1e-3));
         }
     }
 

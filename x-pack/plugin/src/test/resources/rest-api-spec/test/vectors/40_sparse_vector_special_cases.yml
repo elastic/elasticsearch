@@ -1,10 +1,12 @@
 setup:
   - skip:
-      features: headers
+      features: [headers, warnings]
       version: " - 7.3.99"
       reason: "sparse_vector functions check on empty values was added from 7.4"
 
   - do:
+      warnings:
+        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       indices.create:
         include_type_name: false
         index: test-index
@@ -50,6 +52,8 @@ setup:
   - do:
       headers:
         Content-Type: application/json
+      warnings:
+        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       search:
         rest_total_hits_as_int: true
         body:
@@ -70,6 +74,8 @@ setup:
   - do:
       headers:
         Content-Type: application/json
+      warnings:
+        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       search:
         rest_total_hits_as_int: true
         body:
@@ -96,6 +102,8 @@ setup:
         my_sparse_vector: {"1": 10}
 
 - do:
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     index:
       index: test-index
       id: 2
@@ -110,6 +118,8 @@ setup:
     catch: bad_request
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:
@@ -126,6 +136,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:
@@ -173,6 +185,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:
@@ -250,6 +264,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:
@@ -279,6 +295,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:
@@ -307,6 +325,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:
@@ -332,6 +352,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:

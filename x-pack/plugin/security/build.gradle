@@ -21,9 +21,6 @@ dependencies {
     testCompile project(path: xpackModule('sql:sql-action'))
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
 
     compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
     compileOnly 'org.bouncycastle:bcprov-jdk15on:1.59'
@@ -309,6 +306,12 @@ test {
      * other if we allow them to set the number of available processors as it's set-once in Netty.
      */
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
+
+    /*
+     * Some tests in this module set up a lot of transport threads so we reduce the buffer size per transport thread from the 1M default
+     * to keep direct memory usage under control.
+     */
+    systemProperty 'es.transport.buffer.size', '256k'
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

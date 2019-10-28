@@ -143,11 +143,10 @@ public class JobResultsProviderTests extends ESTestCase {
         clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
 
         GetMappingsResponse getMappingsResponse = mock(GetMappingsResponse.class);
-        ImmutableOpenMap<String, MappingMetaData> typeMappings = ImmutableOpenMap.<String, MappingMetaData>of();
 
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings =
-                ImmutableOpenMap.<String, ImmutableOpenMap<String, MappingMetaData>>builder()
-                        .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), typeMappings).build();
+        ImmutableOpenMap<String, MappingMetaData> mappings =
+                ImmutableOpenMap.<String, MappingMetaData>builder()
+                        .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), null).build();
         when(getMappingsResponse.mappings()).thenReturn(mappings);
         clientBuilder.prepareGetMapping(getMappingsResponse);
 
@@ -1030,10 +1029,6 @@ public class JobResultsProviderTests extends ESTestCase {
         verify(client).threadPool();
         verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
-    }
-
-    private Bucket createBucketAtEpochTime(long epoch) {
-        return new Bucket("foo", new Date(epoch), 123);
     }
 
     private JobResultsProvider createProvider(Client client) {

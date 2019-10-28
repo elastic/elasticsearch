@@ -60,6 +60,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private volatile Long reindexingTaskId;
     private volatile boolean isReindexingFinished;
     private volatile boolean isStopping;
+    private volatile boolean isMarkAsCompletedCalled;
     private final ProgressTracker progressTracker = new ProgressTracker();
 
     public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
@@ -78,6 +79,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     public void setReindexingTaskId(Long reindexingTaskId) {
+        LOGGER.debug("[{}] Setting reindexing task id to [{}] from [{}]", taskParams.getId(), reindexingTaskId, this.reindexingTaskId);
         this.reindexingTaskId = reindexingTaskId;
     }
 
@@ -102,10 +104,17 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     public void markAsCompleted() {
         // It is possible that the stop API has been called in the meantime and that
         // may also cause this method to be called. We check whether we have already
-        // been marked completed to avoid doing it twice.
-        if (isCompleted() == false) {
-            persistProgress(() -> super.markAsCompleted());
+        // been marked completed to avoid doing it twice. We need to capture that
+        // locally instead of relying to isCompleted() because of the asynchronous
+        // persistence of progress.
+        synchronized (this) {
+            if (isMarkAsCompletedCalled) {
+                return;
+            }
+            isMarkAsCompletedCalled = true;
         }
+
+        persistProgress(() -> super.markAsCompleted());
     }
 
     @Override
@@ -154,7 +163,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         }
         // There is a chance that the task is finished by the time we cancel it in which case we'll get
         // a ResourceNotFoundException which we can ignore.
-        if (firstError != null && firstError instanceof ResourceNotFoundException == false) {
+        if (firstError != null && ExceptionsHelper.unwrapCause(firstError) instanceof ResourceNotFoundException == false) {
             throw ExceptionsHelper.serverError("[" + taskParams.getId() + "] Error cancelling reindex task", firstError);
         } else {
             LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());
@@ -177,14 +186,23 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     public void updateReindexTaskProgress(ActionListener<Void> listener) {
+        getReindexTaskProgress(ActionListener.wrap(
+            // We set reindexing progress at least to 1 for a running process to be able to
+            // distinguish a job that is running for the first time against a job that is restarting.
+            reindexTaskProgress -> {
+                progressTracker.reindexingPercent.set(Math.max(1, reindexTaskProgress));
+                listener.onResponse(null);
+            },
+            listener::onFailure
+        ));
+    }
+
+    private void getReindexTaskProgress(ActionListener<Integer> listener) {
         TaskId reindexTaskId = getReindexTaskId();
         if (reindexTaskId == null) {
             // The task is not present which means either it has not started yet or it finished.
             // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
-            if (isReindexingFinished) {
-                progressTracker.reindexingPercent.set(100);
-            }
-            listener.onResponse(null);
+            listener.onResponse(isReindexingFinished ? 100 : 0);
             return;
         }
 
@@ -194,18 +212,14 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             taskResponse -> {
                 TaskResult taskResult = taskResponse.getTask();
                 BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
-                int progress = taskStatus.getTotal() == 0 ? 0 : (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
-                progressTracker.reindexingPercent.set(progress);
-                listener.onResponse(null);
+                int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
+                listener.onResponse(progress);
             },
             error -> {
-                if (error instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                     // The task is not present which means either it has not started yet or it finished.
                     // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
-                    if (isReindexingFinished) {
-                        progressTracker.reindexingPercent.set(100);
-                    }
-                    listener.onResponse(null);
+                    listener.onResponse(isReindexingFinished ? 100 : 0);
                 } else {
                     listener.onFailure(error);
                 }
@@ -224,6 +238,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     private void persistProgress(Runnable runnable) {
+        LOGGER.debug("[{}] Persisting progress", taskParams.getId());
         GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(taskParams.getId());
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(
             statsResponse -> {
@@ -253,6 +268,46 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 runnable.run();
             }
         ));
+    }
+
+    /**
+     * This captures the possible states a job can be when it starts.
+     * {@code FIRST_TIME} means the job has never been started before.
+     * {@code RESUMING_REINDEXING} means the job was stopped while it was reindexing.
+     * {@code RESUMING_ANALYZING} means the job was stopped while it was analyzing.
+     * {@code FINISHED} means the job had finished.
+     */
+    public enum StartingState {
+        FIRST_TIME, RESUMING_REINDEXING, RESUMING_ANALYZING, FINISHED
+    }
+
+    public static StartingState determineStartingState(String jobId, List<PhaseProgress> progressOnStart) {
+        PhaseProgress lastIncompletePhase = null;
+        for (PhaseProgress phaseProgress : progressOnStart) {
+            if (phaseProgress.getProgressPercent() < 100) {
+                lastIncompletePhase = phaseProgress;
+                break;
+            }
+        }
+
+        if (lastIncompletePhase == null) {
+            return StartingState.FINISHED;
+        }
+
+        LOGGER.debug("[{}] Last incomplete progress [{}, {}]", jobId, lastIncompletePhase.getPhase(),
+            lastIncompletePhase.getProgressPercent());
+
+        switch (lastIncompletePhase.getPhase()) {
+            case ProgressTracker.REINDEXING:
+                return lastIncompletePhase.getProgressPercent() == 0 ? StartingState.FIRST_TIME : StartingState.RESUMING_REINDEXING;
+            case ProgressTracker.LOADING_DATA:
+            case ProgressTracker.ANALYZING:
+            case ProgressTracker.WRITING_RESULTS:
+                return StartingState.RESUMING_ANALYZING;
+            default:
+                LOGGER.warn("[{}] Unexpected progress phase [{}]", jobId, lastIncompletePhase.getPhase());
+                return StartingState.FIRST_TIME;
+        }
     }
 
     public static String progressDocId(String id) {

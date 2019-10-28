@@ -25,8 +25,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final String GLOBAL_INFO_EXTENSION_NAME = "globalInfo";
@@ -45,6 +50,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
+
+        String testSeedProperty = System.getProperty("tests.seed");
+        final String testSeed;
+        if (testSeedProperty == null) {
+            long seed = new Random(System.currentTimeMillis()).nextLong();
+            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT);
+        } else {
+            testSeed = testSeedProperty;
+        }
 
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
@@ -95,7 +109,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
             ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
+            ext.set("testSeed", testSeed);
             ext.set("isCi", System.getenv("JENKINS_URL") != null);
+            ext.set("isInternal", GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
         });
     }
 
@@ -248,7 +264,23 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
             final String ref = readFirstLine(head);
             if (ref.startsWith("ref:")) {
-                revision = readFirstLine(gitDir.resolve(ref.substring("ref:".length()).trim()));
+                String refName = ref.substring("ref:".length()).trim();
+                Path refFile = gitDir.resolve(refName);
+                if (Files.exists(refFile)) {
+                    revision = readFirstLine(refFile);
+                } else if (Files.exists(dotGit.resolve("packed-refs"))) {
+                    // Check packed references for commit ID
+                    Pattern p = Pattern.compile("^([a-f0-9]{40}) " + refName + "$");
+                    try (Stream<String> lines = Files.lines(dotGit.resolve("packed-refs"))) {
+                        revision = lines.map(p::matcher)
+                            .filter(Matcher::matches)
+                            .map(m -> m.group(1))
+                            .findFirst()
+                            .orElseThrow(() -> new IOException("Packed reference not found for refName " + refName));
+                    }
+                } else {
+                    throw new GradleException("Can't find revision for refName " + refName);
+                }
             } else {
                 // we are in detached HEAD state
                 revision = ref;
@@ -261,9 +293,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private static String readFirstLine(final Path path) throws IOException {
-        return Files.lines(path, StandardCharsets.UTF_8)
-            .findFirst()
-            .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
+        String firstLine;
+        try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
+            firstLine = lines
+                .findFirst()
+                .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
+        }
+        return firstLine;
     }
-
 }

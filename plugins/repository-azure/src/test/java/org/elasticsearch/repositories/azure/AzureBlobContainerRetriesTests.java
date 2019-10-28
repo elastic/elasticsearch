@@ -24,7 +24,6 @@ import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.blob.BlobRequestOptions;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import org.apache.http.HttpStatus;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -50,6 +49,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
@@ -64,6 +64,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -164,7 +165,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
                     exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     exchange.close();
                     return;
                 }
@@ -176,15 +177,14 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
                     exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                     exchange.getResponseBody().write(bytes, rangeStart, length);
                     exchange.close();
                     return;
                 }
             }
             if (randomBoolean()) {
-                exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
-                                                        HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
+                TestUtils.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
             }
             exchange.close();
         });
@@ -209,7 +209,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                     if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
                         exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
                     } else {
-                        exchange.sendResponseHeaders(HttpStatus.SC_BAD_REQUEST, -1);
+                        TestUtils.sendError(exchange, RestStatus.BAD_REQUEST);
                     }
                     exchange.close();
                     return;
@@ -220,8 +220,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                         Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
                     } else {
                         Streams.readFully(exchange.getRequestBody());
-                        exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
-                                                                HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
+                        TestUtils.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
                     }
                 }
                 exchange.close();
@@ -283,8 +282,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
             if (randomBoolean()) {
                 Streams.readFully(exchange.getRequestBody());
-                exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
-                                                        HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
+                TestUtils.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
             }
             exchange.close();
         });
@@ -296,6 +294,44 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
+    }
+
+    public void testRetryUntilFail() throws IOException {
+        final AtomicBoolean requestReceived = new AtomicBoolean(false);
+        httpServer.createContext("/container/write_blob_max_retries", exchange -> {
+            try {
+                if (requestReceived.compareAndSet(false, true)) {
+                    throw new AssertionError("Should not receive two requests");
+                } else {
+                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(randomIntBetween(2, 5));
+        try (InputStream stream = new InputStream() {
+
+            @Override
+            public int read() throws IOException {
+                throw new IOException("foo");
+            }
+
+            @Override
+            public boolean markSupported() {
+                return true;
+            }
+
+            @Override
+            public void reset() {
+                throw new AssertionError("should not be called");
+            }
+        }) {
+            final IOException ioe = expectThrows(IOException.class, () ->
+                blobContainer.writeBlob("write_blob_max_retries", stream, randomIntBetween(1, 128), randomBoolean()));
+            assertThat(ioe.getMessage(), is("foo"));
+        }
     }
 
     private static byte[] randomBlobContent() {

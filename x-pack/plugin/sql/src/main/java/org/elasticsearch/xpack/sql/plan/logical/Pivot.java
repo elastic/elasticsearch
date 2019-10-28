@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 
@@ -47,7 +48,20 @@ public class Pivot extends UnaryPlan {
 
     @Override
     protected Pivot replaceChild(LogicalPlan newChild) {
-        return new Pivot(source(), newChild, column, values, aggregates);
+
+       java.util.function.Function<Expression, Expression> withQualifierNull = (Expression e)-> {
+            if (e instanceof Attribute && newChild instanceof EsRelation) {
+                Attribute fa = (Attribute) e;
+                return fa.withQualifier(null);
+            }
+            return e;
+        };
+        Expression newColumn = column.transformUp(withQualifierNull);
+        List<NamedExpression> newAggregates = aggregates.stream().map((NamedExpression aggregate)->
+            (NamedExpression) aggregate.transformUp(withQualifierNull)
+        ).collect(Collectors.toUnmodifiableList());
+
+        return new Pivot(source(), newChild, newColumn, values, newAggregates);
     }
 
     public Expression column() {
@@ -83,7 +97,7 @@ public class Pivot extends UnaryPlan {
             if (aggregates.size() == 1) {
                 NamedExpression agg = aggregates.get(0);
                 for (NamedExpression value : values) {
-                    ExpressionId id = new ExpressionId(agg.id().hashCode() + value.id().hashCode());
+                    ExpressionId id = value.id();
                     out.add(value.toAttribute().withDataType(agg.dataType()).withId(id));
                 }
             }
@@ -92,7 +106,7 @@ public class Pivot extends UnaryPlan {
                 for (NamedExpression agg : aggregates) {
                     String name = agg instanceof Function ? ((Function) agg).functionName() : agg.name();
                     for (NamedExpression value : values) {
-                        ExpressionId id = new ExpressionId(agg.id().hashCode() + value.id().hashCode());
+                        ExpressionId id = value.id();
                         out.add(value.toAttribute().withName(value.name() + "_" + name).withDataType(agg.dataType()).withId(id));
                     }
                 }

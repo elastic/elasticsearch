@@ -11,7 +11,7 @@ that are out of maintenance is often complicated due to content restructuring an
 
 * Backport important fixes such as security updates that have a direct customer impact to all affected versions. 
 
-* Avoid backporting doc changes across major versions unless it’s an “important” fix or 
+* Avoid backporting doc changes across major versions unless it’s an important fix or 
 the change is related to upgrading from the last minor version of the previous major.
 
 * Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions]. 

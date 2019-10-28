@@ -53,7 +53,9 @@
 
 ---
 "Get mixed cluster outlier_detection job":
-
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
+      version: all
   - do:
       ml.get_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"
@@ -72,7 +74,9 @@
 
 ---
 "Get mixed cluster outlier_detection job stats":
-
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
+      version: all
   - do:
       ml.get_data_frame_analytics_stats:
         id: "mixed_cluster_outlier_detection_job"

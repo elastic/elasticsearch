@@ -41,7 +41,8 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
         }
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         DoubleHistogram.RecordedValues recordedValues = histogram.recordedValues();
-        List<DoubleHistogramIterationValue> histogramValues = StreamSupport.stream(recordedValues.spliterator(), false).collect(Collectors.toList());
+        List<DoubleHistogramIterationValue> histogramValues = StreamSupport.stream(recordedValues.spliterator(), false)
+            .collect(Collectors.toList());
         streamOutput.writeVInt(histogramValues.size());
         Iterator<DoubleHistogramIterationValue> iterator = recordedValues.iterator();
         while (iterator.hasNext()) {

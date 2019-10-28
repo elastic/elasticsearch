@@ -148,7 +148,8 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<Builder, HistogramFieldMapper> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<Builder, HistogramFieldMapper> parse(String name,
+                                                                   Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
@@ -216,7 +217,8 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
             return new IndexFieldData.Builder() {
 
                 @Override
-                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+                                               CircuitBreakerService breakerService, MapperService mapperService) {
 
                     return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name()) {
 
@@ -281,14 +283,16 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
                         }
 
                         @Override
-                        public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+                        public SortField sortField(Object missingValue, MultiValueMode sortMode,
+                                                   XFieldComparatorSource.Nested nested, boolean reverse) {
                             return null;
                         }
                     };
                 }
 
                 private HistogramValue getHistogramValue(final BytesRef bytesRef) throws IOException {
-                    final ByteBufferStreamInput streamInput = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+                    final ByteBufferStreamInput streamInput = new ByteBufferStreamInput(
+                        ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
                     final int numValues = streamInput.readVInt();
                     return new HistogramValue() {
                         double value;
@@ -334,13 +338,15 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
             } else {
-                throw new QueryShardException(context, "field  " + name() + " of type [" + CONTENT_TYPE + "] has no doc values and cannot be searched");
+                throw new QueryShardException(context, "field  " + name() + " of type [" + CONTENT_TYPE + "] " +
+                    "has no doc values and cannot be searched");
             }
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "[" + CONTENT_TYPE + "] field do not support searching, use dedicated aggregations instead: ["
+            throw new QueryShardException(context, "[" + CONTENT_TYPE + "] field do not support searching, " +
+                "use dedicated aggregations instead: ["
                 + name() + "]");
         }
     }
@@ -436,7 +442,8 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
             if (ignoreMalformed.value()) {
                 return;
             }
-            throw new MapperParsingException("failed to parse field [{}] of type [{}]", ex, fieldType().name(), fieldType().typeName());
+            throw new MapperParsingException("failed to parse field [{}] of type [{}]",
+                ex, fieldType().name(), fieldType().typeName());
         }
 
         context.path().remove();

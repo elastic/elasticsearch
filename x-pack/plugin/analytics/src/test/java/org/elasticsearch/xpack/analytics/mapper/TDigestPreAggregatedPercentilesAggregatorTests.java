@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.function.Consumer;;
+import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 

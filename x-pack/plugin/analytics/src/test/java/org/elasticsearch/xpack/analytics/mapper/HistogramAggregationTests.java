@@ -116,7 +116,8 @@ public class HistogramAggregationTests extends ESSingleNodeTestCase {
         assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
 
         PercentilesAggregationBuilder builder =
-            AggregationBuilders.percentiles("agg").field("data").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(numberOfSignificantValueDigits).percentiles(10);
+            AggregationBuilders.percentiles("agg").field("data").method(PercentilesMethod.HDR)
+                .numberOfSignificantValueDigits(numberOfSignificantValueDigits).percentiles(10);
 
         SearchResponse responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
         SearchResponse responsePreAgg = client().prepareSearch("pre_agg").addAggregation(builder).get();
@@ -208,7 +209,8 @@ public class HistogramAggregationTests extends ESSingleNodeTestCase {
         assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
 
         PercentilesAggregationBuilder builder =
-            AggregationBuilders.percentiles("agg").field("data").method(PercentilesMethod.TDIGEST).compression(compression).percentiles(10, 25, 500, 75);
+            AggregationBuilders.percentiles("agg").field("data").method(PercentilesMethod.TDIGEST)
+                .compression(compression).percentiles(10, 25, 500, 75);
 
         SearchResponse responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
         SearchResponse responsePreAgg = client().prepareSearch("pre_agg").addAggregation(builder).get();

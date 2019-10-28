@@ -174,12 +174,12 @@ public class InferenceProcessorTests extends ESTestCase {
         Integer topNClasses = randomBoolean() ? null : randomIntBetween(1, 10);
 
         InferenceProcessor processor = new InferenceProcessor(client,
-                "my_processor",
-                "my_field",
-                modelId,
-                new ClassificationConfig(topNClasses),
-                Collections.emptyMap(),
-                "ml.my_processor",
+            "my_processor",
+            "my_field",
+            modelId,
+            new ClassificationConfig(topNClasses),
+            Collections.emptyMap(),
+            "ml.my_processor",
             false);
 
         Map<String, Object> source = new HashMap<>(){{

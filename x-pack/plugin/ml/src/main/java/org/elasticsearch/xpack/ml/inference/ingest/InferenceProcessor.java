@@ -79,13 +79,13 @@ public class InferenceProcessor extends AbstractProcessor {
                               String modelInfoField,
                               boolean includeModelMetadata) {
         super(tag);
-        this.client = client;
-        this.targetField = targetField;
-        this.modelInfoField = modelInfoField;
+        this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
+        this.modelInfoField = ExceptionsHelper.requireNonNull(modelInfoField, MODEL_INFO_FIELD);
         this.includeModelMetadata = includeModelMetadata;
-        this.modelId = modelId;
-        this.inferenceConfig = inferenceConfig;
-        this.fieldMapping = fieldMapping;
+        this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
+        this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
+        this.fieldMapping = ExceptionsHelper.requireNonNull(fieldMapping, FIELD_MAPPINGS);
     }
 
     public String getModelId() {
@@ -215,7 +215,7 @@ public class InferenceProcessor extends AbstractProcessor {
             InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
             String modelInfoField = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_INFO_FIELD, "ml");
             // If multiple inference processors are in the same pipeline, it is wise to tag them
-            // The tag will keep metadata entries from stepping on eachother
+            // The tag will keep metadata entries from stepping on each other
             if (tag != null) {
                 modelInfoField += "." + tag;
             }

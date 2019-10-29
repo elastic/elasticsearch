@@ -53,7 +53,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
             stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             stepNull ? null : randomBoolean(),
-            stepNull ? null : randomInt(15),
+            stepNull ? null : randomInt(10),
             stepNull ? null : randomNonNegativeLong(),
             stepNull ? null : randomNonNegativeLong(),
             stepNull ? null : randomNonNegativeLong(),
@@ -72,7 +72,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 (numNull == 3) ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomBoolean(),
-                randomBoolean() ? null : randomInt(15),
+                randomBoolean() ? null : randomInt(10),
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : randomNonNegativeLong(),
@@ -170,7 +170,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             case 11:
                 isAutoRetryableError = true;
-                failedStepRetryCount = randomInt(13);
+                failedStepRetryCount = randomValueOtherThan(failedStepRetryCount, () -> randomInt(10));
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

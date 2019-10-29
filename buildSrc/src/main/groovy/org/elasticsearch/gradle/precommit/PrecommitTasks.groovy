@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.gradle.precommit
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.tool.ClasspathUtils
-import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
@@ -121,13 +120,10 @@ class PrecommitTasks {
         }
     }
 
-    private static TaskProvider configureJarHell(Project project, Configuration jarHelConfig) {
+    private static TaskProvider configureJarHell(Project project, Configuration jarHellConfig) {
         return project.tasks.register('jarHell', JarHellTask) { task ->
-            task.classpath = project.sourceSets.test.runtimeClasspath + jarHelConfig;
-            if (project.plugins.hasPlugin(ShadowPlugin)) {
-                task.classpath += project.configurations.bundle
-            }
-            task.dependsOn(jarHelConfig);
+            task.classpath = project.sourceSets.test.runtimeClasspath + jarHellConfig
+            task.dependsOn(jarHellConfig)
         }
     }
 

@@ -92,14 +92,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                states = bigArrays.grow(states, bucket + 1);
-
-                TDigestState state = states.get(bucket);
-                if (state == null) {
-                    state = new TDigestState(compression);
-                    states.set(bucket, state);
-                }
-
+                TDigestState state = getExistingOrNewHistogram(bigArrays, bucket);
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
                     for (int i = 0; i < valueCount; i++) {
@@ -115,13 +108,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                states = bigArrays.grow(states, bucket + 1);
-                TDigestState state = states.get(bucket);
-                if (state == null) {
-                    state = new TDigestState(compression);
-                    states.set(bucket, state);
-                }
-
+                TDigestState state = getExistingOrNewHistogram(bigArrays, bucket);
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();
                     while(sketch.next()) {
@@ -130,6 +117,16 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
                 }
             }
         };
+    }
+
+    private TDigestState getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
+        states = bigArrays.grow(states, bucket + 1);
+        TDigestState state = states.get(bucket);
+        if (state == null) {
+            state = new TDigestState(compression);
+            states.set(bucket, state);
+        }
+        return state;
     }
 
     @Override

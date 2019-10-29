@@ -146,7 +146,7 @@ public class Docker {
             }
 
             Thread.sleep(1000);
-        } while (attempt++ < 5);
+        } while (attempt++ < 20);
 
         if (!isElasticsearchRunning) {
             final String logs = sh.run("docker logs " + containerId).stdout;
@@ -240,7 +240,7 @@ public class Docker {
     }
 
     /**
-     * Waits for up to 5 seconds for a path to exist in the container.
+     * Waits for up to 20 seconds for a path to exist in the container.
      */
     public static void waitForPathToExist(Path path) throws InterruptedException {
         int attempt = 0;
@@ -250,8 +250,8 @@ public class Docker {
                 return;
             }
 
-            Thread.sleep(500);
-        } while (attempt++ < 10);
+            Thread.sleep(1000);
+        } while (attempt++ < 20);
 
         fail(path + " failed to exist after 5000ms");
     }

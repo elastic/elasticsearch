@@ -39,7 +39,7 @@ public abstract class Step {
     }
 
     /**
-     * Indicates if the step is retryable when it encounters an execution error.
+     * Indicates if the step can be automatically retried when it encounters an execution error.
      */
     public boolean isRetryable() {
         return false;

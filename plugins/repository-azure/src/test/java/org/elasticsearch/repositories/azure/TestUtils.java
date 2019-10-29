@@ -67,8 +67,10 @@ final class TestUtils {
                 return StorageErrorCodeStrings.BLOB_NOT_FOUND;
             case INTERNAL_SERVER_ERROR:
                 return StorageErrorCodeStrings.INTERNAL_ERROR;
+            case SERVICE_UNAVAILABLE:
+                return StorageErrorCodeStrings.SERVER_BUSY;
             default:
-                return null;
+                throw new IllegalArgumentException("Error code [" + status.getStatus() + "] is not mapped to an existing Azure code");
         }
     }
 }

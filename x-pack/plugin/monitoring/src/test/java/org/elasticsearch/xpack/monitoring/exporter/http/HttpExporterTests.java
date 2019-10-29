@@ -279,6 +279,29 @@ public class HttpExporterTests extends ESTestCase {
         new HttpExporter(config, sslService, threadContext).close();
     }
 
+    public void testExporterWithInvalidProxyBasePath() throws Exception {
+        final String prefix = "xpack.monitoring.exporters._http";
+        final String settingName = ".proxy.base_path";
+        final String settingValue = "z//";
+        final String expected = "[" + prefix + settingName + "] is malformed [" + settingValue + "]";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", HttpExporter.TYPE)
+            .put(prefix + ".host", "localhost:9200")
+            .put(prefix + settingName, settingValue)
+            .build();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.PROXY_BASE_PATH_SETTING.getConcreteSetting(prefix + settingName).get(settings));
+        assertThat(
+            e,
+            hasToString(
+                containsString("Failed to parse value [" + settingValue + "] for setting [" + prefix + settingName + "]")));
+
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString(expected)));
+    }
+
     public void testCreateRestClient() throws IOException {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
 

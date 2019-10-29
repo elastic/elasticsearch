@@ -155,11 +155,10 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
                 .indices()
                 .prepareGetMappings("logstash-*")
                 .get();
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsMap = response.getMappings();
+        ImmutableOpenMap<String, MappingMetaData> mappingsMap = response.getMappings();
         assertNotNull(mappingsMap);
         assertNotNull(mappingsMap.get(index));
-        assertNotNull(mappingsMap.get(index).get(type));
-        MappingMetaData mappingMetaData = mappingsMap.get(index).get(type);
+        MappingMetaData mappingMetaData = mappingsMap.get(index);
         assertThat(mappingMetaData.getSourceAsMap(), hasKey("properties"));
         assertThat(mappingMetaData.getSourceAsMap().get("properties"), instanceOf(Map.class));
         Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetaData.getSourceAsMap().get("properties");

@@ -83,8 +83,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         logger.info("d1: {}", d1Builder);
         logger.info("d2: {}", d2Builder);
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
+                client().prepareIndex("index").setId("d1").setSource(d1Builder),
+                client().prepareIndex("index").setId("d2").setSource(d2Builder));
         GeoPoint[] q = new GeoPoint[2];
         if (randomBoolean()) {
             q[0] = new GeoPoint(2, 1);
@@ -157,8 +157,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         logger.info("d1: {}", d1Builder);
         logger.info("d2: {}", d2Builder);
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
+                client().prepareIndex("index").setId("d1").setSource(d1Builder),
+                client().prepareIndex("index").setId("d2").setSource(d2Builder));
         GeoPoint q = new GeoPoint(0,0);
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -220,8 +220,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         createShuffeldJSONArray(d2Builder, d2Points);
 
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
+                client().prepareIndex("index").setId("d1").setSource(d1Builder),
+                client().prepareIndex("index").setId("d2").setSource(d2Builder));
 
         List<GeoPoint> qPoints = Arrays.asList(new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4));
         Collections.shuffle(qPoints, random());
@@ -260,9 +260,9 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
     public void testSinglePointGeoDistanceSort() throws ExecutionException, InterruptedException, IOException {
         assertAcked(prepareCreate("index").addMapping("type", LOCATION_FIELD, "type=geo_point"));
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1")
+                client().prepareIndex("index").setId("d1")
                 .setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 1).endObject().endObject()),
-                client().prepareIndex("index", "type", "d2")
+                client().prepareIndex("index").setId("d2")
                 .setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 2).endObject()
                         .endObject()));
 
@@ -337,8 +337,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2").get());
 
         indexRandom(true,
-                client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
-                client().prepareIndex("test2", "type").setSource());
+                client().prepareIndex("test1").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
+                client().prepareIndex("test2").setSource());
 
         SearchResponse resp = client().prepareSearch("test1", "test2")
                 .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))

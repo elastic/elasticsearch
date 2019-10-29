@@ -119,6 +119,19 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         enrich(keys, ingestOnlyNode);
     }
 
+    public void testEnrichNoIngestNodes() {
+        Settings settings = Settings.builder()
+            .put(Node.NODE_MASTER_SETTING.getKey(), true)
+            .put(Node.NODE_DATA_SETTING.getKey(), true)
+            .put(Node.NODE_INGEST_SETTING.getKey(), false)
+            .build();
+        internalCluster().startNode(settings);
+
+        createSourceIndex(64);
+        Exception e = expectThrows(IllegalStateException.class, EnrichMultiNodeIT::createAndExecutePolicy);
+        assertThat(e.getMessage(), equalTo("no ingest nodes in this cluster"));
+    }
+
     private static void enrich(List<String> keys, String coordinatingNode) {
         int numDocs = 256;
         BulkRequest bulkRequest = new BulkRequest("my-index");

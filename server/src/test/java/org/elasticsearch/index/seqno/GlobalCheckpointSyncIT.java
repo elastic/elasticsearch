@@ -76,7 +76,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
 
         for (int j = 0; j < 10; j++) {
             final String id = Integer.toString(j);
-            client().prepareIndex("test", "test", id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+            client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -179,7 +179,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                 }
                 for (int j = 0; j < numberOfDocuments; j++) {
                     final String id = Integer.toString(index * numberOfDocuments + j);
-                    client().prepareIndex("test", "test", id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+                    client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
                 }
                 try {
                     barrier.await();
@@ -243,7 +243,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         }
         int numDocs = randomIntBetween(1, 20);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "test", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
         ensureGreen("test");
         assertBusy(() -> {

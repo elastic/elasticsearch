@@ -427,7 +427,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 )
                 .get()
         );
-        indexRandom(true, client.prepareIndex("index", "_doc").setSource("k", "hello"));
+        indexRandom(true, client.prepareIndex("index").setSource("k", "hello"));
         ensureSearchable("index");
 
         int expectedHits = 0;

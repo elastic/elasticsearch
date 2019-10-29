@@ -1156,8 +1156,7 @@ public abstract class Engine implements Closeable {
         if (failure != null) {
             maybeDie(reason, failure);
         }
-        if (failEngineLock.tryLock()) {
-            store.incRef();
+        if (failEngineLock.tryLock() && store.tryIncRef()) {
             try {
                 if (failedEngine.get() != null) {
                     logger.warn(() ->

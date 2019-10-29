@@ -79,6 +79,11 @@ public final class HyperLogLogPlusPlus implements Releasable {
         return 1L << precision;
     }
 
+    // The tables of data below do not automatically format well. Instead, they are surrounded with doc snippets tags,
+    // which prevents them being formatted. Note that because of this, the Checkstyle rule for line length in doc
+    // snippets is suppressed in this file. If we even need to add real doc snippets to this file, we should reflow
+    // the data tables below to meet the line length requirements, and remove the suppression.
+
     // tag::hyperloglog-data-tables
 
     // these static tables come from the appendix of the paper

@@ -23,7 +23,6 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
-apply plugin: 'com.github.johnrengelman.shadow'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
@@ -49,10 +48,6 @@ idea {
 }
 
 dependencies {
-  /*
-   * Everything in the "shadow" configuration is *not* copied into the
-   * shadowJar.
-   */
   compile project(':server')
   compile project(':client:rest')
   compile project(':modules:mapper-extras')
@@ -78,7 +73,7 @@ dependencies {
 
 //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
 processTestResources {
-  dependsOn jar // so that configurations resolve
+  dependsOn configurations.restSpec // so that configurations resolve
   from({ zipTree(configurations.restSpec.singleFile) }) {
     include 'rest-api-spec/api/**'
   }

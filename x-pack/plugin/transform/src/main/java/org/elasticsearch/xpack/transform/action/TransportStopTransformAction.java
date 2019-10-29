@@ -153,13 +153,24 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }
 
         if (ids.contains(transformTask.getTransformId())) {
-            try {
-                transformTask.stop(request.isForce());
-            } catch (ElasticsearchException ex) {
-                listener.onFailure(ex);
-                return;
-            }
-            listener.onResponse(new Response(Boolean.TRUE));
+            transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(
+                r -> {
+                    try {
+                        transformTask.stop(request.isForce(), request.isWaitForCheckpoint());
+                        listener.onResponse(new Response(true));
+                    } catch (ElasticsearchException ex) {
+                        listener.onFailure(ex);
+                    }
+                },
+                e -> listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",
+                        RestStatus.CONFLICT,
+                        transformTask.getTransformId(),
+                        transformTask.getState().shouldStopAtNextCheckpoint(),
+                        request.isWaitForCheckpoint()))
+                )
+            );
         } else {
             listener.onFailure(new RuntimeException("ID of transform task [" + transformTask.getTransformId()
                     + "] does not match request's ID [" + request.getId() + "]"));

@@ -886,7 +886,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> errorIndexResponse = onlyErrorsResponse.get(errorIndex);
             assertThat(errorIndex + "should've had the rollover step retried once",
                 errorIndexResponse.get("failed_step_retry_count"), is(1));
-            assertThat(errorIndexResponse.get("is_transitive_error"), is(true));
+            assertThat(errorIndexResponse.get("is_auto_retryable_error"), is(true));
         });
     }
 

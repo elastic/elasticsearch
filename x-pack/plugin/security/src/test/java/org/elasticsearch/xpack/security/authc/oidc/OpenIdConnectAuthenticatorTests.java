@@ -10,6 +10,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -971,7 +972,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         } else if (type.equals("ES")) {
             hashSize = randomFrom(256, 384, 512);
-            ECKey.Curve curve = curveFromHashSize(hashSize);
+            Curve curve = curveFromHashSize(hashSize);
             KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
             gen.initialize(curve.toECParameterSpec());
             KeyPair keyPair = gen.generateKeyPair();
@@ -986,13 +987,13 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         return new Tuple(key, new JWKSet(jwk));
     }
 
-    private ECKey.Curve curveFromHashSize(int size) {
+    private Curve curveFromHashSize(int size) {
         if (size == 256) {
-            return ECKey.Curve.P_256;
+            return Curve.P_256;
         } else if (size == 384) {
-            return ECKey.Curve.P_384;
+            return Curve.P_384;
         } else if (size == 512) {
-            return ECKey.Curve.P_521;
+            return Curve.P_521;
         } else {
             throw new IllegalArgumentException("Invalid hash size:" + size);
         }

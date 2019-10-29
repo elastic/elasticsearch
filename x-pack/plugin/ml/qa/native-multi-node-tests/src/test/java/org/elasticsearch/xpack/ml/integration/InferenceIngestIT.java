@@ -31,15 +31,13 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
 
     @Before
     public void createBothModels() {
-        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME,
-            "_doc",
-            "test_classification")
+        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setId("test_classification")
             .setSource(CLASSIFICATION_MODEL, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get().status(), equalTo(RestStatus.CREATED));
-        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME,
-            "_doc",
-            "test_regression")
+        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setId("test_regression")
             .setSource(REGRESSION_MODEL, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get().status(), equalTo(RestStatus.CREATED));

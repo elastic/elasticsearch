@@ -302,7 +302,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return nodeFilesStore.storeFilesMetaData();
     }
 
-    private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation, boolean ignorePreviousFailedNodes,
+    private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation, boolean noMatchFailedNoopAllocationNodes,
                                             DiscoveryNode primaryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
                                             AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> data,
                                             boolean explain) {
@@ -310,8 +310,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
         for (Map.Entry<DiscoveryNode, NodeStoreFilesMetaData> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
-            if (ignorePreviousFailedNodes
-                && shard.unassignedInfo() != null && shard.unassignedInfo().getFailedNoopAllocationNodeIds().contains(discoNode.getId())) {
+            if (noMatchFailedNoopAllocationNodes && shard.unassignedInfo() != null &&
+                shard.unassignedInfo().getFailedNoopAllocationNodeIds().contains(discoNode.getId())) {
                 continue;
             }
             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue().storeFilesMetaData();

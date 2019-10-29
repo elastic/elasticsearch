@@ -312,7 +312,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)));
         internalCluster().startDataOnlyNode();
-        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         ensureGreen(indexName);
         transportService.clearAllRules();
     }

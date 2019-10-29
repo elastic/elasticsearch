@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -21,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,29 +78,72 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, listener), getConfigHolder, exceptionHolder);
+        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
         assertThat(getConfigHolder.get(), is(not(nullValue())));
         assertThat(getConfigHolder.get(), equalTo(config));
+        assertThat(getConfigHolder.get().getDefinition(), is(not(nullValue())));
+    }
+
+    public void testGetTrainedModelConfigWithoutDefinition() throws Exception {
+        String modelId = "test-get-trained-model-config-no-definition";
+        TrainedModelConfig.Builder configBuilder = buildTrainedModelConfigBuilder(modelId);
+        TrainedModelConfig config = configBuilder.build();
+        AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(listener -> trainedModelProvider.storeTrainedModel(config, listener), putConfigHolder, exceptionHolder);
+        assertThat(putConfigHolder.get(), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
+
+        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, false, listener), getConfigHolder, exceptionHolder);
+        assertThat(getConfigHolder.get(), is(not(nullValue())));
+        assertThat(getConfigHolder.get(),
+            equalTo(configBuilder.setCreateTime(config.getCreateTime()).setDefinition((TrainedModelDefinition) null).build()));
+        assertThat(getConfigHolder.get().getDefinition(), is(nullValue()));
     }
 
     public void testGetMissingTrainingModelConfig() throws Exception {
         String modelId = "test-get-missing-trained-model-config";
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, listener), getConfigHolder, exceptionHolder);
+        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
         assertThat(exceptionHolder.get(), is(not(nullValue())));
         assertThat(exceptionHolder.get().getMessage(),
             equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
     }
 
-    private static TrainedModelConfig buildTrainedModelConfig(String modelId) {
+    public void testGetMissingTrainingModelConfigDefinition() throws Exception {
+        String modelId = "test-get-missing-trained-model-config-definition";
+        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId).setDefinition((TrainedModelDefinition) null).build();
+        AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(listener -> trainedModelProvider.storeTrainedModel(config, listener), putConfigHolder, exceptionHolder);
+        assertThat(putConfigHolder.get(), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+
+        AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
+        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
+        assertThat(exceptionHolder.get(), is(not(nullValue())));
+        assertThat(exceptionHolder.get().getMessage(),
+            equalTo(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+    }
+
+    private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
-            .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+            .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setVersion(Version.CURRENT)
-            .build();
+            .setInput(new TrainedModelConfig.Input(Stream.generate(() -> randomAlphaOfLength(10))
+                .limit(randomIntBetween(0, 10))
+                .collect(Collectors.toList())));
+    }
+
+    private static TrainedModelConfig buildTrainedModelConfig(String modelId) {
+        return buildTrainedModelConfigBuilder(modelId).build();
     }
 
     @Override

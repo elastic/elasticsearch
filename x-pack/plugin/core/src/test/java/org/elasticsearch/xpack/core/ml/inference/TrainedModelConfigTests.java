@@ -7,15 +7,24 @@ package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -27,8 +36,11 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
 
@@ -63,9 +75,12 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
-            randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
+            null, // is not parsed so should not be provided
             tags,
-            randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            new TrainedModelConfig.Input(Stream.generate(() -> randomAlphaOfLength(10))
+                .limit(randomInt(10))
+                .collect(Collectors.toList())));
     }
 
     @Override
@@ -88,6 +103,30 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         return new NamedWriteableRegistry(entries);
     }
 
+    public void testToXContentWithParams() throws IOException {
+        TrainedModelConfig config = new TrainedModelConfig(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            Version.CURRENT,
+            randomBoolean() ? null : randomAlphaOfLength(100),
+            Instant.ofEpochMilli(randomNonNegativeLong()),
+            TrainedModelDefinitionTests.createRandomBuilder(randomAlphaOfLength(10)).build(),
+            Collections.emptyList(),
+            randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            new TrainedModelConfig.Input(Stream.generate(() -> randomAlphaOfLength(10))
+                .limit(randomInt(10))
+                .collect(Collectors.toList())));
+
+        BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        assertThat(reference.utf8ToString(), containsString("definition"));
+
+        reference = XContentHelper.toXContent(config,
+            XContentType.JSON,
+            new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+            false);
+        assertThat(reference.utf8ToString(), not(containsString("definition")));
+    }
+
     public void testValidateWithNullDefinition() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> TrainedModelConfig.builder().validate());
         assertThat(ex.getMessage(), equalTo("[definition] must not be null."));
@@ -97,7 +136,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         String modelId = "InvalidID-";
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()
-                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
                 .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INVALID_ID, "model_id", modelId)));
     }
@@ -106,7 +145,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         String modelId = IntStream.range(0, 100).mapToObj(x -> "a").collect(Collectors.joining());
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()
-                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
                 .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.ID_TOO_LONG, "model_id", modelId, MlStrings.ID_LENGTH_LIMIT)));
     }
@@ -115,21 +154,21 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         String modelId = "simplemodel";
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()
-                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
                 .setCreateTime(Instant.now())
                 .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo("illegal to set [create_time] at inference model creation"));
 
         ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()
-                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
                 .setVersion(Version.CURRENT)
                 .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo("illegal to set [version] at inference model creation"));
 
         ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()
-                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
                 .setCreatedBy("ml_user")
                 .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo("illegal to set [created_by] at inference model creation"));

@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,6 +47,7 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField DEFINITION = new ParseField("definition");
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
+    public static final ParseField INPUT = new ParseField("input");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
             true,
@@ -64,6 +66,7 @@ public class TrainedModelConfig implements ToXContentObject {
             DEFINITION);
         PARSER.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
+        PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> Input.fromXContent(p), INPUT);
     }
 
     public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
@@ -78,6 +81,7 @@ public class TrainedModelConfig implements ToXContentObject {
     private final TrainedModelDefinition definition;
     private final List<String> tags;
     private final Map<String, Object> metadata;
+    private final Input input;
 
     TrainedModelConfig(String modelId,
                        String createdBy,
@@ -86,7 +90,8 @@ public class TrainedModelConfig implements ToXContentObject {
                        Instant createTime,
                        TrainedModelDefinition definition,
                        List<String> tags,
-                       Map<String, Object> metadata) {
+                       Map<String, Object> metadata,
+                       Input input) {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
@@ -95,6 +100,7 @@ public class TrainedModelConfig implements ToXContentObject {
         this.description = description;
         this.tags = tags == null ? null : Collections.unmodifiableList(tags);
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
+        this.input = input;
     }
 
     public String getModelId() {
@@ -129,6 +135,10 @@ public class TrainedModelConfig implements ToXContentObject {
         return definition;
     }
 
+    public Input getInput() {
+        return input;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -160,6 +170,9 @@ public class TrainedModelConfig implements ToXContentObject {
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
         }
+        if (input != null) {
+            builder.field(INPUT.getPreferredName(), input);
+        }
         builder.endObject();
         return builder;
     }
@@ -181,6 +194,7 @@ public class TrainedModelConfig implements ToXContentObject {
             Objects.equals(createTime, that.createTime) &&
             Objects.equals(definition, that.definition) &&
             Objects.equals(tags, that.tags) &&
+            Objects.equals(input, that.input) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -193,7 +207,8 @@ public class TrainedModelConfig implements ToXContentObject {
             definition,
             description,
             tags,
-            metadata);
+            metadata,
+            input);
     }
 
 
@@ -207,6 +222,7 @@ public class TrainedModelConfig implements ToXContentObject {
         private Map<String, Object> metadata;
         private List<String> tags;
         private TrainedModelDefinition definition;
+        private Input input;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -257,6 +273,11 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setInput(Input input) {
+            this.input = input;
+            return this;
+        }
+
         public TrainedModelConfig build() {
             return new TrainedModelConfig(
                 modelId,
@@ -266,7 +287,60 @@ public class TrainedModelConfig implements ToXContentObject {
                 createTime,
                 definition,
                 tags,
-                metadata);
+                metadata,
+                input);
         }
+    }
+
+    public static class Input implements ToXContentObject {
+
+        public static final String NAME = "trained_model_config_input";
+        public static final ParseField FIELD_NAMES = new ParseField("field_names");
+
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<Input, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            true,
+            a -> new Input((List<String>)a[0]));
+        static {
+            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), FIELD_NAMES);
+        }
+
+        public static Input fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        private final List<String> fieldNames;
+
+        public Input(List<String> fieldNames) {
+            this.fieldNames = fieldNames;
+        }
+
+        public List<String> getFieldNames() {
+            return fieldNames;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (fieldNames != null) {
+                builder.field(FIELD_NAMES.getPreferredName(), fieldNames);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Input that = (Input) o;
+            return Objects.equals(fieldNames, that.fieldNames);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(fieldNames);
+        }
+
     }
 }

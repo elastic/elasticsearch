@@ -77,7 +77,7 @@ public class ShuffleForcedMergePolicy extends FilterMergePolicy {
 
                 @Override
                 public void setMergeInfo(SegmentCommitInfo info) {
-                    // Record that this merged segment is current as of this schemaGen:
+                    // record that this segment was merged with interleaved segments
                     Map<String, String> copy = new HashMap<>(info.info.getDiagnostics());
                     copy.put(SHUFFLE_MERGE_KEY, "");
                     info.info.setDiagnostics(copy);

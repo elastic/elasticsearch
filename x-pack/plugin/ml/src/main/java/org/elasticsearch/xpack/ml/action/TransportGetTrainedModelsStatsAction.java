@@ -138,7 +138,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 .size(request.getPageParams().getSize());
         }
         sourceBuilder.trackTotalHits(true)
-            // we only care about the item IDS, there is no need to load large model definitions.
+            // we only care about the item id's, there is no need to load large model definitions.
             .fetchSource(TrainedModelConfig.MODEL_ID.getPreferredName(), null);
 
         IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;

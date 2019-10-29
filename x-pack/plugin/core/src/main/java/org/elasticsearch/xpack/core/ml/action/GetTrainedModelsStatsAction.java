@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,6 +87,9 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             public TrainedModelStats(String modelId, IngestStats ingestStats, int pipelineCount) {
                 this.modelId = Objects.requireNonNull(modelId);
                 this.ingestStats = ingestStats == null ? EMPTY_INGEST_STATS : ingestStats;
+                if (pipelineCount < 0) {
+                    throw new ElasticsearchException("[{}] must be a greater than or equal to 0", PIPELINE_COUNT.getPreferredName());
+                }
                 this.pipelineCount = pipelineCount;
             }
 
@@ -101,7 +106,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 builder.field(PIPELINE_COUNT.getPreferredName(), pipelineCount);
                 if (pipelineCount > 0) {
                     // Ingest stats is a fragment
-                    builder.value(ingestStats);
+                    ingestStats.toXContent(builder, params);
                 }
                 builder.endObject();
                 return builder;

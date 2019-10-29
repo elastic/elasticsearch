@@ -145,7 +145,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "'my_sparse_vector'.size() == 0 ? 0 : cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
+              source: "doc['my_sparse_vector'].size() == 0 ? 0 : cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10.0}
 

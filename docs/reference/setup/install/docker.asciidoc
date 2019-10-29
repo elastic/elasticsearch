@@ -65,123 +65,61 @@ endif::[]
 [[docker-compose-file]]
 ==== Starting a multi-node cluster with Docker compose
 
-The following Docker compose file brings up a three-node {es} cluster. 
-Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
+To get a three-node {es} cluster up and running in Docker, 
+you can use Docker Compose:
 
-The  https://docs.docker.com/storage/volumes[Docker named volumes] 
-`esdata01`, `esdata02`, and `esdata03` store the node data directories so 
-the data persists across restarts. 
-If they don't already exist, `docker-compose` creates them when you bring up the cluster.
-
-IMPORTANT: Make sure Docker Engine is allotted at least 4GiB of memory. 
-In Docker Desktop, you configure resource usage on the Advanced tab in Preference (macOS)
-or Settings (Windows).
-
+. Create a `docker-compose.yml` file:
 ifeval::["{release-state}"=="unreleased"]
-
++
+--
 WARNING: Version {version} of {es} has not yet been released, so a
 `docker-compose.yml` is not available for this version.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
+["source","yaml",subs="attributes"]
+--------------------------------------------
+include::docker-compose.yml[]
+--------------------------------------------
+endif::[]
 
-To bring up the cluster with  <<docker-prod-cluster-composefile,`docker-compose.yml`>>, run:
+This sample Docker Compose file brings up a three-node {es} cluster. 
+Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
 
-["source","sh"]
+The  https://docs.docker.com/storage/volumes[Docker named volumes] 
+`esdata01`, `esdata02`, and `esdata03` store the node data directories so 
+the data persists across restarts. 
+If they don't already exist, `docker-compose` creates them when you bring up the cluster.
+--
+. Make sure Docker Engine is allotted at least 4GiB of memory. 
+In Docker Desktop, you configure resource usage on the Advanced tab in Preference (macOS)
+or Settings (Windows).
+
+. Run `docker-compose` to bring up the cluster:
++
+["source","sh",subs="attributes"]
 --------------------------------------------
 docker-compose up
 --------------------------------------------
 
-endif::[]
+. Submit a `_cat/nodes` request to see that the nodes are up and running:
++
+[source,sh]
+--------------------------------------------------
+curl -X GET "localhost:9200/_cat/nodes?v&pretty"
+--------------------------------------------------
+
+To stop the cluster, run `docker-compose down`. 
+The data in the Docker volumes is preserved and loaded 
+when when you restart the cluster with `docker-compose up`.
+To **delete the data volumes** when you bring down the cluster, 
+specify the `-v` option: `docker-compose down -v`.
 
 [NOTE]
 `docker-compose` is not pre-installed with Docker on Linux.
 For installation instructions, see
 https://docs.docker.com/compose/install[Install Compose on Linux] on docs.docker.com.
-
-[[docker-prod-cluster-composefile]]
-ifeval::["{release-state}"!="unreleased"]
-`docker-compose.yml`:
-["source","yaml",subs="attributes"]
---------------------------------------------
-version: '2.2'
-services:
-  es01:
-    image: {docker-image}
-    container_name: es01
-    environment:
-      - node.name=es01
-      - cluster.name=es-docker-cluster
-      - discovery.seed_hosts=es02,es03
-      - cluster.initial_master_nodes=es01,es02,es03
-      - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    volumes:
-      - data01:/usr/share/elasticsearch/data
-    ports:
-      - 9200:9200
-    networks:
-      - elastic
-  es02:
-    image: {docker-image}
-    container_name: es02
-    environment:
-      - node.name=es02
-      - cluster.name=es-docker-cluster
-      - discovery.seed_hosts=es01,es03
-      - cluster.initial_master_nodes=es01,es02,es03
-      - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    volumes:
-      - data02:/usr/share/elasticsearch/data
-    networks:
-      - elastic
-  es03:
-    image: {docker-image}
-    container_name: es03
-    environment:
-      - node.name=es03
-      - cluster.name=es-docker-cluster
-      - discovery.seed_hosts=es01,es02
-      - cluster.initial_master_nodes=es01,es02,es03
-      - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    volumes:
-      - data03:/usr/share/elasticsearch/data    
-    networks:
-      - elastic
-
-volumes:
-  data01:
-    driver: local
-  data02:
-    driver: local
-  data03:
-    driver: local    
-
-networks:
-  elastic:
-    driver: bridge
---------------------------------------------
-endif::[]
-
-To stop the cluster, run `docker-compose down`. 
-The data in the Docker volumes is preserved and loaded when when you restart the cluster with `docker-compose up`.
-To **delete the data volumes** when you bring down the cluster, specify the `-v` option: 
-`docker-compose down -v`.
 
 [[docker-cli-run-prod-mode]]
 ==== Using the Docker images in production

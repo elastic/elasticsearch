@@ -136,6 +136,7 @@ public class AzureStorageService {
 
     private static CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
         final String connectionString = azureStorageSettings.getConnectString();
+        logger.fatal("> connectionString: " + connectionString);
         return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
     }
 

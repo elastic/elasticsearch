@@ -38,12 +38,14 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -429,6 +431,39 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .startObject("baz").field("type", "long").endObject()
                 .endObject().endObject()
                 .endObject().endObject().endObject()), serialize(update));
+    }
+
+    public void testReuseExistingMappings() throws Exception {
+
+        IndexService indexService = createIndex("test", Settings.EMPTY, "type",
+            "my_field1", "type=text,store=true",
+            "my_field2", "type=integer,store=false",
+            "my_field3", "type=long,doc_values=false",
+            "my_field4", "type=float,index=false",
+            "my_field5", "type=double,store=true",
+            "my_field6", "type=date,doc_values=false",
+            "my_field7", "type=boolean,doc_values=false");
+
+        // Even if the dynamic type of our new field is long, we already have a mapping for the same field
+        // of type string so it should be mapped as a string
+        DocumentMapper newMapper = indexService.mapperService().documentMapperWithAutoCreate().getDocumentMapper();
+        Mapper update = parse(newMapper, indexService.mapperService().documentMapperParser(),
+            XContentFactory.jsonBuilder().startObject()
+                .field("my_field1", 42)
+                .field("my_field2", 43)
+                .field("my_field3", 44)
+                .field("my_field4", 45)
+                .field("my_field5", 46)
+                .field("my_field6", Instant.now().toEpochMilli())
+                .field("my_field7", true)
+                .endObject());
+        assertNull(update);
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+            parse(newMapper, indexService.mapperService().documentMapperParser(),
+                XContentFactory.jsonBuilder().startObject().field("my_field2", "foobar").endObject());
+        });
+        assertThat(e.getMessage(), containsString("failed to parse field [my_field2] of type [integer]"));
     }
 
     public void testMixTemplateMultiFieldAndMappingReuse() throws Exception {

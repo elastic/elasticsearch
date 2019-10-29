@@ -77,14 +77,14 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     };
 
     private XContentBuilder createMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape");
         if (randomBoolean()) {
             xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
             .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
         }
-        xcb = xcb.endObject().endObject().endObject();
+        xcb = xcb.endObject().endObject().endObject().endObject();
 
         return xcb;
     }
@@ -180,44 +180,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testIndexedShapeReference() throws Exception {
         String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("_doc", mapping, XContentType.JSON).get();
-        createIndex("shapes");
-        ensureGreen();
-
-        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
-
-        client().prepareIndex("shapes").setId("Big_Rectangle").setSource(jsonBuilder().startObject()
-                .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
-                .field("name", "Document 1")
-                .startObject("location")
-                .field("type", "point")
-                .startArray("coordinates").value(-30).value(-30).endArray()
-                .endObject()
-                .endObject()).setRefreshPolicy(IMMEDIATE).get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(geoIntersectionQuery("location", "Big_Rectangle"))
-                .get();
-
-        assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(geoShapeQuery("location", "Big_Rectangle"))
-                .get();
-
-        assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
-    }
-
-     public void testIndexedShapeReferenceWithTypes() throws Exception {
-        String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("_doc", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
         createIndex("shapes");
         ensureGreen();
 

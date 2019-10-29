@@ -40,6 +40,9 @@ services:
       memlock:
         soft: -1
         hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536      
     entrypoint: /docker-test-entrypoint.sh
   elasticsearch-default-2:
     image: elasticsearch:test
@@ -80,6 +83,9 @@ services:
       memlock:
         soft: -1
         hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536            
     entrypoint: /docker-test-entrypoint.sh
   elasticsearch-oss-1:
     image: elasticsearch:test
@@ -106,6 +112,9 @@ services:
       memlock:
         soft: -1
         hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536    
   elasticsearch-oss-2:
     image: elasticsearch:test
     environment:  

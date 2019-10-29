@@ -46,8 +46,8 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
 
     @Before
     public void loadData() {
-        index("data", "a", "1", "{ \"name\": \"John\", \"token\": \"token1\" }");
-        index("tokens", "tokens", "1", "{ \"group\": \"1\", \"tokens\": [\"token1\", \"token2\"] }");
+        index("data", "1", "{ \"name\": \"John\", \"token\": \"token1\" }");
+        index("tokens", "1", "{ \"group\": \"1\", \"tokens\": [\"token1\", \"token2\"] }");
         refresh();
     }
 

@@ -102,7 +102,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
-                client().prepareIndex("test", "type", "init" + i).setSource("test", "init").get();
+                client().prepareIndex("test").setId("init" + i).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
             client().admin().indices().prepareFlush("test").execute().get();
@@ -145,7 +145,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             added[i] = false;
             try {
-                IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i))
+                IndexResponse indexResponse = client().prepareIndex("test").setId(Integer.toString(i))
                         .setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
                 if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                     numCreated++;

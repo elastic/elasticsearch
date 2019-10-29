@@ -55,7 +55,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
 
     public void testSimpleTimeout() throws Exception {
         for (int i = 0; i < 32; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         refresh("test");
 
@@ -68,7 +68,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     }
 
     public void testPartialResultsIntolerantTimeout() throws Exception {
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () ->
             client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))

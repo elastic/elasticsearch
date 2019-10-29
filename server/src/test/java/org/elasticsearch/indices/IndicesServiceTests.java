@@ -424,22 +424,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         dangling.allocateDangled(Arrays.asList(indexMetaDataLater), ActionListener.wrap(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), equalTo(originalState));
-
-        //import an index with the same version as cluster master version, it should work
-        final String indexNameCurrent = "test-idxcurrent";
-        final Settings idxSettingCurrent = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                                                             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                                                             .build();
-        final IndexMetaData indexMetaDataCurrent = new IndexMetaData.Builder(indexNameCurrent)
-                                                                .settings(idxSettingCurrent)
-                                                                .numberOfShards(1)
-                                                                .numberOfReplicas(0)
-                                                                .build();
-        latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetaDataCurrent), ActionListener.wrap(latch::countDown));
-        latch.await();
-        assertThat(clusterService.state(), not(originalState));
-        assertNotNull(clusterService.state().getMetaData().index(indexNameCurrent));
     }
 
     /**

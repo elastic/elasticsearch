@@ -430,6 +430,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (failedAllocations >  0) {
             sb.append(", failed_attempts[").append(failedAllocations).append("]");
         }
+        if (failedNoopAllocationNodeIds.isEmpty() == false) {
+            sb.append(", failed_noop_allocation_nodes[").append(failedNoopAllocationNodeIds).append("]");
+        }
         sb.append(", delayed=").append(delayed);
         String details = getDetails();
 
@@ -459,7 +462,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             builder.field("details", details);
         }
         builder.field("allocation_status", lastAllocationStatus.value());
-        builder.field("failed_nodes", failedNoopAllocationNodeIds);
+        if (failedNoopAllocationNodeIds.isEmpty() == false) {
+            builder.field("failed_noop_allocation_nodes", failedNoopAllocationNodeIds);
+        }
         builder.endObject();
         return builder;
     }

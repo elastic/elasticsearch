@@ -29,3 +29,10 @@ We have not seen much interest in this experimental field type, and don't see
 a clear use case as it's currently designed. If you have feedback or
 suggestions around sparse vector functionality, please let us know through
 GitHub or the 'discuss' forums.
+
+[discrete]
+==== Update to vector function signatures
+The vector functions of the form `function(query, doc['field'])` are
+deprecated, and the form `function(query, 'field')` should be used instead.
+For example, `cosineSimilarity(query, doc['field'])` is replaced by
+`cosineSimilarity(query, 'field')`.

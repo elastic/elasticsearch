@@ -23,17 +23,13 @@ final class OpenFollowerIndexStep extends AsyncActionStep {
     @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
-        if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-            OpenIndexRequest request = new OpenIndexRequest(indexMetaData.getIndex().getName());
-            getClient().admin().indices().open(request, ActionListener.wrap(
-                r -> {
-                    assert r.isAcknowledged() : "open index response is not acknowledged";
-                    listener.onResponse(true);
-                },
-                listener::onFailure
-            ));
-        } else {
-            listener.onResponse(true);
-        }
+        OpenIndexRequest request = new OpenIndexRequest(indexMetaData.getIndex().getName());
+        getClient().admin().indices().open(request, ActionListener.wrap(
+            r -> {
+                assert r.isAcknowledged() :  "open index response is not acknowledged";
+                listener.onResponse(true);
+            },
+            listener::onFailure
+        ));
     }
 }

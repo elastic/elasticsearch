@@ -90,7 +90,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         this.execute = methodTypes.get(executeName).get(0);
 
         if (methodTypes.containsKey(getName)) {
-            this.getters = Set.copyOf(methodTypes.get(getName));
+            this.getters = Collections.unmodifiableSet(new HashSet<>(methodTypes.get(getName)));
         } else {
             this.getters = Collections.emptySet();
         }

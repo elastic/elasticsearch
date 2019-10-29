@@ -75,14 +75,14 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
 
     // TransportAction constructor
     GetScriptContextResponse(Set<ScriptContextInfo> contexts) {
-        this.contexts = Map.copyOf(contexts.stream().collect(
+        this.contexts = Collections.unmodifiableMap(contexts.stream().collect(
             Collectors.toMap(ScriptContextInfo::getName, Function.identity())
         ));
     }
 
     // Parser constructor
     private GetScriptContextResponse(Map<String,ScriptContextInfo> contexts) {
-        this.contexts = Map.copyOf(contexts);
+        this.contexts = Collections.unmodifiableMap(contexts);
     }
 
     private List<ScriptContextInfo> byName() {

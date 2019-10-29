@@ -66,7 +66,7 @@ public class ScriptParameterInfoSerializingTests extends AbstractSerializingTest
 
     static List<ParameterInfo> mutateOne(List<ParameterInfo> instances) {
         if (instances.size() == 0) {
-            return Collections.unmodifiableList(List.of(randomInstance()));
+            return Collections.singletonList(randomInstance());
         }
         ArrayList<ParameterInfo> mutated = new ArrayList<>(instances);
         int mutateIndex = randomIntBetween(0, instances.size() - 1);

@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.monitor.jvm;
 
 import java.io.IOException;
@@ -42,7 +61,7 @@ public class StackTraceElementTaggerTests extends ESTestCase {
 
         private final Set<String> tags;
 
-        public TagCollectingIndexOutput(IndexOutput out, Set<String> tags) {
+        TagCollectingIndexOutput(IndexOutput out, Set<String> tags) {
             super(out.toString(), out);
             this.tags = tags;
         }
@@ -140,7 +159,7 @@ public class StackTraceElementTaggerTests extends ESTestCase {
 
         private final Set<String> tags;
 
-        public TagCollectingAnalyzer(Set<String> tags) {
+        TagCollectingAnalyzer(Set<String> tags) {
             this.tags = tags;
         }
 
@@ -174,10 +193,10 @@ public class StackTraceElementTaggerTests extends ESTestCase {
             Document doc = new Document();
             doc.add(new StringField("foo", "bar", Store.NO));
             w.addDocument(doc);
-            assertEquals(Set.of("APPEND_OR_UPDATE_DOC", "APPEND_DOC"), tags);
+            assertEquals(Set.of("APPEND_OR_OVERWRITE_DOC", "APPEND_DOC"), tags);
             tags.clear();
         }
-        assertEquals(Set.of("FLUSH_SEGMENT"), tags);
+        assertEquals(Set.of("CREATE_SEGMENT"), tags);
     }
 
     public void testUpdate() throws IOException {
@@ -188,10 +207,10 @@ public class StackTraceElementTaggerTests extends ESTestCase {
             Document doc = new Document();
             doc.add(new StringField("foo", "bar", Store.NO));
             w.updateDocument(new Term("id", "0"), doc);
-            assertEquals(Set.of("APPEND_OR_UPDATE_DOC"), tags);
+            assertEquals(Set.of("APPEND_OR_OVERWRITE_DOC"), tags);
             tags.clear();
         }
-        assertEquals(Set.of("FLUSH_SEGMENT"), tags);
+        assertEquals(Set.of("CREATE_SEGMENT"), tags);
     }
 
     public void testAppendWithAnalysis() throws IOException {
@@ -202,10 +221,10 @@ public class StackTraceElementTaggerTests extends ESTestCase {
             Document doc = new Document();
             doc.add(new TextField("foo", "bar", Store.NO));
             w.addDocument(doc);
-            assertEquals(Set.of("APPEND_OR_UPDATE_DOC", "APPEND_DOC", "ANALYSIS"), tags);
+            assertEquals(Set.of("APPEND_OR_OVERWRITE_DOC", "APPEND_DOC", "ANALYSIS"), tags);
             tags.clear();
         }
-        assertEquals(Set.of("FLUSH_SEGMENT"), tags);
+        assertEquals(Set.of("CREATE_SEGMENT"), tags);
     }
 
     public void testRefresh() throws IOException {
@@ -214,10 +233,10 @@ public class StackTraceElementTaggerTests extends ESTestCase {
                 IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new TagCollectingAnalyzer(tags)))) {
             assertEquals(Collections.emptySet(), tags);
             w.addDocument(new Document());
-            assertEquals(Set.of("APPEND_OR_UPDATE_DOC", "APPEND_DOC"), tags);
+            assertEquals(Set.of("APPEND_OR_OVERWRITE_DOC", "APPEND_DOC"), tags);
             tags.clear();
             DirectoryReader.open(w).close();
-            assertEquals(Set.of("FLUSH_SEGMENT", "REFRESH_SHARD"), tags);
+            assertEquals(Set.of("CREATE_SEGMENT", "REFRESH_SHARD"), tags);
             tags.clear();
         }
         assertEquals(Set.of(), tags);
@@ -229,16 +248,16 @@ public class StackTraceElementTaggerTests extends ESTestCase {
                 IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new TagCollectingAnalyzer(tags)))) {
             assertEquals(Collections.emptySet(), tags);
             w.addDocument(new Document());
-            assertEquals(Set.of("APPEND_OR_UPDATE_DOC", "APPEND_DOC"), tags);
+            assertEquals(Set.of("APPEND_OR_OVERWRITE_DOC", "APPEND_DOC"), tags);
             tags.clear();
             DirectoryReader.open(w).close();
-            assertEquals(Set.of("FLUSH_SEGMENT", "REFRESH_SHARD"), tags);
+            assertEquals(Set.of("CREATE_SEGMENT", "REFRESH_SHARD"), tags);
             tags.clear();
             w.addDocument(new Document());
-            assertEquals(Set.of("APPEND_OR_UPDATE_DOC", "APPEND_DOC"), tags);
+            assertEquals(Set.of("APPEND_OR_OVERWRITE_DOC", "APPEND_DOC"), tags);
             tags.clear();
             DirectoryReader.open(w).close();
-            assertEquals(Set.of("FLUSH_SEGMENT", "REFRESH_SHARD"), tags);
+            assertEquals(Set.of("CREATE_SEGMENT", "REFRESH_SHARD"), tags);
             tags.clear();
             w.forceMerge(1);
             assertEquals(Set.of("MERGE_SEGMENT"), tags);
@@ -256,10 +275,10 @@ public class StackTraceElementTaggerTests extends ESTestCase {
             doc.add(new StringField("_id", "0", Store.NO));
             doc.add(new NumericDocValuesField("dv", 1L));
             w.addDocument(doc);
-            assertEquals(Set.of("APPEND_OR_UPDATE_DOC", "APPEND_DOC"), tags);
+            assertEquals(Set.of("APPEND_OR_OVERWRITE_DOC", "APPEND_DOC"), tags);
             tags.clear();
             DirectoryReader.open(w).close();
-            assertEquals(Set.of("FLUSH_SEGMENT", "REFRESH_SHARD"), tags);
+            assertEquals(Set.of("CREATE_SEGMENT", "REFRESH_SHARD"), tags);
             tags.clear();
             w.updateNumericDocValue(new Term("_id", "0"), "dv", 3L);
             DirectoryReader.open(w).close();

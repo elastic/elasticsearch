@@ -154,7 +154,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         } else {
             node = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             shouldStopAtNextCheckpoint = in.readBoolean();
         } else {
             shouldStopAtNextCheckpoint = false;
@@ -249,7 +249,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalWriteable(node);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeBoolean(shouldStopAtNextCheckpoint);
         }
     }

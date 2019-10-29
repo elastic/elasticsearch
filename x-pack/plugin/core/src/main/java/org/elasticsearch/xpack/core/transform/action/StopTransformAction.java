@@ -83,7 +83,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             } else {
                 this.allowNoMatch = true;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
                 this.waitForCheckpoint = in.readBoolean();
             } else {
                 this.waitForCheckpoint = false;
@@ -132,7 +132,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeBoolean(allowNoMatch);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
                 out.writeBoolean(waitForCheckpoint);
             }
         }

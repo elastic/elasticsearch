@@ -59,6 +59,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
+    private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
     static final String REPO = "my-repo";
     List<String> dataNodeNames = null;
@@ -88,7 +89,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         initializeRepo(REPO);
 
         logger.info("--> creating policy {}", policyName);
-        createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", REPO, indexName, true);
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true);
 
         logger.info("--> blocking master from completing snapshot");
         blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
@@ -134,7 +135,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         initializeRepo(REPO);
 
         logger.info("--> creating policy {}", policyId);
-        createSnapshotPolicy(policyId, "snap", "1 2 3 4 5 ?", REPO, indexName, true,
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             false, new SnapshotRetentionConfiguration(TimeValue.timeValueSeconds(0), null, null));
 
         // Create a snapshot and wait for it to be complete (need something that can be deleted)
@@ -261,7 +262,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         // Create a snapshot repo
         initializeRepo(REPO);
 
-        createSnapshotPolicy(policyId, "snap", "1 2 3 4 5 ?", REPO, indexName, true,
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             partialSuccess, new SnapshotRetentionConfiguration(null, 1, 2));
 
         // Create a failed snapshot

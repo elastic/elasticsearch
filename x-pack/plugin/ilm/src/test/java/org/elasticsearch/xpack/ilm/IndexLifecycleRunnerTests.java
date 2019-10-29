@@ -246,7 +246,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        runner.runPolicyAfterStateChange(policyName, indexMetaData);
+        runner.runPeriodicStep(policyName, indexMetaData);
 
         Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any());
     }
@@ -294,7 +294,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .build();
 
         for (short i=0; i< 2 * maxNumberOfRetries; i++) {
-            runner.runPolicyAfterStateChange(policyName, indexMetaData);
+            runner.runPeriodicStep(policyName, indexMetaData);
             Integer failedStepRetryCount = newState.getFailedStepRetryCount();
             newState = LifecycleExecutionState.builder(newState).setFailedStepRetryCount(++failedStepRetryCount).build();
 
@@ -1157,18 +1157,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertThat(executionState.getFailedStepRetryCount(), is(1));
     }
 
-    private static final class RetryableMockStep extends MockStep {
-
-        RetryableMockStep(StepKey stepKey, StepKey nextStepKey) {
-            super(stepKey, nextStepKey);
-        }
-
-        @Override
-        public boolean isRetryable() {
-            return true;
-        }
-    }
-
     public void testAddStepInfoToClusterState() throws IOException {
         String indexName = "my_index";
         StepKey currentStep = new StepKey("current_phase", "current_action", "current_step");
@@ -1743,5 +1731,17 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                     Objects.equals(startStep, task.getStartStep());
         }
 
+    }
+
+    private static final class RetryableMockStep extends MockStep {
+
+        RetryableMockStep(StepKey stepKey, StepKey nextStepKey) {
+            super(stepKey, nextStepKey);
+        }
+
+        @Override
+        public boolean isRetryable() {
+            return true;
+        }
     }
 }

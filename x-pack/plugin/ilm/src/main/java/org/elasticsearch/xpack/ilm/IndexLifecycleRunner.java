@@ -265,7 +265,7 @@ public class IndexLifecycleRunner {
             logger.debug("policy [{}] for index [{}] complete, skipping execution", policy, index);
             return;
         } else if (currentStep instanceof ErrorStep) {
-            onErrorMaybeRetryFailedStep(policy, indexMetaData);
+            logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
             return;
         }
 

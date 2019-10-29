@@ -114,43 +114,49 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         DotProduct dotProduct = new DotProduct(scoreScript, queryVector, dvs);
         double result = dotProduct.dotProduct();
         assertEquals("dotProduct result is not equal to the expected value!", 65425.624, result, 0.001);
+        assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test cosineSimilarity
         CosineSimilarity cosineSimilarity = new CosineSimilarity(scoreScript, queryVector, dvs);
         double result2 = cosineSimilarity.cosineSimilarity();
         assertEquals("cosineSimilarity result is not equal to the expected value!", 0.790, result2, 0.001);
+        assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test l1Norm
         L1Norm l1norm = new L1Norm(scoreScript, queryVector, dvs);
         double result3 = l1norm.l1norm();
         assertEquals("l1norm result is not equal to the expected value!", 485.184, result3, 0.001);
+        assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test l2norm
         L2Norm l2norm = new L2Norm(scoreScript, queryVector, dvs);
         double result4 = l2norm.l2norm();
         assertEquals("l2norm result is not equal to the expected value!", 301.361, result4, 0.001);
+        assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test dotProduct fails when queryVector has wrong number of dims
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
         DotProduct dotProduct2 = new DotProduct(scoreScript, invalidQueryVector, dvs);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, dotProduct2::dotProduct);
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
+        assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test cosineSimilarity fails when queryVector has wrong number of dims
         CosineSimilarity cosineSimilarity2 = new CosineSimilarity(scoreScript, invalidQueryVector, dvs);
         e = expectThrows(IllegalArgumentException.class, cosineSimilarity2::cosineSimilarity);
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
+        assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test l1norm fails when queryVector has wrong number of dims
         L1Norm l1norm2 = new L1Norm(scoreScript, invalidQueryVector, dvs);
         e = expectThrows(IllegalArgumentException.class, l1norm2::l1norm);
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
+        assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test l2norm fails when queryVector has wrong number of dims
         L2Norm l2norm2 = new L2Norm(scoreScript, invalidQueryVector, dvs);
         e = expectThrows(IllegalArgumentException.class, l2norm2::l2norm);
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
-
         assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
     }
 
@@ -200,7 +206,6 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector, field);
         double result4 = l2Norm.l2normSparse();
         assertEquals("l2normSparse result is not equal to the expected value!", 301.361, result4, 0.001);
-
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
@@ -232,22 +237,24 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         DotProductSparse docProductSparse = new DotProductSparse(scoreScript, queryVector, dvs);
         double result = docProductSparse.dotProductSparse();
         assertEquals("dotProductSparse result is not equal to the expected value!", 65425.624, result, 0.001);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE, ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test cosineSimilarity
         CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(scoreScript, queryVector, dvs);
         double result2 = cosineSimilaritySparse.cosineSimilaritySparse();
         assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.790, result2, 0.001);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE, ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test l1norm
         L1NormSparse l1Norm = new L1NormSparse(scoreScript, queryVector, dvs);
         double result3 = l1Norm.l1normSparse();
         assertEquals("l1normSparse result is not equal to the expected value!", 485.184, result3, 0.001);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE, ScoreScriptUtils.DEPRECATION_MESSAGE);
 
         // test l2norm
         L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector, dvs);
         double result4 = l2Norm.l2normSparse();
         assertEquals("l2normSparse result is not equal to the expected value!", 301.361, result4, 0.001);
-
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE, ScoreScriptUtils.DEPRECATION_MESSAGE);
     }
 
@@ -279,22 +286,24 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         DotProductSparse docProductSparse = new DotProductSparse(scoreScript, queryVector, field);
         double result = docProductSparse.dotProductSparse();
         assertEquals("dotProductSparse result is not equal to the expected value!", 65425.624, result, 0.001);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
 
         // test cosineSimilarity
         CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(scoreScript, queryVector, field);
         double result2 = cosineSimilaritySparse.cosineSimilaritySparse();
         assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.786, result2, 0.001);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
 
         // test l1norm
         L1NormSparse l1Norm = new L1NormSparse(scoreScript, queryVector, field);
         double result3 = l1Norm.l1normSparse();
         assertEquals("l1normSparse result is not equal to the expected value!", 517.184, result3, 0.001);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
 
         // test l2norm
         L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector, field);
         double result4 = l2Norm.l2normSparse();
         assertEquals("l2normSparse result is not equal to the expected value!", 302.277, result4, 0.001);
-
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
@@ -326,22 +335,24 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         DotProductSparse docProductSparse = new DotProductSparse(scoreScript, queryVector, field);
         double result = docProductSparse.dotProductSparse();
         assertEquals("dotProductSparse result is not equal to the expected value!", 65425.624, result, 0.001);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
 
         // test cosineSimilarity
         CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(scoreScript, queryVector, field);
         double result2 = cosineSimilaritySparse.cosineSimilaritySparse();
         assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.786, result2, 0.001);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
 
         // test l1norm
         L1NormSparse l1Norm = new L1NormSparse(scoreScript, queryVector, field);
         double result3 = l1Norm.l1normSparse();
         assertEquals("l1normSparse result is not equal to the expected value!", 517.184, result3, 0.001);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
 
         // test l2norm
         L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector, field);
         double result4 = l2Norm.l2normSparse();
         assertEquals("l2normSparse result is not equal to the expected value!", 302.277, result4, 0.001);
-
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 }

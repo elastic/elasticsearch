@@ -404,6 +404,44 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(clusterService.state().getMetaData().index(alias));
     }
 
+    public void testDanglingIndicesWithLaterVersion() throws Exception {
+        final String indexNameLater = "test-idxnewer";
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final ClusterState originalState = clusterService.state();
+
+        //import an index with minor version incremented by one over cluster master version, it should be ignored
+        final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
+        final Settings idxSettingsLater = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
+                                                                Version.fromId(Version.CURRENT.id + 10000))
+                                                            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                                                            .build();
+        final IndexMetaData indexMetaDataLater = new IndexMetaData.Builder(indexNameLater)
+                                                             .settings(idxSettingsLater)
+                                                             .numberOfShards(1)
+                                                             .numberOfReplicas(0)
+                                                             .build();
+        CountDownLatch latch = new CountDownLatch(1);
+        dangling.allocateDangled(Arrays.asList(indexMetaDataLater), ActionListener.wrap(latch::countDown));
+        latch.await();
+        assertThat(clusterService.state(), equalTo(originalState));
+
+        //import an index with the same version as cluster master version, it should work
+        final String indexNameCurrent = "test-idxcurrent";
+        final Settings idxSettingCurrent = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                                                             .build();
+        final IndexMetaData indexMetaDataCurrent = new IndexMetaData.Builder(indexNameCurrent)
+                                                                .settings(idxSettingCurrent)
+                                                                .numberOfShards(1)
+                                                                .numberOfReplicas(0)
+                                                                .build();
+        latch = new CountDownLatch(1);
+        dangling.allocateDangled(Arrays.asList(indexMetaDataCurrent), ActionListener.wrap(latch::countDown));
+        latch.await();
+        assertThat(clusterService.state(), not(originalState));
+        assertNotNull(clusterService.state().getMetaData().index(indexNameCurrent));
+    }
+
     /**
      * This test checks an edge case where, if a node had an index (lets call it A with UUID 1), then
      * deleted it (so a tombstone entry for A will exist in the cluster state), then created

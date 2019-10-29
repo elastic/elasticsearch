@@ -190,7 +190,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, threadPool, () -> 0L);
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder();
         newState.setFailedStep(stepKey.getName());
-        newState.setIsTransitiveError(false);
+        newState.setIsAutoRetryableError(false);
         newState.setPhase(stepKey.getPhase());
         newState.setAction(stepKey.getAction());
         newState.setStep(ErrorStep.NAME);
@@ -231,7 +231,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, threadPool, () -> 0L);
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder();
         newState.setFailedStep(stepKey.getName());
-        newState.setIsTransitiveError(true);
+        newState.setIsAutoRetryableError(true);
         newState.setPhase(stepKey.getPhase());
         newState.setAction(stepKey.getAction());
         newState.setStep(ErrorStep.NAME);
@@ -271,7 +271,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, threadPool, () -> 0L);
         LifecycleExecutionState.Builder newStateBuilder = LifecycleExecutionState.builder();
         newStateBuilder.setFailedStep(stepKey.getName());
-        newStateBuilder.setIsTransitiveError(true);
+        newStateBuilder.setIsAutoRetryableError(true);
         newStateBuilder.setFailedStepRetryCount(0);
         newStateBuilder.setPhase(stepKey.getPhase());
         newStateBuilder.setAction(stepKey.getAction());

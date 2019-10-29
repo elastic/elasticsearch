@@ -35,7 +35,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField ACTION_FIELD = new ParseField("action");
     private static final ParseField STEP_FIELD = new ParseField("step");
     private static final ParseField FAILED_STEP_FIELD = new ParseField("failed_step");
-    private static final ParseField IS_TRANSITIVE_ERROR_FIELD = new ParseField("is_transitive_error");
+    private static final ParseField IS_AUTO_RETRYABLE_ERROR_FIELD = new ParseField("is_auto_retryable_error");
     private static final ParseField FAILED_STEP_RETRY_COUNT_FIELD = new ParseField("failed_step_retry_count");
     private static final ParseField PHASE_TIME_MILLIS_FIELD = new ParseField("phase_time_millis");
     private static final ParseField PHASE_TIME_FIELD = new ParseField("phase_time");
@@ -87,7 +87,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> PhaseExecutionInfo.parse(p, ""),
             PHASE_EXECUTION_INFO);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), AGE_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_TRANSITIVE_ERROR_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_AUTO_RETRYABLE_ERROR_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), FAILED_STEP_RETRY_COUNT_FIELD);
     }
 
@@ -104,14 +104,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final boolean managedByILM;
     private final BytesReference stepInfo;
     private final PhaseExecutionInfo phaseExecutionInfo;
-    private final Boolean isTransitiveError;
+    private final Boolean isAutoRetryableError;
     private final Integer failedStepRetryCount;
 
     public static IndexLifecycleExplainResponse newManagedIndexResponse(String index, String policyName, Long lifecycleDate,
-            String phase, String action, String step, String failedStep, Boolean isTransitiveError, Integer failedStepRetryCount,
+            String phase, String action, String step, String failedStep, Boolean isAutoRetryableError, Integer failedStepRetryCount,
             Long phaseTime, Long actionTime, Long stepTime, BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
         return new IndexLifecycleExplainResponse(index, true, policyName, lifecycleDate, phase, action, step, failedStep,
-            isTransitiveError, failedStepRetryCount, phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
+            isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
     }
 
     public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
@@ -120,7 +120,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     }
 
     private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, Long lifecycleDate,
-                                          String phase, String action, String step, String failedStep, Boolean isTransitiveError,
+                                          String phase, String action, String step, String failedStep, Boolean isAutoRetryableError,
                                           Integer failedStepRetryCount, Long phaseTime, Long actionTime, Long stepTime,
                                           BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
         if (managedByILM) {
@@ -153,7 +153,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         this.actionTime = actionTime;
         this.stepTime = stepTime;
         this.failedStep = failedStep;
-        this.isTransitiveError = isTransitiveError;
+        this.isAutoRetryableError = isAutoRetryableError;
         this.failedStepRetryCount = failedStepRetryCount;
         this.stepInfo = stepInfo;
         this.phaseExecutionInfo = phaseExecutionInfo;
@@ -175,10 +175,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             stepInfo = in.readOptionalBytesReference();
             phaseExecutionInfo = in.readOptionalWriteable(PhaseExecutionInfo::new);
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                isTransitiveError = in.readOptionalBoolean();
+                isAutoRetryableError = in.readOptionalBoolean();
                 failedStepRetryCount = in.readOptionalVInt();
             } else {
-                isTransitiveError = null;
+                isAutoRetryableError = null;
                 failedStepRetryCount = null;
             }
         } else {
@@ -188,7 +188,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             action = null;
             step = null;
             failedStep = null;
-            isTransitiveError = null;
+            isAutoRetryableError = null;
             failedStepRetryCount = null;
             phaseTime = null;
             actionTime = null;
@@ -215,7 +215,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalBytesReference(stepInfo);
             out.writeOptionalWriteable(phaseExecutionInfo);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalBoolean(isTransitiveError);
+                out.writeOptionalBoolean(isAutoRetryableError);
                 out.writeOptionalVInt(failedStepRetryCount);
             }
         }
@@ -273,8 +273,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return phaseExecutionInfo;
     }
 
-    public Boolean isTransitiveError() {
-        return isTransitiveError;
+    public Boolean isAutoRetryableError() {
+        return isAutoRetryableError;
     }
 
     public Integer getFailedStepRetryCount() {
@@ -321,10 +321,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (Strings.hasLength(failedStep)) {
                 builder.field(FAILED_STEP_FIELD.getPreferredName(), failedStep);
             }
-            if (isTransitiveError != null) {
-                builder.field(IS_TRANSITIVE_ERROR_FIELD.getPreferredName(), isTransitiveError);
+            if (isAutoRetryableError != null) {
+                builder.field(IS_AUTO_RETRYABLE_ERROR_FIELD.getPreferredName(), isAutoRetryableError);
             }
-            if(failedStepRetryCount != null) {
+            if (failedStepRetryCount != null) {
                 builder.field(FAILED_STEP_RETRY_COUNT_FIELD.getPreferredName(), failedStepRetryCount);
             }
             if (stepInfo != null && stepInfo.length() > 0) {
@@ -340,7 +340,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, managedByILM, policyName, lifecycleDate, phase, action, step, failedStep, isTransitiveError,
+        return Objects.hash(index, managedByILM, policyName, lifecycleDate, phase, action, step, failedStep, isAutoRetryableError,
             failedStepRetryCount, phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
     }
 
@@ -361,7 +361,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 Objects.equals(action, other.action) &&
                 Objects.equals(step, other.step) &&
                 Objects.equals(failedStep, other.failedStep) &&
-                Objects.equals(isTransitiveError, other.isTransitiveError) &&
+                Objects.equals(isAutoRetryableError, other.isAutoRetryableError) &&
                 Objects.equals(failedStepRetryCount, other.failedStepRetryCount) &&
                 Objects.equals(phaseTime, other.phaseTime) &&
                 Objects.equals(actionTime, other.actionTime) &&

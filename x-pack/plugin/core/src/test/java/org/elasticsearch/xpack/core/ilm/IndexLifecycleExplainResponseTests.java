@@ -110,7 +110,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         String action = instance.getAction();
         String step = instance.getStep();
         String failedStep = instance.getFailedStep();
-        Boolean isTransitiveError = instance.isTransitiveError();
+        Boolean isAutoRetryableError = instance.isAutoRetryableError();
         Integer failedStepRetryCount = instance.getFailedStepRetryCount();
         Long policyTime = instance.getLifecycleDate();
         Long phaseTime = instance.getPhaseTime();
@@ -169,14 +169,14 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
             case 10:
                 return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             case 11:
-                isTransitiveError = true;
+                isAutoRetryableError = true;
                 failedStepRetryCount = randomInt(13);
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
             return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, policyTime, phase, action, step, failedStep,
-                isTransitiveError, failedStepRetryCount, phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
+                isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
         } else {
             switch (between(0, 1)) {
             case 0:

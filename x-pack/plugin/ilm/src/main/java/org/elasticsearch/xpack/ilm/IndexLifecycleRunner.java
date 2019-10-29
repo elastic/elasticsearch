@@ -168,7 +168,7 @@ public class IndexLifecycleRunner {
         }
 
         if (failedStep.isRetryable()) {
-            if (lifecycleState.isTransitiveError()) {
+            if (lifecycleState.isAutoRetryableError()) {
                 int retryCount = lifecycleState.getFailedStepRetryCount() == null ? 0 : lifecycleState.getFailedStepRetryCount();
                 Integer maxRetriesCount =
                     indexMetaData.getSettings().getAsInt(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 15);
@@ -400,9 +400,9 @@ public class IndexLifecycleRunner {
         failedState.setFailedStep(currentStep.getName());
         failedState.setStepInfo(BytesReference.bytes(causeXContentBuilder).utf8ToString());
         Step failedStep = stepLookupFunction.apply(idxMeta, currentStep);
-        // as an initial step we'll mark the failed step with a transitive error without actually looking at the cause to determine
-        // if it's a transitive (ie. recoverable from) error
-        failedState.setIsTransitiveError(failedStep.isRetryable());
+        // as an initial step we'll mark the failed step as auto retryable without actually looking at the cause to determine
+        // if the error is transient/recoverable from
+        failedState.setIsAutoRetryableError(failedStep.isRetryable());
         // maintain the retry count of the failed step as it will be cleared after a successful execution
         failedState.setFailedStepRetryCount(currentState.getFailedStepRetryCount());
 
@@ -471,7 +471,7 @@ public class IndexLifecycleRunner {
         // clear any step info or error-related settings from the current step
         updatedState.setFailedStep(null);
         updatedState.setStepInfo(null);
-        updatedState.setIsTransitiveError(null);
+        updatedState.setIsAutoRetryableError(null);
         updatedState.setFailedStepRetryCount(null);
 
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false || forcePhaseDefinitionRefresh) {

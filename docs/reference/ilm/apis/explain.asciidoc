@@ -266,7 +266,7 @@ the case.
       "step_time_millis": 1538475653317,
       "step_time": "2018-10-15T13:45:22.577Z",
       "failed_step": "check-rollover-ready", <1>
-      "is_transitive_error": true, <2>
+      "is_auto_retryable_error": true, <2>
       "failed_step_retry_count": 1, <3>
       "step_info": { <4>
         "type": "cluster_block_exception",
@@ -295,7 +295,7 @@ the case.
 // TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
 
 <1> The step that caused the error
-<2> Indicates if the error was caused by a transitive malfunction. If this
+<2> Indicates if retrying the failed step can overcome the error. If this
 is true, ILM will retry the failed step automatically.
 <3> Shows the retry attempt count. ILM will stop retrying a failed step after a
 configurable number of retries (controlled by the

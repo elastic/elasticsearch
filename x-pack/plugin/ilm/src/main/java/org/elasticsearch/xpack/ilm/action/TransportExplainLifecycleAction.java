@@ -116,7 +116,7 @@ public class TransportExplainLifecycleAction
                         lifecycleState.getAction(),
                         lifecycleState.getStep(),
                         lifecycleState.getFailedStep(),
-                        lifecycleState.isTransitiveError(),
+                        lifecycleState.isAutoRetryableError(),
                         lifecycleState.getFailedStepRetryCount(),
                         lifecycleState.getPhaseTime(),
                         lifecycleState.getActionTime(),

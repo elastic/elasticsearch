@@ -37,7 +37,7 @@ public class LifecycleSettings {
     public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(LIFECYCLE_PARSE_ORIGINATION_DATE,
         false, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<Integer> LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT_SETTING =
-        Setting.intSetting(LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 15, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        Setting.intSetting(LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, -1, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
 
     public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(SLM_HISTORY_INDEX_ENABLED, true,

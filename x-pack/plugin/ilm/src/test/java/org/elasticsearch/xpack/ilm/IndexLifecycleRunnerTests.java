@@ -237,7 +237,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         newState.setStep(ErrorStep.NAME);
         newState.setPhaseDefinition(phaseJson);
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(
+                settings(Version.CURRENT)
+                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+                    .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, -1)
+            )
             .putCustom(ILM_CUSTOM_METADATA_KEY, newState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();

@@ -168,16 +168,17 @@ public class IndexLifecycleRunner {
         }
 
         if (failedStep.isRetryable()) {
-            if (lifecycleState.isAutoRetryableError()) {
-                int retryCount = lifecycleState.getFailedStepRetryCount() == null ? 0 : lifecycleState.getFailedStepRetryCount();
+            if (lifecycleState.isAutoRetryableError() != null && lifecycleState.isAutoRetryableError()) {
+                int currentRetryAttempt = lifecycleState.getFailedStepRetryCount() == null ?
+                    1 : 1 + lifecycleState.getFailedStepRetryCount();
                 Integer maxRetriesCount =
-                    indexMetaData.getSettings().getAsInt(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 15);
-                if (++retryCount > maxRetriesCount) {
+                    indexMetaData.getSettings().getAsInt(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, null);
+                if (maxRetriesCount != -1 && currentRetryAttempt > maxRetriesCount) {
                     logger.debug("maximum retries [{}] reached for step [{}] on policy [{}] for index [{}], skipping retry execution",
                         maxRetriesCount, lifecycleState.getFailedStep(), policy, index);
                 } else {
                     logger.info("policy [{}] for index [{}] on an error step due to a transitive error, moving back to the failed " +
-                        "step [{}] for execution. retry attempt [{}]", policy, index, lifecycleState.getFailedStep(), retryCount);
+                        "step [{}] for execution. retry attempt [{}]", policy, index, lifecycleState.getFailedStep(), currentRetryAttempt);
                     clusterService.submitStateUpdateTask("ilm-retry-failed-step", new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {

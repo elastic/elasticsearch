@@ -162,8 +162,8 @@ public class IndexLifecycleRunner {
         Step failedStep = stepRegistry.getStep(indexMetaData, new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(),
             lifecycleState.getFailedStep()));
         if (failedStep == null) {
-            logger.warn("failed step [{}] is not part of policy [{}] anymore, or it is invalid. skipping execution",
-                lifecycleState.getFailedStep(), policy);
+            logger.warn("failed step [{}] for index [{}] is not part of policy [{}] anymore, or it is invalid. skipping execution",
+                lifecycleState.getFailedStep(), index, policy);
             return;
         }
 
@@ -187,7 +187,8 @@ public class IndexLifecycleRunner {
 
                         @Override
                         public void onFailure(String source, Exception e) {
-                            logger.error("retry execution of step [{}] failed due to [{}]", failedStep.getKey().getName(), e);
+                            logger.error("retry execution of step [{}] for index [{}] failed due to [{}]", failedStep.getKey().getName(),
+                                index, e);
                         }
                     });
                 }

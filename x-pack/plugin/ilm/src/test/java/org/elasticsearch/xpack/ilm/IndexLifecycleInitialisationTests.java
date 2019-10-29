@@ -64,6 +64,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static java.time.format.DateTimeFormatter.ISO_ZONED_DATE_TIME;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -181,7 +182,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
         assertThat(responseItem.getVersion(), equalTo(1L));
-        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+        long actualModifiedDate = Instant.from(ISO_ZONED_DATE_TIME.parse(responseItem.getModifiedDate())).toEpochMilli();
         assertThat(actualModifiedDate,
             is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate))));
 
@@ -220,7 +221,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
         assertThat(responseItem.getVersion(), equalTo(1L));
-        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+        long actualModifiedDate = Instant.from(ISO_ZONED_DATE_TIME.parse(responseItem.getModifiedDate())).toEpochMilli();
 
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
@@ -295,7 +296,6 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
         assertThat(responseItem.getVersion(), equalTo(1L));
-        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
 
         String indexName = "test-2019.09.14";
         logger.info("Creating index [{}]", indexName);
@@ -496,7 +496,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
         assertThat(responseItem.getVersion(), equalTo(1L));
-        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+        long actualModifiedDate = Instant.from(ISO_ZONED_DATE_TIME.parse(responseItem.getModifiedDate())).toEpochMilli();
         assertThat(actualModifiedDate,
             is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate))));
         // assert ILM is still stopped

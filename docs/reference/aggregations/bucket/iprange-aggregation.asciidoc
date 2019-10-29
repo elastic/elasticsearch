@@ -5,7 +5,7 @@ Just like the dedicated <<search-aggregations-bucket-daterange-aggregation,date>
 
 Example:
 
-[source,console]
+[source,console,id=ip-range-example]
 --------------------------------------------------
 GET /ip_addresses/_search
 {

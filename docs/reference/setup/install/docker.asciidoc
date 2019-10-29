@@ -52,7 +52,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-To start a single-node cluster {es} for development or testing, specify 
+To start a single-node {es} cluster for development or testing, specify 
 <<single-node-discovery,single-node discovery>> to bypass the <<bootstrap-checks,bootstrap checks>>:
 
 ["source","sh",subs="attributes"]
@@ -203,7 +203,12 @@ grep vm.max_map_count /etc/sysctl.conf
 vm.max_map_count=262144
 --------------------------------------------
 
-To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
+To apply the setting on a live system run: 
+
+[source,sh]
+--------------------------------------------
+sysctl -w vm.max_map_count=262144
+--------------------------------------------
 --
 
 * macOS with  https://docs.docker.com/docker-for-mac[Docker for Mac]
@@ -224,6 +229,8 @@ screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
+
+. To exit the `screen` session, type `Ctrl a d`.
 --
 
 * Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]

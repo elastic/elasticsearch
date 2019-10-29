@@ -163,13 +163,15 @@ public class XContentHelper {
     }
 
     /**
-     * Accepts a JSON string and reformats it. This is useful where a piece of JSON is formatted for legibility, but needs
-     * to be stripped of unnecessary whitespace e.g. for comparison in a test.
+     * Accepts a JSON string, parses it and prints it without pretty-printing it. This is useful
+     * where a piece of JSON is formatted for legibility, but needs to be stripped of unnecessary
+     * whitespace e.g. for comparison in a test.
+     *
      * @param json the JSON to format
      * @return reformatted JSON
      * @throws IOException if the reformatting fails, e.g. because the JSON is not well-formed
      */
-    public static String reformatJson(String json) throws IOException {
+    public static String stripWhiteSpace(String json) throws IOException {
         return convertToJson(new BytesArray(json), true, XContentType.JSON);
     }
 

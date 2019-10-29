@@ -254,7 +254,7 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(
             e,
             hasToString(
-                containsString("Failed to parse value [_user] for setting [xpack.monitoring.exporters._http.auth.username]")));
+                containsString("Failed to parse value for setting [xpack.monitoring.exporters._http.auth.username]")));
 
         assertThat(e.getCause(), instanceOf(SettingsException.class));
         assertThat(e.getCause(), hasToString(containsString(expected)));

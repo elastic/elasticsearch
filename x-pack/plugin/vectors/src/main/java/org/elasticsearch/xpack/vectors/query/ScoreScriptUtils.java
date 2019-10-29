@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder.sortSp
 public class ScoreScriptUtils {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScoreScriptUtils.class));
     static final String DEPRECATION_MESSAGE = "The vector functions of the form function(query, doc['field']) are deprecated, and " +
-        "the form function(query, 'field')` should be used instead. For example, cosineSimilarity(query, doc['field'] is replaced by " +
+        "the form function(query, 'field') should be used instead. For example, cosineSimilarity(query, doc['field']) is replaced by " +
         "cosineSimilarity(query, 'field').";
 
     //**************FUNCTIONS FOR DENSE VECTORS

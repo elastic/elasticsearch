@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.analytics.mapper;
 
 
+import com.carrotsearch.hppc.DoubleArrayList;
+import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.BinaryDocValues;
@@ -27,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicHistogramFieldData;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -35,7 +36,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -49,18 +49,18 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
  * Field Mapper for pre-aggregated histograms.
  *
  */
-public class HistogramFieldMapper extends FieldMapper implements ArrayValueMapperParser {
+public class HistogramFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "histogram";
 
     public static class Names {
@@ -252,17 +252,14 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
 
                                 @Override
                                 public ScriptDocValues<?> getScriptValues() {
-                                    return new ScriptDocValues.Strings(getBytesValues());
+                                    throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " +
+                                        "support scripts");
                                 }
 
                                 @Override
                                 public SortedBinaryDocValues getBytesValues() {
-                                    try {
-                                        final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
-                                        return FieldData.singleton(values);
-                                    } catch (IOException e) {
-                                        throw new IllegalStateException("Cannot load doc values", e);
-                                    }
+                                    throw new UnsupportedOperationException("String representation of doc values " +
+                                        "for [" + CONTENT_TYPE + "] fields is not supported");
                                 }
 
                                 @Override
@@ -285,7 +282,7 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
                         @Override
                         public SortField sortField(Object missingValue, MultiValueMode sortMode,
                                                    XFieldComparatorSource.Nested nested, boolean reverse) {
-                            return null;
+                            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
                     };
                 }
@@ -352,49 +349,43 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context)  {
+        if (context.externalValueSet()) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
+        }
         context.path().add(simpleName());
         try {
-            List<Double> values = null;
-            List<Integer> counts = null;
+            DoubleArrayList values = null;
+            IntArrayList counts = null;
             XContentParser.Token token = context.parser().currentToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new MapperParsingException("error parsing field ["
-                    + name() + "], expected an [" + XContentParser.Token.START_OBJECT.name() +
-                    "] but got [" + token.name() + "]");
-            }
+            // should be an object
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
             token = context.parser().nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
-                if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new MapperParsingException("error parsing field ["
-                        + name() + "], expected a field but got " + context.parser().currentName());
-                }
+                // should be an field
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, context.parser()::getTokenLocation);
                 String fieldName = context.parser().currentName();
                 if (fieldName.equals(VALUES_FIELD.getPreferredName())) {
                     token = context.parser().nextToken();
-                    //should be an array
-                    if (token != XContentParser.Token.START_ARRAY) {
-                        throw new MapperParsingException("error parsing field ["
-                            + name() + "], expected an [" + XContentParser.Token.START_ARRAY.name() +
-                            "] but got [" + token.name() + "]");
-                    }
-                    values = new ArrayList<>();
+                    // should be an array
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, context.parser()::getTokenLocation);
+                    values = new DoubleArrayList();
                     token = context.parser().nextToken();
                     while (token != XContentParser.Token.END_ARRAY) {
+                        // should be a number
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
                         values.add(context.parser().doubleValue());
                         token = context.parser().nextToken();
                     }
                 } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
                     token = context.parser().nextToken();
-                    //should be an array
-                    if (token != XContentParser.Token.START_ARRAY) {
-                        throw new MapperParsingException("error parsing field ["
-                            + name() + "], expected an [" + XContentParser.Token.START_ARRAY.name() +
-                            "] but got [" + token.name() + "]");
-                    }
-                    counts = new ArrayList<>();
+                    // should be an array
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, context.parser()::getTokenLocation);
+                    counts = new IntArrayList();
                     token = context.parser().nextToken();
                     while (token != XContentParser.Token.END_ARRAY) {
+                        // should be a number
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
                         counts.add(context.parser().intValue());
                         token = context.parser().nextToken();
                     }
@@ -435,7 +426,11 @@ public class HistogramFieldMapper extends FieldMapper implements ArrayValueMappe
 
                 Field field = new BinaryDocValuesField(simpleName(), streamOutput.bytes().toBytesRef());
                 streamOutput.close();
-                context.doc().add(field);
+                if (context.doc().getByKey(fieldType().name()) != null) {
+                    throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
+                        "] doesn't not support indexing multiple values for the same field in the same document");
+                }
+                context.doc().addWithKey(fieldType().name(), field);
             }
 
         } catch (Exception ex) {

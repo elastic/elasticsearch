@@ -51,22 +51,22 @@ class TDigestPercentilesAggregatorFactory
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         return new TDigestPercentilesAggregator(name, null, searchContext, parent, percents, compression, keyed, config.format(),
-            pipelineAggregators, metaData);
+                pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext,
-                                          Aggregator parent,
-                                          boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         return new TDigestPercentilesAggregator(name, valuesSource, searchContext, parent, percents, compression, keyed, config.format(),
-            pipelineAggregators, metaData);
+                pipelineAggregators, metaData);
     }
 
 }

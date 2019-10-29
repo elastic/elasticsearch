@@ -75,7 +75,8 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON);
 
         Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("expected an [START_OBJECT] but got [START_ARRAY]"));
+        assertThat(e.getCause().getMessage(), containsString("doesn't not support indexing multiple values " +
+            "for the same field in the same document"));
     }
 
     public void testEmptyArrays() throws Exception {
@@ -200,7 +201,49 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON);
 
         Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("expected an [START_ARRAY] but got [VALUE_STRING]"));
+        assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
+    }
+
+    public void testFieldCountsStringArray() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        SourceToParse source = new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("pre_aggregated").startObject()
+                .field("counts", new String[] {"4", "5", "6"})
+                .field("values", new double[] {2, 2, 3})
+                .endObject()
+                .endObject()),
+            XContentType.JSON);
+
+        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"));
+    }
+
+    public void testFieldValuesStringArray() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        SourceToParse source = new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("pre_aggregated").startObject()
+                .field("counts", new int[] {4, 5, 6})
+                .field("values", new String[] {"2", "2", "3"})
+                .endObject()
+                .endObject()),
+            XContentType.JSON);
+
+        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"));
     }
 
     public void testFieldValuesNotArray() throws Exception {
@@ -221,7 +264,7 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON);
 
         Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("expected an [START_ARRAY] but got [VALUE_STRING]"));
+        assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
     }
 
     public void testCountIsLong() throws Exception {
@@ -260,7 +303,8 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON);
 
         Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("expected an [START_OBJECT] but got [VALUE_STRING]"));
+        assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_OBJECT] " +
+            "but found [VALUE_STRING]"));
     }
 
     public void testNegativeCount() throws Exception {

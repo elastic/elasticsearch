@@ -36,7 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 
 
-public class HistogramAggregationTests extends ESSingleNodeTestCase {
+public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
 
     public void testHDRHistogram() throws Exception {
 

@@ -126,20 +126,11 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     }
 
     /**
-     * The tye of search to execute.
+     * The type of search to execute.
      */
     public SearchType searchType() {
         return searchType;
     }
-
-//    /**
-//     * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be one of
-//     * "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch", "query_then_fetch"/"queryThenFetch", and
-//     * "query_and_fetch"/"queryAndFetch".
-//     */
-//    public void searchType(String searchType) {
-//        searchType(SearchType.fromString(searchType));
-//    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

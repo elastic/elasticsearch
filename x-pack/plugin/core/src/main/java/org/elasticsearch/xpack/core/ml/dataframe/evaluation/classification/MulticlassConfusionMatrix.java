@@ -323,6 +323,18 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
             this.otherPredictedClassDocCount = in.readVLong();
         }
 
+        public String getActualClass() {
+            return actualClass;
+        }
+
+        public List<PredictedClass> getPredictedClasses() {
+            return predictedClasses;
+        }
+
+        public long getOtherPredictedClassDocCount() {
+            return otherPredictedClassDocCount;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(actualClass);

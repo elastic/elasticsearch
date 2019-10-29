@@ -104,7 +104,7 @@ public class RoutingNodeTests extends ESTestCase {
         assertThat(routingNode.shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
     }
 
-    public void testshardsWithState() {
+    public void testShardsWithStateInIndex() {
         assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).size(), equalTo(2));
         assertThat(routingNode.shardsWithState("test", ShardRoutingState.STARTED).size(), equalTo(1));
         assertThat(routingNode.shardsWithState("test", ShardRoutingState.RELOCATING).size(), equalTo(1));

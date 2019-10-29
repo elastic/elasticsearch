@@ -29,6 +29,8 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.LinkedHashSet;
+import java.util.Collection;
+import java.util.stream.Collectors;
 
 /**
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
@@ -303,22 +305,18 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     private boolean invariant() {
-        // initializingShards only contains the initializing shards
-        assert  initializingShards.stream().allMatch(shardRouting -> shardRouting.initializing());
 
-        // relocatingShards only contains the relocating shards
-        assert  relocatingShards.stream().allMatch(shardRouting -> shardRouting.relocating());
+        // initializingShards must consistent with that in shards
+        Collection<ShardRouting> shardRoutingsInitializing =
+            shards.values().stream().filter(ShardRouting::initializing).collect(Collectors.toList());
+        assert initializingShards.size() == shardRoutingsInitializing.size();
+        assert initializingShards.containsAll(shardRoutingsInitializing);
 
-        // shards must contains all the shards in initializingShards and relocatingShards
-        assert  initializingShards.stream().allMatch(shardRouting -> shards.containsValue(shardRouting));
-        assert  relocatingShards.stream().allMatch(shardRouting -> shards.containsValue(shardRouting));
-
-        // initializingShards must contain all the initializing shards
-        // relocatingShards must contain all the relocating shards
-        for (ShardRouting shardRouting : shards.values()) {
-            assert shardRouting.initializing() != true || initializingShards.contains(shardRouting);
-            assert shardRouting.relocating() != true || relocatingShards.contains(shardRouting);
-        }
+        // relocatingShards must consistent with that in shards
+        Collection<ShardRouting> shardRoutingsRelocating =
+            shards.values().stream().filter(ShardRouting::relocating).collect(Collectors.toList());
+        assert relocatingShards.size() == shardRoutingsRelocating.size();
+        assert relocatingShards.containsAll(shardRoutingsRelocating);
 
         return true;
     }

@@ -257,7 +257,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
         assert !(delayed && reason != Reason.NODE_LEFT) : "shard can only be delayed if it is unassigned due to a node leaving";
-        assert failedAllocations >= failedNoopAllocationNodeIds.size() : "failedAllocations: " + failedAllocations + " failedNodeIds: " + failedNoopAllocationNodeIds;
     }
 
     public UnassignedInfo(StreamInput in) throws IOException {

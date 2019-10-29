@@ -336,9 +336,9 @@ public class IndexLifecycleRunner {
     static ClusterState moveClusterStateToStep(String indexName, ClusterState currentState, StepKey currentStepKey,
                                                StepKey nextStepKey, LongSupplier nowSupplier,
                                                PolicyStepsRegistry stepRegistry, boolean forcePhaseDefinitionRefresh) {
-        validateTransition(indexName, currentState, currentStepKey, nextStepKey, stepRegistry);
-
         IndexMetaData idxMeta = currentState.getMetaData().index(indexName);
+        validateTransition(idxMeta, currentStepKey, nextStepKey, stepRegistry);
+
         Settings indexSettings = idxMeta.getSettings();
         String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
         logger.info("moving index [{}] from [{}] to [{}] in policy [{}]",
@@ -348,9 +348,8 @@ public class IndexLifecycleRunner {
             nextStepKey, nowSupplier, forcePhaseDefinitionRefresh);
     }
 
-    private static void validateTransition(String indexName, ClusterState currentState, StepKey currentStepKey, StepKey nextStepKey,
-                                   PolicyStepsRegistry stepRegistry) {
-        IndexMetaData idxMeta = currentState.getMetaData().index(indexName);
+    static void validateTransition(IndexMetaData idxMeta, StepKey currentStepKey, StepKey nextStepKey, PolicyStepsRegistry stepRegistry) {
+        String indexName = idxMeta.getIndex().getName();
         Settings indexSettings = idxMeta.getSettings();
         String indexPolicySetting = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
 
@@ -423,7 +422,7 @@ public class IndexLifecycleRunner {
         String failedStep = lifecycleState.getFailedStep();
         if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName()) && Strings.isNullOrEmpty(failedStep) == false) {
             StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
-            validateTransition(index, currentState, currentStepKey, nextStepKey, stepRegistry);
+            validateTransition(indexMetaData, currentStepKey, nextStepKey, stepRegistry);
             IndexLifecycleMetadata ilmMeta = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
 
             LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()

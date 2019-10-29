@@ -9,8 +9,10 @@ fi
 if [ -e /etc/sysctl.d/99-gce.conf ]; then
   # The GCE defaults disable IPv4 forwarding, which breaks the Docker
   # build. Workaround this by renaming the file so that it is executed
-  # earlier than our own overrides. This ultimately needs to be fixed at
-  # the image level - see infra issue 15654.
+  # earlier than our own overrides.
+  #
+  # This ultimately needs to be fixed at the image level - see infra
+  # issue 15654.
   sudo mv /etc/sysctl.d/99-gce.conf /etc/sysctl.d/98-gce.conf
 fi
 

@@ -145,7 +145,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     protected EvaluateDataFrameAction.Response evaluateDataFrame(String index, Evaluation evaluation) {
         EvaluateDataFrameAction.Request request =
             new EvaluateDataFrameAction.Request()
-                .setIndices(List.of(index))
+                .setIndices(Arrays.asList(index))
                 .setEvaluation(evaluation);
         return client().execute(EvaluateDataFrameAction.INSTANCE, request).actionGet();
     }

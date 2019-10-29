@@ -418,16 +418,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         changed |= rewriteClauses(queryRewriteContext, filterClauses, newBuilder::filter);
         changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
         // lets do some early termination and prevent any kind of rewriting if we have a mandatory query that is a MatchNoneQueryBuilder
-        final Stream<QueryBuilder> mustAndFilterClauseStream =
-            Stream.concat(newBuilder.mustClauses.stream(), newBuilder.filterClauses.stream());
-        Optional<QueryBuilder> any = mustAndFilterClauseStream
+        Optional<QueryBuilder> any = Stream.concat(newBuilder.mustClauses.stream(), newBuilder.filterClauses.stream())
             .filter(b -> b instanceof MatchNoneQueryBuilder).findAny();
         if (any.isPresent()) {
             return any.get();
         }
-        boolean allMatchNoneQuery = mustAndFilterClauseStream.allMatch(b -> b instanceof MatchNoneQueryBuilder);
-        if (allMatchNoneQuery) {
-            return new MatchNoneQueryBuilder();
+        // early termination when must clause is empty and optional clauses is returning MatchNoneQueryBuilder
+        if(mustClauses.size() == 0 && filterClauses.size() == 0) {
+           any = newBuilder.shouldClauses.stream().filter(b -> b instanceof MatchNoneQueryBuilder).findAny();
+           if (any.isPresent()) {
+               return any.get();
+           }
         }
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;

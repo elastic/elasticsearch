@@ -373,8 +373,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(new MatchNoneQueryBuilder(), rewritten);
 
         boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()));
-        boolQueryBuilder.filter(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()).toString()));
+        boolQueryBuilder.should(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()));
         rewritten = Rewriteable.rewrite(boolQueryBuilder, createShardContext());
         assertEquals(new MatchNoneQueryBuilder(), rewritten);
     }

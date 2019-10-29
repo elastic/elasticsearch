@@ -81,7 +81,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -107,6 +107,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -141,7 +142,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -159,6 +160,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -199,7 +201,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
@@ -226,6 +228,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -236,7 +239,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Finished analysis");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47612")
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/47612")
     public void testStopAndRestart() throws Exception {
         initialize("regression_stop_and_restart");
 
@@ -259,14 +262,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(jobId);
         assertProgress(jobId, 0, 0, 0, 0);
 
         startAnalytics(jobId);
 
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
-            DataFrameAnalyticsState state = getAnalyticsStats(jobId).get(0).getState();
+            DataFrameAnalyticsState state = getAnalyticsStats(jobId).getState();
             assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
                 equalTo(DataFrameAnalyticsState.STOPPED))));
         });
@@ -298,6 +301,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
+        assertInferenceModelPersisted(jobId);
     }
 
     private void initialize(String jobId) {

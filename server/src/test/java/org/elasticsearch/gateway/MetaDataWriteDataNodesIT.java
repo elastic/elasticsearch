@@ -49,7 +49,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
-        index("test", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index("test", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen("test");
         assertIndexInMetaState(dataNode, "test");
         assertIndexInMetaState(masterNode, "test");
@@ -65,7 +65,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String index = "index";
         assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0)
             .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node1)));
-        index(index, "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index(index, "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         assertIndexInMetaState(node1, index);
         Index resolveIndex = resolveIndex(index);
@@ -110,8 +110,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()).get();
 
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties")))
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties")))
             .get("integer_field"));
 
         // make sure it was also written on red node although index is closed
@@ -137,8 +137,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()).get();
 
-        getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties")))
+        getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties")))
             .get("float_field"));
 
         // make sure it was also written on red node although index is closed

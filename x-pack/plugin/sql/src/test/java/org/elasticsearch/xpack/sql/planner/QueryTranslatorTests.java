@@ -239,22 +239,37 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testDateRangeWithCurrentTimestamp() {
         testDateRangeWithCurrentFunctions("CURRENT_TIMESTAMP()", DATE_FORMAT, TestUtils.TEST_CFG.now());
+        testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_TIMESTAMP()", DATE_FORMAT,
+                TestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                TestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
     }
 
     public void testDateRangeWithCurrentDate() {
         testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_DATE()", DATE_FORMAT,
+                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().minusDays(2L)),
+                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().plusDays(1L)));
     }
 
     public void testDateRangeWithToday() {
         testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions_AndRangeOptimization("TODAY()", DATE_FORMAT,
+                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().minusDays(2L)),
+                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().plusDays(1L)));
     }
 
     public void testDateRangeWithNow() {
         testDateRangeWithCurrentFunctions("NOW()", DATE_FORMAT, TestUtils.TEST_CFG.now());
+        testDateRangeWithCurrentFunctions_AndRangeOptimization("NOW()", DATE_FORMAT,
+                TestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                TestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
     }
 
     public void testDateRangeWithCurrentTime() {
         testDateRangeWithCurrentFunctions("CURRENT_TIME()", TIME_FORMAT, TestUtils.TEST_CFG.now());
+        testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_TIME()", TIME_FORMAT,
+                TestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                TestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
     }
 
     private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {
@@ -292,6 +307,38 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals(">="), rq.includeLower());
         assertEquals(pattern, rq.format());
     }
+    
+    private void testDateRangeWithCurrentFunctions_AndRangeOptimization(String function, String pattern, ZonedDateTime lowerValue,
+            ZonedDateTime upperValue) {
+        String lowerOperator = randomFrom(new String[] {"<", "<="});
+        String upperOperator = randomFrom(new String[] {">", ">="});
+        // use both date-only interval (1 DAY) and time-only interval (1 second) to cover CURRENT_TIMESTAMP and TODAY scenarios
+        String interval = "(INTERVAL 1 DAY + INTERVAL 1 SECOND)";
+
+        PhysicalPlan p = optimizeAndPlan("SELECT some.string FROM test WHERE date" + lowerOperator + function + " + " + interval
+                + " AND date " + upperOperator + function + " - " + interval);
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("test.some.string", eqe.output().get(0).qualifiedName());
+        assertEquals(DataType.TEXT, eqe.output().get(0).dataType());
+        
+        Query query = eqe.queryContainer().query();
+        // the range queries optimization should create a single "range" query with "from" and "to" populated with the values
+        // in the two branches of the AND condition
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+
+        assertEquals(DateFormatter.forPattern(pattern)
+                .format(upperValue.withNano(DateUtils.getNanoPrecision(null, upperValue.getNano()))), rq.upper());
+        assertEquals(DateFormatter.forPattern(pattern)
+                .format(lowerValue.withNano(DateUtils.getNanoPrecision(null, lowerValue.getNano()))), rq.lower());
+
+        assertEquals(lowerOperator.equals("<="), rq.includeUpper());
+        assertEquals(upperOperator.equals(">="), rq.includeLower());
+        assertEquals(pattern, rq.format());
+    }
 
     public void testTranslateDateAdd_WhereClause_Painless() {
         LogicalPlan p = plan("SELECT int FROM test WHERE DATE_ADD('quarter',int, date) > '2018-09-04'::date");
@@ -308,6 +355,23 @@ public class QueryTranslatorTests extends ESTestCase {
                 "params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))",
             sc.script().toString());
         assertEquals("[{v=quarter}, {v=int}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
+    }
+
+    public void testTranslateDateDiff_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT int FROM test WHERE DATE_DIFF('week',date, date) > '2018-09-04'::date");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.dateDiff(" +
+                "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1),InternalSqlScriptUtils.docValue(doc,params.v2)," +
+                "params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))",
+            sc.script().toString());
+        assertEquals("[{v=week}, {v=date}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
     }
 
     public void testTranslateDateTrunc_WhereClause_Painless() {

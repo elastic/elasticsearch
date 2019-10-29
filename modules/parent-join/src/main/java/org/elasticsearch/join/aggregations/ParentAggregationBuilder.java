@@ -61,7 +61,7 @@ public class ParentAggregationBuilder
      *            the type of children documents
      */
     public ParentAggregationBuilder(String name, String childType) {
-        super(name, ValuesSourceType.BYTES, ValueType.STRING);
+        super(name, ValueType.STRING);
         if (childType == null) {
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }

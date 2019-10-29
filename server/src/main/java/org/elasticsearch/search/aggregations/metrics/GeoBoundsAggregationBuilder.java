@@ -56,7 +56,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     private boolean wrapLongitude = true;
 
     public GeoBoundsAggregationBuilder(String name) {
-        super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name, ValueType.GEOPOINT);
     }
 
     protected GeoBoundsAggregationBuilder(GeoBoundsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

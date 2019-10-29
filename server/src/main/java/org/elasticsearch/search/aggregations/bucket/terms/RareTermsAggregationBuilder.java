@@ -72,7 +72,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     private double precision = 0.001;
 
     public RareTermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, ValuesSourceType.ANY, valueType);
+        super(name, valueType);
     }
 
     private RareTermsAggregationBuilder(RareTermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

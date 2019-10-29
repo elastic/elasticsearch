@@ -230,7 +230,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
 
     private GeoDistanceAggregationBuilder(String name, GeoPoint origin,
                                           InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory) {
-        super(name, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        super(name, rangeFactory.getValueType());
         this.origin = origin;
     }
 

@@ -70,7 +70,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     }
 
     public GeoGridAggregationBuilder(String name) {
-        super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name, ValueType.GEOPOINT);
     }
 
     protected GeoGridAggregationBuilder(GeoGridAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

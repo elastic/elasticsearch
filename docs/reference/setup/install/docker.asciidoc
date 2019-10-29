@@ -165,15 +165,13 @@ The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 
 . From the command line, run:
 +
---
 ["source","sh"]
 --------------------------------------------
 screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
---
 
 . Press enter and use`sysctl` to configure `vm.max_map_count`:
-
++
 ["source","sh"]
 --------------------------------------------
 sysctl -w vm.max_map_count=262144
@@ -199,10 +197,9 @@ sudo sysctl -w vm.max_map_count=262144
 By default, {es} runs inside the container as user `elasticsearch` using
 uid:gid `1000:1000`.
 
-CAUTION: One exception is https://docs.openshift.com/container-platform/3.6/creating_images/guidelines.html#openshift-specific-guidelines[Openshift],
-which runs containers using an arbitrarily assigned user ID. Openshift will
-present persistent volumes with the gid set to `0` which will work without any
-adjustments.
+IMPORTANT: One exception is https://docs.openshift.com/container-platform/3.6/creating_images/guidelines.html#openshift-specific-guidelines[Openshift],
+which runs containers using an arbitrarily assigned user ID. 
+Openshift presents persistent volumes with the gid set to `0`, which works without any adjustments.
 
 If you are bind-mounting a local directory or file, it must be readable by the `elasticsearch` user.
 In addition, this user must have write access to the <<path-settings,data and log dirs>>. 

@@ -18,15 +18,13 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -41,6 +39,7 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.PrintWriter;
@@ -51,6 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -66,7 +66,6 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class TransformIndexerTests extends ESTestCase {
 
@@ -85,6 +84,7 @@ public class TransformIndexerTests extends ESTestCase {
             Executor executor,
             TransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
+            TransformProgressGatherer progressGatherer,
             TransformConfig transformConfig,
             Map<String, String> fieldMappings,
             TransformAuditor auditor,
@@ -100,6 +100,7 @@ public class TransformIndexerTests extends ESTestCase {
                 executor,
                 transformsConfigManager,
                 checkpointProvider,
+                progressGatherer,
                 auditor,
                 transformConfig,
                 fieldMappings,
@@ -204,10 +205,12 @@ public class TransformIndexerTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        client = mock(Client.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(client.threadPool()).thenReturn(threadPool);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        client = new NoOpClient(getTestName());
+    }
+
+    @After
+    public void tearDownClient() {
+        client.close();
     }
 
     public void testPageSizeAdapt() throws Exception {
@@ -251,6 +254,7 @@ public class TransformIndexerTests extends ESTestCase {
                 executor,
                 mock(TransformConfigManager.class),
                 mock(CheckpointProvider.class),
+                new TransformProgressGatherer(client),
                 config,
                 Collections.emptyMap(),
                 auditor,
@@ -269,7 +273,7 @@ public class TransformIndexerTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
 
             latch.countDown();
-            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
+            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.MINUTES);
             long pageSizeAfterFirstReduction = indexer.getPageSize();
             assertThat(initialPageSize, greaterThan(pageSizeAfterFirstReduction));
             assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
@@ -349,6 +353,7 @@ public class TransformIndexerTests extends ESTestCase {
                 executor,
                 mock(TransformConfigManager.class),
                 mock(CheckpointProvider.class),
+                new TransformProgressGatherer(client),
                 config,
                 Collections.emptyMap(),
                 auditor,

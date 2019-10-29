@@ -50,6 +50,7 @@ class ClientTransformIndexerBuilder {
             executor,
             transformsConfigManager,
             checkpointProvider,
+            new TransformProgressGatherer(client),
             new AtomicReference<>(this.indexerState),
             initialPosition,
             client,

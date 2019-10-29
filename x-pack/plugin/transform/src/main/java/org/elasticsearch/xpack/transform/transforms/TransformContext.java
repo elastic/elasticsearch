@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,6 +28,7 @@ class TransformContext {
     private final Listener taskListener;
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
     private final AtomicInteger failureCount;
+    private volatile Instant changesLastDetectedAt;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
@@ -93,6 +95,14 @@ class TransformContext {
 
     int getAndIncrementFailureCount() {
         return failureCount.getAndIncrement();
+    }
+
+    void setChangesLastDetectedAt(Instant time) {
+        changesLastDetectedAt = time;
+    }
+
+    Instant getChangesLastDetectedAt() {
+        return changesLastDetectedAt;
     }
 
     void shutdown() {

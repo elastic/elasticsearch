@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -81,6 +83,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     protected final TransformConfigManager transformsConfigManager;
     protected final CheckpointProvider checkpointProvider;
+    protected final TransformProgressGatherer progressGatherer;
+
     protected final TransformAuditor auditor;
     protected final TransformContext context;
 
@@ -111,6 +115,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         Executor executor,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
+        TransformProgressGatherer progressGatherer,
         TransformAuditor auditor,
         TransformConfig transformConfig,
         Map<String, String> fieldMappings,
@@ -125,6 +130,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         super(executor, initialState, initialPosition, jobStats);
         this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
+        this.progressGatherer = ExceptionsHelper.requireNonNull(progressGatherer, "progressGatherer");
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
@@ -217,18 +223,138 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void onStart(long now, ActionListener<Boolean> listener) {
-        try {
-            pivot = new Pivot(getConfig().getPivotConfig());
+        if (context.getTaskState() == TransformTaskState.FAILED) {
+            logger.debug("[{}] attempted to start while failed.", getJobId());
+            listener.onFailure(new ElasticsearchException("Attempted to start a failed transform [{}].", getJobId()));
+            return;
+        }
 
-            // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
-            if (pageSize == 0) {
-                pageSize = pivot.getInitialPageSize();
+        ActionListener<Void> finalListener = ActionListener.wrap(r -> {
+            try {
+                pivot = new Pivot(getConfig().getPivotConfig());
+
+                // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
+                if (pageSize == 0) {
+                    pageSize = pivot.getInitialPageSize();
+                }
+
+                runState = determineRunStateAtStart();
+                listener.onResponse(true);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
             }
+        }, listener::onFailure);
 
-            runState = determineRunStateAtStart();
-            listener.onResponse(true);
-        } catch (Exception e) {
-            listener.onFailure(e);
+        // On each run, we need to get the total number of docs and reset the count of processed docs
+        // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
+        // the progress here, and not in the executor.
+        ActionListener<Void> updateConfigListener = ActionListener.wrap(
+            updateConfigResponse -> {
+                if (initialRun()) {
+                    createCheckpoint(ActionListener.wrap(cp -> {
+                        nextCheckpoint = cp;
+                        // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
+                        // Consequently, the idea of percent complete no longer makes sense.
+                        if (nextCheckpoint.getCheckpoint() > 1) {
+                            progress = new TransformProgress(null, 0L, 0L);
+                            finalListener.onResponse(null);
+                            return;
+                        }
+                        progressGatherer.getInitialProgress(
+                            buildFilterQuery(),
+                            getConfig(),
+                            ActionListener.wrap(
+                                newProgress -> {
+                                    logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
+                                    progress = newProgress;
+                                    finalListener.onResponse(null);
+                                },
+                                failure -> {
+                                    progress = null;
+                                    logger.warn(
+                                        new ParameterizedMessage(
+                                            "[{}] unable to load progress information for task.",
+                                            getJobId()
+                                        ),
+                                        failure
+                                    );
+                                    finalListener.onResponse(null);
+                                }
+                            )
+                        );
+                    }, listener::onFailure));
+                } else {
+                    finalListener.onResponse(null);
+                }
+            },
+            listener::onFailure
+        );
+
+        // If we are continuous, we will want to verify we have the latest stored configuration
+        ActionListener<Void> changedSourceListener = ActionListener.wrap(
+            r -> {
+                if (isContinuous()) {
+                    transformsConfigManager.getTransformConfiguration(
+                        getJobId(),
+                        ActionListener.wrap(
+                            config -> {
+                                transformConfig = config;
+                                logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
+                                updateConfigListener.onResponse(null);
+                            },
+                            failure -> {
+                                String msg = TransformMessages.getMessage(
+                                    TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION,
+                                    getJobId()
+                                );
+                                logger.error(msg, failure);
+                                // If the transform config index or the transform config is gone, something serious occurred
+                                // We are in an unknown state and should fail out
+                                if (failure instanceof ResourceNotFoundException) {
+                                    updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
+                                } else {
+                                    auditor.warning(getJobId(), msg);
+                                    updateConfigListener.onResponse(null);
+                                }
+                            }
+                        )
+                    );
+                } else {
+                    updateConfigListener.onResponse(null);
+                }
+            },
+            listener::onFailure
+        );
+
+        // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
+        // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
+        if (context.getCheckpoint() > 0 && initialRun()) {
+            sourceHasChanged(
+                ActionListener.wrap(
+                    hasChanged -> {
+                        hasSourceChanged = hasChanged;
+                        if (hasChanged) {
+                            context.setChangesLastDetectedAt(Instant.now());
+                            logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
+                            changedSourceListener.onResponse(null);
+                        } else {
+                            logger.trace("[{}] source has not changed, finish indexer early.", getJobId());
+                            // No changes, stop executing
+                            listener.onResponse(false);
+                        }
+                    },
+                    failure -> {
+                        // If we failed determining if the source changed, it's safer to assume there were changes.
+                        // We should allow the failure path to complete as normal
+                        hasSourceChanged = true;
+                        listener.onFailure(failure);
+                    }
+                )
+            );
+        } else {
+            hasSourceChanged = true;
+            changedSourceListener.onResponse(null);
         }
     }
 
@@ -406,6 +532,33 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 lastAuditedExceptionMessage = e.getMessage();
             }
         }
+    }
+
+    private void sourceHasChanged(ActionListener<Boolean> hasChangedListener) {
+        checkpointProvider.sourceHasChanged(
+            getLastCheckpoint(),
+            ActionListener.wrap(
+                hasChanged -> {
+                    logger.trace("[{}] change detected [{}].", getJobId(), hasChanged);
+                    hasChangedListener.onResponse(hasChanged);
+                },
+                e -> {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "[{}] failed to detect changes for transform. Skipping update till next check.",
+                            getJobId()
+                        ),
+                        e
+                    );
+                    auditor.warning(
+                        getJobId(),
+                        "Failed to detect changes for transform, skipping update till next check. Exception: "
+                            + e.getMessage()
+                    );
+                    hasChangedListener.onResponse(false);
+                }
+            )
+        );
     }
 
     private boolean isIrrecoverableFailure(Exception e) {

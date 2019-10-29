@@ -169,10 +169,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 indexer.getProgress(),
                 ActionListener.wrap(
                     info -> {
-                        if (indexer.getChangesLastDetectedAt() == null) {
+                        if (context.getChangesLastDetectedAt() == null) {
                             listener.onResponse(info);
                         } else {
-                            listener.onResponse(info.setChangesLastDetectedAt(indexer.getChangesLastDetectedAt()));
+                            listener.onResponse(info.setChangesLastDetectedAt(context.getChangesLastDetectedAt()));
                         }
                     },
                     listener::onFailure

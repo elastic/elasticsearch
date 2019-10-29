@@ -41,6 +41,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             mock(Executor.class),
             mock(TransformConfigManager.class),
             mock(CheckpointProvider.class),
+            new TransformProgressGatherer(mock(Client.class)),
             new AtomicReference<>(IndexerState.STOPPED),
             null,
             mock(Client.class),

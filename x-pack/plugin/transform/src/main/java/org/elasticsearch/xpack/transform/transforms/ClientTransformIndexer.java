@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -39,7 +37,6 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
-import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,7 +49,6 @@ class ClientTransformIndexer extends TransformIndexer {
     private final Client client;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
     private volatile boolean shouldStopAtCheckpoint = false;
-    private volatile Instant changesLastDetectedAt;
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
 
@@ -60,6 +56,7 @@ class ClientTransformIndexer extends TransformIndexer {
         Executor executor,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
+        TransformProgressGatherer progressGatherer,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
         Client client,
@@ -78,6 +75,7 @@ class ClientTransformIndexer extends TransformIndexer {
             ExceptionsHelper.requireNonNull(executor, "executor"),
             transformsConfigManager,
             checkpointProvider,
+            progressGatherer,
             auditor,
             transformConfig,
             fieldMappings,
@@ -142,130 +140,6 @@ class ClientTransformIndexer extends TransformIndexer {
                 }
             )
         );
-    }
-
-    @Override
-    protected void onStart(long now, ActionListener<Boolean> listener) {
-        if (context.getTaskState() == TransformTaskState.FAILED) {
-            logger.debug("[{}] attempted to start while failed.", getJobId());
-            listener.onFailure(new ElasticsearchException("Attempted to start a failed transform [{}].", getJobId()));
-            return;
-        }
-        // On each run, we need to get the total number of docs and reset the count of processed docs
-        // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
-        // the progress here, and not in the executor.
-        ActionListener<Void> updateConfigListener = ActionListener.wrap(
-            updateConfigResponse -> {
-                if (initialRun()) {
-                    createCheckpoint(ActionListener.wrap(cp -> {
-                        nextCheckpoint = cp;
-                        // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
-                        // Consequently, the idea of percent complete no longer makes sense.
-                        if (nextCheckpoint.getCheckpoint() > 1) {
-                            progress = new TransformProgress(null, 0L, 0L);
-                            super.onStart(now, listener);
-                            return;
-                        }
-                        TransformProgressGatherer.getInitialProgress(
-                            this.client,
-                            buildFilterQuery(),
-                            getConfig(),
-                            ActionListener.wrap(
-                                newProgress -> {
-                                    logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
-                                    progress = newProgress;
-                                    super.onStart(now, listener);
-                                },
-                                failure -> {
-                                    progress = null;
-                                    logger.warn(
-                                        new ParameterizedMessage(
-                                            "[{}] unable to load progress information for task.",
-                                            getJobId()
-                                        ),
-                                        failure
-                                    );
-                                    super.onStart(now, listener);
-                                }
-                            )
-                        );
-                    }, listener::onFailure));
-                } else {
-                    super.onStart(now, listener);
-                }
-            },
-            listener::onFailure
-        );
-
-        // If we are continuous, we will want to verify we have the latest stored configuration
-        ActionListener<Void> changedSourceListener = ActionListener.wrap(
-            r -> {
-                if (isContinuous()) {
-                    transformsConfigManager.getTransformConfiguration(
-                        getJobId(),
-                        ActionListener.wrap(
-                            config -> {
-                                transformConfig = config;
-                                logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
-                                updateConfigListener.onResponse(null);
-                            },
-                            failure -> {
-                                String msg = TransformMessages.getMessage(
-                                    TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION,
-                                    getJobId()
-                                );
-                                logger.error(msg, failure);
-                                // If the transform config index or the transform config is gone, something serious occurred
-                                // We are in an unknown state and should fail out
-                                if (failure instanceof ResourceNotFoundException) {
-                                    updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
-                                } else {
-                                    auditor.warning(getJobId(), msg);
-                                    updateConfigListener.onResponse(null);
-                                }
-                            }
-                        )
-                    );
-                } else {
-                    updateConfigListener.onResponse(null);
-                }
-            },
-            listener::onFailure
-        );
-
-        // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
-        // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
-        if (context.getCheckpoint() > 0 && initialRun()) {
-            sourceHasChanged(
-                ActionListener.wrap(
-                    hasChanged -> {
-                        hasSourceChanged = hasChanged;
-                        if (hasChanged) {
-                            changesLastDetectedAt = Instant.now();
-                            logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
-                            changedSourceListener.onResponse(null);
-                        } else {
-                            logger.trace("[{}] source has not changed, finish indexer early.", getJobId());
-                            // No changes, stop executing
-                            listener.onResponse(false);
-                        }
-                    },
-                    failure -> {
-                        // If we failed determining if the source changed, it's safer to assume there were changes.
-                        // We should allow the failure path to complete as normal
-                        hasSourceChanged = true;
-                        listener.onFailure(failure);
-                    }
-                )
-            );
-        } else {
-            hasSourceChanged = true;
-            changedSourceListener.onResponse(null);
-        }
-    }
-
-    Instant getChangesLastDetectedAt() {
-        return changesLastDetectedAt;
     }
 
     @Override
@@ -495,39 +369,10 @@ class ClientTransformIndexer extends TransformIndexer {
                 }
             )
         );
-        if (shouldStopAtCheckpoint) {
-            stop();
-        }
-        if (shouldStopAtCheckpoint) {
-            stop();
-        }
-    }
 
-    private void sourceHasChanged(ActionListener<Boolean> hasChangedListener) {
-        checkpointProvider.sourceHasChanged(
-            getLastCheckpoint(),
-            ActionListener.wrap(
-                hasChanged -> {
-                    logger.trace("[{}] change detected [{}].", getJobId(), hasChanged);
-                    hasChangedListener.onResponse(hasChanged);
-                },
-                e -> {
-                    logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] failed to detect changes for transform. Skipping update till next check.",
-                            getJobId()
-                        ),
-                        e
-                    );
-                    auditor.warning(
-                        getJobId(),
-                        "Failed to detect changes for transform, skipping update till next check. Exception: "
-                            + e.getMessage()
-                    );
-                    hasChangedListener.onResponse(false);
-                }
-            )
-        );
+        if (shouldStopAtCheckpoint) {
+            stop();
+        }
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {

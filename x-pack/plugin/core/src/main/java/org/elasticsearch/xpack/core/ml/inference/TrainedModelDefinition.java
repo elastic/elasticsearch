@@ -5,11 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -25,16 +29,21 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrai
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class TrainedModelDefinition implements ToXContentObject, Writeable {
+public class TrainedModelDefinition implements ToXContentObject, Writeable, Accountable {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TrainedModelDefinition.class);
     public static final String NAME = "trained_mode_definition";
+    public static final String HEAP_MEMORY_ESTIMATION = "heap_memory_estimation";
 
     public static final ParseField TRAINED_MODEL = new ParseField("trained_model");
     public static final ParseField PREPROCESSORS = new ParseField("preprocessors");
@@ -105,6 +114,11 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
             PREPROCESSORS.getPreferredName(),
             preProcessors);
         builder.field(INPUT.getPreferredName(), input);
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
+            builder.humanReadableField(HEAP_MEMORY_ESTIMATION + "_bytes",
+                HEAP_MEMORY_ESTIMATION,
+                new ByteSizeValue(ramBytesUsed()));
+        }
         builder.endObject();
         return builder;
     }
@@ -148,6 +162,26 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(trainedModel, input, preProcessors);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOf(trainedModel);
+        size += RamUsageEstimator.sizeOf(input);
+        size += RamUsageEstimator.sizeOfCollection(preProcessors);
+        return size;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> accountables = new ArrayList<>(preProcessors.size() + 2);
+        accountables.add(Accountables.namedAccountable("input", input));
+        accountables.add(Accountables.namedAccountable("trained_model", trainedModel));
+        for(PreProcessor preProcessor : preProcessors) {
+            accountables.add(Accountables.namedAccountable("pre_processor_" + preProcessor.getName(), preProcessor));
+        }
+        return accountables;
     }
 
     public static class Builder {
@@ -204,8 +238,9 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
         }
     }
 
-    public static class Input implements ToXContentObject, Writeable {
+    public static class Input implements ToXContentObject, Writeable, Accountable {
 
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Input.class);
         public static final String NAME = "trained_mode_definition_input";
         public static final ParseField FIELD_NAMES = new ParseField("field_names");
 
@@ -265,6 +300,15 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
             return Objects.hash(fieldNames);
         }
 
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(fieldNames);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
     }
 
 }

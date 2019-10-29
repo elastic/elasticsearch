@@ -174,7 +174,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
         builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
         if (definition != null) {
-            builder.field(DEFINITION.getPreferredName(), definition);
+            builder.field(DEFINITION.getPreferredName(), definition, params);
         }
         builder.field(TAGS.getPreferredName(), tags);
         if (metadata != null) {

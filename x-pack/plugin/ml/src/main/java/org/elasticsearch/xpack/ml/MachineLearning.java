@@ -212,7 +212,6 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
-import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.InferenceInternalIndex;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -441,7 +440,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 MAX_OPEN_JOBS_PER_NODE,
                 MIN_DISK_SPACE_OFF_HEAP,
                 MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION,
-                InferenceProcessor.MAX_INFERENCE_PROCESSORS
+                InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE,
+                ModelLoadingService.INFERENCE_MODEL_CACHE_TTL
             );
     }
 
@@ -600,7 +601,11 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         // Inference components
         final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, xContentRegistry);
-        final ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider, threadPool, clusterService);
+        final ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
+            inferenceAuditor,
+            threadPool,
+            clusterService,
+            settings);
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,

@@ -59,15 +59,16 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final String TARGET_FIELD = "target_field";
     public static final String FIELD_MAPPINGS = "field_mappings";
     public static final String MODEL_INFO_FIELD = "model_info_field";
+    public static final String INCLUDE_MODEL_METADATA = "include_model_metadata";
 
     private final Client client;
     private final String modelId;
 
     private final String targetField;
     private final String modelInfoField;
-    private final Map<String, Object> modelInfo;
     private final InferenceConfig inferenceConfig;
     private final Map<String, String> fieldMapping;
+    private final boolean includeModelMetadata;
 
     public InferenceProcessor(Client client,
                               String tag,
@@ -75,16 +76,16 @@ public class InferenceProcessor extends AbstractProcessor {
                               String modelId,
                               InferenceConfig inferenceConfig,
                               Map<String, String> fieldMapping,
-                              String modelInfoField) {
+                              String modelInfoField,
+                              boolean includeModelMetadata) {
         super(tag);
-        this.client = client;
-        this.targetField = targetField;
-        this.modelInfoField = modelInfoField;
-        this.modelId = modelId;
-        this.inferenceConfig = inferenceConfig;
-        this.fieldMapping = fieldMapping;
-        this.modelInfo = new HashMap<>();
-        this.modelInfo.put("model_id", modelId);
+        this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
+        this.modelInfoField = ExceptionsHelper.requireNonNull(modelInfoField, MODEL_INFO_FIELD);
+        this.includeModelMetadata = includeModelMetadata;
+        this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
+        this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
+        this.fieldMapping = ExceptionsHelper.requireNonNull(fieldMapping, FIELD_MAPPINGS);
     }
 
     public String getModelId() {
@@ -128,8 +129,8 @@ public class InferenceProcessor extends AbstractProcessor {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
         response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
-        if (modelInfoField != null) {
-            ingestDocument.setFieldValue(modelInfoField, modelInfo);
+        if (includeModelMetadata) {
+            ingestDocument.setFieldValue(modelInfoField + "." + MODEL_ID, modelId);
         }
     }
 
@@ -207,15 +208,25 @@ public class InferenceProcessor extends AbstractProcessor {
                     maxIngestProcessors);
             }
 
+            boolean includeModelMetadata = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, INCLUDE_MODEL_METADATA, true);
             String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_ID);
             String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD);
             Map<String, String> fieldMapping = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
             InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
-            String modelInfoField = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_INFO_FIELD, "_model_info");
-            if (modelInfoField != null && tag != null) {
+            String modelInfoField = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_INFO_FIELD, "ml");
+            // If multiple inference processors are in the same pipeline, it is wise to tag them
+            // The tag will keep metadata entries from stepping on each other
+            if (tag != null) {
                 modelInfoField += "." + tag;
             }
-            return new InferenceProcessor(client, tag, targetField, modelId, inferenceConfig, fieldMapping, modelInfoField);
+            return new InferenceProcessor(client,
+                tag,
+                targetField,
+                modelId,
+                inferenceConfig,
+                fieldMapping,
+                modelInfoField,
+                includeModelMetadata);
         }
 
         // Package private for testing

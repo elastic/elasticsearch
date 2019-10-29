@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -25,6 +27,7 @@ import java.util.Objects;
  */
 public class TargetMeanEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TargetMeanEncoding.class);
     public static final ParseField NAME = new ParseField("target_mean_encoding");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");
@@ -158,4 +161,17 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
         return Objects.hash(field, featureName, meanMap, defaultValue);
     }
 
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOf(field);
+        size += RamUsageEstimator.sizeOf(featureName);
+        size += RamUsageEstimator.sizeOfMap(meanMap);
+        return size;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

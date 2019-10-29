@@ -78,12 +78,14 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/test_regression*"));
+            MachineLearning.BASE_PATH + "inference/test_regression*?human"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
         assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
         assertThat(response, containsString("\"model_id\":\"test_regression_model-2\""));
+        assertThat(response, containsString("\"heap_memory_estimation_bytes\""));
+        assertThat(response, containsString("\"heap_memory_estimation\""));
         assertThat(response, containsString("\"count\":2"));
 
         getModel = client().performRequest(new Request("GET",

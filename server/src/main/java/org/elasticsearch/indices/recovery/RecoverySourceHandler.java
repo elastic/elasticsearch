@@ -38,7 +38,6 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedSupplier;
@@ -154,8 +153,7 @@ public class RecoverySourceHandler {
                 IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
             };
 
-            final boolean useRetentionLeases = shard.indexSettings().isSoftDeleteEnabled()
-                && shard.indexSettings().getIndexMetaData().getState() != IndexMetaData.State.CLOSE;
+            final boolean useRetentionLeases = shard.indexSettings().isSoftDeleteEnabled();
             final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
 
             runUnderPrimaryPermit(() -> {

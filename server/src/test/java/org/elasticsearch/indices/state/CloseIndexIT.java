@@ -23,8 +23,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -39,8 +37,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.RetentionLease;
-import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
@@ -66,9 +62,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -485,39 +479,6 @@ public class CloseIndexIT extends ESIntegTestCase {
             IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
                 .indexService(resolveIndex(indexName)).getShard(0);
             assertThat(shard.routingEntry().toString(), shard.getOperationPrimaryTerm(), equalTo(primaryTerm));
-        }
-    }
-
-    public void testAddAndSyncRetentionLeases() throws Exception {
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        final String indexName = "closed_index_sync_retention_leases";
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-            .build());
-        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc", Integer.toString(n)).setSource("num", n)).collect(toList()));
-        ensureGreen(indexName);
-        assertAcked(client().admin().indices().prepareClose(indexName));
-        assertIndexIsClosed(indexName);
-        ensureGreen(indexName);
-        List<RetentionLease> addedRetentionLeases = new ArrayList<>();
-        for (String nodeName : internalCluster().nodesInclude(indexName)) {
-            IndexShard indexShard = internalCluster().getInstance(IndicesService.class, nodeName).
-                indexService(resolveIndex(indexName)).getShard(0);
-            if (indexShard.routingEntry().primary()) {
-                int numLeases = randomIntBetween(1, 10);
-                for (int i = 0; i < numLeases; i++) {
-                    PlainActionFuture<ReplicationResponse> future = new PlainActionFuture<>();
-                    addedRetentionLeases.add(indexShard.addRetentionLease("test-lease-" + i, randomNonNegativeLong(), "test", future));
-                    future.actionGet();
-                }
-            }
-        }
-        for (String nodeName : internalCluster().nodesInclude(indexName)) {
-            RetentionLeases retentionLeases = internalCluster().getInstance(IndicesService.class, nodeName).
-                indexService(resolveIndex(indexName)).getShard(0).getRetentionLeases();
-            assertThat(addedRetentionLeases, everyItem(is(in(retentionLeases.leases()))));
         }
     }
 

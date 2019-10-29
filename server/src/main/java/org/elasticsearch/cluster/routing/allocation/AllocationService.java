@@ -197,12 +197,13 @@ public class AllocationService {
                 }
                 int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
                 final Set<String> failedNodeIds;
-                if (failedShard.unassignedInfo() != null) {
-                    failedNodeIds = new HashSet<>(failedShard.unassignedInfo().getFailedNodeIds().size() + 1);
-                    failedNodeIds.addAll(failedShard.unassignedInfo().getFailedNodeIds());
+                if (failedShard.unassignedInfo() != null &&
+                    failedShard.unassignedInfo().getReason() == UnassignedInfo.Reason.REALLOCATED_REPLICA) {
+                    failedNodeIds = new HashSet<>(failedShard.unassignedInfo().getFailedNoopAllocationNodeIds().size() + 1);
+                    failedNodeIds.addAll(failedShard.unassignedInfo().getFailedNoopAllocationNodeIds());
                     failedNodeIds.add(failedShard.currentNodeId());
                 } else {
-                    failedNodeIds = Set.of(failedShard.currentNodeId());
+                    failedNodeIds = Collections.emptySet();
                 }
                 String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, message,
@@ -300,7 +301,7 @@ public class AllocationService {
                     unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
                         unassignedInfo.getFailure(), unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
                         unassignedInfo.getUnassignedTimeInMillis(), false, unassignedInfo.getLastAllocationStatus(),
-                        unassignedInfo.getFailedNodeIds()), shardRouting.recoverySource(), allocation.changes());
+                        unassignedInfo.getFailedNoopAllocationNodeIds()), shardRouting.recoverySource(), allocation.changes());
                 }
             }
         }

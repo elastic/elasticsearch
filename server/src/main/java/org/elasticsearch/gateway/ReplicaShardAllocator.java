@@ -308,7 +308,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         for (Map.Entry<DiscoveryNode, NodeStoreFilesMetaData> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
             if (ignorePreviousFailedNodes
-                && shard.unassignedInfo() != null && shard.unassignedInfo().getFailedNodeIds().contains(discoNode.getId())) {
+                && shard.unassignedInfo() != null && shard.unassignedInfo().getFailedNoopAllocationNodeIds().contains(discoNode.getId())) {
                 continue;
             }
             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue().storeFilesMetaData();

@@ -873,7 +873,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     UnassignedInfo newInfo = new UnassignedInfo(currInfo.getReason(), currInfo.getMessage(), currInfo.getFailure(),
                                                                 currInfo.getNumFailedAllocations(), currInfo.getUnassignedTimeInNanos(),
                                                                 currInfo.getUnassignedTimeInMillis(), currInfo.isDelayed(),
-                                                                allocationStatus, currInfo.getFailedNodeIds());
+                                                                allocationStatus, currInfo.getFailedNoopAllocationNodeIds());
                     ShardRouting updatedShard = shard.updateUnassigned(newInfo, shard.recoverySource());
                     changes.unassignedInfoUpdated(shard, newInfo);
                     shard = updatedShard;

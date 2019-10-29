@@ -45,14 +45,11 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -111,7 +108,6 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         req.dryRun(false);// now we allocate
 
         final int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
-        final Set<String> failedNodeIds = new HashSet<>();
         // now fail it N-1 times
         for (int i = 0; i < retries; i++) {
             ClusterState newState = task.execute(clusterState);
@@ -124,7 +120,6 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             List<FailedShard> failedShards = Collections.singletonList(
                 new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
                     new UnsupportedOperationException(), randomBoolean()));
-            failedNodeIds.add(routingTable.index("idx").shard(0).shards().get(0).currentNodeId());
             newState = allocationService.applyFailedShards(clusterState, failedShards);
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
@@ -136,7 +131,6 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
                 assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
             }
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i+1);
-            assertThat(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(), equalTo(failedNodeIds));
         }
 
 
@@ -149,7 +143,6 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shards().size(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries);
-        assertThat(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(), equalTo(failedNodeIds));
 
         req.setRetryFailed(true); // now we manually retry and get the shard back into initializing
         newState = task.execute(clusterState);
@@ -159,7 +152,6 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         assertEquals(1, routingTable.index("idx").shards().size());
         assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shards().get(0).state());
         assertEquals(0, routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations());
-        assertThat(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(), empty());
     }
 
     private ClusterState createInitialClusterState(AllocationService service) {

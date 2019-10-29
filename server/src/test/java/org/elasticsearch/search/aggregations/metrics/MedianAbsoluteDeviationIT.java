@@ -107,7 +107,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             multiValueSample[i * 2] = firstMultiValueDatapoint;
             multiValueSample[(i * 2) + 1] = secondMultiValueDatapoint;
 
-            IndexRequestBuilder builder = client().prepareIndex("idx", "_doc", String.valueOf(i))
+            IndexRequestBuilder builder = client().prepareIndex("idx").setId(String.valueOf(i))
                 .setSource(jsonBuilder()
                     .startObject()
                         .field("value", singleValueDatapoint)
@@ -131,7 +131,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", String.valueOf(i)).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId(String.valueOf(i)).setSource(jsonBuilder()
                 .startObject()
                 .field("value", i*2)
                 .endObject()));
@@ -570,8 +570,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             .get());
 
         indexRandom(true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

@@ -231,7 +231,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                                 new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
         BytesReference data = BytesReference.bytes(jsonBuilder().startObject().field("area", polygon).endObject());
 
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Point in polygon
@@ -293,7 +293,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                             new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", inverse).endObject());
-        client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("2").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // re-check point on polygon hole
@@ -327,7 +327,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Create a polygon crossing longitude 180 with hole.
@@ -337,7 +337,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                             .coordinate(175, 5).close()));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         result = client().prepareSearch()

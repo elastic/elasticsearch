@@ -28,21 +28,23 @@ import java.util.Optional;
 
 public class StopTransformRequest implements Validatable {
 
+    public static final String WAIT_FOR_CHECKPOINT = "wait_for_checkpoint";
+
     private final String id;
     private Boolean waitForCompletion;
+    private Boolean waitForCheckpoint;
     private TimeValue timeout;
     private Boolean allowNoMatch;
 
     public StopTransformRequest(String id) {
-        this.id = id;
-        waitForCompletion = null;
-        timeout = null;
+        this(id, null, null, null);
     }
 
-    public StopTransformRequest(String id, Boolean waitForCompletion, TimeValue timeout) {
+    public StopTransformRequest(String id, Boolean waitForCompletion, TimeValue timeout, Boolean waitForCheckpoint) {
         this.id = id;
         this.waitForCompletion = waitForCompletion;
         this.timeout = timeout;
+        this.waitForCheckpoint = waitForCheckpoint;
     }
 
     public String getId() {
@@ -73,6 +75,14 @@ public class StopTransformRequest implements Validatable {
         this.allowNoMatch = allowNoMatch;
     }
 
+    public Boolean getWaitForCheckpoint() {
+        return waitForCheckpoint;
+    }
+
+    public void setWaitForCheckpoint(Boolean waitForCheckpoint) {
+        this.waitForCheckpoint = waitForCheckpoint;
+    }
+
     @Override
     public Optional<ValidationException> validate() {
         if (id == null) {
@@ -86,7 +96,7 @@ public class StopTransformRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, waitForCompletion, timeout, allowNoMatch);
+        return Objects.hash(id, waitForCompletion, timeout, allowNoMatch, waitForCheckpoint);
     }
 
     @Override
@@ -102,6 +112,7 @@ public class StopTransformRequest implements Validatable {
         return Objects.equals(this.id, other.id)
                 && Objects.equals(this.waitForCompletion, other.waitForCompletion)
                 && Objects.equals(this.timeout, other.timeout)
+                && Objects.equals(this.waitForCheckpoint, other.waitForCheckpoint)
                 && Objects.equals(this.allowNoMatch, other.allowNoMatch);
     }
 

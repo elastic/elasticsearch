@@ -110,6 +110,9 @@ docker-compose up
 curl -X GET "localhost:9200/_cat/nodes?v&pretty"
 --------------------------------------------------
 
+Log messages go to the console and are handled by the configured Docker logging driver. 
+By default you can access logs with `docker logs`.
+
 To stop the cluster, run `docker-compose down`. 
 The data in the Docker volumes is preserved and loaded 
 when when you restart the cluster with `docker-compose up`.
@@ -121,15 +124,12 @@ specify the `-v` option: `docker-compose down -v`.
 For installation instructions, see
 https://docs.docker.com/compose/install[Install Compose on Linux] on docs.docker.com.
 
-[[docker-cli-run-prod-mode]]
+[[docker-prod-prerequisites]]
 ==== Using the Docker images in production
 
-[[docker-prod-prerequisites]]
-[IMPORTANT]
-=========================
+IMPORTANT: The `vm.max_map_count` kernel setting must be set to at least `262144` for production use. 
 
-The `vm.max_map_count` kernel setting needs to be set to at least `262144` for
-production use. Depending on your platform:
+How you set `vm.max_map_count` depends on your platform:
 
 * Linux
 +
@@ -182,36 +182,34 @@ docker-machine ssh
 sudo sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
-=========================
-
-===== Inspect status of cluster:
-
-["source","txt"]
---------------------------------------------
-curl http://127.0.0.1:9200/_cat/health
-1472225929 15:38:49 docker-cluster green 2 2 4 2 0 0 0 0 - 100.0%
---------------------------------------------
-// NOTCONSOLE
-
-Log messages go to the console and are handled by the configured Docker logging
-driver. By default you can access logs with `docker logs`.
 
 [[docker-configuration-methods]]
 ==== Configuring {es} with Docker
 
-{es} loads its configuration from files under `/usr/share/elasticsearch/config/`.
-These configuration files are documented in <<settings>> and <<jvm-options>>.
+When you run in Docker, the <<config-files-location,{es} configuration files>> are loaded from 
+`/usr/share/elasticsearch/config/`.
 
-The image offers several methods for configuring {es} settings with the
-conventional approach being to provide customized files, that is to say
-`elasticsearch.yml`, but it's also possible to use environment variables to set
-options:
+To use custom configuration files, you <<docker-config-bind-mount, bind-mount the files>>
+over the configuration files in the image. 
 
-===== A. Present the parameters via Docker environment variables
-For example, to define the cluster name with `docker run` you can pass
-`-e "cluster.name=mynewclustername"`. Double quotes are required.
+You can set individual {es} configuration parameters using Docker environment variables. 
+The <<docker-compose-file, sample compose file>> and the 
+<<docker-cli-run-dev-mode, single-node example>>  use this method. 
 
-===== B. Bind-mounted configuration
+You can also override the default command for the image to pass {es} configuration
+parameters as command line options. For example:
+
+["source","sh"]
+--------------------------------------------
+docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclustername
+--------------------------------------------
+
+While bind-mounting your configuration files is usually the preferred method in production, 
+you can also <<docker-config-custom-image, create a custom Docker image>> 
+that contains your configuration.
+
+[[docker-config-bind-mount]]
+===== Mounting {es} configuration files
 Create your custom config file and mount this over the image's corresponding file.
 For example, bind-mounting a `custom_elasticsearch.yml` with `docker run` can be
 accomplished with the parameter:
@@ -226,8 +224,10 @@ uid:gid `1000:1000`**. Bind mounted host directories and files, such as
 such as `/usr/share/elasticsearch/data`, write access is required as well.
 Also see note 1 below.
 
-===== C. Customized image
-In some environments, it may make more sense to prepare a custom image containing
+
+[[docker-config-custom-image]]
+===== Using custom Docker images
+In some environments, it might make more sense to prepare a custom image that contains
 your configuration. A `Dockerfile` to achieve this may be as simple as:
 
 ["source","sh",subs="attributes"]
@@ -251,16 +251,6 @@ comfortable with them adding the `--batch` flag to the plugin install command.
 See {plugins}/_other_command_line_parameters.html[Plugin Management documentation]
 for more details.
 
-[[override-image-default]]
-===== D. Override the image's default https://docs.docker.com/engine/reference/run/#cmd-default-command-or-options[CMD]
-
-Options can be passed as command-line options to the {es} process by
-overriding the default command for the image. For example:
-
-["source","sh"]
---------------------------------------------
-docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclustername
---------------------------------------------
 
 [[next-getting-started-tls-docker]]
 ==== Configuring SSL/TLS with the {es} Docker image
@@ -321,7 +311,7 @@ the <<docker-configuration-methods,configuration methods>>, you will
 additionally need the `memlock: true` ulimit, either defined in the
 https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Docker Daemon]
 or specifically set for the container. This is demonstrated above in the
-<<docker-prod-cluster-composefile,docker-compose.yml>>. If using `docker run`:
+<<docker-compose-file, sample compose file>>. If using `docker run`:
 +
 --
   -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1

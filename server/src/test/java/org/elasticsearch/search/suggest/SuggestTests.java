@@ -131,20 +131,25 @@ public class SuggestTests extends ESTestCase {
         Suggest suggest = new Suggest(Collections.singletonList(suggestion));
         BytesReference xContent = toXContent(suggest, XContentType.JSON, randomBoolean());
         assertEquals(
-            // @formatter:off
-            "{\"suggest\":"
-                + "{\"suggestionName\":"
-                    + "[{\"text\":\"entryText\","
-                    + "\"offset\":42,"
-                    + "\"length\":313,"
-                    + "\"options\":[{\"text\":\"someText\","
-                        + "\"highlighted\":\"somethingHighlighted\","
-                        + "\"score\":1.3,"
-                        + "\"collate_match\":true}]"
-                    + "}]"
-                + "}"
-            +"}",
-            // @formatter:on
+            "{"
+                + "  \"suggest\": {"
+                + "    \"suggestionName\": ["
+                + "      {"
+                + "        \"text\": \"entryText\","
+                + "        \"offset\": 42,"
+                + "        \"length\": 313,"
+                + "        \"options\": ["
+                + "          {"
+                + "            \"text\": \"someText\","
+                + "            \"highlighted\": \"somethingHighlighted\","
+                + "            \"score\": 1.3,"
+                + "            \"collate_match\": true"
+                + "          }"
+                + "        ]"
+                + "      }"
+                + "    ]"
+                + "  }"
+                + "}",
             xContent.utf8ToString());
     }
 

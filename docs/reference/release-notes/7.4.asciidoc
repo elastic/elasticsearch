@@ -66,8 +66,7 @@ Infra/Scripting::
 Machine Learning::
 * Fix detection of syslog-like timestamp in find_file_structure {pull}47970[#47970]
 * Reinstate ML daily maintenance actions {pull}47103[#47103] (issue: {issue}47003[#47003])
-* A reference to a temporary variable was causing forecast model restoration to 
-fail. The bug exhibited itself on MacOS builds with versions of clangd > 10.0.0. {ml-pull}688[#688]
+* Fix possibility of crash when calculating forecasts that overflow to disk {ml-pull}688[#688]
 
 Network::
 * Fix es.http.cname_in_publish_address Deprecation Logging {pull}47451[#47451] (issue: {issue}47436[#47436])
@@ -91,7 +90,6 @@ Store::
 
 Transform::
 * Prevent assignment if any node is older than 7.4 {pull}48055[#48055] (issue: {issue}48019[#48019])
-* Prevent assignment to nodes older than 7.4 {pull}48044[#48044] (issue: {issue}48019[#48019])
 * Fix bwc serialization with 7.3 {pull}48021[#48021]
 
 

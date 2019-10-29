@@ -110,7 +110,8 @@ public class IngestStatsTests extends ESTestCase {
         return new IngestStats(in);
     }
 
-    private void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats, boolean expectProcessors, boolean expectProcessorTypes){
+    private void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats, boolean expectProcessors,
+                                   boolean expectProcessorTypes){
         assertNotSame(ingestStats, serializedStats);
         assertNotSame(ingestStats.getTotalStats(), serializedStats.getTotalStats());
         assertNotSame(ingestStats.getPipelineStats(), serializedStats.getPipelineStats());

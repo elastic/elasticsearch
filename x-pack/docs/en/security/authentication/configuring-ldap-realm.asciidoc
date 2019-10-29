@@ -6,6 +6,11 @@ You can configure {es} to authenticate users by communicating with a Lightweight
 Directory Access Protocol (LDAP) server. To integrate with LDAP, you configure
 an `ldap` realm and map LDAP groups to user roles.
 
+For {es} authentication, LDAP realm configuration is only required for
+<<coordinating-node,coordinating nodes>>. For large clusters, we recommend using
+<<coordinating-only-node, coordinating only>> nodes to simplify realm
+configuration.
+
 For more information about LDAP realms, see 
 <<ldap-realm>>.
 

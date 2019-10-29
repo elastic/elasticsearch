@@ -28,10 +28,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.singleton;
 

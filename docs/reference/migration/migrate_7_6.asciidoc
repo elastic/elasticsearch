@@ -34,5 +34,5 @@ GitHub or the 'discuss' forums.
 ==== Update to vector function signatures
 The vector functions of the form `function(query, doc['field'])` are
 deprecated, and the form `function(query, 'field')` should be used instead.
-For example, `cosineSimilarity(query, doc['field']`` is replaced by
+For example, `cosineSimilarity(query, doc['field'])` is replaced by
 `cosineSimilarity(query, 'field')`.

@@ -29,7 +29,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.LinkedHashSet;
-import java.util.Collection;
 import java.util.stream.Collectors;
 
 /**
@@ -138,8 +137,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
             // TODO: change caller logic in RoutingNodes so that this check can go away
             return;
         }
-        ShardRouting previousValue = shards.put(newShard.shardId(), newShard);
+        ShardRouting previousValue = shards.remove(newShard.shardId());
         assert previousValue == oldShard : "expected shard " + previousValue + " but was " + oldShard;
+        shards.put(newShard.shardId(), newShard);
 
         if (oldShard.initializing()) {
             boolean exist = initializingShards.remove(oldShard);
@@ -306,17 +306,13 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private boolean invariant() {
 
-        // initializingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsInitializing =
-            shards.values().stream().filter(ShardRouting::initializing).collect(Collectors.toList());
-        assert initializingShards.size() == shardRoutingsInitializing.size();
-        assert initializingShards.containsAll(shardRoutingsInitializing);
+        //  the order of initializingShards must consistent with that in shards
+        assert new ArrayList<>(initializingShards)
+            .equals(shards.values().stream().filter(ShardRouting::initializing).collect(Collectors.toList()));
 
-        // relocatingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsRelocating =
-            shards.values().stream().filter(ShardRouting::relocating).collect(Collectors.toList());
-        assert relocatingShards.size() == shardRoutingsRelocating.size();
-        assert relocatingShards.containsAll(shardRoutingsRelocating);
+        // the order of relocatingShards must consistent with that in shards
+        assert new ArrayList<>(relocatingShards)
+            .equals(shards.values().stream().filter(ShardRouting::relocating).collect(Collectors.toList()));
 
         return true;
     }

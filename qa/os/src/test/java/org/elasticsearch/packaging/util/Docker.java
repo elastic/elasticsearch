@@ -137,20 +137,24 @@ public class Docker {
         boolean isElasticsearchRunning = false;
         int attempt = 0;
 
-        do {
-            String psOutput = dockerShell.run("ps ax").stdout;
+        String psOutput;
 
-            if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java -X")) {
+        do {
+            // Give the container a chance to crash out
+            Thread.sleep(1000);
+
+            psOutput = dockerShell.run("ps ax").stdout;
+
+            if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java")) {
                 isElasticsearchRunning = true;
                 break;
             }
 
-            Thread.sleep(1000);
-        } while (attempt++ < 20);
+        } while (attempt++ < 5);
 
         if (!isElasticsearchRunning) {
-            final String logs = sh.run("docker logs " + containerId).stdout;
-            fail("Elasticsearch container did start successfully.\n\n" + logs);
+            final String dockerLogs = sh.run("docker logs " + containerId).stdout;
+            fail("Elasticsearch container did start successfully.\n\n" + psOutput + "\n\n" + dockerLogs);
         }
     }
 

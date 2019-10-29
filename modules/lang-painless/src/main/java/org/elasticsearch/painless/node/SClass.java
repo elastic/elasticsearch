@@ -83,6 +83,7 @@ public final class SClass extends AStatement {
     private final String name;
     private final Printer debugStream;
     private final List<SFunction> functions = new ArrayList<>();
+    private final List<SField> fields = new ArrayList<>();
     private final Globals globals;
     private final List<AStatement> statements;
 
@@ -110,6 +111,10 @@ public final class SClass extends AStatement {
 
     void addFunction(SFunction function) {
         functions.add(function);
+    }
+
+    void addField(SField field) {
+        fields.add(field);
     }
 
     @Override
@@ -289,19 +294,14 @@ public final class SClass extends AStatement {
             function.write(classWriter, globals);
         }
 
+        // Write all fields:
+        for (SField field : fields) {
+            field.write(classWriter);
+        }
+
         // Write the constants
         if (false == globals.getConstantInitializers().isEmpty()) {
             Collection<Constant> inits = globals.getConstantInitializers().values();
-
-            // Fields
-            for (Constant constant : inits) {
-                classVisitor.visitField(
-                        Opcodes.ACC_FINAL | Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
-                        constant.name,
-                        constant.type.getDescriptor(),
-                        null,
-                        null).visitEnd();
-            }
 
             // Initialize the constants in a static initializer
             final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC,
@@ -313,20 +313,6 @@ public final class SClass extends AStatement {
             }
             clinit.returnValue();
             clinit.endMethod();
-        }
-
-        // Write class binding variables
-        for (Map.Entry<String, Class<?>> classBinding : globals.getClassBindings().entrySet()) {
-            String name = classBinding.getKey();
-            String descriptor = Type.getType(classBinding.getValue()).getDescriptor();
-            classVisitor.visitField(Opcodes.ACC_PRIVATE, name, descriptor, null, null).visitEnd();
-        }
-
-        // Write instance binding variables
-        for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
-            String name = instanceBinding.getValue();
-            String descriptor = Type.getType(instanceBinding.getKey().getClass()).getDescriptor();
-            classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, name, descriptor, null, null).visitEnd();
         }
 
         // Write any needsVarName methods for used variables
@@ -349,8 +335,10 @@ public final class SClass extends AStatement {
         Map<String, Object> statics = new HashMap<>();
         statics.put("$FUNCTIONS", table.getFunctionTable());
 
-        for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
-            statics.put(instanceBinding.getValue(), instanceBinding.getKey());
+        for (SField field : fields) {
+            if (field.getInstance() != null) {
+                statics.put(field.getName(), field.getInstance());
+            }
         }
 
         return statics;

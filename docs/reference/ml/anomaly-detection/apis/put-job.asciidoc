@@ -149,7 +149,8 @@ When the job is created, you receive the following results:
     "time_format" : "epoch_ms"
   },
   "model_snapshot_retention_days" : 1,
-  "results_index_name" : "shared"
+  "results_index_name" : "shared",
+  "allow_lazy_open" : false
 }
 ----
 // TESTRESPONSE[s/"job_version" : "8.0.0"/"job_version" : $body.job_version/]

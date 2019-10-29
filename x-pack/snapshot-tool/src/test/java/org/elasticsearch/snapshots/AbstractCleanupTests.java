@@ -60,13 +60,8 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
     private void cleanupRepository(BlobStoreRepository repository) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                repository.blobStore().blobContainer(repository.basePath()).delete();
-                future.onResponse(null);
-            }
-        });
+        repository.threadPool().generic().execute(ActionRunnable.run(future,
+            () -> repository.blobStore().blobContainer(repository.basePath()).delete()));
         future.actionGet();
         assertBlobsByPrefix(repository, repository.basePath(), "", Collections.emptyMap());
     }
@@ -159,9 +154,9 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test-idx-1", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-2", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
         }
         client().admin().indices().prepareRefresh().get();
 

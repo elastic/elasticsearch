@@ -37,8 +37,13 @@ public class ServerUtils {
 
     protected static final Logger logger =  LogManager.getLogger(ServerUtils.class);
 
-    private static final long waitTime = TimeUnit.SECONDS.toMillis(60);
-    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
+    // generous timeout  as nested virtualization can be quite slow ...
+    private static final long waitTime = TimeUnit.MINUTES.toMillis(
+        System.getProperty("tests.inVM") == null ? 3 : 1
+    );
+    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(
+        System.getProperty("tests.inVM") == null ? 30 : 10
+    );
 
     public static void waitForElasticsearch(Installation installation) throws IOException {
         waitForElasticsearch("green", null, installation);
@@ -97,11 +102,11 @@ public class ServerUtils {
 
     public static void runElasticsearchTests() throws IOException {
         makeRequest(
-            Request.Post("http://localhost:9200/library/book/1?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON));
 
         makeRequest(
-            Request.Post("http://localhost:9200/library/book/2?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON));
 
         String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"));

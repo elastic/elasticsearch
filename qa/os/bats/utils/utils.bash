@@ -349,7 +349,7 @@ run_elasticsearch_service() {
         if [ "$expectedStatus" = 0 ]; then
             background="-d"
         else
-            timeoutCommand="timeout 60s "
+            timeoutCommand="timeout 180s "
         fi
         # su and the Elasticsearch init script work together to break bats.
         # sudo isolates bats enough from the init script so everything continues
@@ -476,10 +476,10 @@ wait_for_elasticsearch_status() {
 
     if [ -z "index" ]; then
       echo "Tring to connect to elasticsearch and wait for expected status $desiredStatus..."
-      curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
+      curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desiredStatus&timeout=180s&pretty"
     else
       echo "Trying to connect to elasticsearch and wait for expected status $desiredStatus for index $index"
-      curl -sS "http://localhost:9200/_cluster/health/$index?wait_for_status=$desiredStatus&timeout=60s&pretty"
+      curl -sS "http://localhost:9200/_cluster/health/$index?wait_for_status=$desiredStatus&timeout=180s&pretty"
     fi
     if [ $? -eq 0 ]; then
         echo "Connected"
@@ -531,12 +531,12 @@ run_elasticsearch_tests() {
     [ "$status" -eq 0 ]
     echo "$output" | grep -w "green"
 
-    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/1?refresh=true&pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/_doc/1?refresh=true&pretty' -d '{
       "title": "Book #1",
       "pages": 123
     }'
 
-    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/2?refresh=true&pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/_doc/2?refresh=true&pretty' -d '{
       "title": "Book #2",
       "pages": 456
     }'

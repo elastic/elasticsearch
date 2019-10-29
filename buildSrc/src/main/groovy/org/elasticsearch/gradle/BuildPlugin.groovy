@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.gradle
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
-import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import com.github.jengelman.gradle.plugins.shadow.ShadowJavaPlugin
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
@@ -86,8 +87,8 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.regex.Matcher
 
-import static org.elasticsearch.gradle.tool.Boilerplate.findByName
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
+
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -131,11 +132,9 @@ class BuildPlugin implements Plugin<Project> {
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
 
-        setupSeed(project)
         configureRepositories(project)
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
         configureInputNormalization(project)
-        configureSourceSets(project)
         configureCompile(project)
         configureJavadoc(project)
         configureSourcesJar(project)
@@ -395,11 +394,6 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.getByName(JavaPlugin.COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
         project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
         project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
-
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            Configuration bundle = project.configurations.create('bundle')
-            bundle.dependencies.all(disableTransitiveDeps)
-        }
     }
 
     /** Adds repositories used by ES dependencies */
@@ -536,60 +530,45 @@ class BuildPlugin implements Plugin<Project> {
 
     /**Configuration generation of maven poms. */
     static void configurePomGeneration(Project project) {
-        // Only works with  `enableFeaturePreview('STABLE_PUBLISHING')`
-        // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
-        // dummy task to depend on the real pom generation
         project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
             TaskProvider generatePomTask = project.tasks.register("generatePom") { Task task ->
                 task.dependsOn 'generatePomFileForNebulaPublication'
             }
-            TaskProvider assemble = findByName(project.tasks, 'assemble')
-            if (assemble) {
-                assemble.configure({ Task t -> t.dependsOn(generatePomTask) } as Action<Task>)
+
+            maybeConfigure(project.tasks, LifecycleBasePlugin.ASSEMBLE_TASK_NAME) { assemble ->
+                assemble.dependsOn(generatePomTask)
             }
+
             project.tasks.withType(GenerateMavenPom).configureEach({ GenerateMavenPom pomTask ->
-                // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
-                // just make a copy.
-                ExtraPropertiesExtension ext = pomTask.extensions.getByType(ExtraPropertiesExtension)
-                ext.set('pomFileName', null)
-                pomTask.doLast {
-                    project.copy { CopySpec spec ->
-                        spec.from pomTask.destination
-                        spec.into "${project.buildDir}/distributions"
-                        spec.rename {
-                            ext.has('pomFileName') && ext.get('pomFileName') == null ?
-                                    "${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" :
-                                    ext.get('pomFileName')
-                        }
-                    }
-                }
+                pomTask.destination = "${project.buildDir}/distributions/${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom"
             } as Action<GenerateMavenPom>)
+
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
-            publishing.publications.all { MavenPublication publication -> // we only deal with maven
+
+            project.extensions.getByType(PublishingExtension).publications.all { MavenPublication publication -> // we only deal with maven
                 // add exclusions to the pom directly, for each of the transitive deps of this project's deps
                 publication.pom.withXml(fixupDependencies(project))
             }
-            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+
+            project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
                 MavenPublication publication = publishing.publications.maybeCreate('shadow', MavenPublication)
-                publication.with {
-                    ShadowExtension shadow = project.extensions.getByType(ShadowExtension)
-                    shadow.component(publication)
+                ShadowExtension shadow = project.extensions.getByType(ShadowExtension)
+                shadow.component(publication)
+                // Workaround for https://github.com/johnrengelman/shadow/issues/334
+                // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
+                publication.pom.withXml { xml ->
+                    Node dependenciesNode = (xml.asNode().get('dependencies') as NodeList).get(0) as Node
+                    project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).allDependencies.each { dependency ->
+                        if (dependency instanceof ProjectDependency) {
+                            def dependencyNode = dependenciesNode.appendNode('dependency')
+                            dependencyNode.appendNode('groupId', dependency.group)
+                            dependencyNode.appendNode('artifactId', dependency.getDependencyProject().convention.getPlugin(BasePluginConvention).archivesBaseName)
+                            dependencyNode.appendNode('version', dependency.version)
+                            dependencyNode.appendNode('scope', 'runtime')
+                        }
+                    }
                 }
                 generatePomTask.configure({ Task t -> t.dependsOn = ['generatePomFileForShadowPublication'] } as Action<Task>)
-            }
-        }
-    }
-
-    /**
-     * Add dependencies that we are going to bundle to the compile classpath.
-     */
-    static void configureSourceSets(Project project) {
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            ['main', 'test'].each {name ->
-                SourceSet sourceSet = project.extensions.getByType(SourceSetContainer).findByName(name)
-                if (sourceSet != null) {
-                    sourceSet.compileClasspath += project.configurations.getByName('bundle')
-                }
             }
         }
     }
@@ -653,6 +632,11 @@ class BuildPlugin implements Plugin<Project> {
                 }
             } as Action<GroovyCompile>)
         }
+
+        project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
+            // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile classpath
+            project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).extendsFrom(project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME))
+        }
     }
 
     static void configureJavadoc(Project project) {
@@ -676,6 +660,10 @@ class BuildPlugin implements Plugin<Project> {
              * that the default will change to html5 in the future.
              */
             (javadoc.options as CoreJavadocOptions).addBooleanOption('html5', true)
+        }
+        // ensure javadoc task is run with 'check'
+        project.pluginManager.withPlugin('lifecycle-base') {
+            project.tasks.getByName(LifecycleBasePlugin.CHECK_TASK_NAME).dependsOn(project.tasks.withType(Javadoc))
         }
         configureJavadocJar(project)
     }
@@ -713,15 +701,6 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(Jar).configureEach { Jar jarTask ->
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
-            project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                /*
-                 * Ensure the original jar task places its output in 'libs' so that we don't overwrite it with the shadow jar. We only do
-                 * this for tasks named jar to exclude javadoc and sources jars.
-                 */
-                if (jarTask instanceof ShadowJar == false && jarTask.name == JavaPlugin.JAR_TASK_NAME) {
-                    jarTask.destinationDir = new File(project.buildDir, 'libs')
-                }
-            }
             // fixup the jar manifest
             jarTask.doFirst {
                 // this doFirst is added before the info plugin, therefore it will run
@@ -758,22 +737,22 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            project.tasks.getByName('shadowJar').configure { ShadowJar shadowJar ->
+        project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
+            project.tasks.getByName(ShadowJavaPlugin.SHADOW_JAR_TASK_NAME).configure { ShadowJar shadowJar ->
                 /*
-                 * Replace the default "shadow" classifier with null
+                 * Replace the default "-all" classifier with null
                  * which will leave the classifier off of the file name.
                  */
-                shadowJar.classifier = null
+                shadowJar.archiveClassifier.set((String) null)
                 /*
                  * Not all cases need service files merged but it is
                  * better to be safe
                  */
                 shadowJar.mergeServiceFiles()
-                /*
-                 * Bundle dependencies of the "bundled" configuration.
-                 */
-                shadowJar.configurations = [project.configurations.getByName('bundle')]
+            }
+            // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
+            project.tasks.getByName(JavaPlugin.JAR_TASK_NAME).configure { Jar jar ->
+                jar.archiveClassifier.set('original')
             }
             // Make sure we assemble the shadow jar
             project.tasks.named(BasePlugin.ASSEMBLE_TASK_NAME).configure { Task task ->
@@ -824,6 +803,8 @@ class BuildPlugin implements Plugin<Project> {
                     } else {
                         nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}")
                     }
+                    //TODO remove once jvm.options are added to test system properties
+                    test.systemProperty ('java.locale.providers','SPI,COMPAT')
                 }
 
                 test.jvmArgumentProviders.add(nonInputProperties)
@@ -858,6 +839,7 @@ class BuildPlugin implements Plugin<Project> {
                         'tests.security.manager': 'true',
                         'jna.nosys': 'true'
 
+
                 // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
                 if (System.getProperty('ignore.tests.seed') != null) {
                     nonInputProperties.systemProperty('tests.seed', project.property('testSeed'))
@@ -890,7 +872,6 @@ class BuildPlugin implements Plugin<Project> {
                 test.systemProperty('io.netty.noUnsafe', 'true')
                 test.systemProperty('io.netty.noKeySetOptimization', 'true')
                 test.systemProperty('io.netty.recycler.maxCapacityPerThread', '0')
-                test.systemProperty('io.netty.allocator.numDirectArenas', '0')
 
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true
@@ -903,13 +884,17 @@ class BuildPlugin implements Plugin<Project> {
                     test.systemProperty 'tests.timeoutSuite', '1800000!'
                 }
 
-                project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                    // Test against a shadow jar if we made one
-                    test.classpath -= project.configurations.getByName('bundle')
-                    test.classpath -= project.tasks.getByName('compileJava').outputs.files
-                    test.classpath += project.tasks.getByName('shadowJar').outputs.files
-
-                    test.dependsOn project.tasks.getByName('shadowJar')
+                /*
+                 *  If this project builds a shadow JAR than any unit tests should test against that artifact instead of
+                 *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
+                 */
+                project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
+                    // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
+                    test.classpath -= project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).runtimeClasspath
+                    // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
+                    test.classpath += project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME)
+                    // Add the shadow JAR artifact itself
+                    test.classpath += project.files(project.tasks.named('shadowJar'))
                 }
             }
         }
@@ -921,59 +906,20 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.named(JavaPlugin.TEST_TASK_NAME).configure { it.mustRunAfter(precommit) }
         // only require dependency licenses for non-elasticsearch deps
         project.tasks.withType(DependencyLicensesTask).named('dependencyLicenses').configure {
-            it.dependencies = project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME).fileCollection { Dependency dependency ->
+            it.dependencies = project.configurations.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME).fileCollection { Dependency dependency ->
                 dependency.group.startsWith('org.elasticsearch') == false
             } - project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
-        }
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            project.tasks.withType(DependencyLicensesTask).named('dependencyLicenses').configure {
-                it.dependencies += project.configurations.getByName('bundle').fileCollection { Dependency dependency ->
-                    dependency.group.startsWith('org.elasticsearch') == false
-                }
-            }
         }
     }
 
     private static configureDependenciesInfo(Project project) {
-        TaskProvider<DependenciesInfoTask> deps = project.tasks.register("dependenciesInfo", DependenciesInfoTask, { DependenciesInfoTask task ->
-            task.runtimeConfiguration = project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME)
+        project.tasks.register("dependenciesInfo", DependenciesInfoTask, { DependenciesInfoTask task ->
+            task.runtimeConfiguration = project.configurations.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
             task.compileOnlyConfiguration = project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
             task.getConventionMapping().map('mappings') {
                 (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).mappings
             }
         } as Action<DependenciesInfoTask>)
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            deps.configure { task ->
-                task.runtimeConfiguration = project.configurations.create('infoDeps')
-                task.runtimeConfiguration.extendsFrom(project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME), project.configurations.getByName('bundle'))
-            }
-        }
-    }
-
-    /**
-     * Pins the test seed at configuration time so it isn't different on every
-     * {@link Test} execution. This is useful if random
-     * decisions in one run of {@linkplain Test} influence the
-     * outcome of subsequent runs. Pinning the seed up front like this makes
-     * the reproduction line from one run be useful on another run.
-     */
-    static String setupSeed(Project project) {
-        ExtraPropertiesExtension ext = project.rootProject.extensions.getByType(ExtraPropertiesExtension)
-        if (ext.has('testSeed')) {
-            /* Skip this if we've already pinned the testSeed. It is important
-             * that this checks the rootProject so that we know we've only ever
-             * initialized one time. */
-            return ext.get('testSeed')
-        }
-
-        String testSeed = System.getProperty('tests.seed')
-        if (testSeed == null) {
-            long seed = new Random(System.currentTimeMillis()).nextLong()
-            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT)
-        }
-
-        ext.set('testSeed', testSeed)
-        return testSeed
     }
 
     private static class TestFailureReportingPlugin implements Plugin<Project> {

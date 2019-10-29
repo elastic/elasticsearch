@@ -42,6 +42,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
@@ -2508,15 +2509,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case SNAPSHOT:
                 markAsRecovering("from snapshot", recoveryState); // mark the shard as recovering on the cluster state thread
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) recoveryState.getRecoverySource();
-                threadPool.generic().execute(() -> restoreFromRepository(
-                    repositoriesService.repository(recoverySource.snapshot().getRepository()),
-                    ActionListener.wrap(r -> {
+                threadPool.generic().execute(
+                    ActionRunnable.<Boolean>wrap(ActionListener.wrap(r -> {
                             if (r) {
                                 recoveryListener.onRecoveryDone(recoveryState);
                             }
                         },
-                        e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)))
-                );
+                        e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)),
+                        restoreListener -> restoreFromRepository(
+                            repositoriesService.repository(recoverySource.snapshot().getRepository()), restoreListener)));
                 break;
             case LOCAL_SHARDS:
                 final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();

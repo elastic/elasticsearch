@@ -155,7 +155,8 @@ public abstract class FileRestoreContext {
                     v -> {
                         store.incRef();
                         try {
-                            afterRestore(snapshotFiles, store, restoredSegmentsFile, listener);
+                            afterRestore(snapshotFiles, store, restoredSegmentsFile);
+                            listener.onResponse(null);
                         } finally {
                             store.decRef();
                         }
@@ -170,8 +171,7 @@ public abstract class FileRestoreContext {
         }
     }
 
-    private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetaData restoredSegmentsFile,
-                              ActionListener<Void> listener) {
+    private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetaData restoredSegmentsFile) {
         // read the snapshot data persisted
         try {
             Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
@@ -195,7 +195,6 @@ public abstract class FileRestoreContext {
         } catch (IOException e) {
             logger.warn("[{}] [{}] failed to list directory - some of files might not be deleted", shardId, snapshotId);
         }
-        listener.onResponse(null);
     }
 
     /**

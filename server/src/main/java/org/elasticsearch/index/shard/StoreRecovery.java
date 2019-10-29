@@ -147,6 +147,7 @@ final class StoreRecovery {
                     throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
                 }
             });
+            assert future.isDone();
             return future.actionGet();
         }
         return false;

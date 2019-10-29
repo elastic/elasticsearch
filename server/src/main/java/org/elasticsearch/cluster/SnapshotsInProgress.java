@@ -91,12 +91,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
         private final long repositoryStateId;
+        // see #useShardGenerations
+        private final boolean useShardGenerations;
         @Nullable private final Map<String, Object> userMetadata;
         @Nullable private final String failure;
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
                      long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
-                     String failure, Map<String, Object> userMetadata) {
+                     String failure, Map<String, Object> userMetadata, boolean useShardGenerations) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -114,6 +116,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.repositoryStateId = repositoryStateId;
             this.failure = failure;
             this.userMetadata = userMetadata;
+            this.useShardGenerations = useShardGenerations;
         }
 
         private static boolean assertShardsConsistent(State state, List<IndexId> indices,
@@ -128,20 +131,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 : "Indices in shards " + indexNamesInShards + " differ from expected indices " + indexNames + " for state [" + state + "]";
             return true;
         }
+
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
                      long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
-                     Map<String, Object> userMetadata) {
-            this(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, null, userMetadata);
+                     Map<String, Object> userMetadata, boolean useShardGenerations) {
+            this(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, null, userMetadata,
+                useShardGenerations);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
-                entry.repositoryStateId, shards, entry.failure, entry.userMetadata);
+                entry.repositoryStateId, shards, entry.failure, entry.userMetadata, entry.useShardGenerations);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure) {
             this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
-                 entry.repositoryStateId, shards, failure, entry.userMetadata);
+                 entry.repositoryStateId, shards, failure, entry.userMetadata, entry.useShardGenerations);
         }
 
         public Entry(Entry entry, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
@@ -192,6 +197,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return failure;
         }
 
+        /**
+         * Whether to write to the repository in a format only understood by versions newer than
+         * {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
+         *
+         * @return true if writing to repository in new format
+         */
+        public boolean useShardGenerations() {
+            return useShardGenerations;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -207,6 +222,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (!snapshot.equals(entry.snapshot)) return false;
             if (state != entry.state) return false;
             if (repositoryStateId != entry.repositoryStateId) return false;
+            if (useShardGenerations != entry.useShardGenerations) return false;
 
             return true;
         }
@@ -221,6 +237,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             result = 31 * result + indices.hashCode();
             result = 31 * result + Long.hashCode(startTime);
             result = 31 * result + Long.hashCode(repositoryStateId);
+            result = 31 * result + (useShardGenerations ? 1 : 0);
             return result;
         }
 
@@ -503,6 +520,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
                 userMetadata = in.readMap();
             }
+            final boolean useShardGenerations;
+            if (in.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                useShardGenerations = in.readBoolean();
+            } else {
+                useShardGenerations = false;
+            }
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
                                    partial,
@@ -512,7 +535,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                                    repositoryStateId,
                                    builder.build(),
                                    failure,
-                                   userMetadata
+                                   userMetadata,
+                                   useShardGenerations
                 );
         }
         this.entries = Arrays.asList(entries);
@@ -540,6 +564,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeOptionalString(entry.failure);
             if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
                 out.writeMap(entry.userMetadata);
+            }
+            if (out.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                out.writeBoolean(entry.useShardGenerations);
             }
         }
     }

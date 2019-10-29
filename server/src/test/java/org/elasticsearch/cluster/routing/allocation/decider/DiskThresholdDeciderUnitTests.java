@@ -54,6 +54,7 @@ import java.util.HashSet;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for the DiskThresholdDecider
@@ -444,4 +445,33 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
     }
 
+    public void testDiskUsageWithRelocations() {
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 0).getFreeBytes(),
+            equalTo(1000L));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 9).getFreeBytes(),
+            equalTo(991L));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), -9).getFreeBytes(),
+            equalTo(1009L));
+
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 0)
+            .getFreeDiskAsPercentage(), equalTo(100.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 0)
+            .getFreeDiskAsPercentage(), equalTo(50.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 100)
+            .getFreeDiskAsPercentage(), equalTo(40.0));
+
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 0)
+            .getUsedDiskAsPercentage(), equalTo(0.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 0)
+            .getUsedDiskAsPercentage(), equalTo(50.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 100)
+            .getUsedDiskAsPercentage(), equalTo(60.0));
+
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
+            new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), 0).getFreeBytes(), equalTo(Long.MAX_VALUE));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
+            new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), 10).getFreeBytes(), equalTo(Long.MAX_VALUE - 10));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
+            new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), -10).getFreeBytes(), equalTo(Long.MAX_VALUE));
+    }
 }

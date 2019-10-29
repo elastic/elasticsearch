@@ -71,7 +71,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
                         .addAlias(new Alias("my_alias"))
                         .addAlias(new Alias("an_alias"))
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2",  "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2",  "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 

@@ -105,10 +105,10 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         // choosing arbitrary top level actions to test
         client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
-        client.prepareDelete("idx", "type", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
+        client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
         client.admin().cluster().prepareDeleteStoredScript("id")
             .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
-        client.prepareIndex("idx", "type", "id").setSource("source", XContentType.JSON)
+        client.prepareIndex("idx").setId("id").setSource("source", XContentType.JSON)
             .execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test

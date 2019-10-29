@@ -53,14 +53,12 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
     protected ObjectArray<DoubleHistogram> states;
     protected final int numberOfSignificantValueDigits;
     protected final boolean keyed;
-    protected final boolean isHistogramValueSource;
 
     AbstractHDRPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
             double[] keys, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
-        this.isHistogramValueSource = valuesSource instanceof ValuesSource.Histogram;
         this.keyed = keyed;
         this.format = formatter;
         this.states = context.bigArrays().newObjectArray(1);
@@ -80,7 +78,7 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        if (isHistogramValueSource) {
+        if (valuesSource instanceof ValuesSource.Histogram) {
             final HistogramValues values = ((ValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
             return collectHistogramValues(values, bigArrays, sub);
         } else {

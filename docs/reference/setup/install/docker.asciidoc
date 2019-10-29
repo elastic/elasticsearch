@@ -185,7 +185,7 @@ sysctl -w vm.max_map_count=262144
 --
 The `vm.max_map_count` setting must be set via docker-machine:
 
-["source","txt"]
+["source","sh"]
 --------------------------------------------
 docker-machine ssh
 sudo sysctl -w vm.max_map_count=262144
@@ -209,9 +209,9 @@ For example, to prepare a local directory for storing data through a bind-mount:
 
 ["source","sh"]
 --------------------------------------------
-  mkdir esdatadir
-  chmod g+rwx esdatadir
-  chgrp 1000 esdatadir
+mkdir esdatadir
+chmod g+rwx esdatadir
+chgrp 1000 esdatadir
 --------------------------------------------
 
 As a last resort, you can force the container to mutate the ownership of
@@ -237,9 +237,9 @@ docker run --rm centos:7 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu &&
 If needed, adjust them in the Daemon or override them per container.
 For example, when using `docker run`, set:
 
-["source","txt"]
+["source","sh"]
 --------------------------------------------
-  --ulimit nofile=65535:65535
+--ulimit nofile=65535:65535
 --------------------------------------------
 
 ===== Disable swapping

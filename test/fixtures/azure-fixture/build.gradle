@@ -27,6 +27,7 @@ dependencies {
 }
 
 task fixtureJar(type: Jar) {
+    dependsOn compileJava
     from sourceSets.main.output
 }
 

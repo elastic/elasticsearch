@@ -431,8 +431,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
         if (aggregations == null) {
             logger.info(
-                "[" + getJobId() + "] unexpected null aggregations in search response. " +
-                    "Source indices have been deleted or closed."
+                "[{}] unexpected null aggregations in search response. " +
+                    "Source indices have been deleted or closed.",
+                getJobId()
             );
             auditor.info(
                 getJobId(),
@@ -455,7 +456,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
             default:
                 // Any other state is a bug, should not happen
-                logger.warn("Encountered unexpected run state [" + runState + "]");
+                logger.warn("[{}] Encountered unexpected run state [{}]", getJobId(), runState);
                 throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
         }
     }

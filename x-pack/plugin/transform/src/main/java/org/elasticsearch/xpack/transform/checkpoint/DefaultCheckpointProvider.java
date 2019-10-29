@@ -307,7 +307,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             e -> {
                 logger.debug(
                     (Supplier<?>) () -> new ParameterizedMessage(
-                        "Failed to retrieve source checkpoint for transform [{}]",
+                        "[{}] failed to retrieve source checkpoint for transform",
                         transformConfig.getId()
                     ),
                     e
@@ -325,9 +325,10 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             e -> {
                 logger.debug(
                     (Supplier<?>) () -> new ParameterizedMessage(
-                        "Failed to retrieve next checkpoint [{}] for transform [{}]",
-                        lastCheckpointNumber + 1,
-                        transformConfig.getId()
+                        "[{}] failed to retrieve next checkpoint [{}]",
+                        transformConfig.getId(),
+                        lastCheckpointNumber + 1
+
                     ),
                     e
                 );
@@ -348,9 +349,9 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             e -> {
                 logger.debug(
                     (Supplier<?>) () -> new ParameterizedMessage(
-                        "Failed to retrieve last checkpoint [{}] for transform [{}]",
-                        lastCheckpointNumber,
-                        transformConfig.getId()
+                        "[{}] failed to retrieve last checkpoint [{}]",
+                        transformConfig.getId(),
+                        lastCheckpointNumber
                     ),
                     e
                 );
@@ -375,7 +376,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         // spam protection: only warn the first time
         if (newSourceIndexes.isEmpty() && lastSourceIndexes.isEmpty() == false) {
             String message = "Source did not resolve to any open indexes";
-            logger.warn("{} for transform [{}]", message, transformConfig.getId());
+            logger.warn("[{}] {}", transformConfig.getId(), message);
             transformAuditor.warning(transformConfig.getId(), message);
         } else {
             Set<String> removedIndexes = Sets.difference(lastSourceIndexes, newSourceIndexes);
@@ -384,11 +385,11 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             if (removedIndexes.size() + addedIndexes.size() > AUDIT_CONCRETED_SOURCE_INDEX_CHANGES) {
                 String message = "Source index resolve found more than " + AUDIT_CONCRETED_SOURCE_INDEX_CHANGES + " changes, ["
                     + removedIndexes.size() + "] removed indexes, [" + addedIndexes.size() + "] new indexes";
-                logger.debug("{} for transform [{}]", message, transformConfig.getId());
+                logger.debug("[{}] {}", transformConfig.getId(), message);
                 transformAuditor.info(transformConfig.getId(), message);
             } else if (removedIndexes.size() + addedIndexes.size() > 0) {
                 String message = "Source index resolve found changes, removedIndexes: " + removedIndexes + ", new indexes: " + addedIndexes;
-                logger.debug("{} for transform [{}]", message, transformConfig.getId());
+                logger.debug("[{}] {}", transformConfig.getId(), message);
                 transformAuditor.info(transformConfig.getId(), message);
             }
         }

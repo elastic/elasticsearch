@@ -52,7 +52,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         for (int j = 0; j < numDocs; ++j) {
             String id = Integer.toString(j);
-            client().prepareIndex("test", "type1", id).setSource("text", "sometext").get();
+            client().prepareIndex("test").setId(id).setSource("text", "sometext").get();
         }
         client().admin().indices().prepareFlush("test").get();
         client().admin().indices().prepareRefresh().get();

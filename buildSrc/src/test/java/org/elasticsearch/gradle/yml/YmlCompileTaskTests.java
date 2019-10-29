@@ -20,7 +20,7 @@ import java.util.Set;
 
 public class YmlCompileTaskTests extends GradleUnitTestCase {
 
-    public static abstract class Base {
+    public abstract static class Base {
         Set<String> tests = new HashSet<>();
 
         protected abstract String getYaml();
@@ -30,7 +30,7 @@ public class YmlCompileTaskTests extends GradleUnitTestCase {
         }
     }
 
-    public static abstract class LineNumbers extends Base {
+    public abstract static class LineNumbers extends Base {
 
         @Override
         public void runTest(String name) {

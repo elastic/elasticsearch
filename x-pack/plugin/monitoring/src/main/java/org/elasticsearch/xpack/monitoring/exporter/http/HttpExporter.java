@@ -197,7 +197,20 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<String> PROXY_BASE_PATH_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","proxy.base_path",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.simpleString(
+                        key,
+                        value -> {
+                            if (Strings.isNullOrEmpty(value) == false) {
+                                try {
+                                    RestClientBuilder.cleanPathPrefix(value);
+                                } catch (RuntimeException e) {
+                                    Setting<?> concreteSetting = HttpExporter.PROXY_BASE_PATH_SETTING.getConcreteSetting(key);
+                                    throw new SettingsException("[" + concreteSetting.getKey() + "] is malformed [" + value + "]", e);
+                                }
+                            }
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope));
     /**
      * A boolean setting to enable or disable sniffing for extra connections.
      */

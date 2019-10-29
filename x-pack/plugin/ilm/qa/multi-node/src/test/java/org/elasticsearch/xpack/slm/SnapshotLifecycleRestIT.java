@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotLifecycleRestIT extends ESRestTestCase {
+    private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
     @Override
     protected boolean waitForAllSnapshotsWiped() {
@@ -209,7 +210,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         // Create a snapshot repo
         initializeRepo(repoId);
 
-        createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true);
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoId, indexName, true);
 
         ResponseException badResp = expectThrows(ResponseException.class,
             () -> client().performRequest(new Request("POST", "/_slm/policy/" + policyName + "-bad/_execute")));
@@ -353,7 +354,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         initializeRepo(repoId);
 
         // Create a policy with a retention period of 1 millisecond
-        createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true,
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoId, indexName, true,
             new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null));
 
         // Manually create a snapshot
@@ -449,7 +450,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         // Create a snapshot repo
         initializeRepo("repo");
         // Create a policy with a retention period of 1 millisecond
-        createSnapshotPolicy("policy", "snap", "1 2 3 4 5 ?", "repo", "*", true,
+        createSnapshotPolicy("policy", "snap", NEVER_EXECUTE_CRON_SCHEDULE, "repo", "*", true,
             new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null));
         final String snapshotName = executePolicy("policy");
 

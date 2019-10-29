@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -204,13 +203,10 @@ public class InboundHandler {
         long bytesNeedToRelease = 0;
         CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         try {
-            if (handler instanceof TransportService.ContextRestoreResponseHandler) {
-                TransportResponseHandler<T> delegate = ((TransportService.ContextRestoreResponseHandler<T>) handler).getDelegate();
-                if (delegate instanceof SearchTransportService.ConnectionCountingHandler && messageLengthBytes > 1024) {
-                    // the main purpose is to check memory before deserialization for large size of response
-                    bytesNeedToRelease = messageLengthBytes;
-                    breaker.addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_response>");
-                }
+            if (handler.canTripCircuitBreaker() && messageLengthBytes > 1024) {
+                // the main purpose is to check memory before deserialization for large size of response
+                bytesNeedToRelease = messageLengthBytes;
+                breaker.addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_response>");
             }
 
             response = handler.read(stream);

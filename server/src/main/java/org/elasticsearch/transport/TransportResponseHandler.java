@@ -28,4 +28,8 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
     void handleException(TransportException exp);
 
     String executor();
+
+    default boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

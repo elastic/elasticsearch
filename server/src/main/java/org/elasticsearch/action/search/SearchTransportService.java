@@ -396,7 +396,7 @@ public class SearchTransportService {
         }
     }
 
-    public final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
+    final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
         private final Map<String, Long> clientConnections;
         private final String nodeId;
 
@@ -425,6 +425,11 @@ public class SearchTransportService {
             // We need to remove the entry here so we don't leak when nodes go away forever
             assert assertNodePresent();
             clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return true;
         }
 
         private boolean assertNodePresent() {

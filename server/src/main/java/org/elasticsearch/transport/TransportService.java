@@ -1067,10 +1067,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             this.contextSupplier = contextSupplier;
         }
 
-        public TransportResponseHandler<T> getDelegate() {
-            return delegate;
-        }
-
         @Override
         public T read(StreamInput in) throws IOException {
             return delegate.read(in);
@@ -1104,6 +1100,11 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         @Override
         public String toString() {
             return getClass().getName() + "/" + delegate.toString();
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return delegate.canTripCircuitBreaker();
         }
 
         void setTimeoutHandler(TimeoutHandler handler) {

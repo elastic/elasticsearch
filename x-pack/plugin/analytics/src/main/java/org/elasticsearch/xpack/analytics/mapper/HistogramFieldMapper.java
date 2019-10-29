@@ -226,7 +226,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         public AtomicHistogramFieldData load(LeafReaderContext context) {
                             return new AtomicHistogramFieldData() {
                                 @Override
-                                public HistogramValues getHistogramValues() {
+                                public HistogramValues getHistogramValues() throws IOException {
                                     try {
                                         final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
                                         return new HistogramValues() {
@@ -236,16 +236,16 @@ public class HistogramFieldMapper extends FieldMapper {
                                             }
 
                                             @Override
-                                            public HistogramValue histogram() {
+                                            public HistogramValue histogram() throws IOException {
                                                 try {
                                                     return getHistogramValue(values.binaryValue());
                                                 } catch (IOException e) {
-                                                    throw new IllegalStateException("Cannot load doc value", e);
+                                                    throw new IOException("Cannot load doc value", e);
                                                 }
                                             }
                                         };
                                     } catch (IOException e) {
-                                        throw new IllegalStateException("Cannot load doc values", e);
+                                        throw new IOException("Cannot load doc values", e);
                                     }
 
                                 }
@@ -290,17 +290,14 @@ public class HistogramFieldMapper extends FieldMapper {
                 private HistogramValue getHistogramValue(final BytesRef bytesRef) throws IOException {
                     final ByteBufferStreamInput streamInput = new ByteBufferStreamInput(
                         ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
-                    final int numValues = streamInput.readVInt();
                     return new HistogramValue() {
                         double value;
                         int count;
-                        int position;
                         boolean isExhausted;
 
                         @Override
                         public boolean next() throws IOException {
-                            if (position < numValues) {
-                                position++;
+                            if (streamInput.available() > 0) {
                                 value = streamInput.readDouble();
                                 count = streamInput.readVInt();
                                 return true;
@@ -414,7 +411,6 @@ public class HistogramFieldMapper extends FieldMapper {
             }
             if (fieldType().hasDocValues()) {
                 BytesStreamOutput streamOutput = new BytesStreamOutput();
-                streamOutput.writeVInt(values.size());
                 for (int i = 0; i < values.size(); i++) {
                     streamOutput.writeDouble(values.get(i));
                     if (counts.get(i) < 0) {

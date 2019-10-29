@@ -41,7 +41,6 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         histogram.compress();
         Collection<Centroid> centroids = histogram.centroids();
-        streamOutput.writeVInt(centroids.size());
         Iterator<Centroid> iterator = centroids.iterator();
         while ( iterator.hasNext()) {
             Centroid centroid = iterator.next();

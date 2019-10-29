@@ -553,11 +553,10 @@ public abstract class ValuesSource {
             }
         }
     }
-
-
+    
     public abstract static class Histogram extends ValuesSource {
 
-        public abstract HistogramValues getHistogramValues(LeafReaderContext context);
+        public abstract HistogramValues getHistogramValues(LeafReaderContext context) throws IOException;
 
         public static class Fielddata extends Histogram {
 
@@ -583,7 +582,7 @@ public abstract class ValuesSource {
                 };
             }
 
-            public HistogramValues getHistogramValues(LeafReaderContext context) {
+            public HistogramValues getHistogramValues(LeafReaderContext context) throws IOException {
                 return indexFieldData.load(context).getHistogramValues();
             }
         }

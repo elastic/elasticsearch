@@ -36,6 +36,6 @@ public abstract class HistogramValues {
      * Get the {@link HistogramValue} associated with the current document.
      * The returned {@link HistogramValue} might be reused across calls.
      */
-    public abstract HistogramValue histogram();
+    public abstract HistogramValue histogram() throws IOException;
 
 }

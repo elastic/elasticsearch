@@ -19,6 +19,8 @@
 package org.elasticsearch.index.fielddata;
 
 
+import java.io.IOException;
+
 /**
  * {@link AtomicFieldData} specialization for histogram data.
  */
@@ -27,6 +29,6 @@ public interface AtomicHistogramFieldData extends AtomicFieldData {
     /**
      * Return Histogram values.
      */
-    HistogramValues getHistogramValues();
+    HistogramValues getHistogramValues() throws IOException;
 
 }

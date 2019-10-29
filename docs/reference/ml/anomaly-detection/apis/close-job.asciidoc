@@ -102,7 +102,7 @@ The following example closes the `total-requests` job:
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_close
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_openjob]
+// TEST[setup:server_metrics_openjob-raw]
 
 When the job is closed, you receive the following results:
 

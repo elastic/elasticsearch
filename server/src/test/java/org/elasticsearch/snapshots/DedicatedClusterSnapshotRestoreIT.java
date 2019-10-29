@@ -388,7 +388,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -440,7 +440,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -519,7 +519,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> indexing some data into test-idx-some");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-some", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-some", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client().prepareSearch("test-idx-some").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -540,8 +540,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                                                                           .put("number_of_replicas", 0)));
         logger.info("--> indexing some data into test-idx-all");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-all", "doc", Integer.toString(i), "foo", "bar" + i);
-            index("test-idx-closed", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-all", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-closed", Integer.toString(i), "foo", "bar" + i);
         }
         refresh("test-idx-closed", "test-idx-all"); // don't refresh test-idx-some it will take 30 sec until it times out...
         assertThat(client().prepareSearch("test-idx-all").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -688,7 +688,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> indexing some data into test-idx");
         for (int i = 0; i < 100; i++) {
-            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client().prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -835,7 +835,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -890,7 +890,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -951,8 +951,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numdocs = randomIntBetween(50, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1",
-                Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -1022,8 +1021,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> indexing some data");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomIntBetween(10, 100)];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(sourceIdx, "type1",
-                Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -1208,8 +1206,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numdocs = randomIntBetween(50, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1",
-                Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -1251,8 +1248,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numdocs = randomIntBetween(50, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1",
-                Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

@@ -206,16 +206,18 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 // Since we have not set the value for this yet, it SHOULD be null
                 buildTask.updateSeqNoPrimaryTermAndIndex(null, seqNoPrimaryTermAndIndex);
                 logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
+                TransformState transformState = stateAndStats.getTransformState();
                 indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
                     .setProgress(stateAndStats.getTransformState().getProgress())
-                    .setIndexerState(currentIndexerState(stateAndStats.getTransformState()));
+                    .setIndexerState(currentIndexerState(transformState))
+                    .setShouldStopAtCheckpoint(transformState.shouldStopAtNextCheckpoint());
                 logger.debug("[{}] Loading existing state: [{}], position [{}]",
                     transformId,
                     stateAndStats.getTransformState(),
                     stateAndStats.getTransformState().getPosition());
 
-                stateHolder.set(stateAndStats.getTransformState());
+                stateHolder.set(transformState);
                 final long lastCheckpoint = stateHolder.get().getCheckpoint();
 
                 if (lastCheckpoint == 0) {

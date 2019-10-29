@@ -459,6 +459,13 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             updateByQueryRequest.setScript(new Script("ctx._source.last = \"lastname\""));
         }
+        if (randomBoolean()) {
+            int slices = randomIntBetween(0, 4);
+            expectedParams.put("slices", Integer.toString(slices));
+            updateByQueryRequest.setSlices(slices);
+        } else {
+            expectedParams.put("slices", "1");
+        }
         setRandomIndicesOptions(updateByQueryRequest::setIndicesOptions, updateByQueryRequest::indicesOptions, expectedParams);
         setRandomTimeout(updateByQueryRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         Request request = RequestConverters.updateByQuery(updateByQueryRequest);
@@ -507,6 +514,13 @@ public class RequestConvertersTests extends ESTestCase {
             deleteByQueryRequest.setRequestsPerSecond(requestsPerSecond);
         } else {
             expectedParams.put("requests_per_second", "-1");
+        }
+        if (randomBoolean()) {
+            int slices = randomIntBetween(0, 4);
+            expectedParams.put("slices", Integer.toString(slices));
+            deleteByQueryRequest.setSlices(slices);
+        } else {
+            expectedParams.put("slices", "1");
         }
         setRandomIndicesOptions(deleteByQueryRequest::setIndicesOptions, deleteByQueryRequest::indicesOptions, expectedParams);
         setRandomTimeout(deleteByQueryRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);

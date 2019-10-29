@@ -86,8 +86,16 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     }
 
     protected StopTransformResponse stopTransform(String id) throws IOException {
+        return stopTransform(id, true, null, false);
+    }
+
+    protected StopTransformResponse stopTransform(String id,
+                                                  boolean waitForCompletion,
+                                                  TimeValue timeout,
+                                                  boolean waitForCheckpoint) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.transform().stopTransform(new StopTransformRequest(id, true, null), RequestOptions.DEFAULT);
+        return restClient.transform()
+            .stopTransform(new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint), RequestOptions.DEFAULT);
     }
 
     protected StartTransformResponse startTransform(String id, RequestOptions options) throws IOException {
@@ -298,7 +306,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                 .append("\"}");
             bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
 
-            if (i % 50 == 0) {
+            if (i % 100 == 0) {
                 BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
                 assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
                 bulk = new BulkRequest(indexName);

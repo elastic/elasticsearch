@@ -82,14 +82,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private static final Logger logger = LogManager.getLogger(TransformIndexer.class);
 
     protected final TransformConfigManager transformsConfigManager;
-    protected final CheckpointProvider checkpointProvider;
-    protected final TransformProgressGatherer progressGatherer;
+    private final CheckpointProvider checkpointProvider;
+    private final TransformProgressGatherer progressGatherer;
 
     protected final TransformAuditor auditor;
     protected final TransformContext context;
 
     protected volatile TransformConfig transformConfig;
-    protected volatile TransformProgress progress;
+    private volatile TransformProgress progress;
     protected volatile boolean auditBulkFailures = true;
     // Indicates that the source has changed for the current run
     protected volatile boolean hasSourceChanged = true;
@@ -100,8 +100,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private int pageSize = 0;
     private long logEvery = 1;
     private long logCount = 0;
-    protected volatile TransformCheckpoint lastCheckpoint;
-    protected volatile TransformCheckpoint nextCheckpoint;
+    private volatile TransformCheckpoint lastCheckpoint;
+    private volatile TransformCheckpoint nextCheckpoint;
 
     // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
     private volatile String lastAuditedExceptionMessage = null;

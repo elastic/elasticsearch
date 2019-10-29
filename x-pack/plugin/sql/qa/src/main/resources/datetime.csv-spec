@@ -477,13 +477,13 @@ F          | 391
 ;
 
 selectDateTruncWithInterval
-SELECT DATE_TRUNC('hour', INTERVAL '1 12:43:21.0123' DAY TO SECONDS) as dt_hour, DATE_TRUNC('minute', INTERVAL '1 12:43:21.0123' DAY TO SECONDS) as dt_min,
-DATE_TRUNC('seconds', INTERVAL '1 12:43:21.0123' DAY TO SECONDS) as dt_sec, DATE_TRUNC('ms', INTERVAL '1 12:43:21.0123' DAY TO SECONDS)::string as dt_millis,
-DATE_TRUNC('mcs', INTERVAL '1 12:43:21.0123' DAY TO SECONDS)::string as dt_micro, DATE_TRUNC('nanoseconds', INTERVAL '1 12:43:21.0123' DAY TO SECONDS)::string as dt_nano;
+SELECT DATE_TRUNC('hour', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_hour, DATE_TRUNC('minute', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_min,
+DATE_TRUNC('seconds', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_sec, DATE_TRUNC('ms', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_millis,
+DATE_TRUNC('mcs', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_micro, DATE_TRUNC('nanoseconds', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_nano;
 
     dt_hour    |    dt_min     |    dt_sec     |   dt_millis   |   dt_micro    |    dt_nano
 ---------------+---------------+---------------+---------------+---------------+---------------
-+1 12:00:00.0  |+1 12:43:00.0  |+1 12:43:21.0  |+1 12:43:21.123|+1 12:43:21.123|+1 12:43:21.123
++1 12:00:00.0  |+1 12:43:00.0  |+1 12:43:21.0  |+1 12:43:21.0  |+1 12:43:21.0  |+1 12:43:21.0
 ;
 
 selectDateTruncWithDateTime
@@ -595,6 +595,18 @@ SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp O
 10076   | 1985-07-09 00:00:00.000Z | 1985-07-01 00:00:00.000Z
 ;
 
+dateTruncOrderByWithInterval
+SELECT emp_no, DATE_TRUNC('decades',INTERVAL '19-3' YEAR TO MONTH) as idt FROM test_emp ORDER BY idt NULLS LAST, emp_no LIMIT 5;
+
+ emp_no |   idt
+--------+---------
+10001   | +10-0
+10002   | +10-0
+10003   | +10-0
+10004   | +10-0
+10005   | +10-0
+;
+
 dateTruncFilter
 schema::emp_no:i|hire_date:ts|dt:ts
 SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp WHERE DATE_TRUNC('quarter', hire_date) > '1994-07-01T00:00:00.000Z'::timestamp ORDER BY emp_no;
@@ -609,6 +621,23 @@ SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp W
 10054   | 1995-03-13 00:00:00.000Z | 1995-01-01 00:00:00.000Z
 10084   | 1995-12-15 00:00:00.000Z | 1995-10-01 00:00:00.000Z
 10093   | 1996-11-05 00:00:00.000Z | 1996-10-01 00:00:00.000Z
+;
+
+dateTruncFilterWithInterval
+SELECT first_name FROM test_emp WHERE hire_date > NOW() - DATE_TRUNC('centuries', INTERVAL 190 YEARS) ORDER BY first_name ASC LIMIT 10;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+Basil
+Berhard
+Berni
+Bezalel
+Bojan
 ;
 
 dateTruncGroupBy
@@ -629,6 +658,15 @@ SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING DATE_TR
 --------+-------------------------
 null    | 1999-04-30 00:00:00.000Z
 F       | 1997-05-19 00:00:00.000Z
+;
+
+dateTruncHavingWithInterval
+schema::gender:s|dt:ts
+SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING max(hire_date) - DATE_TRUNC('hour', INTERVAL 1 YEARS) >= '1997-01-01T00:00:00.000Z'::timestamp ORDER BY 1;
+
+ gender |         dt
+--------+-------------------------
+null    | 1999-04-30 00:00:00.000Z
 ;
 
 selectDatePartWithDate

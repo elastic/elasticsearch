@@ -301,9 +301,15 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         String brokenNode = internalCluster().startDataOnlyNode();
         MockTransportService transportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
+        CountDownLatch newNodeStarted = new CountDownLatch(1);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.TRANSLOG_OPS)) {
                 if (brokenNode.equals(connection.getNode().getName())) {
+                    try {
+                        newNodeStarted.await();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
                     throw new CircuitBreakingException("not enough memory for indexing", 100, 50, CircuitBreaker.Durability.TRANSIENT);
                 }
             }
@@ -312,6 +318,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)));
         internalCluster().startDataOnlyNode();
+        newNodeStarted.countDown();
         ensureGreen(indexName);
         transportService.clearAllRules();
     }

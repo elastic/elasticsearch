@@ -1150,7 +1150,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             Collections.singletonList(policyMetadata));
         Index index = clusterState.metaData().index(indexName).getIndex();
         IndexLifecycleRunner runner = new IndexLifecycleRunner(policyRegistry, null, threadPool, () -> now);
-        ClusterState nextClusterState = runner.moveClusterStateToRetryFailedStep(clusterState, indexName);
+        ClusterState nextClusterState = runner.moveClusterStateToFailedStep(clusterState, indexName, true);
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey,
             nextClusterState, now);
         LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(nextClusterState.metaData().index(indexName));

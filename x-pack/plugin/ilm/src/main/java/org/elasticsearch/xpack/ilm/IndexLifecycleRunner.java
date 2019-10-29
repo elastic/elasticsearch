@@ -182,7 +182,7 @@ public class IndexLifecycleRunner {
                     clusterService.submitStateUpdateTask("ilm-retry-failed-step", new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
-                            return moveClusterStateToRetryFailedStep(currentState, index);
+                            return moveClusterStateToFailedStep(currentState, index, true);
                         }
 
                         @Override
@@ -412,11 +412,7 @@ public class IndexLifecycleRunner {
         return newClusterStateBuilder.build();
     }
 
-    ClusterState moveClusterStateToRetryFailedStep(ClusterState currentState, String index) {
-        return moveClusterStateToFailedStep(currentState, index, true);
-    }
-
-    private ClusterState moveClusterStateToFailedStep(ClusterState currentState, String index, boolean isRetry) {
+    ClusterState moveClusterStateToFailedStep(ClusterState currentState, String index, boolean isAutomaticRetry) {
         ClusterState newState;
         IndexMetaData indexMetaData = currentState.metaData().index(index);
         if (indexMetaData == null) {
@@ -436,7 +432,7 @@ public class IndexLifecycleRunner {
                 lifecycleState, currentStepKey, nextStepKey, nowSupplier, true);
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
             Integer currentRetryCount = lifecycleState.getFailedStepRetryCount();
-            if (isRetry) {
+            if (isAutomaticRetry) {
                 retryStepState.setFailedStepRetryCount(currentRetryCount == null ? 1 : ++currentRetryCount);
             } else {
                 // manual retries don't update the retry count

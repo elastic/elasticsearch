@@ -103,8 +103,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<String> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                repository.snapshotShard(store, null, snapshotId, indexId, indexCommit,
-                    snapshotStatus, future1);
+                repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, true, future1);
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
@@ -118,8 +117,7 @@ public class FsRepositoryTests extends ESTestCase {
                 new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, ""));
             routing = ShardRoutingHelper.initialize(routing, localNode.getId(), 0);
             RecoveryState state = new RecoveryState(routing, localNode, null);
-            runGeneric(threadPool, () ->
-                repository.restoreShard(store, snapshotId, Version.CURRENT, indexId, shardId, state));
+            runGeneric(threadPool, () -> repository.restoreShard(store, snapshotId, indexId, shardId, state));
             assertTrue(state.getIndex().recoveredBytes() > 0);
             assertEquals(0, state.getIndex().reusedFileCount());
             assertEquals(indexCommit.getFileNames().size(), state.getIndex().recoveredFileCount());
@@ -131,7 +129,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<String> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-                repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit, snapshotStatus, future2);
+                repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit, snapshotStatus, true, future2);
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(2, copy.getIncrementalFileCount());
@@ -141,13 +139,13 @@ public class FsRepositoryTests extends ESTestCase {
             // roll back to the first snap and then incrementally restore
             RecoveryState firstState = new RecoveryState(routing, localNode, null);
             runGeneric(threadPool, () ->
-                repository.restoreShard(store, snapshotId, Version.CURRENT, indexId, shardId, firstState));
+                repository.restoreShard(store, snapshotId, indexId, shardId, firstState));
             assertEquals("should reuse everything except of .liv and .si",
                 commitFileNames.size()-2, firstState.getIndex().reusedFileCount());
 
             RecoveryState secondState = new RecoveryState(routing, localNode, null);
             runGeneric(threadPool, () ->
-                repository.restoreShard(store, incSnapshotId, Version.CURRENT, indexId, shardId, secondState));
+                repository.restoreShard(store, incSnapshotId, indexId, shardId, secondState));
             assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size()-2);
             assertEquals(secondState.getIndex().recoveredFileCount(), 2);
             List<RecoveryState.File> recoveredFiles =

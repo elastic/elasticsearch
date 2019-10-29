@@ -20,11 +20,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -188,14 +188,12 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                 if (checkpointsByIndex.containsKey(indexName)) {
                     // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(indexName);
-                    if (checkpoints.containsKey(shard.getShardRouting().getId())) {
-                        // there is already a checkpoint entry for this index/shard combination, check if they match
-                        if (checkpoints.get(shard.getShardRouting().getId()) != globalCheckpoint) {
-                            throw new CheckpointException("Global checkpoints mismatch for index [" + indexName + "] between shards of id ["
-                                    + shard.getShardRouting().getId() + "]");
-                        }
-                    } else {
-                        // 1st time we see this shard for this index, add the entry for the shard
+                    // 1st time we see this shard for this index, add the entry for the shard
+                    // or there is already a checkpoint entry for this index/shard combination
+                    // but with a higher global checkpoint. This is by design(not a problem) and
+                    // we take the higher value
+                    if (checkpoints.containsKey(shard.getShardRouting().getId()) == false
+                        || checkpoints.get(shard.getShardRouting().getId()) < globalCheckpoint) {
                         checkpoints.put(shard.getShardRouting().getId(), globalCheckpoint);
                     }
                 } else {

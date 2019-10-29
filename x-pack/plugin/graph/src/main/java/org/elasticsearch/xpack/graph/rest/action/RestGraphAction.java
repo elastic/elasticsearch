@@ -6,13 +6,11 @@
 
 package org.elasticsearch.xpack.graph.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
@@ -39,8 +37,6 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
  */
 public class RestGraphAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGraphAction.class));
-
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
     public static final ParseField RETURN_DETAILED_INFO = new ParseField("return_detailed_stats");
@@ -61,14 +57,8 @@ public class RestGraphAction extends BaseRestHandler {
     public static final ParseField TERM_FIELD = new ParseField("term");
 
     public RestGraphAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/{index}/_graph/explore", this,
-            GET, "/{index}/_xpack/graph/_explore", deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/{index}/_graph/explore", this,
-            POST, "/{index}/_xpack/graph/_explore", deprecationLogger);
+        controller.registerHandler(GET, "/{index}/_graph/explore", this);
+        controller.registerHandler(POST, "/{index}/_graph/explore", this);
     }
 
     @Override

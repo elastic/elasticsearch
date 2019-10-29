@@ -237,7 +237,9 @@ public class DataFrameDataExtractor {
     public DataSummary collectDataSummary() {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-        return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
+        long rows = searchResponse.getHits().getTotalHits().value;
+        LOGGER.debug("[{}] Data summary rows [{}]", context.jobId, rows);
+        return new DataSummary(rows, context.extractedFields.getAllFields().size());
     }
 
     public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {

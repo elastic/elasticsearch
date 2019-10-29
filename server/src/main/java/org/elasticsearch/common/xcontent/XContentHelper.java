@@ -171,7 +171,7 @@ public class XContentHelper {
      * @return reformatted JSON
      * @throws IOException if the reformatting fails, e.g. because the JSON is not well-formed
      */
-    public static String stripWhiteSpace(String json) throws IOException {
+    public static String stripWhitespace(String json) throws IOException {
         return convertToJson(new BytesArray(json), true, XContentType.JSON);
     }
 

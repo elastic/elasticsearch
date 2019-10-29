@@ -57,7 +57,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
                 });
 
         // Failures are grouped (by default)
-        final String expectedJson = XContentHelper.stripWhiteSpace(
+        final String expectedJson = XContentHelper.stripWhitespace(
             "{"
                 + "  \"type\": \"search_phase_execution_exception\","
                 + "  \"reason\": \"all shards failed\","

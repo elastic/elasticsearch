@@ -50,9 +50,7 @@ Machine Learning::
 * Reinstate ML daily maintenance actions {pull}47103[#47103] (issue: {issue}47003[#47003])
 * Fix two datafeed flush lockup bugs {pull}46982[#46982]
 * Throw an error when a datafeed needs CCS but it is not enabled for the node {pull}46044[#46044]
-* A reference to a temporary variable was causing forecast model restoration to 
-fail. The bug exhibited itself on MacOS builds with versions of clangd > 10.0.0
-{ml-pull}688[#688]
+* Fix possibility of crash when calculating forecasts that overflow to disk {ml-pull}688[#688]
 
 SQL::
 * SQL: Allow whitespaces in escape patterns {pull}47577[#47577] (issue: {issue}47401[#47401])

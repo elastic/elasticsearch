@@ -32,6 +32,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {
@@ -56,17 +57,13 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
                     writer.addDocument(doc);
                 }
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                    assertThat(reader.leaves().size(), greaterThan(2));
-                    assertSegmentReaders(reader, leaf -> {
-                        assertFalse(ShuffleForcedMergePolicy.isInterleavedSegment(leaf));
-                    });
+                    assertThat(reader.leaves().size(), greaterThan(1));
+                    assertSegmentReaders(reader, leaf -> assertFalse(ShuffleForcedMergePolicy.isInterleavedSegment(leaf)));
                 }
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertThat(reader.leaves().size(), equalTo(1));
-                    assertSegmentReaders(reader, leaf -> {
-                        assertTrue(ShuffleForcedMergePolicy.isInterleavedSegment(leaf));
-                    });
+                    assertSegmentReaders(reader, leaf -> assertTrue(ShuffleForcedMergePolicy.isInterleavedSegment(leaf)));
                 }
             }
         }

@@ -93,21 +93,7 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                states = bigArrays.grow(states, bucket + 1);
-
-                DoubleHistogram state = states.get(bucket);
-                if (state == null) {
-                    state = new DoubleHistogram(numberOfSignificantValueDigits);
-                    // Set the histogram to autosize so it can resize itself as
-                    // the data range increases. Resize operations should be
-                    // rare as the histogram buckets are exponential (on the top
-                    // level). In the future we could expose the range as an
-                    // option on the request so the histogram can be fixed at
-                    // initialisation and doesn't need resizing.
-                    state.setAutoResize(true);
-                    states.set(bucket, state);
-                }
-
+                DoubleHistogram state = getExistingOrNewHistogram(bigArrays, bucket);
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
                     for (int i = 0; i < valueCount; i++) {
@@ -123,20 +109,7 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                states = bigArrays.grow(states, bucket + 1);
-                DoubleHistogram state = states.get(bucket);
-                if (state == null) {
-                    state = new DoubleHistogram(numberOfSignificantValueDigits);
-                    // Set the histogram to autosize so it can resize itself as
-                    // the data range increases. Resize operations should be
-                    // rare as the histogram buckets are exponential (on the top
-                    // level). In the future we could expose the range as an
-                    // option on the request so the histogram can be fixed at
-                    // initialisation and doesn't need resizing.
-                    state.setAutoResize(true);
-                    states.set(bucket, state);
-                }
-
+                DoubleHistogram state = getExistingOrNewHistogram(bigArrays, bucket);
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();
                     while(sketch.next()) {
@@ -145,6 +118,23 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
                 }
             }
         };
+    }
+
+    private DoubleHistogram getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
+        states = bigArrays.grow(states, bucket + 1);
+        DoubleHistogram state = states.get(bucket);
+        if (state == null) {
+            state = new DoubleHistogram(numberOfSignificantValueDigits);
+            // Set the histogram to autosize so it can resize itself as
+            // the data range increases. Resize operations should be
+            // rare as the histogram buckets are exponential (on the top
+            // level). In the future we could expose the range as an
+            // option on the request so the histogram can be fixed at
+            // initialisation and doesn't need resizing.
+            state.setAutoResize(true);
+            states.set(bucket, state);
+        }
+        return state;
     }
 
 

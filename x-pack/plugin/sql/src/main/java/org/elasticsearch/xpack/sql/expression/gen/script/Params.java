@@ -132,7 +132,9 @@ public class Params {
 
     @Override
     public boolean equals(Object obj) {
-        if(!(obj instanceof  Params)) return false;
+        if ((obj instanceof  Params) == false) {
+            return false;
+        }
         return this.params.equals(((Params)obj).params);
     }
 }

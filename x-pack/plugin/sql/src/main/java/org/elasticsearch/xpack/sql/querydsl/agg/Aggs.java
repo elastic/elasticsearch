@@ -129,9 +129,9 @@ public class Aggs {
             if (id.equals(group.id())) {
                 return group;
             }
-            if(attr instanceof ScalarFunctionAttribute) {
+            if (attr instanceof ScalarFunctionAttribute) {
                 ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) attr;
-                if (group.script()!=null && group.script().equals(sfa.script())) {
+                if (group.script() != null && group.script().equals(sfa.script())) {
                     return group;
                 }
             }

@@ -30,14 +30,20 @@ abstract class Param<T> {
 
     @Override
     public int hashCode() {
-        if(this.value==null) return Objects.hashCode(null);
+        if (this.value == null) {
+            return Objects.hashCode(null);
+        }
         return this.value.hashCode();
     }
 
     @Override
     public boolean equals(Object obj) {
-        if(!(obj instanceof  Param)) return false;
-        if(this.value==null) return ((Param)obj).value == null;
+        if ((obj instanceof  Param) == false) {
+            return false;
+        }
+        if (this.value == null) {
+            return ((Param)obj).value == null;
+        }
         return this.value.equals(((Param)obj).value);
     }
 }

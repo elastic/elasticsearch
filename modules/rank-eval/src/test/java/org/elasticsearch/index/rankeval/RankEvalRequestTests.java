@@ -92,9 +92,4 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
         return mutation;
     }
 
-    public void testInvalidSearchType() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> new RankEvalRequest(RankEvalSpecTests.createTestItem(), new String[] { "test" }).searchType("invalid"));
-        assertEquals("No search type for [invalid]", ex.getMessage());
-    }
 }

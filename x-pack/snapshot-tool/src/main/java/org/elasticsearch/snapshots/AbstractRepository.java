@@ -201,16 +201,8 @@ public abstract class AbstractRepository {
             GroupedActionListener<String> groupedOrphanedIndicesListener = new GroupedActionListener<>(orphanedIndicesFuture,
                     deletionCandidates.size());
             for (String candidate : deletionCandidates) {
-                executor.submit(new ActionRunnable<>(groupedOrphanedIndicesListener) {
-                    @Override
-                    protected void doRun() {
-                        if (isOrphaned(candidate, shiftedIndexNTimestamp)) {
-                            groupedOrphanedIndicesListener.onResponse(candidate);
-                        } else {
-                            groupedOrphanedIndicesListener.onResponse(null);
-                        }
-                    }
-                });
+                executor.submit(ActionRunnable.supply(
+                    groupedOrphanedIndicesListener, () -> isOrphaned(candidate, shiftedIndexNTimestamp) ? candidate : null));
             }
             Set<String> orphanedIndexIds =
                     new TreeSet<>(orphanedIndicesFuture.actionGet().stream().filter(Objects::nonNull).collect(Collectors.toSet()));
@@ -229,17 +221,13 @@ public abstract class AbstractRepository {
             GroupedActionListener<Void> groupedRemovalListener =
                     new GroupedActionListener<>(removalFuture, orphanedIndexIds.size());
             for (final String indexId : orphanedIndexIds) {
-                executor.submit(new ActionRunnable<>(groupedRemovalListener) {
-                    @Override
-                    protected void doRun() {
-                        terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned index " + indexId);
-                        Tuple<Integer, Long> countSize = deleteIndex(indexId);
-                        terminal.println("Index directory " + indexId + ", files removed " + countSize.v1() +
-                                ", bytes freed " + countSize.v2());
-                        results.add(countSize);
-                        groupedRemovalListener.onResponse(null);
-                    }
-                });
+                executor.submit(ActionRunnable.run(groupedRemovalListener, () -> {
+                    terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned index " + indexId);
+                    Tuple<Integer, Long> countSize = deleteIndex(indexId);
+                    terminal.println("Index directory " + indexId + ", files removed " + countSize.v1() +
+                        ", bytes freed " + countSize.v2());
+                    results.add(countSize);
+                }));
             }
             Exception ex = null;
             try {

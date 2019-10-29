@@ -15,9 +15,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
@@ -142,7 +140,7 @@ public class DataFrameAnalyticsManager {
             ActionListener.wrap(
                 r-> reindexDataframeAndStartAnalysis(task, config),
                 e -> {
-                    if (e instanceof IndexNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         reindexDataframeAndStartAnalysis(task, config);
                     } else {
                         task.updateState(DataFrameAnalyticsState.FAILED, e.getMessage());
@@ -159,34 +157,18 @@ public class DataFrameAnalyticsManager {
         }
 
         // Reindexing is complete; start analytics
-        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
+        ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
             refreshResponse -> {
                 if (task.isStopping()) {
                     LOGGER.debug("[{}] Stopping before starting analytics process", config.getId());
                     return;
                 }
                 task.setReindexingTaskId(null);
-                startAnalytics(task, config, false);
-            },
-            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
-        );
-
-        // Refresh to ensure copied index is fully searchable
-        ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
-            bulkResponse -> {
-                if (task.isStopping()) {
-                    LOGGER.debug("[{}] Stopping before refreshing destination index", config.getId());
-                    return;
-                }
                 task.setReindexingFinished();
                 auditor.info(
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex()));
-                ClientHelper.executeAsyncWithOrigin(client,
-                    ClientHelper.ML_ORIGIN,
-                    RefreshAction.INSTANCE,
-                    new RefreshRequest(config.getDest().getIndex()),
-                    refreshListener);
+                startAnalytics(task, config, false);
             },
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
@@ -224,7 +206,7 @@ public class DataFrameAnalyticsManager {
                 ));
             },
             e -> {
-                if (org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     auditor.info(
                         config.getId(),
                         Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX, config.getDest().getIndex()));
@@ -260,7 +242,7 @@ public class DataFrameAnalyticsManager {
                             }
                         }),
                     error -> {
-                        if (error instanceof ResourceNotFoundException) {
+                        if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                             // Task has stopped
                         } else {
                             task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());

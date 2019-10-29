@@ -115,6 +115,8 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  monthName(Object, String)
   Integer quarter(Object, String)
   Integer weekOfYear(Object, String)
+  ZonedDateTime dateAdd(String, Integer, Object, String)
+  Integer dateDiff(String, Object, Object, String)
   ZonedDateTime dateTrunc(String, Object, String)
   Integer datePart(String, Object, String)
   IntervalDayTime intervalDayTime(String, String)

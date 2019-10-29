@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.gradle.precommit
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.tool.ClasspathUtils
-import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
@@ -43,11 +42,11 @@ class PrecommitTasks {
     public static TaskProvider create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
-            forbiddenApisCliJar('de.thetaphi:forbiddenapis:2.6')
+            forbiddenApisCliJar('de.thetaphi:forbiddenapis:2.7')
         }
 
         Configuration jarHellConfig = project.configurations.create("jarHell")
-        if (ClasspathUtils.isElasticsearchProject() && project.path.equals(":libs:elasticsearch-core") == false) {
+        if (ClasspathUtils.isElasticsearchProject(project) && project.path.equals(":libs:elasticsearch-core") == false) {
             // External plugins will depend on this already via transitive dependencies.
             // Internal projects are not all plugins, so make sure the check is available
             // we are not doing this for this project itself to avoid jar hell with itself
@@ -121,13 +120,10 @@ class PrecommitTasks {
         }
     }
 
-    private static TaskProvider configureJarHell(Project project, Configuration jarHelConfig) {
+    private static TaskProvider configureJarHell(Project project, Configuration jarHellConfig) {
         return project.tasks.register('jarHell', JarHellTask) { task ->
-            task.classpath = project.sourceSets.test.runtimeClasspath + jarHelConfig;
-            if (project.plugins.hasPlugin(ShadowPlugin)) {
-                task.classpath += project.configurations.bundle
-            }
-            task.dependsOn(jarHelConfig);
+            task.classpath = project.sourceSets.test.runtimeClasspath + jarHellConfig
+            task.dependsOn(jarHellConfig)
         }
     }
 
@@ -149,13 +145,16 @@ class PrecommitTasks {
             doFirst {
                 // we need to defer this configuration since we don't know the runtime java version until execution time
                 targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
-                if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
+                /*
+                TODO: Reenable once Gradle supports Java 13 or later!
+                if (project.runtimeJavaVersion > JavaVersion.VERSION_13) {
                     project.logger.info(
-                            "Forbidden APIs does not support java version past 11. Will use the signatures from 11 for ",
+                            "Forbidden APIs does not support java version past 13. Will use the signatures from 13 for ",
                             project.runtimeJavaVersion
                     )
-                    targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
+                    targetCompatibility = JavaVersion.VERSION_13.getMajorVersion()
                 }
+                */
             }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
@@ -252,7 +251,7 @@ class PrecommitTasks {
     }
 
     private static TaskProvider configureLoggerUsage(Project project) {
-        Object dependency = ClasspathUtils.isElasticsearchProject() ? project.project(':test:logger-usage') :
+        Object dependency = ClasspathUtils.isElasticsearchProject(project) ? project.project(':test:logger-usage') :
                 "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}"
 
         project.configurations.create('loggerUsagePlugin')

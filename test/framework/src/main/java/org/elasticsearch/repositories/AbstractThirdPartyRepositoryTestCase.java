@@ -82,13 +82,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     private void deleteAndAssertEmpty(BlobPath path) throws Exception {
         final BlobStoreRepository repo = getRepository();
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repo.threadPool().generic().execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                repo.blobStore().blobContainer(path).delete();
-                future.onResponse(null);
-            }
-        });
+        repo.threadPool().generic().execute(ActionRunnable.run(future, () -> repo.blobStore().blobContainer(path).delete()));
         future.actionGet();
         final BlobPath parent = path.parent();
         if (parent == null) {
@@ -106,9 +100,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test-idx-1", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-2", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
         }
         client().admin().indices().prepareRefresh().get();
 
@@ -147,19 +141,15 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final Executor genericExec = repo.threadPool().generic();
         final int testBlobLen = randomIntBetween(1, 100);
-        genericExec.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repo.blobStore();
-                blobStore.blobContainer(repo.basePath().add("foo"))
-                    .writeBlob("nested-blob", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
-                blobStore.blobContainer(repo.basePath().add("foo").add("nested"))
-                    .writeBlob("bar", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
-                blobStore.blobContainer(repo.basePath().add("foo").add("nested2"))
-                    .writeBlob("blub", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
-                future.onResponse(null);
-            }
-        });
+        genericExec.execute(ActionRunnable.run(future, () -> {
+            final BlobStore blobStore = repo.blobStore();
+            blobStore.blobContainer(repo.basePath().add("foo"))
+                .writeBlob("nested-blob", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
+            blobStore.blobContainer(repo.basePath().add("foo").add("nested"))
+                .writeBlob("bar", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
+            blobStore.blobContainer(repo.basePath().add("foo").add("nested2"))
+                .writeBlob("blub", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
+        }));
         future.actionGet();
         assertChildren(repo.basePath(), Collections.singleton("foo"));
         assertBlobsByPrefix(repo.basePath(), "fo", Collections.emptyMap());
@@ -188,9 +178,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test-idx-1", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-2", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
         }
         client().admin().indices().prepareRefresh().get();
 
@@ -245,37 +235,27 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
     private void createDanglingIndex(final BlobStoreRepository repo, final Executor genericExec) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        genericExec.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repo.blobStore();
-                blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
-                    .writeBlob("bar", new ByteArrayInputStream(new byte[3]), 3, false);
-                for (String prefix : Arrays.asList("snap-", "meta-")) {
-                    blobStore.blobContainer(repo.basePath())
-                        .writeBlob(prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
-                }
-                future.onResponse(null);
+        genericExec.execute(ActionRunnable.run(future, () -> {
+            final BlobStore blobStore = repo.blobStore();
+            blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
+                .writeBlob("bar", new ByteArrayInputStream(new byte[3]), 3, false);
+            for (String prefix : Arrays.asList("snap-", "meta-")) {
+                blobStore.blobContainer(repo.basePath()).writeBlob(prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
             }
-        });
+        }));
         future.actionGet();
         assertTrue(assertCorruptionVisible(repo, genericExec));
     }
 
     protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        executor.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repo.blobStore();
-                future.onResponse(
-                    blobStore.blobContainer(repo.basePath().add("indices")).children().containsKey("foo")
-                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath().add("indices").add("foo")), "bar")
-                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "meta-foo.dat")
-                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "snap-foo.dat")
-                );
-            }
-        });
+        executor.execute(ActionRunnable.supply(future, () -> {
+            final BlobStore blobStore = repo.blobStore();
+            return blobStore.blobContainer(repo.basePath().add("indices")).children().containsKey("foo")
+                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath().add("indices").add("foo")), "bar")
+                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "meta-foo.dat")
+                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "snap-foo.dat");
+        }));
         return future.actionGet();
     }
 
@@ -300,13 +280,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     private Set<String> listChildren(BlobPath path) {
         final PlainActionFuture<Set<String>> future = PlainActionFuture.newFuture();
         final BlobStoreRepository repository = getRepository();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repository.blobStore();
-                future.onResponse(blobStore.blobContainer(path).children().keySet());
-            }
-        });
+        repository.threadPool().generic().execute(
+            ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).children().keySet()));
         return future.actionGet();
     }
 

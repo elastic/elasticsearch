@@ -63,7 +63,7 @@ docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-ima
 endif::[]
 
 [[docker-compose-file]]
-==== Starting a multi-node cluster with Docker compose
+==== Starting a multi-node cluster with Docker Compose
 
 To get a three-node {es} cluster up and running in Docker, 
 you can use Docker Compose:
@@ -88,13 +88,16 @@ This sample Docker Compose file brings up a three-node {es} cluster.
 Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
 
 The  https://docs.docker.com/storage/volumes[Docker named volumes] 
-`esdata01`, `esdata02`, and `esdata03` store the node data directories so 
-the data persists across restarts. 
+`data01`, `data02`, and `data03` store the node data directories so the data persists across restarts. 
 If they don't already exist, `docker-compose` creates them when you bring up the cluster.
 --
 . Make sure Docker Engine is allotted at least 4GiB of memory. 
 In Docker Desktop, you configure resource usage on the Advanced tab in Preference (macOS)
 or Settings (Windows).
++
+NOTE: Docker Compose is not pre-installed with Docker on Linux.
+See docs.docker.com for installation instructions: 
+https://docs.docker.com/compose/install[Install Compose on Linux] 
 
 . Run `docker-compose` to bring up the cluster:
 +
@@ -119,15 +122,21 @@ when when you restart the cluster with `docker-compose up`.
 To **delete the data volumes** when you bring down the cluster, 
 specify the `-v` option: `docker-compose down -v`.
 
-[NOTE]
-`docker-compose` is not pre-installed with Docker on Linux.
-For installation instructions, see
-https://docs.docker.com/compose/install[Install Compose on Linux] on docs.docker.com.
+
+[[next-getting-started-tls-docker]]
+===== Start a multi-node cluster with TLS enabled
+
+See <<configuring-tls-docker>> and
+{stack-gs}/get-started-docker.html#get-started-docker-tls[Run the {stack} in Docker with TLS enabled].
 
 [[docker-prod-prerequisites]]
 ==== Using the Docker images in production
 
-IMPORTANT: The `vm.max_map_count` kernel setting must be set to at least `262144` for production use. 
+The following requirements and recommendations apply when running {es} in Docker in production.
+
+===== Set `vm.max_map_count` to at least `262144`
+
+The `vm.max_map_count` kernel setting must be set to at least `262144` for production use. 
 
 How you set `vm.max_map_count` depends on your platform:
 
@@ -141,7 +150,7 @@ grep vm.max_map_count /etc/sysctl.conf
 vm.max_map_count=262144
 --------------------------------------------
 
-To apply the setting on a live system run: 
+To apply the setting on a live system, run: 
 
 [source,sh]
 --------------------------------------------
@@ -156,10 +165,12 @@ The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 
 . From the command line, run:
 +
+--
 ["source","sh"]
 --------------------------------------------
 screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
+--
 
 . Press enter and use`sysctl` to configure `vm.max_map_count`:
 
@@ -182,6 +193,115 @@ docker-machine ssh
 sudo sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
+
+===== Configuration files must be readable by the `elasticsearch` user
+
+By default, {es} runs inside the container as user `elasticsearch` using
+uid:gid `1000:1000`.
+
+CAUTION: One exception is https://docs.openshift.com/container-platform/3.6/creating_images/guidelines.html#openshift-specific-guidelines[Openshift],
+which runs containers using an arbitrarily assigned user ID. Openshift will
+present persistent volumes with the gid set to `0` which will work without any
+adjustments.
+
+If you are bind-mounting a local directory or file, it must be readable by the `elasticsearch` user.
+In addition, this user must have write access to the <<path-settings,data and log dirs>>. 
+A good strategy is to grant group access to gid `1000` or `0` for the local directory. 
+
+For example, to prepare a local directory for storing data through a bind-mount:
+
+["source","sh"]
+--------------------------------------------
+  mkdir esdatadir
+  chmod g+rwx esdatadir
+  chgrp 1000 esdatadir
+--------------------------------------------
+
+As a last resort, you can force the container to mutate the ownership of
+any bind-mounts used for the <<path-settings,data and log dirs>> through the
+environment variable `TAKE_FILE_OWNERSHIP`. When you do this, they will be owned by
+uid:gid `1000:0`, which provides the required read/write access to the {es} process.
+
+
+===== Increase ulimits for nofile and nproc
+
+Increased ulimits for <<setting-system-settings,nofile>> and <<max-number-threads-check,nproc>> 
+must be available for the {es} containers. 
+Verify the https://github.com/moby/moby/tree/ea4d1243953e6b652082305a9c3cda8656edab26/contrib/init[init system]
+for the Docker daemon sets them to acceptable values. 
+
+To check the Docker daemon defaults for ulimits, run:
+
+["source","sh"]
+--------------------------------------------
+docker run --rm centos:7 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+--------------------------------------------
+
+If needed, adjust them in the Daemon or override them per container.
+For example, when using `docker run`, set:
+
+["source","txt"]
+--------------------------------------------
+  --ulimit nofile=65535:65535
+--------------------------------------------
+
+===== Disable swapping
+
+Swapping needs to be disabled for performance and node stability.
+For information about ways to do this, see <<setup-configuration-memory>>. 
+
+If you opt for the `bootstrap.memory_lock: true` approach, 
+you also need to define the `memlock: true` ulimit in the
+https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Docker Daemon],
+or explicitly set for the container as shown in the  <<docker-compose-file, sample compose file>>. 
+When using `docker run`, you can specify:
+
+  -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
+
+===== Randomize published ports
+
+The image https://docs.docker.com/engine/reference/builder/#/expose[exposes]
+TCP ports 9200 and 9300. For production clusters, randomizing the
+published ports with `--publish-all` is recommended, 
+unless you are pinning one container per host.
+
+===== Set the heap size
+
+Use the `ES_JAVA_OPTS` environment variable to set the heap size. 
+For example, to use 16GB, specify `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
+
+IMPORTANT: You must <<heap-size,configure the heap size>> even if you are
+https://docs.docker.com/config/containers/resource_constraints/#limit-a-containers-access-to-memory[limiting
+memory access] to the container.
+
+===== Pin deployments to a specific image version
+
+Pin your deployments to a specific version of the {es} Docker image. For
+example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
+
+===== Always bind data volumes 
+
+You should use a volume bound on `/usr/share/elasticsearch/data` for the following reasons:
+
+.  The data of your {es} node won't be lost if the container is killed
+
+. {es} is I/O sensitive and the Docker storage driver is not ideal for fast I/O
+
+. It allows the use of advanced
+https://docs.docker.com/engine/extend/plugins/#volume-plugins[Docker volume plugins]
+
+===== Avoid using `loop-lvm` mode
+
+If you are using the devicemapper storage driver, do not use the default `loop-lvm` mode. 
+Configure docker-engine to use 
+https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm].
+
+===== Centralize your logs
+
+Consider centralizing your logs by using a different
+https://docs.docker.com/engine/admin/logging/overview/[logging driver]. Also
+note that the default json-file logging driver is not ideally suited for
+production use.
 
 [[docker-configuration-methods]]
 ==== Configuring {es} with Docker
@@ -210,25 +330,23 @@ that contains your configuration.
 
 [[docker-config-bind-mount]]
 ===== Mounting {es} configuration files
-Create your custom config file and mount this over the image's corresponding file.
-For example, bind-mounting a `custom_elasticsearch.yml` with `docker run` can be
-accomplished with the parameter:
+
+Create custom config files and bind-mount them over the corresponding files in the Docker image.
+For example, to bind-mount `custom_elasticsearch.yml` with `docker run`, specify:
 
 ["source","sh"]
 --------------------------------------------
 -v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 --------------------------------------------
-IMPORTANT: The container **runs {es} as user `elasticsearch` using
-uid:gid `1000:1000`**. Bind mounted host directories and files, such as
-`custom_elasticsearch.yml` above, **need to be accessible by this user**. For the <<path-settings, data and log dirs>>,
-such as `/usr/share/elasticsearch/data`, write access is required as well.
-Also see note 1 below.
 
+IMPORTANT: The container **runs {es} as user `elasticsearch` using
+**uid:gid `1000:1000`**. Bind mounted host directories and files must be accessible by this user, 
+and the data and log directories must be writable by this user.
 
 [[docker-config-custom-image]]
 ===== Using custom Docker images
 In some environments, it might make more sense to prepare a custom image that contains
-your configuration. A `Dockerfile` to achieve this may be as simple as:
+your configuration. A `Dockerfile` to achieve this might be as simple as:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -236,7 +354,7 @@ FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
 COPY --chown=elasticsearch:elasticsearch elasticsearch.yml /usr/share/elasticsearch/config/
 --------------------------------------------
 
-You could then build and try the image with something like:
+You could then build and run the image with:
 
 ["source","sh"]
 --------------------------------------------
@@ -244,114 +362,13 @@ docker build --tag=elasticsearch-custom .
 docker run -ti -v /usr/share/elasticsearch/data elasticsearch-custom
 --------------------------------------------
 
-Some plugins require additional security permissions. You have to explicitly accept
-them either by attaching a `tty` when you run the Docker image and accepting yes at 
-the prompts, or inspecting the security permissions separately and if you are 
-comfortable with them adding the `--batch` flag to the plugin install command.
-See {plugins}/_other_command_line_parameters.html[Plugin Management documentation]
-for more details.
+Some plugins require additional security permissions. 
+You must explicitly accept them either by:
 
+* Attaching a `tty` when you run the Docker image and allowing the permissions when prompted.
+* Inspecting the security permissions and accepting them (if appropriate) by adding the `--batch` flag to the plugin install command.
 
-[[next-getting-started-tls-docker]]
-==== Configuring SSL/TLS with the {es} Docker image
-
-See <<configuring-tls-docker>>.
-
-==== Notes for production use and defaults
-
-We have collected a number of best practices for production use.
-Any Docker parameters mentioned below assume the use of `docker run`.
-
-. By default, {es} runs inside the container as user `elasticsearch` using
-uid:gid `1000:1000`.
-+
---
-CAUTION: One exception is https://docs.openshift.com/container-platform/3.6/creating_images/guidelines.html#openshift-specific-guidelines[Openshift],
-which runs containers using an arbitrarily assigned user ID. Openshift will
-present persistent volumes with the gid set to `0` which will work without any
-adjustments.
-
-If you are bind-mounting a local directory or file, ensure it is readable by
-this user, while the <<path-settings,data and log dirs>> additionally require
-write access. A good strategy is to grant group access to gid `1000` or `0` for
-the local directory. As an example, to prepare a local directory for storing
-data through a bind-mount:
-
-  mkdir esdatadir
-  chmod g+rwx esdatadir
-  chgrp 1000 esdatadir
-
-As a last resort, you can also force the container to mutate the ownership of
-any bind-mounts used for the <<path-settings,data and log dirs>> through the
-environment variable `TAKE_FILE_OWNERSHIP`. In this case, they will be owned by
-uid:gid `1000:0` providing read/write access to the {es} process as required.
---
-
-. It is important to ensure increased ulimits for
-<<setting-system-settings,nofile>> and <<max-number-threads-check,nproc>> are
-available for the {es} containers. Verify the https://github.com/moby/moby/tree/ea4d1243953e6b652082305a9c3cda8656edab26/contrib/init[init system]
-for the Docker daemon is already setting those to acceptable values and, if
-needed, adjust them in the Daemon, or override them per container, for example
-using `docker run`:
-+
---
-  --ulimit nofile=65535:65535
-
-NOTE: One way of checking the Docker daemon defaults for the aforementioned
-ulimits is by running:
-
-  docker run --rm centos:7 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
---
-
-. Swapping needs to be disabled for performance and node stability. This can be
-achieved through any of the methods mentioned in the
-<<setup-configuration-memory,{es} docs>>. If you opt for the
-`bootstrap.memory_lock: true` approach, apart from defining it through any of
-the <<docker-configuration-methods,configuration methods>>, you will
-additionally need the `memlock: true` ulimit, either defined in the
-https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Docker Daemon]
-or specifically set for the container. This is demonstrated above in the
-<<docker-compose-file, sample compose file>>. If using `docker run`:
-+
---
-  -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
---
-
-. The image https://docs.docker.com/engine/reference/builder/#/expose[exposes]
-TCP ports 9200 and 9300. For clusters it is recommended to randomize the
-published ports with `--publish-all`, unless you are pinning one container per host.
-
-. Use the `ES_JAVA_OPTS` environment variable to set heap size. For example, to
-use 16GB, use `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
-+
---
-NOTE: You still need to <<heap-size,configure the heap size>> even if you are
-https://docs.docker.com/config/containers/resource_constraints/#limit-a-containers-access-to-memory[limiting
-memory access] to the container.
---
-
-. Pin your deployments to a specific version of the {es} Docker image, for
-example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
-
-. Always use a volume bound on `/usr/share/elasticsearch/data`, as shown in the
-<<docker-cli-run-prod-mode,production example>>, for the following reasons:
-
-.. The data of your {es} node won't be lost if the container is killed
-
-.. {es} is I/O sensitive and the Docker storage driver is not ideal for fast I/O
-
-.. It allows the use of advanced
-https://docs.docker.com/engine/extend/plugins/#volume-plugins[Docker volume plugins]
-
-. If you are using the devicemapper storage driver, make sure you are not using
-the default `loop-lvm` mode. Configure docker-engine to use
-https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm]
-instead.
-
-. Consider centralizing your logs by using a different
-https://docs.docker.com/engine/admin/logging/overview/[logging driver]. Also
-note that the default json-file logging driver is not ideally suited for
-production use.
-
+See {plugins}/_other_command_line_parameters.html[Plugin management]
+for more information.
 
 include::next-steps.asciidoc[]

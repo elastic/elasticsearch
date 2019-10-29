@@ -201,7 +201,7 @@ public class InboundHandler {
                                                               final TransportResponseHandler<T> handler, int messageLengthBytes) {
         final T response;
         long bytesNeedToRelease = 0;
-        CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
         try {
             if (handler.canTripCircuitBreaker() && messageLengthBytes > 1024) {
                 // the main purpose is to check memory before deserialization for large size of response

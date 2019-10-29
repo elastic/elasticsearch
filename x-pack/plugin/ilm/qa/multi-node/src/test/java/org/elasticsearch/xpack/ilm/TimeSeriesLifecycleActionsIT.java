@@ -297,14 +297,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 1)
         );
 
-        Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
-        updateLifecylePollSetting.setJsonEntity("{" +
-            "  \"transient\": {\n" +
-            "     \"indices.lifecycle.poll_interval\" : \"1s\" \n" +
-            "  }\n" +
-            "}");
-        client().performRequest(updateLifecylePollSetting);
-
         // create policy
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
         // update policy on index
@@ -840,14 +832,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String nonexistantPolicyIndex = index + "-nonexistant-policy";
         String unmanagedIndex = index + "-unmanaged";
 
-        Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
-        updateLifecylePollSetting.setJsonEntity("{" +
-            "  \"transient\": {\n" +
-            "     \"indices.lifecycle.poll_interval\" : \"1s\" \n" +
-            "  }\n" +
-            "}");
-        client().performRequest(updateLifecylePollSetting);
-
         createFullPolicy(TimeValue.ZERO);
 
         createIndexWithSettings(goodIndex, Settings.builder()
@@ -893,14 +877,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testILMRolloverRetriesOnReadOnlyBlock() throws Exception {
         String firstIndex = index + "-000001";
 
-        Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
-        updateLifecylePollSetting.setJsonEntity("{" +
-            "  \"transient\": {\n" +
-            "     \"indices.lifecycle.poll_interval\" : \"1s\" \n" +
-            "  }\n" +
-            "}");
-        client().performRequest(updateLifecylePollSetting);
-
         createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null));
 
         // create the index as readonly and associate the ILM policy to it
@@ -934,15 +910,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
        String originalIndex = index + "-000001";
        String secondIndex = index + "-000002";
        String thirdIndex = index + "-000003";
-
-       // Configure ILM to run every second
-       Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
-       updateLifecylePollSetting.setJsonEntity("{" +
-           "  \"transient\": {\n" +
-                "\"indices.lifecycle.poll_interval\" : \"1s\" \n" +
-           "  }\n" +
-           "}");
-       client().performRequest(updateLifecylePollSetting);
 
        // Set up a policy with rollover
        createNewSingletonPolicy("hot", new RolloverAction(null, null, 2L));

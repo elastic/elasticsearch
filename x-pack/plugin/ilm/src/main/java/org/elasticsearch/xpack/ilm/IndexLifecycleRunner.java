@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
 import org.elasticsearch.xpack.core.ilm.AsyncWaitStep;
@@ -408,7 +409,7 @@ public class IndexLifecycleRunner {
         ClusterState newState;
         IndexMetaData indexMetaData = currentState.metaData().index(index);
         if (indexMetaData == null) {
-            throw new IllegalArgumentException("index [" + index + "] does not exist");
+            throw new IndexNotFoundException(index);
         }
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);

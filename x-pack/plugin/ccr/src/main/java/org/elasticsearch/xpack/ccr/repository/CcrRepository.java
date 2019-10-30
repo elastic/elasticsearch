@@ -94,6 +94,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.isInvalidRetainingSequenceNumberError;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncAddRetentionLease;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncRenewRetentionLease;
@@ -336,10 +337,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                 ActionListener.wrap(
                                         r -> {},
                                         e -> {
-                                            assert e instanceof ElasticsearchSecurityException == false : e;
-                                            logger.warn(new ParameterizedMessage(
-                                                            "{} background renewal of retention lease [{}] failed during restore", shardId,
-                                                    retentionLeaseId), e);
+                                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                            assert cause instanceof ElasticsearchSecurityException == false : cause;
+                                            if (isInvalidRetainingSequenceNumberError(retentionLeaseId, cause) == false) {
+                                                logger.warn(new ParameterizedMessage(
+                                                    "{} background renewal of retention lease [{}] failed during restore", shardId,
+                                                    retentionLeaseId), cause);
+                                            }
                                         }));
                     }
                 },

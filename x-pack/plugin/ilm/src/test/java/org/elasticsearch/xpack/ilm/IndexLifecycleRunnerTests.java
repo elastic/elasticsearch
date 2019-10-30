@@ -237,11 +237,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         newState.setStep(ErrorStep.NAME);
         newState.setPhaseDefinition(phaseJson);
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .settings(
-                settings(Version.CURRENT)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                    .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, -1)
-            )
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, newState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -249,61 +245,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPeriodicStep(policyName, indexMetaData);
 
         Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any());
-    }
-
-    public void testRunPolicyOnRetryableFailedStepAbortsRetriesAfterMaxNumberOfRetries() {
-        String policyName = "rollover_policy";
-        String phaseName = "hot";
-        TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
-        RolloverAction action = RolloverActionTests.randomInstance();
-        Map<String, LifecycleAction> actions = Map.of(RolloverAction.NAME, action);
-        Phase phase = new Phase(phaseName, after, actions);
-        Map<String, Phase> phases = Map.of(phaseName, phase);
-        PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policyName, phase, 1, randomNonNegativeLong());
-        String phaseJson = Strings.toString(phaseExecutionInfo);
-        NoOpClient client = new NoOpClient(threadPool);
-        List<Step> waitForRolloverStepList =
-            action.toSteps(client, phaseName, null).stream()
-                .filter(s -> s.getKey().getName().equals(WaitForRolloverReadyStep.NAME))
-                .collect(toList());
-        assertThat(waitForRolloverStepList.size(), is(1));
-        Step waitForRolloverStep = waitForRolloverStepList.get(0);
-        StepKey stepKey = waitForRolloverStep.getKey();
-
-        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, waitForRolloverStep);
-        ClusterService clusterService = mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, threadPool, () -> 0L);
-        LifecycleExecutionState.Builder newStateBuilder = LifecycleExecutionState.builder();
-        newStateBuilder.setFailedStep(stepKey.getName());
-        newStateBuilder.setIsAutoRetryableError(true);
-        newStateBuilder.setFailedStepRetryCount(0);
-        newStateBuilder.setPhase(stepKey.getPhase());
-        newStateBuilder.setAction(stepKey.getAction());
-        newStateBuilder.setStep(ErrorStep.NAME);
-        newStateBuilder.setPhaseDefinition(phaseJson);
-        LifecycleExecutionState newState = newStateBuilder.build();
-        int maxNumberOfRetries = 10;
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .settings(
-                settings(Version.CURRENT)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                    .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, maxNumberOfRetries)
-            )
-            .putCustom(ILM_CUSTOM_METADATA_KEY, newState.asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
-            .build();
-
-        for (short i=0; i< 2 * maxNumberOfRetries; i++) {
-            runner.runPeriodicStep(policyName, indexMetaData);
-            Integer failedStepRetryCount = newState.getFailedStepRetryCount();
-            newState = LifecycleExecutionState.builder(newState).setFailedStepRetryCount(++failedStepRetryCount).build();
-
-            indexMetaData = IndexMetaData.builder(indexMetaData)
-                .putCustom(ILM_CUSTOM_METADATA_KEY, newState.asMap())
-                .build();
-        }
-
-        Mockito.verify(clusterService, times(maxNumberOfRetries)).submitStateUpdateTask(any(), any());
     }
 
     public void testRunStateChangePolicyWithNoNextStep() throws Exception {
@@ -1451,6 +1392,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         try {
             IndexLifecycleRunner.validateTransition(indexMetaData, currentStepKey, nextStepKey, policyRegistry);
         } catch (Exception e) {
+            logger.error(e);
             fail("validateTransition should not throw exception on valid transitions");
         }
     }

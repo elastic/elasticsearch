@@ -60,16 +60,18 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
+    private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
+    private static final String FAILED_STEP_RETRY_COUNT = "failed_step_retry_count";
+
     private String index;
     private String policy;
-
-    private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
 
     @Before
     public void refreshIndex() {
@@ -78,7 +80,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public static void updatePolicy(String indexName, String policy) throws IOException {
-
         Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
         final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policy + "\" }",
                 ContentType.APPLICATION_JSON);
@@ -294,7 +295,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
-            .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 1)
         );
 
         // create policy
@@ -838,12 +838,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 1)
         );
         createIndexWithSettingsNoAlias(errorIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .put(LifecycleSettings.LIFECYCLE_MAX_FAILED_STEP_RETRIES_COUNT, 1)
         );
         createIndexWithSettingsNoAlias(nonexistantPolicyIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -869,7 +867,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
             Map<String, Object> errorIndexResponse = onlyErrorsResponse.get(errorIndex);
             assertThat(errorIndex + "should've had the rollover step retried once",
-                errorIndexResponse.get("failed_step_retry_count"), is(1));
+                (Integer) errorIndexResponse.get(FAILED_STEP_RETRY_COUNT), greaterThanOrEqualTo(1));
             assertThat(errorIndexResponse.get("is_auto_retryable_error"), is(true));
         });
     }
@@ -891,7 +889,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
 
         // wait for ILM to start retrying the step
-        assertBusy(() -> assertThat(getStepKeyForIndex(firstIndex).getName(), equalTo(WaitForRolloverReadyStep.NAME)));
+        assertBusy(() -> assertThat((Integer) explainIndex(firstIndex).get(FAILED_STEP_RETRY_COUNT), greaterThanOrEqualTo(1)));
 
         // remove the read only block
         Request allowWritesOnIndexSettingUpdate = new Request("PUT", firstIndex + "/_settings");

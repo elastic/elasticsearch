@@ -105,12 +105,12 @@ public final class Expressions {
 
     public static AttributeSet referencesExcept(Set<? extends Expression> exps, AttributeSet except) {
         AttributeSet ret = new AttributeSet();
-        while(exps.size()>0){
+        while (exps.size() > 0) {
 
             Set<Expression> filteredExps = new LinkedHashSet<>();
-            for(Expression exp: exps){
+            for (Expression exp : exps) {
                 Expression attr = Expressions.attribute(exp);
-                if(attr==null || !except.contains(attr)){
+                if (attr == null || (except.contains(attr) == false)) {
                     filteredExps.add(exp);
                 }
             }

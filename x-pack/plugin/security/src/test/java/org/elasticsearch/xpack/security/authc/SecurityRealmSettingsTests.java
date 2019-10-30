@@ -128,7 +128,6 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
     }
 
     public void testClusterStarted() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44942", Constants.WINDOWS);
         final AuthenticateRequest request = new AuthenticateRequest();
         request.username(nodeClientUsername());
         final AuthenticateResponse authenticate = client().execute(AuthenticateAction.INSTANCE, request).actionGet(10, TimeUnit.SECONDS);

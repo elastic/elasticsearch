@@ -40,7 +40,7 @@ public class RoutingNodeTests extends ESTestCase {
     private ShardRouting initializingShard0 =
         TestShardRouting.newShardRouting("test", 1, "node-1", false, ShardRoutingState.INITIALIZING);
     private ShardRouting relocatingShard0 =
-        TestShardRouting.newShardRouting("test", 2, "node-1","node-2", false, ShardRoutingState.RELOCATING);
+        TestShardRouting.newShardRouting("test", 2, "node-1", "node-2", false, ShardRoutingState.RELOCATING);
     private RoutingNode routingNode;
 
     @Override

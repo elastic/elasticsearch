@@ -316,7 +316,7 @@ public class OpenIdConnectAuthenticator {
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
         // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
-        String jwkSet = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+        String jwkSet = Files.readString(path, StandardCharsets.UTF_8);
         return JWKSet.parse(jwkSet);
 
     }

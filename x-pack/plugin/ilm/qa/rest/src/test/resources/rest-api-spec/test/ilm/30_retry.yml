@@ -94,8 +94,8 @@ teardown:
         index: my_index
 
   - do:
-      catch: missing
+      catch: bad_request
       ilm.retry:
         index: "does_not_exist"
-  - match: { error.root_cause.0.type: "index_not_found_exception" }
-  - match: { error.root_cause.0.reason: "no such index [does_not_exist]" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "index [does_not_exist] does not exist" }

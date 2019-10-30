@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 
@@ -93,6 +95,33 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         @Override
         protected Reader<TrainedModelConfig> getReader() {
             return TrainedModelConfig::new;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+
+            private long totalCount;
+            private List<TrainedModelConfig> configs = Collections.emptyList();
+
+            private Builder() {
+            }
+
+            public Builder setTotalCount(long totalCount) {
+                this.totalCount = totalCount;
+                return this;
+            }
+
+            public Builder setModels(List<TrainedModelConfig> configs) {
+                this.configs = configs;
+                return this;
+            }
+
+            public Response build() {
+                return new Response(new QueryPage<>(configs, totalCount, RESULTS_FIELD));
+            }
         }
     }
 

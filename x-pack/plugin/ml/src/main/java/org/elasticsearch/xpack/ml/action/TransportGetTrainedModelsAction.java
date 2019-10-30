@@ -5,88 +5,72 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Response;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import java.util.Collections;
+import java.util.Set;
 
-public class TransportGetTrainedModelsAction extends AbstractTransportGetResourcesAction<TrainedModelConfig, Request, Response> {
 
+public class TransportGetTrainedModelsAction extends HandledTransportAction<Request, Response> {
+
+    private final TrainedModelProvider provider;
     @Inject
-    public TransportGetTrainedModelsAction(TransportService transportService, ActionFilters actionFilters, Client client,
-                                           NamedXContentRegistry xContentRegistry) {
-        super(GetTrainedModelsAction.NAME, transportService, actionFilters, GetTrainedModelsAction.Request::new, client,
-            xContentRegistry);
+    public TransportGetTrainedModelsAction(TransportService transportService,
+                                           ActionFilters actionFilters,
+                                           TrainedModelProvider trainedModelProvider) {
+        super(GetTrainedModelsAction.NAME, transportService, actionFilters, GetTrainedModelsAction.Request::new);
+        this.provider = trainedModelProvider;
     }
 
     @Override
-    protected ParseField getResultsField() {
-        return GetTrainedModelsAction.Response.RESULTS_FIELD;
-    }
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
 
-    @Override
-    protected String[] getIndices() {
-        return new String[] { InferenceIndexConstants.INDEX_PATTERN };
-    }
+        Response.Builder responseBuilder = Response.builder();
 
-    @Override
-    protected TrainedModelConfig parse(XContentParser parser) {
-        return TrainedModelConfig.LENIENT_PARSER.apply(parser, null).build();
-    }
+        ActionListener<Tuple<Long, Set<String>>> idExpansionListener = ActionListener.wrap(
+            totalAndIds -> {
+                responseBuilder.setTotalCount(totalAndIds.v1());
 
-    @Override
-    protected ResourceNotFoundException notFoundException(String resourceId) {
-        return ExceptionsHelper.missingTrainedModel(resourceId);
-    }
+                if (totalAndIds.v2().isEmpty()) {
+                    listener.onResponse(responseBuilder.build());
+                    return;
+                }
 
-    @Override
-    protected void doExecute(Task task, GetTrainedModelsAction.Request request,
-                             ActionListener<GetTrainedModelsAction.Response> listener) {
-        searchResources(request, ActionListener.wrap(
-            queryPage -> listener.onResponse(new GetTrainedModelsAction.Response(queryPage)),
+                if (request.isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(Messages.INFERENCE_TO_MANY_DEFINITIONS_REQUESTED)
+                    );
+                    return;
+                }
+
+                if (request.isIncludeModelDefinition()) {
+                    provider.getTrainedModel(totalAndIds.v2().iterator().next(), true, ActionListener.wrap(
+                        config -> listener.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()),
+                        listener::onFailure
+                    ));
+                } else {
+                    provider.getTrainedModels(totalAndIds.v2(), request.isAllowNoResources(), ActionListener.wrap(
+                        configs -> listener.onResponse(responseBuilder.setModels(configs).build()),
+                        listener::onFailure
+                    ));
+                }
+            },
             listener::onFailure
-        ));
+        );
+
+        provider.expandIds(request.getResourceId(), request.isAllowNoResources(), request.getPageParams(), idExpansionListener);
     }
 
-    @Override
-    protected String executionOrigin() {
-        return ML_ORIGIN;
-    }
-
-    @Override
-    protected String extractIdFromResource(TrainedModelConfig config) {
-        return config.getModelId();
-    }
-
-    @Override
-    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder, Request request) {
-        return searchSourceBuilder
-            .sort("_index", SortOrder.DESC)
-            .fetchSource(null, request.isIncludeModelDefinition() ? null : TrainedModelConfig.DEFINITION.getPreferredName());
-    }
-
-    @Nullable
-    protected QueryBuilder additionalQuery() {
-        return QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelConfig.NAME);
-    }
 }

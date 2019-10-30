@@ -288,7 +288,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
 
     @Override
     protected TrainedModelDefinition createTestInstance() {
-        return createRandomBuilder(null).build();
+        return createRandomBuilder(lenient ? null : randomAlphaOfLength(10)).build();
     }
 
     @Override

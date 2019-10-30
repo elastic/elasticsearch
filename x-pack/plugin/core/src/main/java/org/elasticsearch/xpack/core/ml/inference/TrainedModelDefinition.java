@@ -107,7 +107,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INPUT.getPreferredName(), input);
         NamedXContentObjectHelper.writeNamedObjects(builder,
             params,
             false,

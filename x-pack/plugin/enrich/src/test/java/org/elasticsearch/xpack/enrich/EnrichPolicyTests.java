@@ -22,6 +22,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -59,7 +61,9 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
             return new EnrichPolicy(
                 randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
                 randomBoolean() ? querySource : null,
-                Arrays.asList(generateRandomStringArray(8, 4, false, false)),
+                Arrays.stream(generateRandomStringArray(8, 4, false, false))
+                    .map(s -> s.toLowerCase(Locale.ROOT))
+                    .collect(Collectors.toList()),
                 randomAlphaOfLength(4),
                 Arrays.asList(generateRandomStringArray(8, 4, false, false))
             );

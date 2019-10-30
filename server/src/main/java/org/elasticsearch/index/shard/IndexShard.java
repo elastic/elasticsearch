@@ -2655,8 +2655,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     private DocumentMapperForType docMapper() {
-        return mapperService.documentMapperWithAutoCreate(
-            mapperService.resolveDocumentType(MapperService.SINGLE_MAPPING_NAME));
+        return mapperService.documentMapperWithAutoCreate();
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {

@@ -22,7 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -292,55 +291,4 @@ public class TrainedModelConfig implements ToXContentObject {
         }
     }
 
-    public static class Input implements ToXContentObject {
-
-        public static final String NAME = "trained_model_config_input";
-        public static final ParseField FIELD_NAMES = new ParseField("field_names");
-
-        @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<Input, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            true,
-            a -> new Input((List<String>)a[0]));
-        static {
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), FIELD_NAMES);
-        }
-
-        public static Input fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
-
-        private final List<String> fieldNames;
-
-        public Input(List<String> fieldNames) {
-            this.fieldNames = fieldNames;
-        }
-
-        public List<String> getFieldNames() {
-            return fieldNames;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (fieldNames != null) {
-                builder.field(FIELD_NAMES.getPreferredName(), fieldNames);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Input that = (Input) o;
-            return Objects.equals(fieldNames, that.fieldNames);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(fieldNames);
-        }
-
-    }
 }

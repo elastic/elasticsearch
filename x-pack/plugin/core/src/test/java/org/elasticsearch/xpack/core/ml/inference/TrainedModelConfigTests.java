@@ -11,14 +11,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -78,7 +74,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             null, // is not parsed so should not be provided
             tags,
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            new TrainedModelConfig.Input(Stream.generate(() -> randomAlphaOfLength(10))
+            new Input(Stream.generate(() -> randomAlphaOfLength(10))
                 .limit(randomInt(10))
                 .collect(Collectors.toList())));
     }
@@ -113,7 +109,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelDefinitionTests.createRandomBuilder(randomAlphaOfLength(10)).build(),
             Collections.emptyList(),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            new TrainedModelConfig.Input(Stream.generate(() -> randomAlphaOfLength(10))
+            new Input(Stream.generate(() -> randomAlphaOfLength(10))
                 .limit(randomInt(10))
                 .collect(Collectors.toList())));
 

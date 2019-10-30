@@ -6,13 +6,17 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.core.ml.inference.Input;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -115,13 +119,18 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
     public void testGetMissingTrainingModelConfigDefinition() throws Exception {
         String modelId = "test-get-missing-trained-model-config-definition";
-        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId).setDefinition((TrainedModelDefinition) null).build();
+        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId).build();
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(listener -> trainedModelProvider.storeTrainedModel(config, listener), putConfigHolder, exceptionHolder);
         assertThat(putConfigHolder.get(), is(true));
         assertThat(exceptionHolder.get(), is(nullValue()));
+
+        client().delete(new DeleteRequest(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .id(TrainedModelDefinition.docId(config.getModelId()))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
+            .actionGet();
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
@@ -137,7 +146,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setVersion(Version.CURRENT)
-            .setInput(new TrainedModelConfig.Input(Stream.generate(() -> randomAlphaOfLength(10))
+            .setInput(new Input(Stream.generate(() -> randomAlphaOfLength(10))
                 .limit(randomIntBetween(0, 10))
                 .collect(Collectors.toList())));
     }

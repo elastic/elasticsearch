@@ -15,6 +15,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.inference.Input;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
@@ -149,7 +150,7 @@ public class AnalyticsResultProcessor {
             .setMetadata(Collections.singletonMap("analytics_config",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
             .setDefinition(definition)
-            .setInput(new TrainedModelConfig.Input(fieldNames))
+            .setInput(new Input(fieldNames))
             .build();
     }
 

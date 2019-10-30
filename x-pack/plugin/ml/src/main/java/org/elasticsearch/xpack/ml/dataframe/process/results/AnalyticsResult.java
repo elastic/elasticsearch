@@ -29,8 +29,8 @@ public class AnalyticsResult implements ToXContentObject {
     static {
         PARSER.declareObject(optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
         PARSER.declareInt(optionalConstructorArg(), PROGRESS_PERCENT);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TrainedModelDefinition.LENIENT_PARSER.apply(p, null),
-            INFERENCE_MODEL);
+        // TODO change back to STRICT_PARSER once native side is aligned
+        PARSER.declareObject(optionalConstructorArg(), TrainedModelDefinition.LENIENT_PARSER, INFERENCE_MODEL);
     }
 
     private final RowResults rowResults;

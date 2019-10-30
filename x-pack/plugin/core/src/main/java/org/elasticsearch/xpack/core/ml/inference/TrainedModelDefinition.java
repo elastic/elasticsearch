@@ -45,7 +45,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
     private static ObjectParser<TrainedModelDefinition.Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<TrainedModelDefinition.Builder, Void> parser = new ObjectParser<>(NAME,
             ignoreUnknownFields,
-            TrainedModelDefinition.Builder::new);
+            TrainedModelDefinition.Builder::builderForParser);
         parser.declareNamedObjects(TrainedModelDefinition.Builder::setTrainedModel,
             (p, c, n) -> ignoreUnknownFields ?
                 p.namedObject(LenientlyParsedTrainedModel.class, n, null) :
@@ -74,7 +74,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
     private final List<PreProcessor> preProcessors;
     private final String modelId;
 
-    TrainedModelDefinition(TrainedModel trainedModel, List<PreProcessor> preProcessors, @Nullable String modelId) {
+    private TrainedModelDefinition(TrainedModel trainedModel, List<PreProcessor> preProcessors, @Nullable String modelId) {
         this.trainedModel = ExceptionsHelper.requireNonNull(trainedModel, TRAINED_MODEL);
         this.preProcessors = preProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(preProcessors);
         this.modelId = modelId;

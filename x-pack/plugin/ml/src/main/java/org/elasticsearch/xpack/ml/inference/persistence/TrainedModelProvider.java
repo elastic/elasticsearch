@@ -13,9 +13,10 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -65,11 +66,22 @@ public class TrainedModelProvider {
 
     public void storeTrainedModel(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
 
-        ActionListener<IndexResponse> putDefinitionListener = ActionListener.wrap(
-            r -> listener.onResponse(true),
+        if (trainedModelConfig.getDefinition() == null) {
+            listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] is required",
+                trainedModelConfig.getModelId(),
+                TrainedModelConfig.DEFINITION.getPreferredName()));
+            return;
+        }
+
+        BulkRequest bulkRequest = client.prepareBulk(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(createRequest(trainedModelConfig.getModelId(), trainedModelConfig))
+            .add(createRequest(TrainedModelDefinition.docId(trainedModelConfig.getModelId()), trainedModelConfig.getDefinition()))
+            .request();
+
+        ActionListener<Boolean> wrappedListener = ActionListener.wrap(
+            listener::onResponse,
             e -> {
-                logger.error(new ParameterizedMessage(
-                    "[{}] failed to store trained model definition for inference", trainedModelConfig.getModelId()), e);
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(new ResourceAlreadyExistsException(
                         Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
@@ -83,33 +95,31 @@ public class TrainedModelProvider {
             }
         );
 
-        ActionListener<IndexResponse> putConfigListener = ActionListener.wrap(
+        ActionListener<BulkResponse> bulkResponseActionListener = ActionListener.wrap(
             r -> {
-                if (trainedModelConfig.getDefinition() != null) {
-                    indexObject(TrainedModelDefinition.docId(trainedModelConfig.getModelId()),
-                        trainedModelConfig.getDefinition(),
-                        putDefinitionListener);
-                } else {
-                    listener.onResponse(true);
+                assert r.getItems().length == 2;
+                if (r.getItems()[0].isFailed()) {
+                    logger.error(new ParameterizedMessage(
+                        "[{}] failed to store trained model config for inference",
+                        trainedModelConfig.getModelId()),
+                        r.getItems()[0].getFailure().getCause());
+                    wrappedListener.onFailure(r.getItems()[0].getFailure().getCause());
+                    return;
                 }
+                if (r.getItems()[1].isFailed()) {
+                    logger.error(new ParameterizedMessage(
+                        "[{}] failed to store trained model definition for inference",
+                        trainedModelConfig.getModelId()),
+                        r.getItems()[1].getFailure().getCause());
+                    wrappedListener.onFailure(r.getItems()[1].getFailure().getCause());
+                    return;
+                }
+                wrappedListener.onResponse(true);
             },
-            e -> {
-                logger.error(new ParameterizedMessage(
-                    "[{}] failed to store trained model for inference", trainedModelConfig.getModelId()), e);
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    listener.onFailure(new ResourceAlreadyExistsException(
-                        Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e,
-                            trainedModelConfig.getModelId()));
-                }
-            }
+            wrappedListener::onFailure
         );
 
-        indexObject(trainedModelConfig.getModelId(), trainedModelConfig, putConfigListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest, bulkResponseActionListener);
     }
 
     public void getTrainedModel(final String modelId, final boolean includeDefinition, final ActionListener<TrainedModelConfig> listener) {
@@ -142,7 +152,7 @@ public class TrainedModelProvider {
                 TrainedModelDefinition definition;
                 try {
                     builder = handleSearchItem(multiSearchResponse.getResponses()[0], modelId, this::parseInferenceDocLenientlyFromSource);
-                } catch(ResourceNotFoundException ex) {
+                } catch (ResourceNotFoundException ex) {
                     listener.onFailure(new ResourceNotFoundException(
                         Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                     return;
@@ -157,7 +167,7 @@ public class TrainedModelProvider {
                             modelId,
                             this::parseModelDefinitionDocLenientlyFromSource);
                         builder.setDefinition(definition);
-                    } catch(ResourceNotFoundException ex) {
+                    } catch (ResourceNotFoundException ex) {
                         listener.onFailure(new ResourceNotFoundException(
                             Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
                         return;
@@ -213,20 +223,21 @@ public class TrainedModelProvider {
         }
     }
 
-    private void indexObject(String docId, ToXContentObject body, ActionListener<IndexResponse> indexListener) {
+    private IndexRequest createRequest(String docId, ToXContentObject body) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = body.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
 
-            IndexRequest indexRequest = new IndexRequest(InferenceIndexConstants.LATEST_INDEX_NAME)
+            return new IndexRequest()
                 .opType(DocWriteRequest.OpType.CREATE)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .id(docId)
                 .source(source);
-
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexListener);
         } catch (IOException ex) {
-            // not expected to happen but for the sake of completeness
-            indexListener.onFailure(ex);
+            // This should never happen. If we were able to deserialize the object (from Native or REST) and then fail to serialize it again
+            // that is not the users fault. We did something wrong and should throw.
+            throw new ElasticsearchStatusException("Unexpected serialization exception for [{}]",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                ex,
+                docId);
         }
     }
 }

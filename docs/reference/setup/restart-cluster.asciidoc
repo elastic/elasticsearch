@@ -65,7 +65,7 @@ You can check progress by looking at the logs.
 
 As soon as enough master-eligible nodes have discovered each other, they form a
 cluster and elect a master. At that point, you can use
-<<cat-health,`_cat/health`>> and <<cat-nodes,`_cat/nodes`>> to monitor nodes
+the <<cat-health, cat health>> and <<cat-nodes,cat nodes>> APIs to monitor nodes
 joining the cluster:
 
 [source,console]

@@ -71,6 +71,13 @@ public class SchedulerEngine {
         public long getScheduledTime() {
             return scheduledTime;
         }
+
+        @Override
+        public String toString() {
+            return "Event[jobName=" + jobName + "," +
+                "triggeredTime=" + triggeredTime + "," +
+                "scheduledTime=" + scheduledTime + "]";
+        }
     }
 
     public interface Listener {

@@ -42,6 +42,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -70,7 +71,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
 
-    private static final Version MIN_VERSION = Version.V_8_0_0;
+    private static final Version MIN_VERSION = Version.V_7_4_0;
 
     private final RepositoriesService repositoriesService;
 
@@ -201,7 +202,9 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
                     threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener,
                         l -> blobStoreRepository.cleanup(
-                            repositoryStateId, ActionListener.wrap(result -> after(null, result), e -> after(e, null)))));
+                            repositoryStateId,
+                            newState.nodes().getMinNodeVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION),
+                            ActionListener.wrap(result -> after(null, result), e -> after(e, null)))));
                 }
 
                 private void after(@Nullable Exception failure, @Nullable RepositoryCleanupResult result) {

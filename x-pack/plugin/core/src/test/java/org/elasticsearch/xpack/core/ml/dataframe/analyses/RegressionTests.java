@@ -13,8 +13,13 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RegressionTests extends AbstractSerializingTestCase<Regression> {
+
+    private static final BoostedTreeParams BOOSTED_TREE_PARAMS = new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0);
 
     @Override
     protected Regression doParseInstance(XContentParser parser) throws IOException {
@@ -27,14 +32,11 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
     }
 
     public static Regression createRandom() {
-        Double lambda = randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true);
-        Double gamma = randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true);
-        Double eta = randomBoolean() ? null : randomDoubleBetween(0.001, 1.0, true);
-        Integer maximumNumberTrees = randomBoolean() ? null : randomIntBetween(1, 2000);
-        Double featureBagFraction = randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false);
+        String dependentVariableName = randomAlphaOfLength(10);
+        BoostedTreeParams boostedTreeParams = BoostedTreeParamsTests.createRandom();
         String predictionFieldName = randomBoolean() ? null : randomAlphaOfLength(10);
-        return new Regression(randomAlphaOfLength(10), lambda, gamma, eta, maximumNumberTrees, featureBagFraction,
-            predictionFieldName);
+        Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true);
+        return new Regression(dependentVariableName, boostedTreeParams, predictionFieldName, trainingPercent);
     }
 
     @Override
@@ -42,59 +44,53 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         return Regression::new;
     }
 
-    public void testRegression_GivenNegativeLambda() {
+    public void testConstructor_GivenTrainingPercentIsLessThanOne() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", -0.00001, 0.0, 0.5, 500, 0.3, "result"));
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 0.999));
 
-        assertThat(e.getMessage(), equalTo("[lambda] must be a non-negative double"));
+        assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
     }
 
-    public void testRegression_GivenNegativeGamma() {
+    public void testConstructor_GivenTrainingPercentIsGreaterThan100() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", 0.0, -0.00001, 0.5, 500, 0.3, "result"));
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0001));
 
-        assertThat(e.getMessage(), equalTo("[gamma] must be a non-negative double"));
+        assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
     }
 
-    public void testRegression_GivenEtaIsZero() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", 0.0, 0.0, 0.0, 500, 0.3, "result"));
+    public void testGetPredictionFieldName() {
+        Regression regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 50.0);
+        assertThat(regression.getPredictionFieldName(), equalTo("result"));
 
-        assertThat(e.getMessage(), equalTo("[eta] must be a double in [0.001, 1]"));
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, null, 50.0);
+        assertThat(regression.getPredictionFieldName(), equalTo("foo_prediction"));
     }
 
-    public void testRegression_GivenEtaIsGreaterThanOne() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", 0.0, 0.0, 1.00001, 500, 0.3, "result"));
+    public void testGetTrainingPercent() {
+        Regression regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 50.0);
+        assertThat(regression.getTrainingPercent(), equalTo(50.0));
 
-        assertThat(e.getMessage(), equalTo("[eta] must be a double in [0.001, 1]"));
+        // Boundary condition: training_percent == 1.0
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 1.0);
+        assertThat(regression.getTrainingPercent(), equalTo(1.0));
+
+        // Boundary condition: training_percent == 100.0
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0);
+        assertThat(regression.getTrainingPercent(), equalTo(100.0));
+
+        // training_percent == null, default applied
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", null);
+        assertThat(regression.getTrainingPercent(), equalTo(100.0));
     }
 
-    public void testRegression_GivenMaximumNumberTreesIsZero() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", 0.0, 0.0, 0.5, 0, 0.3, "result"));
-
-        assertThat(e.getMessage(), equalTo("[maximum_number_trees] must be an integer in [1, 2000]"));
+    public void testFieldCardinalityLimitsIsNonNull() {
+        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
     }
 
-    public void testRegression_GivenMaximumNumberTreesIsGreaterThan2k() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", 0.0, 0.0, 0.5, 2001, 0.3, "result"));
-
-        assertThat(e.getMessage(), equalTo("[maximum_number_trees] must be an integer in [1, 2000]"));
-    }
-
-    public void testRegression_GivenFeatureBagFractionIsLessThanZero() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", 0.0, 0.0, 0.5, 500, -0.00001, "result"));
-
-        assertThat(e.getMessage(), equalTo("[feature_bag_fraction] must be a double in (0, 1]"));
-    }
-
-    public void testRegression_GivenFeatureBagFractionIsGreaterThanOne() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", 0.0, 0.0, 0.5, 500, 1.00001, "result"));
-
-        assertThat(e.getMessage(), equalTo("[feature_bag_fraction] must be a double in (0, 1]"));
+    public void testGetStateDocId() {
+        Regression regression = createRandom();
+        assertThat(regression.persistsState(), is(true));
+        String randomId = randomAlphaOfLength(10);
+        assertThat(regression.getStateDocId(randomId), equalTo(randomId + "_regression_state#1"));
     }
 }

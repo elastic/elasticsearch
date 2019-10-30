@@ -17,7 +17,7 @@ Follow this getting started tutorial to:
 Need more context?
 
 Check out the <<elasticsearch-intro,
-Elasticsearch Introduction>> to learn the lingo and understand the basics of
+{es} Introduction>> to learn the lingo and understand the basics of
 how {es} works. If you're already familiar with {es} and want to see how it works
 with the rest of the stack, you might want to jump to the
 {stack-gs}/get-started-elastic-stack.html[Elastic Stack
@@ -26,29 +26,45 @@ Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
 
 TIP: The fastest way to get started with {es} is to
 https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day
-trial of Elasticsearch Service] in the cloud.
+trial of {ess}] in the cloud.
 --
 
 [[getting-started-install]]
 == Get {es} up and running
 
-To take {es} for a test drive, you can create a one-click cloud deployment
-on the https://www.elastic.co/cloud/elasticsearch-service/signup[Elasticsearch Service],
-or <<run-elasticsearch-local, set up a multi-node {es} cluster>> on your own
+To take {es} for a test drive, you can create a 
+https://www.elastic.co/cloud/elasticsearch-service/signup[hosted deployment]  on 
+the {ess} or set up a multi-node {es} cluster on your own
 Linux, macOS, or Windows machine.
 
+[float]
+[[run-elasticsearch-hosted]]
+=== Run {es} on Elastic Cloud
+
+When you create a deployment on the {es} Service, the service provisions
+a three-node {es} cluster along with Kibana and APM.
+
+To create a deployment:
+
+. Sign up for a https://www.elastic.co/cloud/elasticsearch-service/signup[free trial] 
+and verify your email address.
+. Set a password for your account.
+. Click **Create Deployment**.
+
+Once you've created a deployment, you're ready to <<getting-started-index>>.
 
 [float]
 [[run-elasticsearch-local]]
 === Run {es} locally on Linux, macOS, or Windows
 
-When you create a cluster on the Elasticsearch Service, you automatically
-get a three-node cluster. By installing from the tar or zip archive, you can
-start multiple instances of {es} locally to see how a multi-node cluster behaves.
+When you create a deployment on the {ess}, a master node and
+two data nodes are provisioned automatically. By installing from the tar or zip 
+archive, you can start multiple instances of {es} locally to see how a multi-node 
+cluster behaves.
 
 To run a three-node {es} cluster locally:
 
-. Download the Elasticsearch archive for your OS:
+. Download the {es} archive for your OS:
 +
 Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
 +
@@ -92,7 +108,7 @@ Windows PowerShell:
 Expand-Archive elasticsearch-{version}-windows-x86_64.zip
 --------------------------------------------------
 
-. Start elasticsearch from the `bin` directory:
+. Start {es} from the `bin` directory:
 +
 Linux and macOS:
 +
@@ -149,11 +165,10 @@ TIP: You'll want to check out the
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
 clients] when you're ready to start using {es} in your own applications.
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/health?v
 --------------------------------------------------
-// CONSOLE
 +
 The response should indicate that the status of the `elasticsearch` cluster
 is `green` and it has three nodes:
@@ -165,7 +180,7 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 --------------------------------------------------
 // TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
 // TESTRESPONSE[s/3         3      6   3/\\d+         \\d+      \\d+   \\d+/]
-// TESTRESPONSE[s/0             0                  -/0             \\d+                  -/]
+// TESTRESPONSE[s/0             0                  -/0             \\d+                  (-|\\d+(micros|ms|s))/]
 // TESTRESPONSE[non_json]
 +
 NOTE: The cluster status will remain yellow if you are only running a single
@@ -195,14 +210,13 @@ You can do this directly with a simple PUT request that specifies
 the index you want to add the document, a unique document ID, and one or more
 `"field": "value"` pairs in the request body:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /customer/_doc/1
 {
   "name": "John Doe"
 }
 --------------------------------------------------
-// CONSOLE
 
 This request automatically creates the `customer` index if it doesn't already
 exist, adds a new document that has an ID of `1`, and stores and
@@ -211,11 +225,10 @@ indexes the `name` field.
 Since this is a new document, the response shows that the result of the
 operation was that version 1 of the document was created:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -236,21 +249,19 @@ operation was that version 1 of the document was created:
 The new document is available immediately from any node in the cluster.
 You can retrieve it with a GET request that specifies its document ID:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /customer/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The response indicates that a document with the specified ID was found
 and shows the original source fields that were indexed.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "_seq_no" : 26,
@@ -311,11 +322,10 @@ curl "localhost:9200/_cat/indices?v"
 This replicates the above in a document-testing friendly way but isn't visible
 in the docs:
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/indices?v
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:bank]
 ////
 +
@@ -332,22 +342,31 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 [[getting-started-search]]
 == Start searching
 
-Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the {ref}/search-uri-request.html[REST request URI] and the other by sending them through the {ref}/search-request-body.html[REST request body]. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
+Once you have ingested some data into an {es} index, you can search it
+by sending requests to the `_search` endpoint. To access the full suite of
+search capabilities, you use the {es} Query DSL to specify the
+search criteria in the request body. You specify the name of the index you 
+want to search in the request URI.
 
-The REST API for search is accessible from the `_search` endpoint. This example returns all documents in the bank index:
+For example, the following request retrieves all documents in the `bank`
+index sorted by account number:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /bank/_search?q=*&sort=account_number:asc&pretty
+GET /bank/_search
+{
+  "query": { "match_all": {} },
+  "sort": [
+    { "account_number": "asc" }
+  ]
+}
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-Let's first dissect the search call. We are searching (`_search` endpoint) in the bank index, and the `q=*` parameter instructs Elasticsearch to match all documents in the index. The `sort=account_number:asc` parameter indicates to sort the results using the `account_number` field of each document in an ascending order. The `pretty` parameter, again, just tells Elasticsearch to return pretty-printed JSON results.
+By default, the `hits` section of the response includes the first 10 documents
+that match the search criteria:
 
-And the response (partially shown):
-
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 63,
@@ -366,14 +385,12 @@ And the response (partially shown):
     "max_score" : null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score" : null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score" : null,
@@ -386,296 +403,75 @@ And the response (partially shown):
 // TESTRESPONSE[s/"took" : 63/"took" : $body.took/]
 // TESTRESPONSE[s/\.\.\./$body.hits.hits.2, $body.hits.hits.3, $body.hits.hits.4, $body.hits.hits.5, $body.hits.hits.6, $body.hits.hits.7, $body.hits.hits.8, $body.hits.hits.9/]
 
-As for the response, we see the following parts:
+The response also provides the following information about the search request:
 
-* `took` – time in milliseconds for Elasticsearch to execute the search
-* `timed_out` – tells us if the search timed out or not
-* `_shards` – tells us how many shards were searched, as well as a count of the successful/failed searched shards
-* `hits` – search results
-* `hits.total` – an object that contains information about the total number of documents matching our search criteria
-** `hits.total.value` - the value of the total hit count (must be interpreted in the context of `hits.total.relation`).
-** `hits.total.relation` - whether `hits.total.value` is the exact hit count, in which case it is equal to `"eq"` or a
-                           lower bound of the total hit count (greater than or equals), in which case it is equal to `gte`.
-* `hits.hits` – actual array of search results (defaults to first 10 documents)
-* `hits.sort` - sort value of the sort key for each result (missing if sorting by score)
-* `hits._score` and `max_score` - ignore these fields for now
+* `took` – how long it took {es} to run the query, in milliseconds
+* `timed_out` – whether or not the search request timed out
+* `_shards` – how many shards were searched and a breakdown of how many shards
+succeeded, failed, or were skipped. 
+* `max_score` – the score of the most relevant document found
+* `hits.total.value` - how many matching documents were found
+* `hits.sort` - the document's sort position (when not sorting by relevance score)
+* `hits._score` - the document's relevance score (not applicable when using `match_all`)
 
-The accuracy of `hits.total` is controlled by the request parameter `track_total_hits`, when set to true
-the request will track the total hits accurately (`"relation": "eq"`). It defaults to `10,000`
-which means that the total hit count is accurately tracked up to `10,000` documents.
-You can force an accurate count by setting `track_total_hits` to true explicitly.
-See the <<request-body-search-track-total-hits, request body>> documentation
-for more details.
+Each search request is self-contained: {es} does not maintain any
+state information across requests. To page through the search hits, specify
+the `from` and `size` parameters in your request. 
 
-Here is the same exact search above using the alternative request body method:
+For example, the following request gets hits 10 through 19:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
   "query": { "match_all": {} },
   "sort": [
     { "account_number": "asc" }
-  ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-The difference here is that instead of passing `q=*` in the URI, we provide a JSON-style query request body to the `_search` API. We'll discuss this JSON query in the next section.
-
-////
-Hidden response just so we can assert that it is indeed the same but don't have
-to clutter the docs with it:
-
-[source,js]
---------------------------------------------------
-{
-  "took" : 63,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 5,
-    "successful" : 5,
-    "skipped" : 0,
-    "failed" : 0
-  },
-  "hits" : {
-    "total" : {
-       "value": 1000,
-       "relation": "eq"
-    },
-    "max_score": null,
-    "hits" : [ {
-      "_index" : "bank",
-      "_type" : "_doc",
-      "_id" : "0",
-      "sort": [0],
-      "_score": null,
-      "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
-    }, {
-      "_index" : "bank",
-      "_type" : "_doc",
-      "_id" : "1",
-      "sort": [1],
-      "_score": null,
-      "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
-    }, ...
-    ]
-  }
-}
---------------------------------------------------
-// TESTRESPONSE[s/"took" : 63/"took" : $body.took/]
-// TESTRESPONSE[s/\.\.\./$body.hits.hits.2, $body.hits.hits.3, $body.hits.hits.4, $body.hits.hits.5, $body.hits.hits.6, $body.hits.hits.7, $body.hits.hits.8, $body.hits.hits.9/]
-
-////
-
-It is important to understand that once you get your search results back, Elasticsearch is completely done with the request and does not maintain any kind of server-side resources or open cursors into your results. This is in stark contrast to many other platforms such as SQL wherein you may initially get a partial subset of your query results up-front and then you have to continuously go back to the server if you want to fetch (or page through) the rest of the results using some kind of stateful server-side cursor.
-
-[float]
-[[getting-started-query-lang]]
-=== Introducing the Query Language
-
-Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the {ref}/query-dsl.html[Query DSL]. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
-
-Going back to our last example, we executed this query:
-
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match_all": {} }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Dissecting the above, the `query` part tells us what our query definition is and the `match_all` part is simply the type of query that we want to run. The `match_all` query is simply a search for all documents in the specified index.
-
-In addition to the `query` parameter, we also can pass other parameters to
-influence the search results. In the example in the section above we passed in
-`sort`, here we pass in `size`:
-
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match_all": {} },
-  "size": 1
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Note that if `size` is not specified, it defaults to 10.
-
-This example does a `match_all` and returns documents 10 through 19:
-
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match_all": {} },
+  ],
   "from": 10,
   "size": 10
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-The `from` parameter (0-based) specifies which document index to start from and the `size` parameter specifies how many documents to return starting at the from parameter. This feature is useful when implementing paging of search results. Note that if `from` is not specified, it defaults to 0.
+Now that you've seen how to submit a basic search request, you can start to
+construct queries that are a bit more interesting than `match_all`.
 
-This example does a `match_all` and sorts the results by account balance in descending order and returns the top 10 (default size) documents.
+To search for specific terms within a field, you can use a `match` query. 
+For example, the following request searches the `address` field to find 
+customers whose addresses contain `mill` or `lane`:
 
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match_all": {} },
-  "sort": { "balance": { "order": "desc" } }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Now that we have seen a few of the basic search parameters, let's dig in some more into the Query DSL. Let's first take a look at the returned document fields. By default, the full JSON document is returned as part of all searches. This is referred to as the source (`_source` field in the search hits). If we don't want the entire source document returned, we have the ability to request only a few fields from within source to be returned.
-
-This example shows how to return two fields, `account_number` and `balance` (inside of `_source`), from the search:
-
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match_all": {} },
-  "_source": ["account_number", "balance"]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Note that the above example simply reduces the `_source` field. It will still only return one field named `_source` but within it, only the fields `account_number` and `balance` are included.
-
-If you come from a SQL background, the above is somewhat similar in concept to the `SQL SELECT FROM` field list.
-
-Now let's move on to the query part. Previously, we've seen how the `match_all` query is used to match all documents. Let's now introduce a new query called the {ref}/query-dsl-match-query.html[`match` query], which can be thought of as a basic fielded search query (i.e. a search done against a specific field or set of fields).
-
-This example returns the account numbered 20:
-
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match": { "account_number": 20 } }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-This example returns all accounts containing the term "mill" in the address:
-
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match": { "address": "mill" } }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-This example returns all accounts containing the term "mill" or "lane" in the address:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
   "query": { "match": { "address": "mill lane" } }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-This example is a variant of `match` (`match_phrase`) that returns all accounts containing the phrase "mill lane" in the address:
+To perform a phrase search rather than matching individual terms, you use
+`match_phrase` instead of `match`. For example, the following request only 
+matches addresses that contain the phrase `mill lane`: 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
   "query": { "match_phrase": { "address": "mill lane" } }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-Let's now introduce the {ref}/query-dsl-bool-query.html[`bool` query]. The `bool` query allows us to compose smaller queries into bigger queries using boolean logic.
+To construct more complex queries, you can use a `bool` query to combine
+multiple query criteria. You can designate criteria as required (must match), 
+desirable (should match), or undesirable (must not match).
 
-This example composes two `match` queries and returns all accounts containing "mill" and "lane" in the address:
+For example, the following request searches the `bank` index for accounts that
+belong to customers who are 40 years old, but excludes anyone who lives in
+Idaho (ID):
 
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": {
-    "bool": {
-      "must": [
-        { "match": { "address": "mill" } },
-        { "match": { "address": "lane" } }
-      ]
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-In the above example, the `bool must` clause specifies all the queries that must be true for a document to be considered a match.
-
-In contrast, this example composes two `match` queries and returns all accounts containing "mill" or "lane" in the address:
-
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": {
-    "bool": {
-      "should": [
-        { "match": { "address": "mill" } },
-        { "match": { "address": "lane" } }
-      ]
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-In the above example, the `bool should` clause specifies a list of queries either of which must be true for a document to be considered a match.
-
-This example composes two `match` queries and returns all accounts that contain neither "mill" nor "lane" in the address:
-
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": {
-    "bool": {
-      "must_not": [
-        { "match": { "address": "mill" } },
-        { "match": { "address": "lane" } }
-      ]
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-In the above example, the `bool must_not` clause specifies a list of queries none of which must be true for a document to be considered a match.
-
-We can combine `must`, `should`, and `must_not` clauses simultaneously inside a `bool` query. Furthermore, we can compose `bool` queries inside any of these `bool` clauses to mimic any complex multi-level boolean logic.
-
-This example returns all accounts of anybody who is 40 years old but doesn't live in ID(aho):
-
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -691,22 +487,23 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[float]
-[[getting-started-filters]]
-=== Executing filters
+Each `must`, `should`, and `must_not` element in a Boolean query is referred
+to as a query clause. How well a document meets the criteria in each `must` or
+`should` clause contributes to the document's _relevance score_. The higher the
+score, the better the document matches your search criteria. By default, {es}
+returns documents ranked by these relevance scores. 
 
-In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
+The criteria in a `must_not` clause is treated as a _filter_. It affects whether
+or not the document is included in the results, but does not contribute to
+how documents are scored. You can also explicitly specify arbitrary filters to
+include or exclude documents based on structured data. 
 
-But queries do not always need to produce scores, in particular when they are only used for "filtering" the document set. Elasticsearch detects these situations and automatically optimizes query execution in order not to compute useless scores.
+For example, the following request uses a range filter to limit the results to
+accounts with a balance between $20,000 and $30,000 (inclusive). 
 
-The {ref}/query-dsl-bool-query.html[`bool` query] that we introduced in the previous section also supports `filter` clauses which allow us to use a query to restrict the documents that will be matched by other clauses, without changing how scores are computed. As an example, let's introduce the {ref}/query-dsl-range-query.html[`range` query], which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
-
-This example uses a bool query to return all accounts with balances between 20000 and 30000, inclusive. In other words, we want to find accounts with a balance that is greater than or equal to 20000 and less than or equal to 30000.
-
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -725,21 +522,22 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
-
-Dissecting the above, the bool query contains a `match_all` query (the query part) and a `range` query (the filter part). We can substitute any other queries into the query and the filter parts. In the above case, the range query makes perfect sense since documents falling into the range all match "equally", i.e., no document is more relevant than another.
-
-In addition to the `match_all`, `match`, `bool`, and `range` queries, there are a lot of other query types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query types.
 
 [[getting-started-aggregations]]
 == Analyze results with aggregations
 
-Aggregations provide the ability to group and extract statistics from your data. The easiest way to think about aggregations is by roughly equating it to the SQL GROUP BY and the SQL aggregate functions. In Elasticsearch, you have the ability to execute searches returning hits and at the same time return aggregated results separate from the hits all in one response. This is very powerful and efficient in the sense that you can run queries and multiple aggregations and get the results back of both (or either) operations in one shot avoiding network roundtrips using a concise and simplified API.
+{es} aggregations enable you to get meta-information about your search results
+and answer questions like, "How many account holders are in Texas?" or 
+"What's the average balance of accounts in Tennessee?" You can search 
+documents, filter hits, and use aggregations to analyze the results all in one
+request. 
 
-To start with, this example groups all the accounts by state, and then returns the top 10 (default) states sorted by count descending (also default):
+For example, the following request uses a `terms` aggregation to group
+all of the accounts in the `bank` index by state, and returns the ten states
+with the most accounts in descending order:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -753,19 +551,14 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-In SQL, the above aggregation is similar in concept to:
+The `buckets` in the response are the values of the `state` field. The 
+`doc_count` shows the number of accounts in each state. For example, you
+can see that there are 27 accounts in `ID` (Idaho). Because the request
+set `size=0`, the response only contains the aggregation results.
 
-[source,sh]
---------------------------------------------------
-SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC LIMIT 10;
---------------------------------------------------
-
-And the response (partially shown):
-
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 29,
@@ -825,14 +618,13 @@ And the response (partially shown):
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 29/"took": $body.took/]
 
-We can see that there are 27 accounts in `ID` (Idaho), followed by 27 accounts
-in `TX` (Texas), followed by 25 accounts in `AL` (Alabama), and so forth.
 
-Note that we set `size=0` to not show search hits because we only want to see the aggregation results in the response.
+You can combine aggregations to build more complex summaries of your data. For 
+example, the following request nests an `avg` aggregation within the previous
+`group_by_state` aggregation to calculate the average account balances for
+each state.
 
-Building on the previous aggregation, this example calculates the average account balance by state (again only for the top 10 states sorted by count in descending order):
-
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -853,14 +645,12 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-Notice how we nested the `average_balance` aggregation inside the `group_by_state` aggregation. This is a common pattern for all the aggregations. You can nest aggregations inside aggregations arbitrarily to extract pivoted summarizations that you require from your data.
+Instead of sorting the results by count, you could sort using the result of
+the nested aggregation by specifying the order within the `terms` aggregation:
 
-Building on the previous aggregation, let's now sort on the average balance in descending order:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -884,57 +674,16 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-This example demonstrates how we can group by age brackets (ages 20-29, 30-39, and 40-49), then by gender, and then finally get the average account balance, per age bracket, per gender:
+In addition to basic bucketing and metrics aggregations like these, {es}
+provides specialized aggregations for operating on multiple fields and 
+analyzing particular types of data such as dates, IP addresses, and geo 
+data. You can also feed the results of individual aggregations into pipeline
+aggregations for further analysis.
 
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "size": 0,
-  "aggs": {
-    "group_by_age": {
-      "range": {
-        "field": "age",
-        "ranges": [
-          {
-            "from": 20,
-            "to": 30
-          },
-          {
-            "from": 30,
-            "to": 40
-          },
-          {
-            "from": 40,
-            "to": 50
-          }
-        ]
-      },
-      "aggs": {
-        "group_by_gender": {
-          "terms": {
-            "field": "gender.keyword"
-          },
-          "aggs": {
-            "average_balance": {
-              "avg": {
-                "field": "balance"
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-There are many other aggregations capabilities that we won't go into detail here. The {ref}/search-aggregations.html[aggregations reference guide] is a great starting point if you want to do further experimentation.
+The core analysis capabilities provided by aggregations enable advanced
+features such as using machine learning to detect anomalies. 
 
 [[getting-started-next-steps]]
 == Where to go from here

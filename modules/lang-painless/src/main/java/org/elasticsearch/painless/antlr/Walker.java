@@ -141,6 +141,7 @@ import org.elasticsearch.painless.node.PField;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
 import org.elasticsearch.painless.node.SCatch;
+import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.node.SContinue;
 import org.elasticsearch.painless.node.SDeclBlock;
 import org.elasticsearch.painless.node.SDeclaration;
@@ -152,7 +153,6 @@ import org.elasticsearch.painless.node.SFunction;
 import org.elasticsearch.painless.node.SIf;
 import org.elasticsearch.painless.node.SIfElse;
 import org.elasticsearch.painless.node.SReturn;
-import org.elasticsearch.painless.node.SSource;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
@@ -166,14 +166,14 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
+    public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
                                             String sourceText, CompilerSettings settings, PainlessLookup painlessLookup,
                                             Printer debugStream) {
         return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup, debugStream).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
-    private final SSource source;
+    private final SClass source;
     private final CompilerSettings settings;
     private final Printer debugStream;
     private final String sourceName;
@@ -188,7 +188,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         this.sourceName = Location.computeSourceName(sourceName);
         this.sourceText = sourceText;
         this.painlessLookup = painlessLookup;
-        this.source = (SSource)visit(buildAntlrTree(sourceText));
+        this.source = (SClass)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
@@ -245,7 +245,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions, statements);
+        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions, statements);
     }
 
     @Override
@@ -272,7 +272,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(ctx.block().dstatement()));
         }
 
-        return new SFunction(location(ctx), rtnType, name, paramTypes, paramNames, statements, false);
+        return new SFunction(location(ctx), rtnType, name, paramTypes, paramNames, new SBlock(location(ctx), statements), false);
     }
 
     @Override
@@ -817,11 +817,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitRegex(RegexContext ctx) {
-        if (false == settings.areRegexesEnabled()) {
-            throw location(ctx).createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
-                    + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
-                    + "recursion and long loops."));
-        }
         String text = ctx.REGEX().getText();
         int lastSlash = text.lastIndexOf('/');
         String pattern = text.substring(1, lastSlash);

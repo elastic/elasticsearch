@@ -147,4 +147,19 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return copySettings;
     }
 
+    @Override
+    public String toString() {
+        return "CreateIndexClusterStateUpdateRequest{" +
+            "cause='" + cause + '\'' +
+            ", index='" + index + '\'' +
+            ", providedName='" + providedName + '\'' +
+            ", recoverFrom=" + recoverFrom +
+            ", resizeType=" + resizeType +
+            ", copySettings=" + copySettings +
+            ", settings=" + settings +
+            ", aliases=" + aliases +
+            ", blocks=" + blocks +
+            ", waitForActiveShards=" + waitForActiveShards +
+            '}';
+    }
 }

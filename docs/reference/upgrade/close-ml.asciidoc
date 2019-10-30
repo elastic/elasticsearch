@@ -3,11 +3,10 @@
 ////////////
 Take us out of upgrade mode after running any snippets on this page.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=false
 --------------------------------------------------
-// CONSOLE
 // TEARDOWN
 ////////////
 
@@ -25,11 +24,10 @@ it puts increased load on the cluster.
 prevent new jobs from opening by using the
 <<ml-set-upgrade-mode,set upgrade mode API>>:
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=true
 --------------------------------------------------
-// CONSOLE
 +
 When you disable upgrade mode, the jobs resume using the last model
 state that was automatically saved. This option avoids the overhead of managing

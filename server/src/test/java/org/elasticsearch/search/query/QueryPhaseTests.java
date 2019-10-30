@@ -619,13 +619,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
             .build();
 
         context.parsedQuery(new ParsedQuery(q));
-        context.setSize(10);
+        context.setSize(3);
+        context.trackTotalHitsUpTo(3);
         TopDocsCollectorContext topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE);
         QueryPhase.executeInternal(context);
         assertEquals(5, context.queryResult().topDocs().topDocs.totalHits.value);
         assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation, TotalHits.Relation.EQUAL_TO);
-        assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(5));
+        assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
 
 
         context.sort(new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)),
@@ -634,7 +635,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES);
         QueryPhase.executeInternal(context);
         assertEquals(5, context.queryResult().topDocs().topDocs.totalHits.value);
-        assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(5));
+        assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
         assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation, TotalHits.Relation.EQUAL_TO);
 
         reader.close();
@@ -884,7 +885,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     private static ContextIndexSearcher newEarlyTerminationContextSearcher(IndexReader reader, int size) {
         return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
+            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
 
             @Override
             public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {

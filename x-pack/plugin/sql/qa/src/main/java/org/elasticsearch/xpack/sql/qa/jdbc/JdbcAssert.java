@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
 
 import java.io.IOException;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -37,6 +39,9 @@ import static java.sql.Types.INTEGER;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TINYINT;
+import static java.time.ZoneOffset.UTC;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.logResultSetMetadata;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.resultSetCurrentData;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -107,7 +112,7 @@ public class JdbcAssert {
         ResultSetMetaData actualMeta = actual.getMetaData();
 
         if (logger != null) {
-            JdbcTestUtils.logResultSetMetadata(actual, logger);
+            logResultSetMetadata(actual, logger);
         }
 
         if (expectedMeta.getColumnCount() != actualMeta.getColumnCount()) {
@@ -210,7 +215,7 @@ public class JdbcAssert {
                 assertTrue("Expected more data but no more entries found after [" + count + "]", actual.next());
 
                 if (logger != null) {
-                    logger.info(JdbcTestUtils.resultSetCurrentData(actual));
+                    logger.info(resultSetCurrentData(actual));
                 }
 
                 for (int column = 1; column <= columns; column++) {
@@ -220,7 +225,7 @@ public class JdbcAssert {
                         String columnClassName = metaData.getColumnClassName(column);
 
                         // fix for CSV which returns the shortName not fully-qualified name
-                        if (!columnClassName.contains(".")) {
+                        if (columnClassName != null && !columnClassName.contains(".")) {
                             switch (columnClassName) {
                                 case "Date":
                                     columnClassName = "java.sql.Date";
@@ -240,13 +245,17 @@ public class JdbcAssert {
                             }
                         }
 
-                        expectedColumnClass = Class.forName(columnClassName);
+                        if (columnClassName != null) {
+                            expectedColumnClass = Class.forName(columnClassName);
+                        }
                     } catch (ClassNotFoundException cnfe) {
                         throw new SQLException(cnfe);
                     }
 
                     Object expectedObject = expected.getObject(column);
-                    Object actualObject = lenientDataType ? actual.getObject(column, expectedColumnClass) : actual.getObject(column);
+                    Object actualObject = (lenientDataType && expectedColumnClass != null) 
+                            ? actual.getObject(column, expectedColumnClass)
+                            : actual.getObject(column);
 
                     String msg = format(Locale.ROOT, "Different result for column [%s], entry [%d]",
                         metaData.getColumnName(column), count + 1);
@@ -263,6 +272,10 @@ public class JdbcAssert {
                     // then timestamp
                     else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
                         assertEquals(msg, expected.getTimestamp(column), actual.getTimestamp(column));
+                    }
+                    // then date
+                    else if (type == Types.DATE) {
+                        assertEquals(msg, convertDateToSystemTimezone(expected.getDate(column)), actual.getDate(column));
                     }
                     // and floats/doubles
                     else if (type == Types.DOUBLE) {
@@ -301,14 +314,14 @@ public class JdbcAssert {
         } catch (AssertionError ae) {
             if (logger != null && actual.next()) {
                 logger.info("^^^ Assertion failure ^^^");
-                logger.info(JdbcTestUtils.resultSetCurrentData(actual));
+                logger.info(resultSetCurrentData(actual));
             }
             throw ae;
         }
 
         if (actual.next()) {
             fail("Elasticsearch [" + actual + "] still has data after [" + count + "] entries:\n"
-                    + JdbcTestUtils.resultSetCurrentData(actual));
+                    + resultSetCurrentData(actual));
         }
     }
 
@@ -327,5 +340,10 @@ public class JdbcAssert {
         }
 
         return columnType;
+    }
+
+    // Used to convert the DATE read from CSV file to a java.sql.Date at the System's timezone (-Dtests.timezone=XXXX)
+    private static Date convertDateToSystemTimezone(Date date) {
+        return new Date(date.toLocalDate().atStartOfDay(UTC).toInstant().toEpochMilli());
     }
 }

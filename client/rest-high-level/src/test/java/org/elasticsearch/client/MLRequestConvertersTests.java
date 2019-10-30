@@ -36,6 +36,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameRequestTests;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequestTests;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -85,9 +86,6 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -779,13 +777,7 @@ public class MLRequestConvertersTests extends ESTestCase {
     }
 
     public void testEvaluateDataFrame() throws IOException {
-        EvaluateDataFrameRequest evaluateRequest =
-            new EvaluateDataFrameRequest(
-                Arrays.asList(generateRandomStringArray(1, 10, false, false)),
-                new BinarySoftClassification(
-                    randomAlphaOfLengthBetween(1, 10),
-                    randomAlphaOfLengthBetween(1, 10),
-                    PrecisionMetric.at(0.5), RecallMetric.at(0.6, 0.7)));
+        EvaluateDataFrameRequest evaluateRequest = EvaluateDataFrameRequestTests.createRandom();
         Request request = MLRequestConverters.evaluateDataFrame(evaluateRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/_evaluate", request.getEndpoint());

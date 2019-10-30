@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -38,7 +37,7 @@ import java.util.Objects;
  * {@code _all} explicitly gets all the datafeeds in the cluster
  * An empty request (no {@code datafeedId}s) implicitly gets all the datafeeds in the cluster
  */
-public class GetDatafeedRequest extends ActionRequest implements ToXContentObject {
+public class GetDatafeedRequest implements Validatable, ToXContentObject {
 
     public static final ParseField DATAFEED_IDS = new ParseField("datafeed_ids");
     public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
@@ -99,11 +98,6 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
 
     public Boolean getAllowNoDatafeeds() {
         return allowNoDatafeeds;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

@@ -154,7 +154,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         return nodeIdToName;
     }
 
-    private static void ensureSearchTaskIsCancelled(Function<String, String> nodeIdToName) {
+    private static void ensureSearchTaskIsCancelled(Function<String, String> nodeIdToName) throws Exception {
         SetOnce<TaskInfo> searchTask = new SetOnce<>();
         ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().get();
         for (TaskInfo task : listTasksResponse.getTasks()) {
@@ -165,10 +165,12 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         assertNotNull(searchTask.get());
         TaskId taskId = searchTask.get().getTaskId();
         String nodeName = nodeIdToName.apply(taskId.getNodeId());
-        TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
-        Task task = taskManager.getTask(taskId.getId());
-        assertThat(task, instanceOf(CancellableTask.class));
-        assertTrue(((CancellableTask)task).isCancelled());
+        assertBusy(() -> {
+            TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
+            Task task = taskManager.getTask(taskId.getId());
+            assertThat(task, instanceOf(CancellableTask.class));
+            assertTrue(((CancellableTask)task).isCancelled());
+        });
     }
 
     private static void indexTestData() {
@@ -176,7 +178,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < 20; j++) {
-                bulkRequestBuilder.add(client().prepareIndex("test", "_doc", Integer.toString(i * 5 + j)).setSource("field", "value"));
+                bulkRequestBuilder.add(client().prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
             }
             assertNoFailures(bulkRequestBuilder.get());
         }
@@ -238,7 +240,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
                 LogManager.getLogger(SearchRestCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {
-                    awaitBusy(() -> shouldBlock.get() == false);
+                    waitUntil(() -> shouldBlock.get() == false);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

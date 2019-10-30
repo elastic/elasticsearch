@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
 import java.io.IOException;
@@ -31,4 +32,16 @@ public interface AnalyticsProcess<ProcessResult> extends NativeProcess {
      * a SIGPIPE
      */
     void consumeAndCloseOutputStream();
+
+    /**
+     *
+     * @return the process config
+     */
+    AnalyticsProcessConfig getConfig();
+
+    /**
+     * Restores the model state from a previously persisted one
+     * @param state the state to restore
+     */
+    void restoreState(BytesReference state) throws IOException;
 }

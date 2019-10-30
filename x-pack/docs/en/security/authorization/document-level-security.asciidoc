@@ -1,0 +1,58 @@
+[role="xpack"]
+[[document-level-security]]
+=== Document level security
+
+Document level security restricts the documents that users have read access to.
+In particular, it restricts which documents can be accessed from document-based 
+read APIs. 
+
+To enable document level security, you use a query to specify the documents that 
+each role can access. The document query is associated with a particular index 
+or index pattern and operates in conjunction with the privileges specified for 
+the indices.
+
+The following role definition grants read access only to documents that
+belong to the `click` category within all the `events-*` indices:
+
+[source,console]
+--------------------------------------------------
+POST /_security/role/click_role
+{
+  "indices": [
+    {
+      "names": [ "events-*" ],
+      "privileges": [ "read" ],
+      "query": "{\"match\": {\"category\": \"click\"}}"
+    }
+  ]
+}
+--------------------------------------------------
+
+NOTE: Omitting the `query` entry entirely disables document level security for
+      the respective indices permission entry.
+
+The specified `query` expects the same format as if it was defined in the
+search request and supports the full {es} <<query-dsl,query DSL>>.
+
+For example, the following role grants read access only to the documents whose
+`department_id` equals `12`:
+
+[source,console]
+--------------------------------------------------
+POST /_security/role/dept_role
+{
+  "indices" : [
+    {
+      "names" : [ "*" ],
+      "privileges" : [ "read" ],
+      "query" : {
+        "term" : { "department_id" : 12 }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+NOTE: `query` also accepts queries written as string values.
+
+For more information, see <<field-and-document-access-control>>.

@@ -87,7 +87,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+        return Version.V_7_4_0;
     }
 
     public static final class Entry implements Writeable {
@@ -101,7 +101,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
             repositoryStateId = in.readLong();
         }
 
-        private Entry(String repository, long repositoryStateId) {
+        public Entry(String repository, long repositoryStateId) {
             this.repository = repository;
             this.repositoryStateId = repositoryStateId;
         }

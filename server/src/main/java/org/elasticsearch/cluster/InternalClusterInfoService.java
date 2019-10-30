@@ -47,9 +47,8 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -88,7 +87,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final NodeClient client;
-    private final List<Consumer<ClusterInfo>> listeners = Collections.synchronizedList(new ArrayList<>(1));
+    private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
 
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
@@ -275,6 +274,11 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
     }
 
+    // allow tests to adjust the node stats on receipt
+    List<NodeStats> adjustNodesStats(List<NodeStats> nodeStats) {
+        return nodeStats;
+    }
+
     /**
      * Refreshes the ClusterInfo in a blocking fashion
      */
@@ -284,12 +288,13 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
         final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
             @Override
-            public void onResponse(NodesStatsResponse nodeStatses) {
-                ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages = ImmutableOpenMap.builder();
-                ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages = ImmutableOpenMap.builder();
-                fillDiskUsagePerNode(logger, nodeStatses.getNodes(), newLeastAvaiableUsages, newMostAvaiableUsages);
-                leastAvailableSpaceUsages = newLeastAvaiableUsages.build();
-                mostAvailableSpaceUsages = newMostAvaiableUsages.build();
+            public void onResponse(NodesStatsResponse nodesStatsResponse) {
+                ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                fillDiskUsagePerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()),
+                    leastAvailableUsagesBuilder, mostAvailableUsagesBuilder);
+                leastAvailableSpaceUsages = leastAvailableUsagesBuilder.build();
+                mostAvailableSpaceUsages = mostAvailableUsagesBuilder.build();
             }
 
             @Override
@@ -402,7 +407,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                     if (leastAvailablePath == null) {
                         assert mostAvailablePath == null;
                         mostAvailablePath = leastAvailablePath = info;
-                    } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()){
+                    } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()) {
                         leastAvailablePath = info;
                     } else if (mostAvailablePath.getAvailable().getBytes() < info.getAvailable().getBytes()) {
                         mostAvailablePath = info;

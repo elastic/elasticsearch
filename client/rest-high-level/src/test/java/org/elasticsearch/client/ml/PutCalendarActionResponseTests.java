@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class PutCalendarActionResponseTests extends AbstractResponseTestCase<PutCalendarAction.Response, PutCalendarResponse> {
 
     @Override
-    protected PutCalendarAction.Response createServerTestInstance() {
+    protected PutCalendarAction.Response createServerTestInstance(XContentType xContentType) {
         String calendarId = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray()).ofCodePointsLength(random(), 10, 10);
         int size = randomInt(10);
         List<String> items = new ArrayList<>(size);

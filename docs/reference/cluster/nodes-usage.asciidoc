@@ -1,5 +1,8 @@
 [[cluster-nodes-usage]]
-=== Nodes Feature Usage
+=== Nodes feature usage API
+++++
+<titleabbrev>Nodes feature usage</titleabbrev>
+++++
 
 Returns information on the usage of features.
 
@@ -9,11 +12,11 @@ Returns information on the usage of features.
 
 `GET /_nodes/usage` +
 
-`GET /_nodes/{node_id}/usage` +
+`GET /_nodes/<node_id>/usage` +
 
-`GET /_nodes/usage/{metric}` +
+`GET /_nodes/usage/<metric>` +
 
-`GET /_nodes/{node_id}/usage/{metric}`
+`GET /_nodes/<node_id>/usage/<metric>`
 
 
 [[cluster-nodes-usage-api-desc]]
@@ -27,7 +30,7 @@ of features for each node. All the nodes selective options are explained
 [[cluster-nodes-usage-api-path-params]]
 ==== {api-path-parms-title}
 
-`{metric}`::
+`<metric>`::
     (Optional, string) Limits the information returned to the specific metrics. 
     A comma-separated list of the following options: 
 +
@@ -54,16 +57,15 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 Rest action example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _nodes/usage
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_nodes": {

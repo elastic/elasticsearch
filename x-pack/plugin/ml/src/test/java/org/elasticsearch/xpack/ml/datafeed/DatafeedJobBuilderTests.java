@@ -13,10 +13,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -92,7 +94,9 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 jobConfigProvider,
                 jobResultsProvider,
                 datafeedConfigProvider,
-                jobResultsPersister);
+                jobResultsPersister,
+                Settings.EMPTY,
+                "test_node");
     }
 
     public void testBuild_GivenScrollDatafeedAndNewJob() throws Exception {
@@ -200,6 +204,46 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         datafeedJobBuilder.build("datafeed1", ActionListener.wrap(datafeedJob -> fail(), taskHandler));
 
         verify(taskHandler).accept(error);
+    }
+
+    public void testBuildGivenRemoteIndicesButNoRemoteSearching() throws Exception {
+        Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), false).build();
+        datafeedJobBuilder =
+            new DatafeedJobBuilder(
+                client,
+                xContentRegistry(),
+                auditor,
+                System::currentTimeMillis,
+                jobConfigProvider,
+                jobResultsProvider,
+                datafeedConfigProvider,
+                jobResultsPersister,
+                settings,
+                "test_node");
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = DatafeedManagerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
+        datafeed.setIndices(Collections.singletonList("remotecluster:index-*"));
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
+            datafeedJob -> fail("datafeed builder did not fail when remote index was given and remote clusters were not enabled"),
+            e -> {
+                assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
+                    "datafeed1",
+                    "[remotecluster:index-*]",
+                    "test_node")));
+                wasHandlerCalled.compareAndSet(false, true);
+            }
+        );
+
+        givenJob(jobBuilder);
+        givenDatafeed(datafeed);
+        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
+        assertBusy(() -> wasHandlerCalled.get());
     }
 
     private void givenJob(Job.Builder job) {

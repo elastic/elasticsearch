@@ -1,0 +1,11 @@
+[float]
+[[breaking_80_breaker_changes]]
+=== Packaging changes
+
+//tag::notable-breaking-changes[]
+[float]
+==== In Flight Request Circuit Breaker
+
+The name of the in flight requests circuit breaker in log output and diagnostic APIs (such as the node stats API) changes from `in_flight_requests` to `inflight_requests` to align it with the name of the corresponding settings.
+
+//end::notable-breaking-changes[]

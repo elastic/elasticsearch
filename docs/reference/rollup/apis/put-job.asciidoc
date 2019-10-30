@@ -21,7 +21,7 @@ experimental[]
 
 * If the {es} {security-features} are enabled, you must have `manage` or
 `manage_rollup` cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[rollup-put-job-api-desc]]
 ==== {api-description-title}
@@ -70,7 +70,7 @@ For more details about the job configuration, see <<rollup-job-config>>.
 The following example creates a {rollup-job} named "sensor", targeting the
 "sensor-*" index pattern:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
@@ -100,15 +100,13 @@ PUT _rollup/job/sensor
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
 When the job is created, you receive the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

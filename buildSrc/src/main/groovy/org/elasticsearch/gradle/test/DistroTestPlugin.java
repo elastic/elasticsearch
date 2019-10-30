@@ -59,6 +59,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
@@ -66,7 +67,9 @@ import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath
 public class DistroTestPlugin implements Plugin<Project> {
 
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
+    private static final String SYSTEM_JDK_VENDOR = "openjdk";
     private static final String GRADLE_JDK_VERSION = "12.0.1+12@69cfe15208a647278a19ef0990eea691";
+    private static final String GRADLE_JDK_VENDOR = "openjdk";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String DISTRIBUTIONS_CONFIGURATION = "distributions";
@@ -96,10 +99,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
         TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
 
-        Map<String, TaskProvider<?>> batsTests = new HashMap<>();
+        TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
-            configureDistroTest(project, distribution);
+            TaskProvider<?> destructiveTask = configureDistroTest(project, distribution);
+            destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
         }
+        Map<String, TaskProvider<?>> batsTests = new HashMap<>();
         batsTests.put("bats oss", configureBatsTest(project, "oss", distributionsDir, copyDistributionsTask));
         batsTests.put("bats default", configureBatsTest(project, "default", distributionsDir, copyDistributionsTask));
         configureBatsTest(project, "plugins",distributionsDir, copyDistributionsTask, copyPluginsTask).configure(t ->
@@ -127,7 +132,6 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             }
 
-
             batsTests.forEach((desc, task) -> {
                 configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
                     t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
@@ -138,8 +142,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         });
     }
 
-    private static Jdk createJdk(NamedDomainObjectContainer<Jdk> jdksContainer, String name, String version, String platform) {
+    private static Jdk createJdk(
+        NamedDomainObjectContainer<Jdk> jdksContainer, String name, String vendor, String version, String platform) {
         Jdk jdk = jdksContainer.create(name);
+        jdk.setVendor(vendor);
         jdk.setVersion(version);
         jdk.setPlatform(platform);
         return jdk;
@@ -171,17 +177,23 @@ public class DistroTestPlugin implements Plugin<Project> {
         String box = project.getName();
 
         // setup jdks used by the distro tests, and by gradle executing
-        
+
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
-        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VERSION, platform);
-        Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VERSION, platform);
+        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, platform);
+        Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, platform);
 
         // setup VM used by these tests
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
         vagrant.setBox(box);
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdk, "", ""));
         vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH"));
+        // pass these along to get correct build scans
+        if (System.getenv("JENKINS_URL") != null) {
+            Stream.of("JOB_NAME", "JENKINS_URL", "BUILD_NUMBER", "BUILD_URL").forEach(name ->
+                vagrant.vmEnv(name, System.getenv(name))
+            );
+        }
         vagrant.setIsWindowsVM(isWindows(project));
 
         return Arrays.asList(systemJdk, gradleJdk);
@@ -308,16 +320,21 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             });
     }
-    
+
     private List<ElasticsearchDistribution> configureDistributions(Project project, Version upgradeVersion) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        for (Type type : Arrays.asList(Type.DEB, Type.RPM)) {
+        // Docker disabled for https://github.com/elastic/elasticsearch/issues/47639
+        for (Type type : Arrays.asList(Type.DEB, Type.RPM /*,Type.DOCKER*/)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
+                    // We should never add a Docker distro with bundledJdk == false
+                    boolean skip = type == Type.DOCKER && bundledJdk == false;
+                    if (skip == false) {
+                        addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
+                    }
                 }
             }
             // upgrade version is always bundled jdk
@@ -381,6 +398,11 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
-        return "destructiveDistroTest." + distroId(distro.getType(), distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk());
+        Type type = distro.getType();
+        return "destructiveDistroTest." + distroId(
+            type,
+            distro.getPlatform(),
+            distro.getFlavor(),
+            distro.getBundledJdk());
     }
 }

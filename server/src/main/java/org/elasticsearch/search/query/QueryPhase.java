@@ -119,7 +119,7 @@ public class QueryPhase implements SearchPhase {
             suggestPhase.execute(searchContext);
             searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
                     new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                    new DocValueFormat[0]);
+                new DocValueFormat[0]);
             return;
         }
 
@@ -141,7 +141,7 @@ public class QueryPhase implements SearchPhase {
 
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults
-                    .buildShardResults(searchContext.getProfilers());
+                .buildShardResults(searchContext.getProfilers());
             searchContext.queryResult().profileResults(shardResults);
         }
     }
@@ -318,12 +318,12 @@ public class QueryPhase implements SearchPhase {
             }
             return shouldRescore;
         } catch (Exception e) {
-            throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
+            throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }
     }
 
     private static boolean searchWithCollector(SearchContext searchContext, ContextIndexSearcher searcher, Query query,
-            LinkedList<QueryCollectorContext> collectors, boolean hasFilterCollector, boolean timeoutSet) throws IOException {
+                                               LinkedList<QueryCollectorContext> collectors, boolean hasFilterCollector, boolean timeoutSet) throws IOException {
         // create the top docs collector last when the other collectors are known
         final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
         // add the top docs collector, the first collector context in the chain
@@ -346,7 +346,7 @@ public class QueryPhase implements SearchPhase {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
                 // Can't rethrow TimeExceededException because not serializable
-                throw new QueryPhaseExecutionException(searchContext, "Time exceeded");
+                throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
         } finally {
@@ -366,7 +366,7 @@ public class QueryPhase implements SearchPhase {
     // no search after, no scroll, no collapse, no track scores
     // this means we can use TopFieldCollector directly
     private static boolean searchWithCollectorManager(SearchContext searchContext, ContextIndexSearcher searcher, Query query,
-            CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter, boolean timeoutSet) throws IOException {
+                                                      CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter, boolean timeoutSet) throws IOException {
         final IndexReader reader = searchContext.searcher().getIndexReader();
         final int numHits = Math.min(searchContext.from() + searchContext.size(),  Math.max(1, reader.numDocs()));
         final SortAndFormats sortAndFormats = searchContext.sort();
@@ -422,7 +422,7 @@ public class QueryPhase implements SearchPhase {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
                 // Can't rethrow TimeExceededException because not serializable
-                throw new QueryPhaseExecutionException(searchContext, "Time exceeded");
+                throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             searchContext.queryResult().searchTimedOut(true);
         } finally {
@@ -431,8 +431,8 @@ public class QueryPhase implements SearchPhase {
         return false; // no rescoring when sorting by field
     }
 
-     private static Query tryRewriteLongSort(SearchContext searchContext, IndexReader reader,
-            Query query, boolean hasFilterCollector) throws IOException {
+    private static Query tryRewriteLongSort(SearchContext searchContext, IndexReader reader,
+                                            Query query, boolean hasFilterCollector) throws IOException {
         if (searchContext.searchAfter() != null) return null;
         if (searchContext.scrollContext() != null) return null;
         if (searchContext.collapse() != null) return null;
@@ -467,7 +467,7 @@ public class QueryPhase implements SearchPhase {
         if (sortField.getMissingValue() == null) return null;
         Long missingValue = (Long) sortField.getMissingValue();
         boolean missingValuesAccordingToSort = (sortField.getReverse() && (missingValue == Long.MIN_VALUE)) ||
-        ((sortField.getReverse() == false) && (missingValue == Long.MAX_VALUE));
+            ((sortField.getReverse() == false) && (missingValue == Long.MAX_VALUE));
         if (missingValuesAccordingToSort == false) return null;
 
         int docCount = PointValues.getDocCount(reader, fieldName);
@@ -584,10 +584,10 @@ public class QueryPhase implements SearchPhase {
     }
 
     /**
-    * Returns true if more than 50% of data in the index have the same value
-    * The evaluation is approximation based on finding the median value and estimating its count
-    * Returns true if the total count of median values is greater or equal to half of the total count of documents
-    */
+     * Returns true if more than 50% of data in the index have the same value
+     * The evaluation is approximation based on finding the median value and estimating its count
+     * Returns true if the total count of median values is greater or equal to half of the total count of documents
+     */
     static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
         long globalDocCount = 0;
         long globalMedianCount = 0;

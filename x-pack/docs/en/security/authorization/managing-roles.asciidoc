@@ -133,18 +133,19 @@ The following describes the structure of an application privileges entry:
     have any special meaning to the {es} {security-features}.
 
 For details about the validation rules for these fields, see the
-{ref}/security-api-put-privileges.html[add application privileges API].
+<<security-api-put-privileges,add application privileges API>>.
 
 A role may refer to application privileges that do not exist - that is, they
 have not yet been defined through the add application privileges API (or they
 were defined, but have since been deleted). In this case, the privilege has
 no effect, and will not grant any actions in the
-{ref}/security-api-has-privileges.html[has privileges API].
+<<security-api-has-privileges,has privileges API>>.
 
 ==== Example
 
 The following snippet shows an example definition of a `clicks_admin` role:
-[source,js]
+
+[source,console]
 -----------
 POST /_security/role/clicks_admin
 {
@@ -162,7 +163,6 @@ POST /_security/role/clicks_admin
   ]
 }
 -----------
-// CONSOLE
 
 Based on the above definition, users owning the `clicks_admin` role can:
 
@@ -179,7 +179,7 @@ There are two available mechanisms to define roles: using the _Role Management A
 or in local files on the {es} nodes. You can also implement
 custom roles providers.  If you need to integrate with another system to retrieve
 user roles, you can build a custom roles provider plugin. For more information,
-see <<custom-roles-authorization, Customizing Roles and Authorization>>.
+see <<custom-roles-authorization>>.
 
 [float]
 [[roles-management-ui]]
@@ -195,7 +195,7 @@ manage roles, log in to {kib} and go to *Management / Security / Roles*.
 The _Role Management APIs_ enable you to add, update, remove and retrieve roles
 dynamically. When you use the APIs to manage roles in the `native` realm, the
 roles are stored in an internal {es} index. For more information and examples, 
-see {ref}/security-api.html#security-role-apis[role management APIs]. 
+see <<security-role-apis>>. 
 
 [float]
 [[roles-management-file]]
@@ -214,7 +214,16 @@ _Role Management APIs_, the role found in the file will be used.
 While the _Role Management APIs_ is the preferred mechanism to define roles,
 using the `roles.yml` file becomes useful if you want to define fixed roles that
 no one (beside an administrator having physical access to the {es} nodes)
-would be able to change.
+would be able to change. Please note however, that the `roles.yml` file is provided as a
+minimal administrative function and is not intended to cover and be used
+to define roles for all use cases.
+
+[IMPORTANT]
+==============================
+You cannot view, edit, or remove any roles that are defined in `roles.yml` by
+using the <<roles-management-ui,role management UI>> or the
+<<roles-management-api,role management APIs>>.
+==============================
 
 [IMPORTANT]
 ==============================

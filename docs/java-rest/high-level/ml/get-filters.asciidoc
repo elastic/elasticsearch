@@ -3,6 +3,7 @@
 :request: GetFiltersRequest
 :response: GetFiltersResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get filters API
 

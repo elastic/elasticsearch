@@ -80,7 +80,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         return counts == null ? 0 : counts.cardinality(0);
     }
 
-    HyperLogLogPlusPlus getCounts() {
+    public HyperLogLogPlusPlus getCounts() {
         return counts;
     }
 

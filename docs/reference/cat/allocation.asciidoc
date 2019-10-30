@@ -12,7 +12,9 @@ and their disk space.
 [[cat-allocation-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/allocation/{node_id}`
+`GET /_cat/allocation/<node_id>`
+
+`GET /_cat/allocation`
 
 [[cat-allocation-api-path-params]]
 ==== {api-path-parms-title}
@@ -41,11 +43,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-allocation-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console,id=cat-allocation-example]
 --------------------------------------------------
 GET /_cat/allocation?v
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n{"settings": {"number_of_replicas": 0}}\n/]
 
 The API returns the following response:

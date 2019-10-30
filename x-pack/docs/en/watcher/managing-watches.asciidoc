@@ -1,18 +1,19 @@
+[role="xpack"]
 [[managing-watches]]
-== Managing Watches
+== Managing watches
 
 {watcher} provides as set of APIs you can use to manage your watches:
 
-* Use the {ref}/watcher-api-put-watch.html[Put Watch API] to add or update watches
-* Use the {ref}/watcher-api-get-watch.html[Get Watch API] to retrieve watches
-* Use the {ref}/watcher-api-delete-watch.html[Delete Watch API] to delete watches
-* Use the {ref}/watcher-api-activate-watch.html[Activate Watch API] to activate watches
-* Use the {ref}/watcher-api-deactivate-watch.html[Deactivate Watch API] to deactivate watches
-* Use the {ref}/watcher-api-ack-watch.html[Ack Watch API] to acknowledge watches
+* Use the <<watcher-api-put-watch,put watch API>> to add or update watches
+* Use the <<watcher-api-get-watch,get watch API>> to retrieve watches
+* Use the <<watcher-api-delete-watch,delete watch API>> to delete watches
+* Use the <<watcher-api-activate-watch,activate watch API>> to activate watches
+* Use the <<watcher-api-deactivate-watch,deactivate watch API>> to deactivate watches
+* Use the <<watcher-api-ack-watch,ack watch API>> to acknowledge watches
 
 [float]
 [[listing-watches]]
-=== Listing Watches
+=== Listing watches
 
 Currently there is not dedicated API for listing the stored watches. However,
 since {watcher} stores its watches in the `.watches` index, you can list them
@@ -25,12 +26,11 @@ IMPORTANT:	You can only perform read actions on the `.watches` index. You must
 
 For example, the following returns the first 100 watches:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET .watches/_search
 {
   "size" : 100
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]

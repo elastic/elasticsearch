@@ -83,6 +83,7 @@ This page lists all the available search queries with their corresponding `Query
 | {ref}/query-dsl-percolate-query.html[Percolate]                     | {percolate-ref}/PercolateQueryBuilder.html[PercolateQueryBuilder]                   |
 | {ref}/query-dsl-wrapper-query.html[Wrapper]                         | {query-ref}/WrapperQueryBuilder.html[WrapperQueryBuilder]                           | {query-ref}/QueryBuilders.html#wrapperQuery-java.lang.String-[QueryBuilders.wrapperQuery()]
 | {ref}/query-dsl-rank-feature-query.html[Rank Feature]               | {mapper-extras-ref}/RankFeatureQuery.html[RankFeatureQueryBuilder]                  |
+| {ref}/query-dsl-pinned-query.html[Pinned Query]                     | The PinnedQueryBuilder is packaged as part of the xpack-core module                 |
 |======
 
 ==== Span queries

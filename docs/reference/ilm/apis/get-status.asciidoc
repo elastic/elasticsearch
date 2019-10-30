@@ -28,25 +28,22 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 ==== Authorization
 
 You must have the `manage_ilm` or `read_ilm` or both cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 ==== Examples
 
 The following example gets the {ilm-init} plugin status.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ilm/status
 --------------------------------------------------
-// CONSOLE
 
 If the request succeeds, the body of the response shows the operation mode:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "RUNNING"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE

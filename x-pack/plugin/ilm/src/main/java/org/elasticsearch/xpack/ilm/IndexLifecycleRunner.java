@@ -175,7 +175,7 @@ public class IndexLifecycleRunner {
             clusterService.submitStateUpdateTask("ilm-retry-failed-step", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return moveClusterStateToFailedStep(currentState, index, true);
+                    return moveClusterStateToPreviouslyFailedStep(currentState, index, true);
                 }
 
                 @Override
@@ -405,7 +405,7 @@ public class IndexLifecycleRunner {
         return newClusterStateBuilder.build();
     }
 
-    ClusterState moveClusterStateToFailedStep(ClusterState currentState, String index, boolean isAutomaticRetry) {
+    ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String index, boolean isAutomaticRetry) {
         ClusterState newState;
         IndexMetaData indexMetaData = currentState.metaData().index(index);
         if (indexMetaData == null) {
@@ -439,10 +439,10 @@ public class IndexLifecycleRunner {
         return newState;
     }
 
-    ClusterState moveClusterStateToFailedStep(ClusterState currentState, String[] indices) {
+    ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String[] indices) {
         ClusterState newState = currentState;
         for (String index : indices) {
-            newState = moveClusterStateToFailedStep(newState, index, false);
+            newState = moveClusterStateToPreviouslyFailedStep(newState, index, false);
         }
         return newState;
     }

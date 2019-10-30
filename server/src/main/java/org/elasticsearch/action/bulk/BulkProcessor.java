@@ -209,7 +209,7 @@ public class BulkProcessor implements Closeable {
      * @param client The client that executes the bulk operations
      * @param listener The BulkProcessor listener that gets called on bulk events
      * @return the builder for BulkProcessor
-     * @deprecated Use {@links #builder(java.util.function.BiConsumer, org.elasticsearch.action.bulk.BulkProcessor.Listener)}
+     * @deprecated Use {@link #builder(java.util.function.BiConsumer, org.elasticsearch.action.bulk.BulkProcessor.Listener)}
      * with client::bulk as the first argument, or {@link #builder(org.elasticsearch.client.Client,
      * org.elasticsearch.action.bulk.BulkProcessor.Listener, org.elasticsearch.threadpool.Scheduler,
      * org.elasticsearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly

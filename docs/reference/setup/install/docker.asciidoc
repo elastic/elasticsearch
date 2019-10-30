@@ -112,6 +112,7 @@ docker-compose up
 --------------------------------------------------
 curl -X GET "localhost:9200/_cat/nodes?v&pretty"
 --------------------------------------------------
+// NOTCONSOLE
 
 Log messages go to the console and are handled by the configured Docker logging driver. 
 By default you can access logs with `docker logs`.

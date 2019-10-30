@@ -54,7 +54,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
 
     // TODO: Registration should happen on the actual aggregator classes, but I don't want to set up the whole dynamic loading thing yet
     static {
-        ValuesSourceRegistry.INSTANCE.register(HistogramAggregationBuilder.NAME, ValuesSourceType.RANGE,
+        ValuesSourceRegistry.getInstance().register(HistogramAggregationBuilder.NAME, ValuesSourceType.RANGE,
             new HistogramAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
@@ -73,7 +73,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             }
         );
 
-        ValuesSourceRegistry.INSTANCE.register(HistogramAggregationBuilder.NAME, ValuesSourceType.NUMERIC,
+        ValuesSourceRegistry.getInstance().register(HistogramAggregationBuilder.NAME, ValuesSourceType.NUMERIC,
             new HistogramAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
@@ -136,7 +136,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 
-        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.INSTANCE.getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.getInstance().getAggregator(config.valueSourceType(),
             HistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof HistogramAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +

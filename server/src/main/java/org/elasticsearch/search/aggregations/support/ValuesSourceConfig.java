@@ -57,7 +57,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         String format, String aggregationName) {
         return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES, aggregationName);
     }
-    
+
     /**
      * Resolve a {@link ValuesSourceConfig} given configuration parameters.
      */

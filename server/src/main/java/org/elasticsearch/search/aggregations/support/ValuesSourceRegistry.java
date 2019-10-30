@@ -60,4 +60,6 @@ public enum ValuesSourceRegistry {
 
     public abstract void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier);
     public abstract AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName);
+
+    public static ValuesSourceRegistry getInstance() {return INSTANCE;}
 }

@@ -2699,6 +2699,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {
             assert Thread.holdsLock(mutex) == false : "warming engine under mutex";
+            assert reader != null;
             if (this.warmer != null) {
                 this.warmer.warm(reader);
             }
@@ -3410,6 +3411,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // TODO: add a dedicate recovery stats for the reset translog
             });
         newEngineReference.get().recoverFromTranslog(translogRunner, globalCheckpoint);
+        newEngineReference.get().refresh("reset_engine");
         synchronized (mutex) {
             verifyNotClosed();
             IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()));

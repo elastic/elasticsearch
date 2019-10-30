@@ -62,8 +62,8 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
             }
         }
 
-        if ((timestamp instanceof ZonedDateTime == false && timestamp instanceof IntervalYearMonth == false &&
-            timestamp instanceof IntervalDayTime == false)) {
+        if ((timestamp instanceof ZonedDateTime == false && timestamp instanceof IntervalYearMonth == false
+            && timestamp instanceof IntervalDayTime == false)) {
             throw new SqlIllegalArgumentException("A date/datetime/interval is required; received [{}]", timestamp);
         }
         if (truncateDateField == Part.WEEK && (timestamp instanceof IntervalDayTime || timestamp instanceof IntervalYearMonth)) {

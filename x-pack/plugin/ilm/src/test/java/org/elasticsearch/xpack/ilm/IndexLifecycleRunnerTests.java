@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -1016,9 +1015,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(existingIndexName, Settings.builder(), LifecycleExecutionState.builder().build(),
             Collections.emptyList());
         IndexLifecycleRunner runner = new IndexLifecycleRunner(null, null, threadPool, () -> 0L);
-        IndexNotFoundException exception = expectThrows(IndexNotFoundException.class,
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> runner.moveClusterStateToPreviouslyFailedStep(clusterState, new String[] { invalidIndexName }));
-        assertThat(exception.getMessage(), equalTo("no such index [" + invalidIndexName + "]"));
+        assertThat(exception.getMessage(), equalTo("index [" + invalidIndexName + "] does not exist"));
     }
 
     public void testMoveClusterStateToFailedStepInvalidPolicySetting() {

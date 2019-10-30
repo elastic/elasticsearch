@@ -76,7 +76,7 @@ Which returns
 
 ===== Using a custom regex file
 To use a custom regex file for parsing the user agents, that file has to be put into the `config/ingest-user-agent` directory and
-has to have a `.yaml` filename extension. The file has to be present at node startup, any changes to it or any new files added
+has to have a `.yml` filename extension. The file has to be present at node startup, any changes to it or any new files added
 while the node is running will not have any effect.
 
 In practice, it will make most sense for any custom regex file to be a variant of the default file, either a more recent version

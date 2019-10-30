@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,11 +18,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -28,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -39,8 +45,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 
-public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
+public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel, Accountable {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Tree.class);
     // TODO should we have regression/classification sub-classes that accept the builder?
     public static final ParseField NAME = new ParseField("tree");
 
@@ -119,9 +126,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
         }
 
-        List<Double> features = featureNames.stream().map(f ->
-            fields.get(f) instanceof Number ? ((Number) fields.get(f)).doubleValue() : null
-        ).collect(Collectors.toList());
+        List<Double> features = featureNames.stream().map(f -> InferenceHelpers.toDouble(fields.get(f))).collect(Collectors.toList());
         return infer(features, config);
     }
 
@@ -134,6 +139,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     private InferenceResults buildResult(Double value, InferenceConfig config) {
+        // Indicates that the config is useless and the caller just wants the raw value
+        if (config instanceof NullInferenceConfig) {
+            return new RawInferenceResults(value);
+        }
         switch (targetType) {
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
@@ -309,6 +318,24 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return targetType == TargetType.CLASSIFICATION ?
             this.nodes.stream().filter(TreeNode::isLeaf).mapToDouble(TreeNode::getLeafValue).max().getAsDouble() :
             null;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOfCollection(classificationLabels);
+        size += RamUsageEstimator.sizeOfCollection(featureNames);
+        size += RamUsageEstimator.sizeOfCollection(nodes);
+        return size;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> accountables = new ArrayList<>(nodes.size());
+        for (TreeNode node : nodes) {
+            accountables.add(Accountables.namedAccountable("tree_node_" + node.getNodeIndex(), node));
+        }
+        return Collections.unmodifiableCollection(accountables);
     }
 
     public static class Builder {

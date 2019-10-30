@@ -36,7 +36,7 @@ also be used as a truststore. In this case, the path value should match
 the `keystore.path` value.
 Note, however, that this is not the general rule. There are keystores that cannot be
 used as truststores, only 
-{ref}/security-settings.html#pkcs12-truststore-note[specifically crafted ones can]
+<<pkcs12-truststore-note,specifically crafted ones can>>.
 --
 
 ** If the certificate is in PEM format, add the following information to the
@@ -99,7 +99,7 @@ communication across the cluster.
 ===============================
 * All TLS-related node settings are considered to be highly sensitive and
 therefore are not exposed via the
-{ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API] For more
+<<cluster-nodes-info,nodes info API>> For more
 information about any of these settings, see <<security-settings>>.
 
 * {es} monitors all files such as certificates, keys, keystores, or truststores 

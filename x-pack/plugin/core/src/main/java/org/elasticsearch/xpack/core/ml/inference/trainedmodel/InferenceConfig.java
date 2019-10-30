@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -13,4 +14,8 @@ public interface InferenceConfig extends NamedXContentObject, NamedWriteable {
 
     boolean isTargetTypeSupported(TargetType targetType);
 
+    /**
+     * All nodes in the cluster must be at least this version
+     */
+    Version getMinimalSupportedVersion();
 }

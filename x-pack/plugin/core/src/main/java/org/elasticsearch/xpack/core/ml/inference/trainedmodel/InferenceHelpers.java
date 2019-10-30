@@ -56,7 +56,6 @@ public final class InferenceHelpers {
         return topClassEntries;
     }
 
-
     public static String classificationLabel(double inferenceValue, @Nullable List<String> classificationLabels) {
         assert inferenceValue == Math.rint(inferenceValue);
         if (classificationLabels == null) {
@@ -71,5 +70,20 @@ public final class InferenceHelpers {
                 classificationLabels);
         }
         return classificationLabels.get(label);
+    }
+
+    public static Double toDouble(Object value) {
+        if (value instanceof Number) {
+            return ((Number)value).doubleValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Double.valueOf((String)value);
+            } catch (NumberFormatException nfe) {
+                assert false : "value is not properly formatted double [" + value + "]";
+                return null;
+            }
+        }
+        return null;
     }
 }

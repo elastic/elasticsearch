@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -23,7 +22,7 @@ public class WeightedSumTests extends WeightedAggregatorTests<WeightedSum> {
 
     @Override
     WeightedSum createTestInstance(int numberOfWeights) {
-        List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).collect(Collectors.toList());
+        double[] weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).mapToDouble(Double::valueOf).toArray();
         return new WeightedSum(weights);
     }
 
@@ -43,13 +42,13 @@ public class WeightedSumTests extends WeightedAggregatorTests<WeightedSum> {
     }
 
     public void testAggregate() {
-        List<Double> ones = Arrays.asList(1.0, 1.0, 1.0, 1.0, 1.0);
+        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
         List<Double> values = Arrays.asList(1.0, 2.0, 2.0, 3.0, 5.0);
 
         WeightedSum weightedSum = new WeightedSum(ones);
         assertThat(weightedSum.aggregate(weightedSum.processValues(values)), equalTo(13.0));
 
-        List<Double> variedWeights = Arrays.asList(1.0, -1.0, .5, 1.0, 5.0);
+        double[] variedWeights = new double[]{1.0, -1.0, .5, 1.0, 5.0};
 
         weightedSum = new WeightedSum(variedWeights);
         assertThat(weightedSum.aggregate(weightedSum.processValues(values)), equalTo(28.0));

@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -31,7 +32,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 
 public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<TrainedModelDefinition> {
@@ -56,6 +59,16 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> !field.isEmpty();
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return lenient ? ToXContent.EMPTY_PARAMS : new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true"));
+    }
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
     }
 
     public static TrainedModelDefinition.Builder createRandomBuilder() {
@@ -314,6 +327,11 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
+    }
+
+    public void testRamUsageEstimation() {
+        TrainedModelDefinition test = createTestInstance();
+        assertThat(test.ramBytesUsed(), greaterThan(0L));
     }
 
 }

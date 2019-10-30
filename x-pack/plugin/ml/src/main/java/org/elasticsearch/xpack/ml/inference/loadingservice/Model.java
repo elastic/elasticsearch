@@ -17,4 +17,5 @@ public interface Model {
 
     void infer(Map<String, Object> fields, InferenceConfig inferenceConfig, ActionListener<InferenceResults> listener);
 
+    String getModelId();
 }

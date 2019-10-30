@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.vectors.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -14,6 +15,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -23,8 +25,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -41,6 +43,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "sparse_vector";
     public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
     public static int MAX_DIMS_NUMBER = 65535; //maximum allowed dimension's number
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SparseVectorFieldMapper.class));
+    public static final String DEPRECATION_MESSAGE = "The [sparse_vector] field type is deprecated and will be removed in 8.0.";
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new SparseVectorFieldType();
@@ -78,6 +83,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            deprecationLogger.deprecatedAndMaybeLog("sparse_vector", DEPRECATION_MESSAGE);
             SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder(name);
             return builder;
         }

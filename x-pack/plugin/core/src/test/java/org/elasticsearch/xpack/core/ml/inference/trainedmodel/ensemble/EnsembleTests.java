@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 import org.junit.Before;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,10 +71,12 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
             .limit(numberOfModels)
             .collect(Collectors.toList());
-        List<Double> weights = randomBoolean() ?
+        double[] weights = randomBoolean() ?
             null :
-            Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-        OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
+            Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).mapToDouble(Double::valueOf).toArray();
+        OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights),
+            new WeightedSum(weights),
+            new LogisticRegression(weights));
         List<String> categoryLabels = null;
         if (randomBoolean()) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
@@ -116,9 +117,9 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
     public void testEnsembleWithAggregatedOutputDifferingFromTrainedModels() {
         List<String> featureNames = Arrays.asList("foo", "bar");
         int numberOfModels = 5;
-        List<Double> weights = new ArrayList<>(numberOfModels + 2);
+        double[] weights = new double[numberOfModels + 2];
         for (int i = 0; i < numberOfModels + 2; i++) {
-            weights.add(randomDouble());
+            weights[i] = randomDouble();
         }
         OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
 
@@ -260,7 +261,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(Arrays.asList(0.7, 0.5, 1.0)))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}))
             .build();
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
@@ -320,7 +321,9 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setLeftChild(3)
                 .setRightChild(4))
             .addNode(TreeNode.builder(3).setLeafValue(0.0))
-            .addNode(TreeNode.builder(4).setLeafValue(1.0)).build();
+            .addNode(TreeNode.builder(4).setLeafValue(1.0))
+            .setTargetType(randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION))
+            .build();
         Tree tree2 = Tree.builder()
             .setFeatureNames(featureNames)
             .setRoot(TreeNode.builder(0)
@@ -330,6 +333,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setThreshold(0.5))
             .addNode(TreeNode.builder(1).setLeafValue(0.0))
             .addNode(TreeNode.builder(2).setLeafValue(1.0))
+            .setTargetType(randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION))
             .build();
         Tree tree3 = Tree.builder()
             .setFeatureNames(featureNames)
@@ -340,12 +344,13 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setThreshold(1.0))
             .addNode(TreeNode.builder(1).setLeafValue(1.0))
             .addNode(TreeNode.builder(2).setLeafValue(0.0))
+            .setTargetType(randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION))
             .build();
         Ensemble ensemble = Ensemble.builder()
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(Arrays.asList(0.7, 0.5, 1.0)))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}))
             .build();
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
@@ -402,7 +407,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             .setTargetType(TargetType.REGRESSION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2))
-            .setOutputAggregator(new WeightedSum(Arrays.asList(0.5, 0.5)))
+            .setOutputAggregator(new WeightedSum(new double[]{0.5, 0.5}))
             .build();
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);

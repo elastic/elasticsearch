@@ -47,6 +47,10 @@ public final class Statistics {
         return exps;
     }
 
+    public static double sigmoid(double value) {
+        return 1/(1 + Math.exp(-value));
+    }
+
     private static boolean isValid(Double v) {
         return v != null && Numbers.isValidDouble(v);
     }

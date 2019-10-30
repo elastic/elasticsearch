@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 public class IngestStats implements Writeable, ToXContentFragment {
@@ -135,6 +136,21 @@ public class IngestStats implements Writeable, ToXContentFragment {
         return processorStats;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IngestStats that = (IngestStats) o;
+        return Objects.equals(totalStats, that.totalStats)
+            && Objects.equals(pipelineStats, that.pipelineStats)
+            && Objects.equals(processorStats, that.processorStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(totalStats, pipelineStats, processorStats);
+    }
+
     public static class Stats implements Writeable, ToXContentFragment {
 
         private final long ingestCount;
@@ -203,6 +219,22 @@ public class IngestStats implements Writeable, ToXContentFragment {
             builder.field("failed", ingestFailedCount);
             return builder;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IngestStats.Stats that = (IngestStats.Stats) o;
+            return Objects.equals(ingestCount, that.ingestCount)
+                && Objects.equals(ingestTimeInMillis, that.ingestTimeInMillis)
+                && Objects.equals(ingestFailedCount, that.ingestFailedCount)
+                && Objects.equals(ingestCurrent, that.ingestCurrent);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(ingestCount, ingestTimeInMillis, ingestFailedCount, ingestCurrent);
+        }
     }
 
     /**
@@ -255,6 +287,20 @@ public class IngestStats implements Writeable, ToXContentFragment {
         public Stats getStats() {
             return stats;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IngestStats.PipelineStat that = (IngestStats.PipelineStat) o;
+            return Objects.equals(pipelineId, that.pipelineId)
+                && Objects.equals(stats, that.stats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pipelineId, stats);
+        }
     }
 
     /**
@@ -275,6 +321,21 @@ public class IngestStats implements Writeable, ToXContentFragment {
 
         public Stats getStats() {
             return stats;
+        }
+
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IngestStats.ProcessorStat that = (IngestStats.ProcessorStat) o;
+            return Objects.equals(name, that.name)
+                && Objects.equals(stats, that.stats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, stats);
         }
     }
 }

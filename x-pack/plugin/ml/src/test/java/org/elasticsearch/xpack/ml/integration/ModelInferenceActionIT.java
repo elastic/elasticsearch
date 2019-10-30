@@ -166,7 +166,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         try {
             client().execute(InferModelAction.INSTANCE, request).actionGet();
         } catch (ElasticsearchException ex) {
-            assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model, 0)));
+            assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
     }
 

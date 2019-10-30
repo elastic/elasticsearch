@@ -59,12 +59,4 @@ public abstract class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
             super(in);
         }
     }
-
-    // not final, as it needs to be extended by Mockito for tests
-    public static class SparseVectorScriptDocValues extends VectorScriptDocValues {
-        public SparseVectorScriptDocValues(BinaryDocValues in) {
-            super(in);
-        }
-    }
-
 }

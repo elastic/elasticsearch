@@ -615,7 +615,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     .filter(Expression::resolved)
                     .collect(Collectors.toSet());
 
-                AttributeSet missing = Expressions.referencesExcept(
+                AttributeSet missing = Expressions.filterReferences(
                     resolvedRefs,
                     o.child().outputSet()
                 );

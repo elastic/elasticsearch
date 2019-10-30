@@ -103,14 +103,14 @@ public final class Expressions {
         return set;
     }
 
-    public static AttributeSet referencesExcept(Set<? extends Expression> exps, AttributeSet except) {
+    public static AttributeSet filterReferences(Set<? extends Expression> exps, AttributeSet excluded) {
         AttributeSet ret = new AttributeSet();
         while (exps.size() > 0) {
 
             Set<Expression> filteredExps = new LinkedHashSet<>();
             for (Expression exp : exps) {
                 Expression attr = Expressions.attribute(exp);
-                if (attr == null || (except.contains(attr) == false)) {
+                if (attr == null || (excluded.contains(attr) == false)) {
                     filteredExps.add(exp);
                 }
             }

@@ -420,7 +420,7 @@ M           |5.1415926535
 M           |4.1415926535
 ;
 
-groupByFieldAndConstantScalarWithAliasWithOrderByDescWithNullsFirst
+groupByFieldAndConstantScalarWithAliasWithOrderByDesc
 SELECT gender, emp_no % 3 + PI() as p FROM test_emp GROUP BY gender, emp_no % 3 + PI() ORDER BY gender DESC, p DESC LIMIT 8;
 
 gender:s    |p:d

@@ -36,7 +36,7 @@ ext.expansions = { oss, ubi, local ->
   ]
 }
 
-private static String files(final boolean oss, final boolean ubi) {
+private static String buildPath(final boolean oss, final boolean ubi) {
   return "build/${ oss ? 'oss-' : ''}${ ubi ? 'ubi-' : ''}docker"
 }
 
@@ -74,7 +74,7 @@ void addCopyDockerContextTask(final boolean oss, final boolean ubi) {
     expansions(oss, ubi, true).each { k, v ->
       inputs.property(k, { v.toString() })
     }
-    into files(oss, ubi)
+    into buildPath(oss, ubi)
 
     with dockerBuildContext(oss, ubi, true)
 
@@ -166,7 +166,7 @@ void addBuildDockerImage(final boolean oss, final boolean ubi) {
       ]
     }
     executable 'docker'
-    final List<String> dockerArgs = ['build', files(oss, ubi), '--pull', '--no-cache']
+    final List<String> dockerArgs = ['build', buildPath(oss, ubi), '--pull', '--no-cache']
     for (final String tag : tags) {
       dockerArgs.add('--tag')
       dockerArgs.add(tag)

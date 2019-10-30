@@ -291,7 +291,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Object dateTrunc(String truncateTo, Object dateTime, String tzId) {
-        return DateTruncProcessor.process(truncateTo, asDateTime(dateTime) , ZoneId.of(tzId));
+        return DateTruncProcessor.process(truncateTo, asDateTime(dateTime,true), ZoneId.of(tzId));
     }
 
     public static Integer datePart(String dateField, Object dateTime, String tzId) {

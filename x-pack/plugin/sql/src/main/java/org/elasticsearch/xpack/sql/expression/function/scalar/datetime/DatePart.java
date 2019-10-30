@@ -99,7 +99,6 @@ public class DatePart extends BinaryDateTimeFunction {
         return TypeResolution.TYPE_RESOLVED;
     }
 
-
     @Override
     protected BinaryScalarFunction replaceChildren(Expression newDateTimePart, Expression newTimestamp) {
         return new DatePart(source(), newDateTimePart, newTimestamp, zoneId());

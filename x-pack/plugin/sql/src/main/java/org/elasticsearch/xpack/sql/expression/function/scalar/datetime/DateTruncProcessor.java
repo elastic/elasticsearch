@@ -50,12 +50,6 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
         if (truncateTo instanceof String == false) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", truncateTo);
         }
-
-        List<String> similar = Part.findSimilar((String) truncateTo);
-        if (similar.contains("week") && (timestamp instanceof IntervalDayTime || timestamp instanceof IntervalYearMonth)) {
-            throw new SqlIllegalArgumentException("Interval units {} not supported because months usually have fractional weeks",truncateTo);
-        }
-
         Part truncateDateField = Part.resolve((String) truncateTo);
         if (truncateDateField == null) {
             List<String> similar = Part.findSimilar((String) truncateTo);
@@ -68,8 +62,13 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
             }
         }
 
-        if ((timestamp instanceof ZonedDateTime == false && timestamp instanceof IntervalYearMonth == false && timestamp instanceof IntervalDayTime == false)) {
+        if ((timestamp instanceof ZonedDateTime == false && timestamp instanceof IntervalYearMonth == false &&
+            timestamp instanceof IntervalDayTime == false)) {
             throw new SqlIllegalArgumentException("A date/datetime/interval is required; received [{}]", timestamp);
+        }
+        if (truncateDateField.name().equals("WEEK") && (timestamp instanceof IntervalDayTime || timestamp instanceof IntervalYearMonth)) {
+            throw new SqlIllegalArgumentException("Interval units {} not supported because months usually have fractional weeks",
+                truncateTo);
         }
 
         if (timestamp instanceof ZonedDateTime) {

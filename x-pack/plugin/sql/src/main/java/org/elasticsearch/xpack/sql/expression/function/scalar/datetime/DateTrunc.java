@@ -6,8 +6,12 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.literal.Interval;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -153,12 +157,13 @@ public class DateTrunc extends BinaryDateTimeFunction {
             VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
-        private Function<IntervalYearMonth, IntervalYearMonth> truncateFunctionIntervalYearMonth;
-        private Function<ZonedDateTime, ZonedDateTime> truncateFunctionZonedDateTime;
-        private Function<IntervalDayTime, IntervalDayTime> truncateFunctionIntervalDayTime;
+        private UnaryOperator<IntervalYearMonth> truncateFunctionIntervalYearMonth;
+        private UnaryOperator<ZonedDateTime> truncateFunctionZonedDateTime;
+        private UnaryOperator<IntervalDayTime> truncateFunctionIntervalDayTime;
         private Set<String> aliases;
 
-        Part(Function<ZonedDateTime, ZonedDateTime> truncateFunctionZonedDateTime, Function<IntervalDayTime, IntervalDayTime> truncateFunctionIntervalDayTime, Function<IntervalYearMonth, IntervalYearMonth> truncateFunctionIntervalYearMonth, String... aliases) {
+        Part(UnaryOperator<ZonedDateTime> truncateFunctionZonedDateTime, UnaryOperator<IntervalDayTime> truncateFunctionIntervalDayTime,
+             UnaryOperator<IntervalYearMonth> truncateFunctionIntervalYearMonth, String... aliases) {
             this.truncateFunctionIntervalYearMonth = truncateFunctionIntervalYearMonth;
             this.truncateFunctionZonedDateTime = truncateFunctionZonedDateTime;
             this.truncateFunctionIntervalDayTime = truncateFunctionIntervalDayTime;

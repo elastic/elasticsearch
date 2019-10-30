@@ -476,16 +476,6 @@ null       | 430
 F          | 391
 ;
 
-selectDateTruncWithInterval
-SELECT DATE_TRUNC('hour', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_hour, DATE_TRUNC('minute', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_min,
-DATE_TRUNC('seconds', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_sec, DATE_TRUNC('ms', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_millis,
-DATE_TRUNC('mcs', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_micro, DATE_TRUNC('nanoseconds', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_nano;
-
-    dt_hour    |    dt_min     |    dt_sec     |   dt_millis   |   dt_micro    |    dt_nano
----------------+---------------+---------------+---------------+---------------+---------------
-+1 12:00:00.0  |+1 12:43:00.0  |+1 12:43:21.0  |+1 12:43:21.0  |+1 12:43:21.0  |+1 12:43:21.0
-;
-
 selectDateTruncWithDateTime
 schema::dt_hour:ts|dt_min:ts|dt_sec:ts|dt_millis:s|dt_micro:s|dt_nano:s
 SELECT DATE_TRUNC('hour', '2019-09-04T11:22:33.123Z'::datetime) as dt_hour, DATE_TRUNC('minute', '2019-09-04T11:22:33.123Z'::datetime) as dt_min,
@@ -507,6 +497,16 @@ DATE_TRUNC('week', '2019-09-04'::date) as dt_week,  DATE_TRUNC('day', '2019-09-0
  dt_mil                  |       dt_cent            |        dt_dec            |        dt_year           |        dt_quarter        |        dt_month          |        dt_week           |        dt_day
 -------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
 2000-01-01T00:00:00.000Z | 2000-01-01T00:00:00.000Z | 2010-01-01T00:00:00.000Z | 2019-01-01T00:00:00.000Z | 2019-07-01T00:00:00.000Z | 2019-09-01T00:00:00.000Z | 2019-09-02T00:00:00.000Z | 2019-09-04T00:00:00.000Z
+;
+
+selectDateTruncWithInterval
+SELECT DATE_TRUNC('hour', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_hour, DATE_TRUNC('minute', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_min,
+DATE_TRUNC('seconds', INTERVAL '1 12:43:21' DAY TO SECONDS) as dt_sec, DATE_TRUNC('ms', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_millis,
+DATE_TRUNC('mcs', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_micro, DATE_TRUNC('nanoseconds', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_nano;
+
+    dt_hour    |    dt_min     |    dt_sec     |   dt_millis   |   dt_micro    |    dt_nano
+---------------+---------------+---------------+---------------+---------------+---------------
++1 12:00:00.0  |+1 12:43:00.0  |+1 12:43:21.0  |+1 12:43:21.0  |+1 12:43:21.0  |+1 12:43:21.0
 ;
 
 selectDateTruncWithField
@@ -596,15 +596,18 @@ SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp O
 ;
 
 dateTruncOrderByWithInterval
-SELECT emp_no, DATE_TRUNC('decades',INTERVAL '19-3' YEAR TO MONTH) as idt FROM test_emp ORDER BY idt NULLS LAST, emp_no LIMIT 5;
+schema::first_name:s|dt:ts
+SELECT first_name, hire_date + DATE_TRUNC('centuries', CASE WHEN languages = 5 THEN INTERVAL '18-3' YEAR TO MONTH
+WHEN languages = 4 THEN INTERVAL '108-4' YEAR TO MONTH WHEN languages = 3 THEN INTERVAL '212-3' YEAR TO MONTH
+ELSE INTERVAL '318-6' YEAR TO MONTH END) as dt FROM test_emp WHERE emp_no <= 10006 ORDER BY dt NULLS LAST LIMIT 5;
 
- emp_no |   idt
---------+---------
-10001   | +10-0
-10002   | +10-0
-10003   | +10-0
-10004   | +10-0
-10005   | +10-0
+   first_name |            dt
+--------------+-------------------------
+Bezalel       | 1985-11-21 00:00:00.000Z
+Chirstian     | 1986-12-01 00:00:00.000Z
+Parto         | 2086-08-28 00:00:00.000Z
+Anneke        | 2189-06-02 00:00:00.000Z
+Georgi        | 2286-06-26 00:00:00.000Z
 ;
 
 dateTruncFilter
@@ -624,7 +627,7 @@ SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp W
 ;
 
 dateTruncFilterWithInterval
-SELECT first_name FROM test_emp WHERE hire_date > NOW() - DATE_TRUNC('centuries', INTERVAL 190 YEARS) ORDER BY first_name ASC LIMIT 10;
+SELECT first_name FROM test_emp WHERE hire_date > '2020-03-05T10:11:22.123Z'::datetime - DATE_TRUNC('centuries', INTERVAL 190 YEARS) ORDER BY first_name ASC LIMIT 10;
 
   first_name
 ---------------
@@ -648,6 +651,18 @@ SELECT count(*) as count, DATE_TRUNC('decade', hire_date) dt FROM test_emp GROUP
 --------+-------------------------
 59      | 1980-01-01 00:00:00.000Z
 41      | 1990-01-01 00:00:00.000Z
+;
+
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/42041
+dateTruncGroupByWithInterval-Ignore
+schema::count:l|dt:ts
+SELECT count(*) as count, birth_date + DATE_TRUNC('hour', INTERVAL '1 12:43:21' DAY TO SECONDS) dt FROM test_emp GROUP BY dt ORDER BY 2 LIMIT 3;
+
+ count  |          dt
+--------+-------------------------
+10      | null
+1       | 1952-02-28 12:00:00.000Z
+1       | 1952-04-20 12:00:00.000Z
 ;
 
 dateTruncHaving

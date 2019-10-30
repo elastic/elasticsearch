@@ -271,8 +271,9 @@ if a negative value is used it results to a subtraction from the date/datetime
 
 .Description:
 
-Add the given number of date/time units to a date/datetime. If the number of units is negative then it's subtracted from
-the date/datetime. If any of the three arguments is `null` a `null` is returned.
+Add the given number of date/time units to a date/datetime. If the number of units is negative
+then it's subtracted from the date/datetime. If argument is an interval,
+an error is thrown since week unit for intervals is not supported because months usually have fractional weeks.
 
 [WARNING]
 If the second argument is a long there is possibility of truncation since an integer value will be extracted and

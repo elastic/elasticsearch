@@ -68,9 +68,9 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
 
     public void testInvalidInputs() {
         TemporalAmount period = Period.ofYears(2018).plusMonths(11);
-        Literal yearToMonth = interval(period, INTERVAL_YEAR_TO_MONTH);
+        Literal yearToMonth = intervalLiteral(period, INTERVAL_YEAR_TO_MONTH);
         TemporalAmount duration = Duration.ofDays(42).plusHours(12).plusMinutes(23).plusSeconds(12).plusNanos(143000000);
-        Literal dayToSecond = interval(duration, INTERVAL_DAY_TO_SECOND);
+        Literal dayToSecond = intervalLiteral(duration, INTERVAL_DAY_TO_SECOND);
 
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
@@ -112,9 +112,9 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         ZoneId zoneId = ZoneId.of("Etc/GMT-10");
         Literal dateTime = l(dateTime(2019, 9, 3, 18, 10, 37, 123456789));
         TemporalAmount period = Period.ofYears(2019).plusMonths(10);
-        Literal yearToMonth = interval(period, INTERVAL_YEAR_TO_MONTH);
+        Literal yearToMonth = intervalLiteral(period, INTERVAL_YEAR_TO_MONTH);
         TemporalAmount duration = Duration.ofDays(105).plusHours(2).plusMinutes(45).plusSeconds(55).plusNanos(123000000);
-        Literal dayToSecond = interval(duration, INTERVAL_DAY_TO_SECOND);
+        Literal dayToSecond = intervalLiteral(duration, INTERVAL_DAY_TO_SECOND);
 
         assertEquals("2000-01-01T00:00:00.000+10:00",
             DateUtils.toString((ZonedDateTime) new DateTrunc(Source.EMPTY, l("millennia"), dateTime, zoneId)
@@ -262,35 +262,35 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
             DateUtils.toString((ZonedDateTime) new DateTrunc(Source.EMPTY, l("week"), dateTime, zoneId)
                 .makePipe().asProcessor().process(null)));
 
-        Literal yearToMonth = interval(Period.ofYears(-12523).minusMonths(10), INTERVAL_YEAR_TO_MONTH);
+        Literal yearToMonth = intervalLiteral(Period.ofYears(-12523).minusMonths(10), INTERVAL_YEAR_TO_MONTH);
         assertEquals("-12000-0", toString((IntervalYearMonth) new DateTrunc(Source.EMPTY, l("millennia"), yearToMonth, null)
             .makePipe().asProcessor().process(null)));
 
-        yearToMonth = interval(Period.ofYears(-32543).minusMonths(10), INTERVAL_YEAR_TO_MONTH);
+        yearToMonth = intervalLiteral(Period.ofYears(-32543).minusMonths(10), INTERVAL_YEAR_TO_MONTH);
         assertEquals("-32500-0", toString((IntervalYearMonth) new DateTrunc(Source.EMPTY, l("centuries"), yearToMonth, null)
             .makePipe().asProcessor().process(null)));
 
-        yearToMonth = interval(Period.ofYears(-24321).minusMonths(10), INTERVAL_YEAR_TO_MONTH);
+        yearToMonth = intervalLiteral(Period.ofYears(-24321).minusMonths(10), INTERVAL_YEAR_TO_MONTH);
         assertEquals("-24320-0", toString((IntervalYearMonth) new DateTrunc(Source.EMPTY, l("decades"), yearToMonth, null)
             .makePipe().asProcessor().process(null)));
 
-        Literal dayToSecond = interval(Duration.ofDays(-435).minusHours(23).minusMinutes(45).minusSeconds(55).minusNanos(123000000), INTERVAL_DAY_TO_SECOND);
+        Literal dayToSecond = intervalLiteral(Duration.ofDays(-435).minusHours(23).minusMinutes(45).minusSeconds(55).minusNanos(123000000), INTERVAL_DAY_TO_SECOND);
         assertEquals("-435 00:00:00.0", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("days"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
 
-        dayToSecond = interval(Duration.ofDays(-4231).minusHours(23).minusMinutes(45).minusSeconds(55).minusNanos(234000000), INTERVAL_DAY_TO_SECOND);
+        dayToSecond = intervalLiteral(Duration.ofDays(-4231).minusHours(23).minusMinutes(45).minusSeconds(55).minusNanos(234000000), INTERVAL_DAY_TO_SECOND);
         assertEquals("-4231 23:00:00.0", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("hh"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
 
-        dayToSecond = interval(Duration.ofDays(-124).minusHours(0).minusMinutes(59).minusSeconds(11).minusNanos(564000000), INTERVAL_DAY_TO_SECOND);
+        dayToSecond = intervalLiteral(Duration.ofDays(-124).minusHours(0).minusMinutes(59).minusSeconds(11).minusNanos(564000000), INTERVAL_DAY_TO_SECOND);
         assertEquals("-124 00:59:00.0", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("mi"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
 
-        dayToSecond = interval(Duration.ofDays(-534).minusHours(23).minusMinutes(59).minusSeconds(59).minusNanos(245000000), INTERVAL_DAY_TO_SECOND);
+        dayToSecond = intervalLiteral(Duration.ofDays(-534).minusHours(23).minusMinutes(59).minusSeconds(59).minusNanos(245000000), INTERVAL_DAY_TO_SECOND);
         assertEquals("-534 23:59:59.0", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("seconds"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
 
-        dayToSecond = interval(Duration.ofDays(-127).minusHours(17).minusMinutes(59).minusSeconds(0).minusNanos(998000000), INTERVAL_DAY_TO_SECOND);
+        dayToSecond = intervalLiteral(Duration.ofDays(-127).minusHours(17).minusMinutes(59).minusSeconds(0).minusNanos(998000000), INTERVAL_DAY_TO_SECOND);
         assertEquals("-127 17:59:00.998", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("ms"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
     }
@@ -305,7 +305,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         return ISO_DATE_WITH_NANOS.format(dateTime);
     }
 
-    private static Literal interval(TemporalAmount value, DataType intervalType) {
+    private static Literal intervalLiteral(TemporalAmount value, DataType intervalType) {
         Object i = value instanceof Period ? new IntervalYearMonth((Period) value, intervalType)
             : new IntervalDayTime((Duration) value, intervalType);
         return Literal.of(EMPTY, i);

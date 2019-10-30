@@ -95,7 +95,7 @@ are `yellow` allows the master to allocate replicas to nodes that
 already have local shard copies.
 --
 
-. *Reenable allocation.*
+. *Re-enable allocation.*
 +
 --
 When all nodes have joined the cluster and recovered their primary shards,

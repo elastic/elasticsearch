@@ -27,7 +27,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -995,12 +994,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
-        final StepListener<Void> snapshotDoneListener = new StepListener<>();
-        snapshotDoneListener.whenComplete(listener::onResponse, e -> {
-            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
-            listener.onFailure(e instanceof IndexShardSnapshotFailedException ? (IndexShardSnapshotFailedException) e
-                : new IndexShardSnapshotFailedException(store.shardId(), e));
-        });
         try {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
 
@@ -1137,8 +1130,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotId, shardId), e);
                 }
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
-                snapshotDoneListener.onResponse(null);
-            }, snapshotDoneListener::onFailure);
+                listener.onResponse(null);
+            }, listener::onFailure);
             if (indexIncrementalFileCount == 0) {
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
@@ -1181,7 +1174,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 });
             }
         } catch (Exception e) {
-            snapshotDoneListener.onFailure(e);
+            listener.onFailure(e);
         }
     }
 

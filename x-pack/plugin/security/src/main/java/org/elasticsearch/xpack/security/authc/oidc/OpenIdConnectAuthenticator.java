@@ -76,7 +76,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -314,7 +313,6 @@ public class OpenIdConnectAuthenticator {
      * @throws ParseException if the file cannot be parsed
      * @throws IOException    if the file cannot be read
      */
-    @SuppressForbidden(reason = "uses toFile")
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
         // avoid using JWKSet.loadFile() as it does not close FileInputStream internally

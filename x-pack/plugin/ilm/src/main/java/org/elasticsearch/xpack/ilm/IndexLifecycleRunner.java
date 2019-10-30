@@ -389,11 +389,16 @@ public class IndexLifecycleRunner {
         failedState.setFailedStep(currentStep.getName());
         failedState.setStepInfo(BytesReference.bytes(causeXContentBuilder).utf8ToString());
         Step failedStep = stepLookupFunction.apply(idxMeta, currentStep);
-        // as an initial step we'll mark the failed step as auto retryable without actually looking at the cause to determine
-        // if the error is transient/recoverable from
-        failedState.setIsAutoRetryableError(failedStep.isRetryable());
-        // maintain the retry count of the failed step as it will be cleared after a successful execution
-        failedState.setFailedStepRetryCount(currentState.getFailedStepRetryCount());
+        if (failedStep != null) {
+            // as an initial step we'll mark the failed step as auto retryable without actually looking at the cause to determine
+            // if the error is transient/recoverable from
+            failedState.setIsAutoRetryableError(failedStep.isRetryable());
+            // maintain the retry count of the failed step as it will be cleared after a successful execution
+            failedState.setFailedStepRetryCount(currentState.getFailedStepRetryCount());
+        } else {
+            logger.warn("failed step [{}] for index [{}] is not part of policy [{}] anymore, or it is invalid",
+                currentStep.getName(), index, policyMetadata.getName());
+        }
 
         ClusterState.Builder newClusterStateBuilder = newClusterStateWithLifecycleState(index, clusterState, failedState.build());
         return newClusterStateBuilder.build();

@@ -30,6 +30,7 @@ import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -48,6 +49,7 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
     private final ClusterService clusterService;
     private final SnapshotLifecycleTask snapshotTask;
     private final Map<String, SchedulerEngine.Job> scheduledTasks = ConcurrentCollections.newConcurrentMap();
+    private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isMaster = false;
 
     public SnapshotLifecycleService(Settings settings,
@@ -160,6 +162,10 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
      * the same version of a policy has already been scheduled it does not overwrite the job.
      */
     public void maybeScheduleSnapshot(final SnapshotLifecyclePolicyMetadata snapshotLifecyclePolicy) {
+        if (this.running.get() == false) {
+            return;
+        }
+
         final String jobId = getJobId(snapshotLifecyclePolicy);
         final Pattern existingJobPattern = Pattern.compile(snapshotLifecyclePolicy.getPolicy().getId() + JOB_PATTERN_SUFFIX);
 
@@ -237,6 +243,8 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
 
     @Override
     public void close() {
-        this.scheduler.stop();
+        if (this.running.compareAndSet(true, false)) {
+            this.scheduler.stop();
+        }
     }
 }

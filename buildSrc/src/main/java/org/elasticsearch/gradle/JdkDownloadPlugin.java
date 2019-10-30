@@ -35,7 +35,6 @@ import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RelativePath;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
 
@@ -80,8 +79,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 setupRootJdkDownload(project.getRootProject(), platform, vendor, version);
             }
         });
-
-        ExtraPropertiesExtension ext = project.getRootProject().getExtensions().getByType(ExtraPropertiesExtension.class);
 
         // all other repos should ignore the special jdk artifacts
         project.getRootProject().getRepositories().all(repo -> {

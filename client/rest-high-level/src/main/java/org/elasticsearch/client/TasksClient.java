@@ -102,7 +102,17 @@ public final class TasksClient {
                 GetTaskResponse::fromXContent, listener);
     }
 
-
+    /**
+     * Cancel one or more cluster tasks using the Task Management API.
+     *
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * @param cancelTasksRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     *
+     */
     public CancelTasksResponse cancel(CancelTasksRequest cancelTasksRequest, RequestOptions options ) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             cancelTasksRequest,
@@ -125,7 +135,6 @@ public final class TasksClient {
      */
     public Cancellable cancelAsync(CancelTasksRequest cancelTasksRequest, RequestOptions options,
                                    ActionListener<CancelTasksResponse> listener) {
-
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             cancelTasksRequest,
             TasksRequestConverters::cancelTasks,

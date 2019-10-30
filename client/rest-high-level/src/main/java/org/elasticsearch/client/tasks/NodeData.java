@@ -28,7 +28,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-public class NodeData {
+class NodeData {
 
     private String nodeId;
     private String name;
@@ -47,11 +47,11 @@ public class NodeData {
      *
      * @param nodeId the string identifier of a node
      */
-    private NodeData(String nodeId) {
+    NodeData(String nodeId) {
         this.nodeId = nodeId;
     }
 
-    private void setName(String name) {
+    void setName(String name) {
         this.name = name;
     }
 
@@ -61,19 +61,19 @@ public class NodeData {
         }
     }
 
-    private void setTransportAddress(String transportAddress) {
+    void setTransportAddress(String transportAddress) {
         this.transportAddress = transportAddress;
     }
 
-    private void setHost(String host) {
+    void setHost(String host) {
         this.host = host;
     }
 
-    private void setIp(String ip) {
+    void setIp(String ip) {
         this.ip = ip;
     }
 
-    private void setRoles(List<String> roles) {
+    void setRoles(List<String> roles) {
         if(roles!=null){
             this.roles.addAll(roles);
         }
@@ -111,7 +111,7 @@ public class NodeData {
         return tasks;
     }
 
-    private void setTasks(List<TaskInfo> tasks) {
+    void setTasks(List<TaskInfo> tasks) {
         if(tasks!=null){
             this.tasks.addAll(tasks);
         }
@@ -160,10 +160,10 @@ public class NodeData {
         parser.declareString(NodeData::setIp, new ParseField("ip"));
         parser.declareStringArray(NodeData::setRoles, new ParseField("roles"));
         parser.declareField(NodeData::setAttributes,
-            (p, c) -> p.mapStrings(),
-            new ParseField("attributes"),
-            ObjectParser.ValueType.OBJECT);
+           (p, c) -> p.mapStrings(),
+           new ParseField("attributes"),
+           ObjectParser.ValueType.OBJECT);
         parser.declareNamedObjects(NodeData::setTasks, TaskInfo.PARSER, new ParseField("tasks"));
-        PARSER = (XContentParser p, Void v, String name) -> parser.parse(p, new NodeData(name), null);
+        PARSER = (XContentParser p, Void v, String nodeId) -> parser.parse(p, new NodeData(nodeId), null);
     }
 }

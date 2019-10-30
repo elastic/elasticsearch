@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -35,14 +36,16 @@ import static org.hamcrest.Matchers.nullValue;
 public class TasksRequestConvertersTests extends ESTestCase {
 
     public void testCancelTasks() {
-        org.elasticsearch.client.tasks.CancelTasksRequest request = new org.elasticsearch.client.tasks.CancelTasksRequest();
         Map<String, String> expectedParams = new HashMap<>();
         org.elasticsearch.client.tasks.TaskId taskId =
             new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
         org.elasticsearch.client.tasks.TaskId parentTaskId =
             new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        request.setTaskId(taskId);
-        request.setParentTaskId(parentTaskId);
+        org.elasticsearch.client.tasks.CancelTasksRequest request =
+            new org.elasticsearch.client.tasks.CancelTasksRequest.Builder()
+                .withTaskId(taskId)
+                .withParentTaskId(parentTaskId)
+                .build();
         expectedParams.put("task_id", taskId.toString());
         expectedParams.put("parent_task_id", parentTaskId.toString());
         Request httpRequest = TasksRequestConverters.cancelTasks(request);

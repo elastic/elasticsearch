@@ -21,7 +21,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,8 +31,9 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * client side counterpart of server side
  * {@link org.elasticsearch.ElasticsearchException}
+ * It wraps the same content but it is not throwable.
  */
-public class ElasticsearchException  extends RuntimeException  {
+public class ElasticsearchException {
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
@@ -42,15 +42,32 @@ public class ElasticsearchException  extends RuntimeException  {
     private static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ROOT_CAUSE = "root_cause";
-    private final Map<String, List<String>> metadata = new HashMap<>();
+
+    private String msg;
+    private ElasticsearchException cause;
     private final Map<String, List<String>> headers = new HashMap<>();
-    private Object[] args;
+    private final List<ElasticsearchException> suppressed = new ArrayList<>();
 
-    public ElasticsearchException(){}
+    ElasticsearchException(String msg) {
+        this.msg = msg;
+        this.cause = null;
+    }
 
-    public ElasticsearchException(String msg, Throwable cause, Object... args) {
-        super(msg,cause);
-        this.args = args;
+    ElasticsearchException(String msg, ElasticsearchException cause) {
+        this.msg = msg;
+        this.cause = cause;
+    }
+
+    public String getMsg() {
+        return msg;
+    }
+
+    public ElasticsearchException getCause() {
+        return cause;
+    }
+
+    public List<ElasticsearchException> getSuppressed() {
+        return suppressed;
     }
 
     /**
@@ -60,19 +77,18 @@ public class ElasticsearchException  extends RuntimeException  {
      * tree structure of the cause, returning it as a tree structure of {@link ElasticsearchException}
      * instances.
      */
-    public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
+    static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
         return innerFromXContent(parser, false);
     }
 
-    public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
+    private static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;
-        Map<String, List<String>> metadata = new HashMap<>();
         Map<String, List<String>> headers = new HashMap<>();
         List<ElasticsearchException> rootCauses = new ArrayList<>();
         List<ElasticsearchException> suppressed = new ArrayList<>();
@@ -88,8 +104,6 @@ public class ElasticsearchException  extends RuntimeException  {
                     reason = parser.text();
                 } else if (STACK_TRACE.equals(currentFieldName)) {
                     stack = parser.text();
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    metadata.put(currentFieldName, Collections.singletonList(parser.text()));
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (CAUSED_BY.equals(currentFieldName)) {
@@ -142,32 +156,20 @@ public class ElasticsearchException  extends RuntimeException  {
                             parser.skipChildren();
                         }
                     }
-                    if (values.size() > 0) {
-                        if (metadata.containsKey(currentFieldName)) {
-                            values.addAll(metadata.get(currentFieldName));
-                        }
-                        metadata.put(currentFieldName, values);
-                    }
                 }
             }
         }
 
         ElasticsearchException e = new ElasticsearchException(buildMessage(type, reason, stack), cause);
-        for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
-            e.addMetadata("es." + entry.getKey(), entry.getValue());
-        }
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             e.addHeader(header.getKey(), header.getValue());
         }
 
         // Adds root causes as suppressed exception. This way they are not lost
         // after parsing and can be retrieved using getSuppressed() method.
-        for (ElasticsearchException rootCause : rootCauses) {
-            e.addSuppressed(rootCause);
-        }
-        for (ElasticsearchException s : suppressed) {
-            e.addSuppressed(s);
-        }
+        e.suppressed.addAll(rootCauses);
+        e.suppressed.addAll(suppressed);
+
         return e;
     }
 
@@ -176,8 +178,8 @@ public class ElasticsearchException  extends RuntimeException  {
 
     }
 
-    private void addMetadata(String s, List<String> value) {
-        metadata.put(s,value);
+    public Map<String, List<String>> getHeaders() {
+        return headers;
     }
 
     static String buildMessage(String type, String reason, String stack) {
@@ -191,32 +193,29 @@ public class ElasticsearchException  extends RuntimeException  {
         return message.toString();
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof ElasticsearchException)) return false;
         ElasticsearchException that = (ElasticsearchException) o;
-        return Objects.equals(metadata, that.metadata) &&
-            Objects.equals(headers, that.headers) &&
-            Objects.equals(getCause(), that.getCause()) ;
+        return Objects.equals(getMsg(), that.getMsg()) &&
+            Objects.equals(getCause(), that.getCause()) &&
+            Objects.equals(getHeaders(), that.getHeaders()) &&
+            Objects.equals(getSuppressed(), that.getSuppressed());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(metadata, headers,getCause());
+        return Objects.hash(getMsg(), getCause(), getHeaders(), getSuppressed());
     }
 
     @Override
     public String toString() {
         return "ElasticsearchException{" +
-            "cause=" + getCause() +
-            "metadata=" + metadata +
+            "msg='" + msg + '\'' +
+            ", cause=" + cause +
             ", headers=" + headers +
+            ", suppressed=" + suppressed +
             '}';
-    }
-
-    public Object[] getArgs() {
-        return args;
     }
 }

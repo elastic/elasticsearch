@@ -32,6 +32,14 @@ public class TaskGroup {
 
     private final TaskInfo task;
 
+    @Override
+    public String toString() {
+        return "TaskGroup{" +
+            "task=" + task +
+            ", childTasks=" + childTasks +
+            '}';
+    }
+
     private final List<TaskGroup> childTasks = new ArrayList<>();
 
     public TaskGroup(TaskInfo task, List<TaskGroup> childTasks) {
@@ -48,8 +56,8 @@ public class TaskGroup {
         if (this == o) return true;
         if (!(o instanceof TaskGroup)) return false;
         TaskGroup taskGroup = (TaskGroup) o;
-        return task.equals(taskGroup.task) &&
-            getChildTasks().equals(taskGroup.getChildTasks());
+        return Objects.equals(task, taskGroup.task) &&
+            Objects.equals(getChildTasks(), taskGroup.getChildTasks());
     }
 
     @Override

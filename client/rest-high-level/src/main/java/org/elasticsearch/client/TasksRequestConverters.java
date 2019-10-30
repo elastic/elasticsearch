@@ -30,14 +30,15 @@ final class TasksRequestConverters {
 
     private TasksRequestConverters() {}
 
-    static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
+    static Request cancelTasks(CancelTasksRequest req) {
         Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
         RequestConverters.Params params = new RequestConverters.Params();
-        params.withTimeout(cancelTasksRequest.getTimeout())
-            .withTaskId(cancelTasksRequest.getTaskId())
-            .withNodes(cancelTasksRequest.getNodes())
-            .withParentTaskId(cancelTasksRequest.getParentTaskId())
-            .withActions(cancelTasksRequest.getActions());
+        req.getTimeout().ifPresent(params::withTimeout);
+        req.getTaskId().ifPresent(params::withTaskId);
+        req.getParentTaskId().ifPresent(params::withParentTaskId);
+        params
+            .withNodes(req.getNodes())
+            .withActions(req.getActions());
         request.addParameters(params.asMap());
         return request;
     }

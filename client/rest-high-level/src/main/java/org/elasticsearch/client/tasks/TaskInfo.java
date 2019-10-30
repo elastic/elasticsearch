@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+
 /**
  * client side counterpart of server side
  * <p>
@@ -42,6 +43,7 @@ public class TaskInfo {
     private long runningTimeNanos;
     private boolean cancellable;
     private TaskId parentTaskId;
+    private final Map<String, Object> status = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
 
     /**
@@ -68,7 +70,7 @@ public class TaskInfo {
         return type;
     }
 
-    private void setType(String type) {
+    void setType(String type) {
         this.type = type;
     }
 
@@ -76,7 +78,7 @@ public class TaskInfo {
         return action;
     }
 
-    private void setAction(String action) {
+    void setAction(String action) {
         this.action = action;
     }
 
@@ -84,7 +86,7 @@ public class TaskInfo {
         return description;
     }
 
-    private void setDescription(String description) {
+    void setDescription(String description) {
         this.description = description;
     }
 
@@ -92,7 +94,7 @@ public class TaskInfo {
         return startTime;
     }
 
-    private void setStartTime(long startTime) {
+    void setStartTime(long startTime) {
         this.startTime = startTime;
     }
 
@@ -100,7 +102,7 @@ public class TaskInfo {
         return runningTimeNanos;
     }
 
-    private void setRunningTimeNanos(long runningTimeNanos) {
+    void setRunningTimeNanos(long runningTimeNanos) {
         this.runningTimeNanos = runningTimeNanos;
     }
 
@@ -108,7 +110,7 @@ public class TaskInfo {
         return cancellable;
     }
 
-    private void setCancellable(boolean cancellable) {
+    void setCancellable(boolean cancellable) {
         this.cancellable = cancellable;
     }
 
@@ -116,7 +118,7 @@ public class TaskInfo {
         return parentTaskId;
     }
 
-    private void setParentTaskId(String parentTaskId) {
+    void setParentTaskId(String parentTaskId) {
         this.parentTaskId = new TaskId(parentTaskId);
     }
 
@@ -124,57 +126,17 @@ public class TaskInfo {
         return headers;
     }
 
-    private void setHeaders(Map<String, String> headers) {
+    void setHeaders(Map<String, String> headers) {
         this.headers.putAll(headers);
     }
 
-    private void noOpParse(Object s) {}
-
-    @Override
-    public String toString() {
-        return "TaskInfo{" +
-            "taskId=" + taskId +
-            ", type='" + type + '\'' +
-            ", action='" + action + '\'' +
-            ", description='" + description + '\'' +
-            ", startTime=" + startTime +
-            ", runningTimeNanos=" + runningTimeNanos +
-            ", cancellable=" + cancellable +
-            ", parentTaskId=" + parentTaskId +
-            ", headers=" + headers +
-            '}';
+    void setStatus(Map<String, Object> status) {
+        this.status.putAll(status);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof TaskInfo)) return false;
-        TaskInfo taskInfo = (TaskInfo) o;
-        return getStartTime() == taskInfo.getStartTime() &&
-            getRunningTimeNanos() == taskInfo.getRunningTimeNanos() &&
-            isCancellable() == taskInfo.isCancellable() &&
-            getTaskId().equals(taskInfo.getTaskId()) &&
-            Objects.equals(getType(), taskInfo.getType()) &&
-            Objects.equals(getAction(), taskInfo.getAction()) &&
-            Objects.equals(getDescription(), taskInfo.getDescription()) &&
-            Objects.equals(getParentTaskId(), taskInfo.getParentTaskId()) &&
-            Objects.equals(getHeaders(), taskInfo.getHeaders());
-    }
+    void noOpParse(Object s) {}
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(
-            getTaskId(),
-            getType(),
-            getAction(),
-            getDescription(),
-            getStartTime(),
-            getRunningTimeNanos(),
-            isCancellable(),
-            getParentTaskId(),
-            getHeaders()
-        );
-    }
+
 
 
     public static final ObjectParser.NamedObjectParser<TaskInfo, Void> PARSER;
@@ -187,6 +149,7 @@ public class TaskInfo {
         parser.declareLong(TaskInfo::noOpParse, new ParseField("id"));
         parser.declareString(TaskInfo::setType, new ParseField("type"));
         parser.declareString(TaskInfo::setAction, new ParseField("action"));
+        parser.declareObject(TaskInfo::setStatus, (p, c) -> p.map(), new ParseField("status"));
         parser.declareString(TaskInfo::setDescription, new ParseField("description"));
         parser.declareLong(TaskInfo::setStartTime, new ParseField("start_time_in_millis"));
         parser.declareLong(TaskInfo::setRunningTimeNanos, new ParseField("running_time_in_nanos"));
@@ -194,5 +157,47 @@ public class TaskInfo {
         parser.declareString(TaskInfo::setParentTaskId, new ParseField("parent_task_id"));
         parser.declareObject(TaskInfo::setHeaders, (p, c) -> p.mapStrings(), new ParseField("headers"));
         PARSER = (XContentParser p, Void v, String name) -> parser.parse(p, new TaskInfo(new TaskId(name)), null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TaskInfo)) return false;
+        TaskInfo taskInfo = (TaskInfo) o;
+        return getStartTime() == taskInfo.getStartTime() &&
+            getRunningTimeNanos() == taskInfo.getRunningTimeNanos() &&
+            isCancellable() == taskInfo.isCancellable() &&
+            Objects.equals(getTaskId(), taskInfo.getTaskId()) &&
+            Objects.equals(getType(), taskInfo.getType()) &&
+            Objects.equals(getAction(), taskInfo.getAction()) &&
+            Objects.equals(getDescription(), taskInfo.getDescription()) &&
+            Objects.equals(getParentTaskId(), taskInfo.getParentTaskId()) &&
+            Objects.equals(status, taskInfo.status) &&
+            Objects.equals(getHeaders(), taskInfo.getHeaders());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            getTaskId(), getType(), getAction(), getDescription(), getStartTime(),
+            getRunningTimeNanos(), isCancellable(), getParentTaskId(), status, getHeaders()
+        );
+    }
+
+
+    @Override
+    public String toString() {
+        return "TaskInfo{" +
+            "taskId=" + taskId +
+            ", type='" + type + '\'' +
+            ", action='" + action + '\'' +
+            ", description='" + description + '\'' +
+            ", startTime=" + startTime +
+            ", runningTimeNanos=" + runningTimeNanos +
+            ", cancellable=" + cancellable +
+            ", parentTaskId=" + parentTaskId +
+            ", status=" + status +
+            ", headers=" + headers +
+            '}';
     }
 }

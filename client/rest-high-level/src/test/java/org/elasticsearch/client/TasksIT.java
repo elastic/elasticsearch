@@ -144,9 +144,9 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         org.elasticsearch.tasks.TaskInfo firstTask = listResponse.getTasks().get(0);
         String node = listResponse.getPerNodeTasks().keySet().iterator().next();
 
-        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-        cancelTasksRequest.setTaskId(new TaskId(node, firstTask.getId()));
-        cancelTasksRequest.setReason("testreason");
+        CancelTasksRequest cancelTasksRequest =  new CancelTasksRequest.Builder().withTaskId(
+            new TaskId(node, firstTask.getId())
+        ).build();
         CancelTasksResponse response = execute(cancelTasksRequest,
             highLevelClient().tasks()::cancel,
             highLevelClient().tasks()::cancelAsync);

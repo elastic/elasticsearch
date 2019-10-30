@@ -35,31 +35,38 @@ import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * cancel tasks response that contains
+ * - task failures
+ * - node failures
+ * - tasks
+ */
 public class CancelTasksResponse {
 
-    private final NodesInfoData nodesInfoData;
     private final List<TaskOperationFailure> taskFailures = new ArrayList<>();
     private final List<ElasticsearchException> nodeFailures = new ArrayList<>();
+    private final List<NodeData> nodesInfoData = new ArrayList<>();
     private final List<TaskInfo> tasks = new ArrayList<>();
     private final List<TaskGroup> taskGroups = new ArrayList<>();
 
-    public CancelTasksResponse(NodesInfoData nodesInfoData,
-                               List<TaskOperationFailure> taskFailures,
-                               List<ElasticsearchException> nodeFailures) {
-        this.nodesInfoData = nodesInfoData;
-        if (taskFailures!= null){
+    CancelTasksResponse(List<NodeData> nodesInfoData,
+                        List<TaskOperationFailure> taskFailures,
+                        List<ElasticsearchException> nodeFailures) {
+        if (taskFailures != null) {
             this.taskFailures.addAll(taskFailures);
         }
-        if (nodeFailures!=null) {
+        if (nodeFailures != null) {
             this.nodeFailures.addAll(nodeFailures);
         }
-        this.tasks.addAll(nodesInfoData
-            .getNodesInfoData()
+        if (nodesInfoData != null) {
+            this.nodesInfoData.addAll(nodesInfoData);
+        }
+        this.tasks.addAll(this
+            .nodesInfoData
             .stream()
             .flatMap(nodeData -> nodeData.getTasks().stream())
             .collect(toList())
         );
-
         this.taskGroups.addAll(buildTaskGroups());
     }
 
@@ -74,7 +81,7 @@ public class CancelTasksResponse {
         // Now go through all task group builders and add children to their parents
         for (TaskGroup.Builder taskGroup : taskGroups.values()) {
             TaskId parentTaskId = taskGroup.getTaskInfo().getParentTaskId();
-            if (parentTaskId.isSet()) {
+            if (parentTaskId != null) {
                 TaskGroup.Builder parentTask = taskGroups.get(parentTaskId);
                 if (parentTask != null) {
                     // we found parent in the list of tasks - add it to the parent list
@@ -89,10 +96,6 @@ public class CancelTasksResponse {
             }
         }
         return Collections.unmodifiableList(topLevelTasks.stream().map(TaskGroup.Builder::build).collect(Collectors.toList()));
-    }
-
-    public NodesInfoData getNodesInfoData() {
-        return nodesInfoData;
     }
 
     public List<TaskInfo> getTasks() {
@@ -122,7 +125,7 @@ public class CancelTasksResponse {
         if (this == o) return true;
         if (!(o instanceof CancelTasksResponse)) return false;
         CancelTasksResponse response = (CancelTasksResponse) o;
-        return getNodesInfoData().equals(response.getNodesInfoData()) &&
+        return nodesInfoData.equals(response.nodesInfoData) &&
             Objects.equals(getTaskFailures(), response.getTaskFailures()) &&
             Objects.equals(getNodeFailures(), response.getNodeFailures()) &&
             Objects.equals(getTasks(), response.getTasks()) &&
@@ -131,7 +134,7 @@ public class CancelTasksResponse {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getNodesInfoData(), getTaskFailures(), getNodeFailures(), getTasks(), getTaskGroups());
+        return Objects.hash(nodesInfoData, getTaskFailures(), getNodeFailures(), getTasks(), getTaskGroups());
     }
 
     public static CancelTasksResponse fromXContent(final XContentParser parser) throws IOException {
@@ -159,7 +162,8 @@ public class CancelTasksResponse {
                 List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
                 @SuppressWarnings("unchecked")
                 List<ElasticsearchException> nodeFailures = (List<ElasticsearchException>) constructingObjects[i++];
-                NodesInfoData nodesInfoData = (NodesInfoData) constructingObjects[i];
+                @SuppressWarnings("unchecked")
+                List<NodeData> nodesInfoData = (List<NodeData>) constructingObjects[i];
                 return new CancelTasksResponse(nodesInfoData, tasksFailures, nodeFailures);
             });
 
@@ -167,7 +171,7 @@ public class CancelTasksResponse {
             TaskOperationFailure.fromXContent(p), new ParseField("task_failures"));
         parser.declareObjectArray(optionalConstructorArg(), (p, c) ->
             ElasticsearchException.fromXContent(p), new ParseField("node_failures"));
-        parser.declareObject(optionalConstructorArg(), NodesInfoData.PARSER, new ParseField("nodes"));
+        parser.declareNamedObjects(optionalConstructorArg(), NodeData.PARSER, new ParseField("nodes"));
         PARSER = parser;
     }
 }

@@ -155,19 +155,20 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::cancel-tasks-request
-            CancelTasksRequest request = new CancelTasksRequest();
+            CancelTasksRequest request = new org.elasticsearch.client.tasks.CancelTasksRequest.Builder()
+                .withNodesFiltered(List.of("nodeId1", "nodeId2"))
+                .withActionsFiltered(List.of("cluster:*"))
+                .build();
             // end::cancel-tasks-request
 
             // tag::cancel-tasks-request-filter
-            request.setTaskId(new org.elasticsearch.client.tasks.TaskId("nodeId1", 42)); //<1>
-            request.setActions("cluster:*"); // <2>
-            request.setNodes("nodeId1", "nodeId2"); // <3>
+            // request.setTaskId(new org.elasticsearch.client.tasks.TaskId("nodeId1", 42)); //<1>
             // end::cancel-tasks-request-filter
 
         }
 
-        CancelTasksRequest request = new CancelTasksRequest();
-        request.setTaskId(org.elasticsearch.client.tasks.TaskId.EMPTY_TASK_ID);
+        CancelTasksRequest request = new org.elasticsearch.client.tasks.CancelTasksRequest.Builder().build();
+        //request.setTaskId(org.elasticsearch.client.tasks.TaskId.EMPTY_TASK_ID);
 
         // tag::cancel-tasks-execute
         CancelTasksResponse response = client.tasks().cancel(request, RequestOptions.DEFAULT);
@@ -198,7 +199,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         RestHighLevelClient client = highLevelClient();
         {
-            CancelTasksRequest request = new CancelTasksRequest();
+            CancelTasksRequest request = new org.elasticsearch.client.tasks.CancelTasksRequest.Builder().build();
 
             // tag::cancel-tasks-execute-listener
             ActionListener<CancelTasksResponse> listener =

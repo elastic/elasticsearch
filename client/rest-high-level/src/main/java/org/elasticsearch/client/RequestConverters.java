@@ -87,6 +87,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -1029,14 +1030,22 @@ final class RequestConverters {
         }
 
         Params withNodes(String[] nodes) {
-            if (nodes != null && nodes.length > 0) {
+           return withNodes(Arrays.asList(nodes));
+        }
+
+        Params withNodes(List<String> nodes) {
+            if (nodes != null && nodes.size() > 0) {
                 return putParam("nodes", String.join(",", nodes));
             }
             return this;
         }
 
         Params withActions(String[] actions) {
-            if (actions != null && actions.length > 0) {
+            return withActions(Arrays.asList(actions));
+        }
+
+        Params withActions(List<String> actions) {
+            if (actions != null && actions.size() > 0) {
                 return putParam("actions", String.join(",", actions));
             }
             return this;

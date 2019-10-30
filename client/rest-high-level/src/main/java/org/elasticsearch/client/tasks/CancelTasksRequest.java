@@ -21,78 +21,61 @@ package org.elasticsearch.client.tasks;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 public class CancelTasksRequest implements Validatable {
 
-    public static final String[] EMPTY_ARRAY = new String[0];
-    public static final String[] ALL_ACTIONS = EMPTY_ARRAY;
-    public static final String[] ALL_NODES = EMPTY_ARRAY;
-    private String[] nodes = ALL_NODES;
-    private TimeValue timeout;
-    private String[] actions = ALL_ACTIONS;
-    private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
-    private TaskId taskId = TaskId.EMPTY_TASK_ID;
-    private String reason = "";
+    private final List<String> nodes = new ArrayList<>();
+    private final List<String> actions = new ArrayList<>();
+    private Optional<TimeValue> timeout = Optional.empty();
+    private Optional<TaskId> parentTaskId = Optional.empty();
+    private Optional<TaskId> taskId = Optional.empty();
 
-    public final CancelTasksRequest setNodes(String... nodes) {
-        this.nodes = nodes;
+    CancelTasksRequest(){}
+
+    CancelTasksRequest setNodes(List<String> nodes) {
+        this.nodes.addAll(nodes);
         return this;
     }
 
-    public String[] getNodes() {
+    public List<String> getNodes() {
         return nodes;
     }
 
-    public CancelTasksRequest setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
+    void setTimeout(TimeValue timeout) {
+        this.timeout = Optional.of(timeout);
     }
 
-    public final CancelTasksRequest setTimeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return this;
-    }
-
-    public TimeValue getTimeout() {
+    public Optional<TimeValue> getTimeout() {
         return timeout;
     }
 
-    public CancelTasksRequest setActions(String... actions) {
-        this.actions = actions;
+    CancelTasksRequest setActions(List<String> actions) {
+        this.actions.addAll(actions);
         return this;
     }
 
-    public String[] getActions() {
+    public List<String> getActions() {
         return actions;
     }
 
-    public CancelTasksRequest setParentTaskId(TaskId parentTaskId) {
-        this.parentTaskId = parentTaskId;
-        return this;
+    void setParentTaskId(TaskId parentTaskId) {
+        this.parentTaskId = Optional.of(parentTaskId);
     }
 
-    public TaskId getParentTaskId() {
+    public Optional<TaskId> getParentTaskId() {
         return parentTaskId;
     }
 
-    public CancelTasksRequest setTaskId(TaskId taskId) {
-        this.taskId = taskId;
-        return this;
+    void setTaskId(TaskId taskId) {
+        this.taskId = Optional.of(taskId);
     }
 
-    public TaskId getTaskId() {
+    public Optional<TaskId> getTaskId() {
         return taskId;
-    }
-
-
-    public String getReason() {
-        return reason;
-    }
-
-    public void setReason(String reason) {
-        this.reason = reason;
     }
 
     @Override
@@ -100,31 +83,71 @@ public class CancelTasksRequest implements Validatable {
         if (this == o) return true;
         if (!(o instanceof CancelTasksRequest)) return false;
         CancelTasksRequest that = (CancelTasksRequest) o;
-        return Arrays.equals(getNodes(), that.getNodes()) &&
+        return Objects.equals(getNodes(), that.getNodes()) &&
+            Objects.equals(getActions(), that.getActions()) &&
             Objects.equals(getTimeout(), that.getTimeout()) &&
-            Arrays.equals(getActions(), that.getActions()) &&
             Objects.equals(getParentTaskId(), that.getParentTaskId()) &&
-            Objects.equals(getTaskId(), that.getTaskId()) &&
-            Objects.equals(getReason(), that.getReason());
+            Objects.equals(getTaskId(), that.getTaskId()) ;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(getTimeout(), getParentTaskId(), getTaskId(), getReason());
-        result = 31 * result + Arrays.hashCode(getNodes());
-        result = 31 * result + Arrays.hashCode(getActions());
-        return result;
+        return Objects.hash(getNodes(), getActions(), getTimeout(), getParentTaskId(), getTaskId());
     }
 
     @Override
     public String toString() {
         return "CancelTasksRequest{" +
-            "nodes=" + Arrays.toString(nodes) +
+            "nodes=" + nodes +
+            ", actions=" + actions +
             ", timeout=" + timeout +
-            ", actions=" + Arrays.toString(actions) +
             ", parentTaskId=" + parentTaskId +
             ", taskId=" + taskId +
-            ", reason='" + reason + '\'' +
             '}';
+    }
+
+    public static class Builder {
+        private Optional<TimeValue> timeout = Optional.empty();
+        private Optional<TaskId> taskId = Optional.empty();
+        private Optional<TaskId> parentTaskId = Optional.empty();
+        private List<String> actionsFilter = new ArrayList<>();
+        private List<String> nodesFilter = new ArrayList<>();
+
+        public Builder withTimeout(TimeValue timeout){
+            this.timeout = Optional.of(timeout);
+            return this;
+        }
+
+        public Builder withTaskId(TaskId taskId){
+            this.taskId = Optional.of(taskId);
+            return this;
+        }
+
+        public Builder withParentTaskId(TaskId taskId){
+            this.parentTaskId = Optional.of(taskId);
+            return this;
+        }
+
+        public Builder withActionsFiltered(List<String> actions){
+            this.actionsFilter.clear();
+            this.actionsFilter.addAll(actions);
+            return this;
+        }
+
+        public Builder withNodesFiltered(List<String> nodes){
+            this.nodesFilter.clear();
+            this.nodesFilter.addAll(nodes);
+            return this;
+        }
+
+        public CancelTasksRequest build() {
+            CancelTasksRequest request = new CancelTasksRequest();
+            timeout.ifPresent(request::setTimeout);
+            taskId.ifPresent(request::setTaskId);
+            parentTaskId.ifPresent(request::setParentTaskId);
+            request.setNodes(nodesFilter);
+            request.setActions(actionsFilter);
+            return request;
+        }
     }
 }

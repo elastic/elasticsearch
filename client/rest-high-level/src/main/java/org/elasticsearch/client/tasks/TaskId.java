@@ -25,21 +25,18 @@ import java.util.Objects;
  */
 public class TaskId {
 
-    public static final TaskId EMPTY_TASK_ID = new TaskId();
-
     protected final String nodeId;
     protected final long id;
-
-    protected TaskId() {
-        nodeId = "";
-        id = -1;
-    }
 
     public TaskId(String nodeId, long id) {
         this.nodeId = nodeId;
         this.id = id;
     }
 
+    /**
+     * accepts a raw format task id
+     * @param taskId expected to be nodeid:taskId
+     */
     public TaskId(String taskId) {
         if (taskId == null) {
             throw new IllegalArgumentException("null task id");
@@ -77,13 +74,14 @@ public class TaskId {
         }
     }
 
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof TaskId)) return false;
         TaskId taskId = (TaskId) o;
         return getId() == taskId.getId() &&
-            getNodeId().equals(taskId.getNodeId());
+            Objects.equals(getNodeId(), taskId.getNodeId());
     }
 
     @Override

@@ -36,9 +36,12 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BitSet;
@@ -46,12 +49,15 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
+import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,15 +145,24 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
-    public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager) throws IOException {
+    public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
+            QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
         final List<Collector> collectors = new ArrayList<>(leaves.size());
         for (LeafReaderContext ctx : leaves) {
             final Collector collector = manager.newCollector();
-            //TODO: setMinCompetitveScore between Collectors
             searchLeaf(ctx, weight, collector);
             collectors.add(collector);
         }
-        manager.reduce(collectors);
+        TopFieldDocs mergedTopDocs = (TopFieldDocs) manager.reduce(collectors);
+        // Lucene sets shards indexes during merging of topDocs from different collectors
+        // We need to reset shard index; ES will set shard index later during reduce stage
+        for (ScoreDoc scoreDoc : mergedTopDocs.scoreDocs) {
+            scoreDoc.shardIndex = -1;
+        }
+        if (totalHits != null) { // we have already precalculated totalHits for the whole index
+            mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
+        }
+        result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
     }
 
     @Override

@@ -642,7 +642,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-
     public void testNumericLongOrDateSortOptimization() throws Exception {
         final String fieldNameLong = "long-field";
         final String fieldNameDate = "date-field";
@@ -652,10 +651,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
         when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
         when(mapperService.fullName(fieldNameDate)).thenReturn(fieldTypeDate);
 
-        final int numDocs = 4000;
+        final int numDocs = 7000;
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
-        for (int i = 0; i < numDocs; ++i) {
+        for (int i = 1; i <= numDocs; ++i) {
             Document doc = new Document();
             long longValue = randomLongBetween(-10000000L, 10000000L);
             doc.add(new LongPoint(fieldNameLong, longValue));
@@ -664,6 +663,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             doc.add(new LongPoint(fieldNameDate, longValue));
             doc.add(new NumericDocValuesField(fieldNameDate, longValue));
             writer.addDocument(doc);
+            if (i % 3500 == 0) writer.commit();
         }
         writer.close();
         final IndexReader reader = DirectoryReader.open(dir);
@@ -901,7 +901,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
 
             @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager) throws IOException {
+            public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
+                    QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
                 final Query query = weight.getQuery();
                 assertTrue(query instanceof BooleanQuery);
                 List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
@@ -914,7 +915,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
                     );
                 }
                 if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                super.search(leaves, weight, manager);
+                super.search(leaves, weight, manager, result, formats, totalHits);
+            }
+
+            @Override
+            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) {
+                assert(false);  // should not be there, expected to search with CollectorManager
             }
         };
     }

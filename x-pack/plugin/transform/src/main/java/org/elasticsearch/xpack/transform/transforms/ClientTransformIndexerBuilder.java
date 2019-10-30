@@ -34,6 +34,7 @@ class ClientTransformIndexerBuilder {
     private TransformProgress progress;
     private TransformCheckpoint lastCheckpoint;
     private TransformCheckpoint nextCheckpoint;
+    private boolean shouldStopAtCheckpoint;
 
     ClientTransformIndexerBuilder() {
         this.initialStats = new TransformIndexerStats();
@@ -54,7 +55,13 @@ class ClientTransformIndexerBuilder {
             this.progress,
             this.lastCheckpoint,
             this.nextCheckpoint,
-            parentTask);
+            parentTask,
+            this.shouldStopAtCheckpoint);
+    }
+
+    ClientTransformIndexerBuilder setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
+        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+        return this;
     }
 
     ClientTransformIndexerBuilder setClient(Client client) {

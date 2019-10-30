@@ -110,6 +110,30 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         Mockito.verifyNoMoreInteractions(indicesClient);
     }
 
+    public void testCloseFollowerIndexIsNoopForAlreadyClosedIndex() {
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .state(IndexMetaData.State.CLOSE)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Client client = Mockito.mock(Client.class);
+        CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+            @Override
+            public void onResponse(boolean complete) {
+                assertThat(complete, is(true));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+            }
+        });
+
+        Mockito.verifyZeroInteractions(client);
+    }
+
     @Override
     protected CloseFollowerIndexStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();

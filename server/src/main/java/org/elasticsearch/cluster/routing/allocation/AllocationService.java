@@ -319,7 +319,7 @@ public class AllocationService {
                 UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(), unassignedInfo.getMessage(),
                 unassignedInfo.getFailure(), 0, unassignedInfo.getUnassignedTimeInNanos(),
                 unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
-                unassignedInfo.getLastAllocationStatus(), unassignedInfo.getFailedNoopAllocationNodeIds()),
+                unassignedInfo.getLastAllocationStatus(), Collections.emptySet()),
                 shardRouting.recoverySource(), allocation.changes());
         }
     }

@@ -197,10 +197,9 @@ public class AllocationService {
                 }
                 int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
                 final Set<String> failedNodeIds;
-                if (failedShard.unassignedInfo() != null &&
-                    failedShard.unassignedInfo().getReason() == UnassignedInfo.Reason.REALLOCATED_REPLICA) {
-                    failedNodeIds = new HashSet<>(failedShard.unassignedInfo().getFailedNoopAllocationNodeIds().size() + 1);
-                    failedNodeIds.addAll(failedShard.unassignedInfo().getFailedNoopAllocationNodeIds());
+                if (failedShard.unassignedInfo() != null) {
+                    failedNodeIds = new HashSet<>(failedShard.unassignedInfo().getFailedNodeIds().size() + 1);
+                    failedNodeIds.addAll(failedShard.unassignedInfo().getFailedNodeIds());
                     failedNodeIds.add(failedShard.currentNodeId());
                 } else {
                     failedNodeIds = Collections.emptySet();
@@ -301,7 +300,7 @@ public class AllocationService {
                     unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
                         unassignedInfo.getFailure(), unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
                         unassignedInfo.getUnassignedTimeInMillis(), false, unassignedInfo.getLastAllocationStatus(),
-                        unassignedInfo.getFailedNoopAllocationNodeIds()), shardRouting.recoverySource(), allocation.changes());
+                        unassignedInfo.getFailedNodeIds()), shardRouting.recoverySource(), allocation.changes());
                 }
             }
         }
@@ -319,8 +318,7 @@ public class AllocationService {
                 UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(), unassignedInfo.getMessage(),
                 unassignedInfo.getFailure(), 0, unassignedInfo.getUnassignedTimeInNanos(),
                 unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
-                unassignedInfo.getLastAllocationStatus(), Collections.emptySet()),
-                shardRouting.recoverySource(), allocation.changes());
+                unassignedInfo.getLastAllocationStatus(), Collections.emptySet()), shardRouting.recoverySource(), allocation.changes());
         }
     }
 

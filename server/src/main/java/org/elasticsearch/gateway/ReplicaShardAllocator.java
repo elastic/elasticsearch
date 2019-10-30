@@ -108,13 +108,13 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                         // we found a better match that can perform noop recovery, cancel the existing allocation.
                         logger.debug("cancelling allocation of replica on [{}], can perform a noop recovery on node [{}]",
                                 currentNode, nodeWithHighestMatch);
-                        final Set<String> failedNoopAllocationNodeIds = shard.unassignedInfo() == null ? Collections.emptySet()
-                            : shard.unassignedInfo().getFailedNoopAllocationNodeIds();
+                        final Set<String> failedNodeIds =
+                            shard.unassignedInfo() == null ? Collections.emptySet() : shard.unassignedInfo().getFailedNodeIds();
                         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                             "existing allocation of replica to [" + currentNode + "] cancelled, can perform a noop recovery on ["+
                                 nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
-                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNoopAllocationNodeIds);
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
                         shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
                             metaData.getIndexSafe(shard.index()), allocation.changes()));
@@ -302,7 +302,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return nodeFilesStore.storeFilesMetaData();
     }
 
-    private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation, boolean noMatchFailedNoopAllocationNodes,
+    private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation, boolean noMatchFailedNodes,
                                             DiscoveryNode primaryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
                                             AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> data,
                                             boolean explain) {
@@ -310,8 +310,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
         for (Map.Entry<DiscoveryNode, NodeStoreFilesMetaData> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
-            if (noMatchFailedNoopAllocationNodes && shard.unassignedInfo() != null &&
-                shard.unassignedInfo().getFailedNoopAllocationNodeIds().contains(discoNode.getId())) {
+            if (noMatchFailedNodes && shard.unassignedInfo() != null &&
+                shard.unassignedInfo().getFailedNodeIds().contains(discoNode.getId())) {
                 continue;
             }
             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue().storeFilesMetaData();

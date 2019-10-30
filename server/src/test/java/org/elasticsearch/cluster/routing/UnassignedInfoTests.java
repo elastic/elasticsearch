@@ -100,7 +100,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
         assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
-        assertThat(read.getFailedNoopAllocationNodeIds(), equalTo(meta.getFailedNoopAllocationNodeIds()));
+        assertThat(read.getFailedNodeIds(), equalTo(meta.getFailedNodeIds()));
     }
 
     public void testIndexCreated() {

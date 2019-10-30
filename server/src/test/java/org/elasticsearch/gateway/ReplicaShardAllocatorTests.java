@@ -205,7 +205,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(unassignedShards, hasSize(1));
         assertThat(unassignedShards.get(0).shardId(), equalTo(shardId));
         assertThat(unassignedShards.get(0).unassignedInfo().getNumFailedAllocations(), equalTo(0));
-        assertThat(unassignedShards.get(0).unassignedInfo().getFailedNoopAllocationNodeIds(), empty());
+        assertThat(unassignedShards.get(0).unassignedInfo().getFailedNodeIds(), empty());
     }
 
     public void testNotCancellingRecoveryIfCurrentRecoveryHasRetentionLease() {

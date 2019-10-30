@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -217,7 +218,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     private final String message;
     private final Exception failure;
     private final int failedAllocations;
-    private final Set<String> failedNoopAllocationNodeIds;
+    private final Set<String> failedNodeIds;
     private final AllocationStatus lastAllocationStatus; // result of the last allocation attempt for this shard
 
     /**
@@ -232,18 +233,18 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * @param reason                      the cause for making this shard unassigned. See {@link Reason} for more information.
-     * @param message                     more information about cause.
-     * @param failure                     the shard level failure that caused this shard to be unassigned, if exists.
-     * @param unassignedTimeNanos         the time to use as the base for any delayed re-assignment calculation
-     * @param unassignedTimeMillis        the time of unassignment used to display to in our reporting.
-     * @param delayed                     if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
-     * @param lastAllocationStatus        the result of the last allocation attempt for this shard
-     * @param failedNoopAllocationNodeIds a set of nodeIds that failed noop allocations for this shard
+     * @param reason               the cause for making this shard unassigned. See {@link Reason} for more information.
+     * @param message              more information about cause.
+     * @param failure              the shard level failure that caused this shard to be unassigned, if exists.
+     * @param unassignedTimeNanos  the time to use as the base for any delayed re-assignment calculation
+     * @param unassignedTimeMillis the time of unassignment used to display to in our reporting.
+     * @param delayed              if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
+     * @param lastAllocationStatus the result of the last allocation attempt for this shard
+     * @param failedNodeIds        a set of nodeIds that failed to complete allocations for this shard
      */
     public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Exception failure, int failedAllocations,
                           long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed, AllocationStatus lastAllocationStatus,
-                          Set<String> failedNoopAllocationNodeIds) {
+                          Set<String> failedNodeIds) {
         this.reason = Objects.requireNonNull(reason);
         this.unassignedTimeMillis = unassignedTimeMillis;
         this.unassignedTimeNanos = unassignedTimeNanos;
@@ -252,7 +253,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = failure;
         this.failedAllocations = failedAllocations;
         this.lastAllocationStatus = Objects.requireNonNull(lastAllocationStatus);
-        this.failedNoopAllocationNodeIds = Collections.unmodifiableSet(failedNoopAllocationNodeIds);
+        this.failedNodeIds = Collections.unmodifiableSet(failedNodeIds);
         assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED) :
             "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
@@ -271,9 +272,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.failedNoopAllocationNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+            this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
         } else {
-            this.failedNoopAllocationNodeIds = Collections.emptySet();
+            this.failedNodeIds = Collections.emptySet();
         }
     }
 
@@ -287,7 +288,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeCollection(failedNoopAllocationNodeIds, StreamOutput::writeString);
+            out.writeCollection(failedNodeIds, StreamOutput::writeString);
         }
     }
 
@@ -364,13 +365,16 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * A set of nodeIds that {@link org.elasticsearch.gateway.ReplicaShardAllocator} has cancelled ongoing recoveries for copies on them,
-     * but they failed to complete noop allocations for this shard. We track those nodes so we won't cancel recoveries for them again.
+     * A set of nodeIds that failed to complete allocations for this shard. {@link org.elasticsearch.gateway.ReplicaShardAllocator}
+     * uses this set to avoid repeatedly canceling ongoing recoveries for copies on those nodes although they can perform noop recoveries.
+     * This set will be discarded when a shard moves to started. And if a shard is failed while started (i.e., from started to unassigned),
+     * the currently assigned node won't be added to this set.
      *
      * @see org.elasticsearch.gateway.ReplicaShardAllocator#processExistingRecoveries(RoutingAllocation)
+     * @see org.elasticsearch.cluster.routing.allocation.AllocationService#applyFailedShards(ClusterState, List, List)
      */
-    public Set<String> getFailedNoopAllocationNodeIds() {
-        return failedNoopAllocationNodeIds;
+    public Set<String> getFailedNodeIds() {
+        return failedNodeIds;
     }
 
     /**
@@ -429,8 +433,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (failedAllocations >  0) {
             sb.append(", failed_attempts[").append(failedAllocations).append("]");
         }
-        if (failedNoopAllocationNodeIds.isEmpty() == false) {
-            sb.append(", failed_noop_allocation_nodes[").append(failedNoopAllocationNodeIds).append("]");
+        if (failedNodeIds.isEmpty() == false) {
+            sb.append(", failed_nodes[").append(failedNodeIds).append("]");
         }
         sb.append(", delayed=").append(delayed);
         String details = getDetails();
@@ -455,15 +459,15 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (failedAllocations >  0) {
             builder.field("failed_attempts", failedAllocations);
         }
+        if (failedNodeIds.isEmpty() == false) {
+            builder.field("failed_nodes", failedNodeIds);
+        }
         builder.field("delayed", delayed);
         String details = getDetails();
         if (details != null) {
             builder.field("details", details);
         }
         builder.field("allocation_status", lastAllocationStatus.value());
-        if (failedNoopAllocationNodeIds.isEmpty() == false) {
-            builder.field("failed_noop_allocation_nodes", failedNoopAllocationNodeIds);
-        }
         builder.endObject();
         return builder;
     }
@@ -500,7 +504,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (Objects.equals(failure, that.failure) == false) {
             return false;
         }
-        return failedNoopAllocationNodeIds.equals(that.failedNoopAllocationNodeIds);
+        return failedNodeIds.equals(that.failedNodeIds);
     }
 
     @Override
@@ -512,7 +516,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         result = 31 * result + (message != null ? message.hashCode() : 0);
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
         result = 31 * result + lastAllocationStatus.hashCode();
-        result = 31 * result + failedNoopAllocationNodeIds.hashCode();
+        result = 31 * result + failedNodeIds.hashCode();
         return result;
     }
 

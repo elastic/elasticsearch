@@ -318,7 +318,6 @@ public class OpenIdConnectAuthenticator {
         // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
         String jwkSet = Files.readString(path, StandardCharsets.UTF_8);
         return JWKSet.parse(jwkSet);
-
     }
 
     /**

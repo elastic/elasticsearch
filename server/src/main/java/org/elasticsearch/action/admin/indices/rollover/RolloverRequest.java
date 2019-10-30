@@ -72,8 +72,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             // a type is not included, add a dummy _doc type
             Map<String, Object> mappings = parser.map();
             if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
-                throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
-                    "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
+                throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
             }
             request.createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappings);
         }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);

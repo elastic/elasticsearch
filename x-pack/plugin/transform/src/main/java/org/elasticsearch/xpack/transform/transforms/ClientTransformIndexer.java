@@ -48,7 +48,6 @@ class ClientTransformIndexer extends TransformIndexer {
 
     private final Client client;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
-    private volatile boolean shouldStopAtCheckpoint = false;
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
 
@@ -89,19 +88,13 @@ class ClientTransformIndexer extends TransformIndexer {
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.seqNoPrimaryTermAndIndex = new AtomicReference<>(seqNoPrimaryTermAndIndex);
-        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
-    }
 
-    boolean shouldStopAtCheckpoint() {
-        return shouldStopAtCheckpoint;
-    }
-
-    void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
-        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+        // TODO: move into context constructor
+        context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
     }
 
     void persistShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
-        if (this.shouldStopAtCheckpoint == shouldStopAtCheckpoint
+        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint
             || getState() == IndexerState.STOPPED
             || getState() == IndexerState.STOPPING) {
             shouldStopAtCheckpointListener.onResponse(null);
@@ -119,7 +112,7 @@ class ClientTransformIndexer extends TransformIndexer {
         );
         doSaveState(state, ActionListener.wrap(r -> {
             // We only want to update this internal value if it is persisted as such
-            this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
             logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]", getJobId(), shouldStopAtCheckpoint);
             shouldStopAtCheckpointListener.onResponse(null);
         }, statsExc -> {
@@ -212,7 +205,7 @@ class ClientTransformIndexer extends TransformIndexer {
             return;
         }
 
-        boolean shouldStopAtCheckpoint = shouldStopAtCheckpoint();
+        boolean shouldStopAtCheckpoint = context.shouldStopAtCheckpoint();
 
         // If we should stop at the next checkpoint, are STARTED, and with `initialRun()` we are in one of two states
         // 1. We have just called `onFinish` completing our request, but `shouldStopAtCheckpoint` was set to `true` before our check
@@ -318,9 +311,6 @@ class ClientTransformIndexer extends TransformIndexer {
                 })
             );
 
-        if (shouldStopAtCheckpoint) {
-            stop();
-        }
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {

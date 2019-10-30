@@ -336,7 +336,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // This indicates an early exit since no changes were found.
             // So, don't treat this like a checkpoint being completed, as no work was done.
             if (hasSourceChanged == false) {
-                if (shouldStopAtCheckpoint) {
+                if (context.shouldStopAtCheckpoint()) {
                     stop();
                 }
                 listener.onResponse(null);
@@ -382,7 +382,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
             logger.debug("[{}] finished indexing for transform checkpoint [{}].", getJobId(), checkpoint);
             auditBulkFailures = true;
-            if (shouldStopAtCheckpoint) {
+            if (context.shouldStopAtCheckpoint()) {
                 stop();
             }
             listener.onResponse(null);

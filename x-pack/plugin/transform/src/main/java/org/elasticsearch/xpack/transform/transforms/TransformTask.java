@@ -140,7 +140,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 context.getStateReason(),
                 getIndexer().getProgress(),
                 null,
-                getIndexer().shouldStopAtCheckpoint()
+                context.shouldStopAtCheckpoint()
             );
         }
     }
@@ -238,7 +238,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             null,
             getIndexer().getProgress(),
             null,
-            getIndexer().shouldStopAtCheckpoint()
+            context.shouldStopAtCheckpoint()
         );
 
         logger.info("[{}] updating state for transform to [{}].", transform.getId(), state.toString());
@@ -271,12 +271,16 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }));
     }
 
+    void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
+        this.context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+    }
+
     /**
      * This sets the flag for the task to stop at the next checkpoint.
      *
-     * If first persists the flag to cluster state, and then mutates the local variable.
+     * If first persists the flag and then mutates the local variable.
      *
-     * It only persists to cluster state if the value is different than what is currently held in memory.
+     * It only persists if the value is different than what is currently held in memory.
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
      * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
      */
@@ -438,9 +442,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         deregisterSchedulerJob();
         // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
         // we should set this flag to false.
-        if (getIndexer() != null) {
-            getIndexer().setShouldStopAtCheckpoint(false);
-        }
+        context.setShouldStopAtCheckpoint(false);
+
         // The end user should see that the task is in a failed state, and attempt to stop it again but with force=true
         context.setTaskStateToFailed(reason);
         TransformState newState = getState();

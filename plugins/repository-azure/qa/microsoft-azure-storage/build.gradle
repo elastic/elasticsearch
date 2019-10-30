@@ -30,14 +30,6 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 testFixtures.useFixture ":test:fixtures:azure-fixture", "azure-fixture"
 
-configurations {
-    azureFixture
-}
-
-dependencies {
-    azureFixture project(':test:fixtures:azure-fixture')
-}
-
 boolean useFixture = false
 
 String azureAccount = System.getenv("azure_storage_account")
@@ -88,7 +80,7 @@ testClusters.integTest {
         // Use a closure on the string to delay evaluation until tests are executed. The endpoint_suffix is used
         // in a hacky way to change the protocol and endpoint. We must fix that.
         setting 'azure.client.integration_test.endpoint_suffix',
-                { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=${ -> azureAddress.call() }" }, IGNORE_VALUE
+                { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=${ -> azureAddress() }" }, IGNORE_VALUE
         String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
         setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
     }

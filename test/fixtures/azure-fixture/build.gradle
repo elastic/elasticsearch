@@ -26,18 +26,13 @@ dependencies {
     compile project(':server')
 }
 
-task fixtureJar(type: Jar) {
-    dependsOn compileJava
-    from sourceSets.main.output
-}
-
 preProcessFixture {
-    dependsOn fixtureJar
+    dependsOn jar
     doLast {
         file("${testFixturesDir}/shared").mkdirs()
         project.copy {
-            from project.tasks.fixtureJar.outputs.files
-            from project.configurations.compile
+            from jar
+            from configurations.runtimeClasspath
             into "${testFixturesDir}/shared"
         }
     }

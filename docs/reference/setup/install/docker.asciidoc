@@ -127,7 +127,7 @@ specify the `-v` option: `docker-compose down -v`.
 ===== Start a multi-node cluster with TLS enabled
 
 See <<configuring-tls-docker>> and
-{stack-gs}/get-started-docker.html#get-started-docker-tls[Run the {stack} in Docker with TLS enabled].
+{stack-gs}/get-started-docker.html[Run the {stack} in Docker with TLS enabled].
 
 [[docker-prod-prerequisites]]
 ==== Using the Docker images in production

@@ -28,13 +28,11 @@ import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.JdkDownloadPlugin;
-import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.vagrant.BatsProgressLogger;
 import org.elasticsearch.gradle.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.vagrant.VagrantExtension;
-import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -55,7 +53,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -66,44 +63,12 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.gradle.tool.DockerUtils.getDockerAvailability;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 public class DistroTestPlugin implements Plugin<Project> {
     private static final Logger logger = Logging.getLogger(DistroTestPlugin.class);
-    /**
-     * This plugin generates test tasks for the various VMs in :qa:os. The
-     * Docker packaging tests are run on all of them, apart from those
-     * listed here. These values correspond to the sub-project names, which
-     * correspond to the directory names.
-     */
-    private static final List<String> DOCKER_VM_EXCLUDE_LIST = List.of(
-        "centos-6",
-        "debian-8",
-        "oel-6",
-        "oel-7",
-        "opensuse-42",
-        "sles-12",
-        "windows-2012r2",
-        "windows-2016"
-    );
-
-    /**
-     * This plugin generates a number of test tasks, some of which are
-     * Docker packaging tests. When running on the host OS i.e. not in a
-     * VM, only certain operating systems are supported. This list
-     * specifies the Linux OS variants that are tested. The actual question
-     * of whether to run the Docker tests is answered by {@link
-     * #shouldRunDockerTests()}.
-     */
-    private static final List<String> DOCKER_LINUX_INCLUDE_LIST = List.of(
-        "centos-7",
-        "debian-9",
-        "fedora-28",
-        "fedora-29",
-        "ubuntu-16.04",
-        "ubuntu-18.04"
-    );
 
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
     private static final String SYSTEM_JDK_VENDOR = "openjdk";
@@ -119,8 +84,6 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String COPY_PLUGINS_TASK = "copyPlugins";
     private static final String IN_VM_SYSPROP = "tests.inVM";
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
-
-    private static final boolean dockerTestEnabled = shouldRunDockerTests();
 
     @Override
     public void apply(Project project) {
@@ -140,9 +103,11 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
         TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
 
+        final boolean dockerAvailable = isDockerAvailable();
+
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
-            if (distribution.getType() != Type.DOCKER || dockerTestEnabled == true) {
+            if (distribution.getType() != Type.DOCKER || dockerAvailable == true) {
                 TaskProvider<?> destructiveTask = configureDistroTest(project, distribution);
                 destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
             }
@@ -165,21 +130,24 @@ public class DistroTestPlugin implements Plugin<Project> {
             TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
             for (ElasticsearchDistribution distribution : distributions) {
                 String destructiveTaskName = destructiveDistroTestTaskName(distribution);
-
-                if (distribution.getType() == Type.DOCKER && DOCKER_VM_EXCLUDE_LIST.contains(vmProject.getName())) {
-                    logger.debug(
-                        "Not generating task [" + destructiveTaskName + "] as [" + vmProject.getName() + "] is in the exclude list"
-                    );
-                    continue;
-                }
-
                 Platform platform = distribution.getPlatform();
                 // this condition ensures windows boxes get windows distributions, and linux boxes get linux distributions
                 if (isWindows(vmProject) == (platform == Platform.WINDOWS)) {
                     TaskProvider<GradleDistroTestTask> vmTask =
                         configureVMWrapperTask(vmProject, distribution.getName() + " distribution", destructiveTaskName, vmDependencies);
                     vmTask.configure(t -> t.dependsOn(distribution));
-                    distroTest.configure(t -> t.dependsOn(vmTask));
+
+                    distroTest.configure(t -> {
+                        // Only VM sub-projects that are specifically opted-in to testing Docker should
+                        // have the Docker task added as a dependency. The shouldTestDocker property could
+                        // be null, hence we use Boolean.TRUE.equals()
+                        boolean shouldExecute = distribution.getType() != Type.DOCKER
+                            || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker")) == true;
+
+                        if (shouldExecute) {
+                            t.dependsOn(vmTask);
+                        }
+                    });
                 }
             }
 
@@ -380,16 +348,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         for (Type type : List.of(Type.DEB, Type.RPM, Type.DOCKER)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    boolean skip = false;
-
-                    if (type == Type.DOCKER) {
-                        if (dockerTestEnabled == false) {
-                            skip = true;
-                        } else if (bundledJdk == false) {
-                            // We should never add a Docker distro with bundledJdk == false
-                            skip = true;
-                        }
-                    }
+                    // All our Docker images include a bundled JDK so it doesn't make sense to test without one
+                    boolean skip = type == Type.DOCKER && bundledJdk == false;
 
                     if (skip == false) {
                         addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
@@ -466,79 +426,15 @@ public class DistroTestPlugin implements Plugin<Project> {
             distro.getBundledJdk());
     }
 
-    static Map<String, String> parseOsRelease(final List<String> osReleaseLines) {
-        final Map<String, String> values = new HashMap<>();
-
-        for (String line : osReleaseLines) {
-            final String trimmed = line.trim();
-
-            // ignore empty and comment lines
-            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
-                continue;
-            }
-
-            final String[] parts = line.split("=", 2);
-            final String key = parts[0];
-            // remove optional leading and trailing quotes and whitespace
-            final String value = parts[1].replaceAll("^['\"]?\\s*", "").replaceAll("\\s*['\"]?$", "");
-            values.put(key, value);
-        }
-
-        return values;
-    }
-
-    static String deriveId(final Map<String, String> osRelease) {
-        return osRelease.get("ID") + "-" + osRelease.get("VERSION_ID");
-    }
-
     /**
-     * The {@link DistroTestPlugin} generates a number of test tasks, some
-     * of which are Docker packaging tests. When running on the host OS
-     * i.e. not in a VM, only certain operating systems are supported. This
-     * method determines whether the Docker tests should be run on the host
-     * OS.
+     * Determines whether Docker is available, for the purpose of defining packaging test tasks.
      */
-    private static boolean shouldRunDockerTests() {
-        switch (OS.current()) {
-            case WINDOWS:
-                // Not currently supported.
-                logger.debug("shouldRunDockerTests = false on " + OS.WINDOWS);
-                return false;
-
-            case MAC:
-                // Assume that Docker for Mac is installed
-                logger.debug("shouldRunDockerTests = true on " + OS.MAC);
-                return true;
-
-            case LINUX:
-                final Path osRelease = Paths.get("/etc/os-release");
-
-                if (Files.exists(osRelease)) {
-                    Map<String, String> values;
-
-                    try {
-                        final List<String> osReleaseLines = Files.readAllLines(osRelease);
-                        values = parseOsRelease(osReleaseLines);
-                    } catch (IOException e) {
-                        throw new GradleException("Failed to read /etc/os-release", e);
-                    }
-
-                    final String id = deriveId(values);
-
-                    final boolean contains = DOCKER_LINUX_INCLUDE_LIST.contains(id);
-
-                    logger.debug("Linux OS id [" + id + "] is " + (contains ? "" : "not ") + "present in the include list");
-
-                    return contains;
-                } else {
-                    logger.debug("/etc/os-release does not exist!");
-                }
-
-                return false;
-
-            default:
-                logger.debug("shouldRunDockerTests = false on " + OS.current());
-                return false;
+    private static boolean isDockerAvailable() {
+        try {
+            return getDockerAvailability().isAvailable;
+        } catch (Exception e) {
+            logger.warn("Failed to determine whether Docker is available while configuring distro test tasks", e);
+            return false;
         }
     }
 }

@@ -92,6 +92,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -398,6 +399,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }
+                
+        public static Predicate<String> indexNameMatcher() {
+            // Simplistic index name matcher used for testing
+            return pattern -> pattern.equals(index.getName());
+        }                 
 
         @Override
         public void close() throws IOException {
@@ -406,7 +412,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
                 indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
-                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, null);
+                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher());
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

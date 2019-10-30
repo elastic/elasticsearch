@@ -138,4 +138,18 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
+    
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        WildcardQueryBuilder query = new WildcardQueryBuilder("_index", "does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }   
+    
+    public void testRewriteIndexQueryTNotoMatchNone() throws IOException {
+        WildcardQueryBuilder query = new WildcardQueryBuilder("_index", getIndex().getName());
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(WildcardQueryBuilder.class));
+    }      
 }

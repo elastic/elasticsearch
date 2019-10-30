@@ -11,17 +11,13 @@ testFixtures.useFixture()
 configurations {
   dockerPlugins
   dockerSource
-  ubiDockerSource
   ossDockerSource
-  ossUbiDockerSource
   restSpec
 }
 
 dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar")
-  ubiDockerSource project(path: ":distribution:archives:linux-tar")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
-  ossUbiDockerSource project(path: ":distribution:archives:oss-linux-tar")
   restSpec project(':rest-api-spec')
 }
 
@@ -83,17 +79,9 @@ void addCopyDockerContextTask(final boolean oss, final boolean ubi) {
     with dockerBuildContext(oss, ubi, true)
 
     if (oss) {
-      if (ubi) {
-        from configurations.ossUbiDockerSource
-      } else {
-        from configurations.ossDockerSource
-      }
+      from configurations.ossDockerSource
     } else {
-      if (ubi) {
-        from configurations.ubiDockerSource
-      } else {
-        from configurations.dockerSource
-      }
+      from configurations.dockerSource
     }
 
     from configurations.dockerPlugins

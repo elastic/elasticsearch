@@ -25,6 +25,7 @@ package org.elasticsearch.common.geo;
 import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.geo.Tessellator;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.Circle;
@@ -258,6 +259,7 @@ public class TriangleTreeWriter implements Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            BytesStreamOutput scratchBuffer = new BytesStreamOutput();
             out.writeInt(maxX);
             out.writeVLong((long) maxX - minX);
             out.writeInt(maxY);
@@ -265,27 +267,27 @@ public class TriangleTreeWriter implements Writeable {
             writeMetadata(out);
             writeComponent(out);
             if (left != null) {
-                left.writeNode(out, maxX, maxY);
+                left.writeNode(out, maxX, maxY, scratchBuffer);
             }
             if (right != null) {
-                right.writeNode(out, maxX, maxY);
+                right.writeNode(out, maxX, maxY, scratchBuffer);
             }
         }
 
-        private void writeNode(StreamOutput out, int parentMaxX, int parentMaxY) throws IOException {
+        private void writeNode(StreamOutput out, int parentMaxX, int parentMaxY, BytesStreamOutput scratchBuffer) throws IOException {
             out.writeVLong((long) parentMaxX - maxX);
             out.writeVLong((long) parentMaxY - maxY);
-            int size = nodeSize(false, parentMaxX, parentMaxY);
+            int size = nodeSize(false, parentMaxX, parentMaxY, scratchBuffer);
             out.writeVInt(size);
             writeMetadata(out);
             writeComponent(out);
             if (left != null) {
-                left.writeNode(out, maxX, maxY);
+                left.writeNode(out, maxX, maxY, scratchBuffer);
             }
             if (right != null) {
-                int rightSize = right.nodeSize(true, maxX, maxY);
+                int rightSize = right.nodeSize(true, maxX, maxY,scratchBuffer);
                 out.writeVInt(rightSize);
-                right.writeNode(out, maxX, maxY);
+                right.writeNode(out, maxX, maxY, scratchBuffer);
             }
         }
 
@@ -326,55 +328,50 @@ public class TriangleTreeWriter implements Writeable {
             }
         }
 
-        public int nodeSize(boolean includeBox, int parentMaxX, int parentMaxY) throws IOException {
+        public int nodeSize(boolean includeBox, int parentMaxX, int parentMaxY, BytesStreamOutput scratchBuffer) throws IOException {
             int size =0;
             size++; //metadata
-            size += componentSize();
+            size += componentSize(scratchBuffer);
             if (left != null) {
-                size +=  left.nodeSize(true, maxX, maxY);
+                size +=  left.nodeSize(true, maxX, maxY, scratchBuffer);
             }
             if (right != null) {
-                int rightSize = right.nodeSize(true, maxX, maxY);
-                size +=  vLongSize(rightSize); // jump size
+                int rightSize = right.nodeSize(true, maxX, maxY, scratchBuffer);
+                scratchBuffer.reset();
+                scratchBuffer.writeVLong(rightSize);
+                size +=  scratchBuffer.size(); // jump size
                 size +=  rightSize;
             }
             if (includeBox) {
                 int jumpSize = size;
-                size += vLongSize((long) parentMaxX - maxX);
-                size += vLongSize((long) parentMaxY - maxY);// box
-                size +=  vLongSize(jumpSize); // jump size
+                scratchBuffer.reset();
+                scratchBuffer.writeVLong((long) parentMaxX - maxX);
+                scratchBuffer.writeVLong((long) parentMaxY - maxY);
+                scratchBuffer.writeVLong(jumpSize);
+                size += scratchBuffer.size();// box
             }
             return size;
         }
 
-        public int componentSize() throws IOException {
-            int size = 0;
+        public int componentSize(BytesStreamOutput scratchBuffer) throws IOException {
+            scratchBuffer.reset();
             if (component.type == TriangleTreeLeaf.TYPE.POINT) {
-                size += vLongSize((long) maxX - component.aX);
-                size += vLongSize((long) maxY - component.aY);
+                scratchBuffer.writeVLong((long) maxX - component.aX);
+                scratchBuffer.writeVLong((long) maxY - component.aY);
             } else if (component.type == TriangleTreeLeaf.TYPE.LINE) {
-                size += vLongSize((long) maxX - component.aX);
-                size += vLongSize((long) maxY - component.aY);
-                size += vLongSize((long) maxX - component.bX);
-                size += vLongSize((long) maxY - component.bY);
+                scratchBuffer.writeVLong((long) maxX - component.aX);
+                scratchBuffer.writeVLong((long) maxY - component.aY);
+                scratchBuffer.writeVLong((long) maxX - component.bX);
+                scratchBuffer.writeVLong((long) maxY - component.bY);
             } else {
-                size += vLongSize((long) maxX - component.aX);
-                size += vLongSize((long) maxY - component.aY);
-                size += vLongSize((long) maxX - component.bX);
-                size += vLongSize((long) maxY - component.bY);
-                size += vLongSize((long) maxX - component.cX);
-                size += vLongSize((long) maxY - component.cY);
+                scratchBuffer.writeVLong((long) maxX - component.aX);
+                scratchBuffer.writeVLong((long) maxY - component.aY);
+                scratchBuffer.writeVLong((long) maxX - component.bX);
+                scratchBuffer.writeVLong((long) maxY - component.bY);
+                scratchBuffer.writeVLong((long) maxX - component.cX);
+                scratchBuffer.writeVLong((long) maxY - component.cY);
             }
-            return size;
-        }
-
-        public int vLongSize(long i) throws IOException {
-            int size = 1;
-            while ((i & ~0x7F) != 0) {
-               size++;
-               i >>>= 7;
-            }
-            return size;
+            return scratchBuffer.size();
         }
 
     }

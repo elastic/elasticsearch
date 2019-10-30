@@ -1,5 +1,5 @@
 [[restart-cluster]]
-== Restarting a cluster
+== Restart a cluster
  
 There might be situations when you want to perform a full-cluster restart which 
 means you shut down and restart all the nodes in the cluster. The following 

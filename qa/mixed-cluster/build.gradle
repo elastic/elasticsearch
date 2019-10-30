@@ -75,8 +75,12 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",") }"
       println "Upgrading another node to create a mixed cluster"
       testClusters."${baseName}".nextNodeToNextVersion()
+//      testClusters."${baseName}".nextNodeToNextVersion()
+//      testClusters."${baseName}".nextNodeToNextVersion()
+      println "${-> testClusters."${baseName}".allHttpSocketURI[6]}"
 
       nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
+//      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI[4]}")
       nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
     }
     systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"

@@ -62,6 +62,7 @@ public class NodeMappingRefreshAction {
             logger.warn("can't send mapping refresh for [{}], no master known.", request.index());
             return;
         }
+//        logger.info("refresh "+request.index +" "+request.indexUUID+" "+request.nodeId);
         transportService.sendRequest(masterNode, ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 

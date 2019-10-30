@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.time;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.joda.time.DateTime;
 
@@ -129,25 +131,26 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
+
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
         // support the 6.x BWC compatible way of parsing java 8 dates
-        if (input.startsWith("8")) {
-            input = input.substring(1);
-        }
-
-        List<String> patterns = splitCombinedPatterns(input);
+        String format = strip8Prefix(input);
+        List<String> patterns = splitCombinedPatterns(format);
         List<DateFormatter> formatters = patterns.stream()
                                                  .map(DateFormatters::forPattern)
                                                  .collect(Collectors.toList());
 
-        if (formatters.size() == 1) {
-            return formatters.get(0);
-        }
+        return JavaDateFormatter.combined(format, formatters);
+    }
 
-        return JavaDateFormatter.combined(input, formatters);
+    static String strip8Prefix(String input) {
+        if (input.startsWith("8")) {
+            return input.substring(1);
+        }
+        return input;
     }
 
     static List<String> splitCombinedPatterns(String input) {

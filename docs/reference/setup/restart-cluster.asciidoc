@@ -90,7 +90,7 @@ a `status` of `red`, indicating that not all primary shards have been allocated.
 Once a node recovers its local shards, the cluster `status` switches to 
 `yellow`,indicating that all primary shards have been recovered, but not all 
 replica shards are allocated. This is to be expected because you have not yet
-reenabled allocation. Delaying the allocation of replicas until all nodes
+re-enabled allocation. Delaying the allocation of replicas until all nodes
 are `yellow` allows the master to allocate replicas to nodes that
 already have local shard copies.
 --

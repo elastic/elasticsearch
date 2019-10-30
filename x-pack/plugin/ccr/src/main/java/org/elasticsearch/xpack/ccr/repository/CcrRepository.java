@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr.repository;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -209,10 +208,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         imdBuilder.settings(leaderIndexMetaData.getSettings());
 
         // Copy mappings from leader IMD to follow IMD
-        for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
-            imdBuilder.putMapping(cursor.value);
-        }
-
+        imdBuilder.putMapping(leaderIndexMetaData.mapping());
         imdBuilder.setRoutingNumShards(leaderIndexMetaData.getRoutingNumShards());
         // We assert that insync allocation ids are not empty in `PrimaryShardAllocator`
         for (IntObjectCursor<Set<String>> entry : leaderIndexMetaData.getInSyncAllocationIds()) {

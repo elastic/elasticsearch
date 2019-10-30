@@ -126,8 +126,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
-            Request createBwcWatch = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_watch");
-            Request createBwcThrottlePeriod = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_throttle_period");
+            Request createBwcWatch = new Request("PUT", "/_watcher/watch/bwc_watch");
+            Request createBwcThrottlePeriod = new Request("PUT", "/_watcher/watch/bwc_throttle_period");
 
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
@@ -137,7 +137,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createBwcThrottlePeriod);
 
             logger.info("Adding a watch with \"fun\" read timeout on old cluster");
-            Request createFunnyTimeout = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_funny_timeout");
+            Request createFunnyTimeout = new Request("PUT", "/_watcher/watch/bwc_funny_timeout");
             createFunnyTimeout.setJsonEntity(loadWatch("funny-timeout-watch.json"));
             client().performRequest(createFunnyTimeout);
 
@@ -228,7 +228,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(bulkRequest);
 
             // create the rollup job
-            final Request createRollupJobRequest = new Request("PUT", getRollupEndpoint() + "/job/rollup-job-test");
+            final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
 
             String intervalType;
             if (getOldClusterVersion().onOrAfter(Version.V_7_2_0)) {
@@ -257,7 +257,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", getRollupEndpoint() + "/job/rollup-job-test/_start");
+            final Request startRollupJobRequest = new Request("POST", "/_rollup/job/rollup-job-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -445,7 +445,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void createUser(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_user" : "postupgrade_user";
-        Request request = new Request("PUT", getSecurityEndpoint() + "/user/" + id);
+        Request request = new Request("PUT", "/_security/user/" + id);
         request.setJsonEntity(
             "{\n" +
             "   \"password\" : \"j@rV1s\",\n" +
@@ -459,7 +459,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void createRole(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_role" : "postupgrade_role";
-        Request request = new Request("PUT", getSecurityEndpoint() + "/role/" + id);
+        Request request = new Request("PUT", "/_security/role/" + id);
         request.setJsonEntity(
             "{\n" +
             "  \"run_as\": [ \"abc\" ],\n" +
@@ -480,7 +480,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void assertUserInfo(final boolean oldCluster) throws Exception {
         final String user = oldCluster ? "preupgrade_user" : "postupgrade_user";
-        Request request = new Request("GET", getSecurityEndpoint() + "/user/" + user);;
+        Request request = new Request("GET", "/_security/user/" + user);;
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         @SuppressWarnings("unchecked") Map<String, Object> userInfo = (Map<String, Object>) response.get(user);
         assertEquals(user + "@example.com", userInfo.get("email"));
@@ -488,50 +488,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNotNull(userInfo.get("roles"));
     }
 
-    private String getSecurityEndpoint() {
-        String securityEndpoint;
-        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
-            securityEndpoint = "/_security";
-        } else {
-            securityEndpoint = "/_xpack/security";
-        }
-        return securityEndpoint;
-    }
-
-    private String getSQLEndpoint() {
-        String securityEndpoint;
-        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
-            securityEndpoint = "/_sql";
-        } else {
-            securityEndpoint = "/_xpack/sql";
-        }
-        return securityEndpoint;
-    }
-
-    private String getRollupEndpoint() {
-        String securityEndpoint;
-        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
-            securityEndpoint = "/_rollup";
-        } else {
-            securityEndpoint = "/_xpack/rollup";
-        }
-        return securityEndpoint;
-    }
-
-    private String getWatcherEndpoint() {
-        String securityEndpoint;
-        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
-            securityEndpoint = "/_watcher";
-        } else {
-            securityEndpoint = "/_xpack/watcher";
-        }
-        return securityEndpoint;
-    }
-
     private void assertRoleInfo(final boolean oldCluster) throws Exception {
         final String role = oldCluster ? "preupgrade_role" : "postupgrade_role";
         @SuppressWarnings("unchecked") Map<String, Object> response = (Map<String, Object>) entityAsMap(
-            client().performRequest(new Request("GET", getSecurityEndpoint() + "/role/" + role))
+            client().performRequest(new Request("GET", "/_security/role/" + role))
         ).get(role);
         assertNotNull(response.get("run_as"));
         assertNotNull(response.get("cluster"));
@@ -544,7 +504,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         waitForRollUpJob(rollupJob, expectedStates);
 
         // check that the rollup job is started using the RollUp API
-        final Request getRollupJobRequest = new Request("GET", getRollupEndpoint() + "/job/" + rollupJob);
+        final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         assertNotNull(job);
@@ -583,7 +543,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
         assertBusy(() -> {
-            final Request getRollupJobRequest = new Request("GET", getRollupEndpoint() + "/job/" + rollupJob);
+            final Request getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
 
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));

@@ -44,7 +44,6 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
     String policy;
     ClusterState clusterState;
     Index index;
-    private PolicyStepsRegistry stepRegistry;
 
     @Before
     public void setupClusterState() {

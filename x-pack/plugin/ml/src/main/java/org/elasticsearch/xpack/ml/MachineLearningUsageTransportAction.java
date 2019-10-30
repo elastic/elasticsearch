@@ -320,12 +320,12 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 })
             );
 
-        Map<String, Object> ingestUsage = new HashMap<>(4);
+        Map<String, Object> ingestUsage = new HashMap<>(6);
         ingestUsage.put("pipelines", createCountUsageEntry(pipelines.size()));
-        ingestUsage.put("docs", docCountStats);
-        ingestUsage.put("time", timeStats);
-        ingestUsage.put("failures", failureStats);
-        inferenceUsage.put("processors", Collections.singletonMap(MachineLearningFeatureSetUsage.ALL, ingestUsage));
+        ingestUsage.put("num_docs_processed", docCountStats);
+        ingestUsage.put("time_ms", timeStats);
+        ingestUsage.put("num_failures", failureStats);
+        inferenceUsage.put("ingest_processors", Collections.singletonMap(MachineLearningFeatureSetUsage.ALL, ingestUsage));
     }
 
     private static int mlNodeCount(final ClusterState clusterState) {

@@ -311,16 +311,16 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("jobs.opened.forecasts.forecasted_jobs"), equalTo(2));
 
             assertThat(source.getValue("inference.trained_models._all.count"), equalTo(100));
-            assertThat(source.getValue("inference.processors._all.pipelines.count"), equalTo(2));
-            assertThat(source.getValue("inference.processors._all.docs.sum"), equalTo(130));
-            assertThat(source.getValue("inference.processors._all.docs.min"), equalTo(0));
-            assertThat(source.getValue("inference.processors._all.docs.max"), equalTo(100));
-            assertThat(source.getValue("inference.processors._all.time.sum"), equalTo(14));
-            assertThat(source.getValue("inference.processors._all.time.min"), equalTo(0));
-            assertThat(source.getValue("inference.processors._all.time.max"), equalTo(10));
-            assertThat(source.getValue("inference.processors._all.failures.sum"), equalTo(1));
-            assertThat(source.getValue("inference.processors._all.failures.min"), equalTo(0));
-            assertThat(source.getValue("inference.processors._all.failures.max"), equalTo(1));
+            assertThat(source.getValue("inference.ingest_processors._all.pipelines.count"), equalTo(2));
+            assertThat(source.getValue("inference.ingest_processors._all.num_docs_processed.sum"), equalTo(130));
+            assertThat(source.getValue("inference.ingest_processors._all.num_docs_processed.min"), equalTo(0));
+            assertThat(source.getValue("inference.ingest_processors._all.num_docs_processed.max"), equalTo(100));
+            assertThat(source.getValue("inference.ingest_processors._all.time_ms.sum"), equalTo(14));
+            assertThat(source.getValue("inference.ingest_processors._all.time_ms.min"), equalTo(0));
+            assertThat(source.getValue("inference.ingest_processors._all.time_ms.max"), equalTo(10));
+            assertThat(source.getValue("inference.ingest_processors._all.num_failures.sum"), equalTo(1));
+            assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(0));
+            assertThat(source.getValue("inference.ingest_processors._all.num_failures.max"), equalTo(1));
         }
     }
 

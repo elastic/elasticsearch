@@ -82,11 +82,10 @@ public final class Messages {
 
     public static final String INFERENCE_TRAINED_MODEL_EXISTS = "Trained machine learning model [{0}] already exists";
     public static final String INFERENCE_FAILED_TO_STORE_MODEL = "Failed to store trained machine learning model [{0}]";
-    public static final String INFERENCE_FAILED_TO_SERIALIZE_MODEL =
-        "Failed to serialize the trained model [{0}] for storage";
     public static final String INFERENCE_NOT_FOUND = "Could not find trained model [{0}]";
     public static final String INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION =
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
+    public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
 
     public static final String JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";

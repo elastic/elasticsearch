@@ -294,7 +294,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                                                                                                          k -> new LinkedHashMap<>());
                         processorStat.forEach(p ->
                             processorAcc.computeIfAbsent(p.getName(),
-                                                         k -> new IngestStatsAccumulator()).inc(p.getStats()));
+                                                         k -> new IngestStatsAccumulator(p.getType())).inc(p.getStats()));
                     });
 
             totalStats.inc(ingestStats.getTotalStats());
@@ -307,7 +307,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         Map<String, List<IngestStats.ProcessorStat>> processorStatList = new LinkedHashMap<>(processorStatsAcc.size());
         processorStatsAcc.forEach((pipelineId, accumulatorMap) -> {
             List<IngestStats.ProcessorStat> processorStats = new ArrayList<>(accumulatorMap.size());
-            accumulatorMap.forEach((processorName, acc) -> processorStats.add(new IngestStats.ProcessorStat(processorName, acc.build())));
+            accumulatorMap.forEach((processorName, acc) ->
+                processorStats.add(new IngestStats.ProcessorStat(processorName, acc.type, acc.build())));
             processorStatList.put(pipelineId, processorStats);
         });
 
@@ -319,6 +320,14 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         CounterMetric ingestTimeInMillis = new CounterMetric();
         CounterMetric ingestCurrent = new CounterMetric();
         CounterMetric ingestFailedCount = new CounterMetric();
+
+        String type;
+
+        IngestStatsAccumulator() {}
+
+        IngestStatsAccumulator(String type) {
+            this.type = type;
+        }
 
         IngestStatsAccumulator inc(IngestStats.Stats s) {
             ingestCount.inc(s.getIngestCount());

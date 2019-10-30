@@ -49,7 +49,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractWireSerial
     private List<IngestStats.ProcessorStat> randomProcessorStats() {
         return Stream.generate(() -> randomAlphaOfLength(10))
             .limit(randomIntBetween(0, 10))
-            .map(name -> new IngestStats.ProcessorStat(name, randomStats()))
+            .map(name -> new IngestStats.ProcessorStat(name, "inference", randomStats()))
             .collect(Collectors.toList());
     }
 

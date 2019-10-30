@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.junit.Before;
 
@@ -33,12 +34,22 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
     public void createBothModels() {
         assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setId("test_classification")
-            .setSource(CLASSIFICATION_MODEL, XContentType.JSON)
+            .setSource(CLASSIFICATION_CONFIG, XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get().status(), equalTo(RestStatus.CREATED));
+        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setId(TrainedModelDefinition.docId("test_classification"))
+            .setSource(CLASSIFICATION_DEFINITION, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get().status(), equalTo(RestStatus.CREATED));
         assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setId("test_regression")
-            .setSource(REGRESSION_MODEL, XContentType.JSON)
+            .setSource(REGRESSION_CONFIG, XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get().status(), equalTo(RestStatus.CREATED));
+        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setId(TrainedModelDefinition.docId("test_regression"))
+            .setSource(REGRESSION_DEFINITION, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get().status(), equalTo(RestStatus.CREATED));
     }
@@ -233,11 +244,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         }};
     }
 
-    private static final String REGRESSION_MODEL = "{" +
-        "  \"model_id\": \"test_regression\",\n" +
-        "  \"model_version\": 0,\n" +
-        "  \"definition\": {\n" +
-        "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
+    private static final String REGRESSION_DEFINITION = "{" +
         "  \"preprocessors\": [\n" +
         "    {\n" +
         "      \"one_hot_encoding\": {\n" +
@@ -353,8 +360,14 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "        }\n" +
         "      ]\n" +
         "    }\n" +
-        "  }\n" +
         "  },\n" +
+        "  \"model_id\": \"test_regression\"\n" +
+        "}";
+
+    private static final String REGRESSION_CONFIG = "{" +
+        "  \"model_id\": \"test_regression\",\n" +
+        "  \"model_version\": 0,\n" +
+        "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for regression\",\n" +
         "  \"version\": \"8.0.0\",\n" +
         "  \"created_by\": \"ml_test\",\n" +
@@ -362,12 +375,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "  \"created_time\": 0" +
         "}";
 
-    private static final String CLASSIFICATION_MODEL = "" +
-        "{\n" +
-        "  \"model_id\": \"test_classification\",\n" +
-        "  \"model_version\": 0,\n" +
-        "  \"definition\":{\n" +
-        "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
+    private static final String CLASSIFICATION_DEFINITION = "{" +
         "  \"preprocessors\": [\n" +
         "    {\n" +
         "      \"one_hot_encoding\": {\n" +
@@ -484,8 +492,15 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "        }\n" +
         "      ]\n" +
         "    }\n" +
-        "  }\n" +
         "  },\n" +
+        "  \"model_id\": \"test_classification\"\n" +
+        "}";
+
+    private static final String CLASSIFICATION_CONFIG = "" +
+        "{\n" +
+        "  \"model_id\": \"test_classification\",\n" +
+        "  \"model_version\": 0,\n" +
+        "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for classification\",\n" +
         "  \"version\": \"8.0.0\",\n" +
         "  \"created_by\": \"benwtrent\",\n" +

@@ -177,7 +177,47 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<String> AUTH_USERNAME_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","auth.username",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(
+                        key,
+                        new Setting.Validator<String>() {
+                            @Override
+                            public void validate(String password) {
+                                 // no username validation that is independent of other settings
+                            }
+
+                            @Override
+                            public void validate(String username, Map<Setting<?>, Object> settings) {
+                                final String namespace =
+                                    HttpExporter.AUTH_USERNAME_SETTING.getNamespace(
+                                        HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(key));
+                                final String password =
+                                    (String) settings.get(AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace));
+
+                                // password must be specified along with username for any auth
+                                if (Strings.isNullOrEmpty(username) == false) {
+                                    if (Strings.isNullOrEmpty(password)) {
+                                        throw new SettingsException(
+                                            "[" + AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] is set " +
+                                            "but [" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] is " +
+                                            "missing");
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public Iterator<Setting<?>> settings() {
+                                final String namespace =
+                                    HttpExporter.AUTH_USERNAME_SETTING.getNamespace(
+                                        HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(key));
+                                final List<Setting<?>> settings = List.of(
+                                    HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace));
+                                return settings.iterator();
+                            }
+
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope,
+                        Property.Filtered));
     /**
      * Password for basic auth.
      */

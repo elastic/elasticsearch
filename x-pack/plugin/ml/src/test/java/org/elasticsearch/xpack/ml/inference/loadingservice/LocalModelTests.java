@@ -39,7 +39,6 @@ public class LocalModelTests extends ESTestCase {
     public void testClassificationInfer() throws Exception {
         String modelId = "classification_model";
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
-            .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(false))
             .build();
@@ -62,7 +61,6 @@ public class LocalModelTests extends ESTestCase {
 
         // Test with labels
         definition = new TrainedModelDefinition.Builder()
-            .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(true))
             .build();
@@ -84,7 +82,6 @@ public class LocalModelTests extends ESTestCase {
 
     public void testRegression() throws Exception {
         TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
-            .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();

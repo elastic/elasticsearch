@@ -112,9 +112,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), any());
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), any());
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), any());
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(true), any());
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(true), any());
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
 
         // Test invalidate cache for model3
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
@@ -125,10 +125,10 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), any());
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), any());
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(true), any());
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(true), any());
         // It is not referenced, so called eagerly
-        verify(trainedModelProvider, times(4)).getTrainedModel(eq(model3), any());
+        verify(trainedModelProvider, times(4)).getTrainedModel(eq(model3), eq(true), any());
     }
 
     public void testMaxCachedLimitReached() throws Exception {
@@ -156,10 +156,10 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model1), any());
-        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model2), any());
+        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model1), eq(true), any());
+        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model2), eq(true), any());
         // Only loaded requested once on the initial load from the change event
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), any());
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
 
         // Load model 3, should invalidate 1
         for(int i = 0; i < 10; i++) {
@@ -167,7 +167,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             modelLoadingService.getModel(model3, future3);
             assertThat(future3.get(), is(not(nullValue())));
         }
-        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model3), any());
+        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model3), eq(true), any());
 
         // Load model 1, should invalidate 2
         for(int i = 0; i < 10; i++) {
@@ -175,7 +175,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             modelLoadingService.getModel(model1, future1);
             assertThat(future1.get(), is(not(nullValue())));
         }
-        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model1), any());
+        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model1), eq(true), any());
 
         // Load model 2, should invalidate 3
         for(int i = 0; i < 10; i++) {
@@ -183,7 +183,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             modelLoadingService.getModel(model2, future2);
             assertThat(future2.get(), is(not(nullValue())));
         }
-        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model2), any());
+        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model2), eq(true), any());
 
 
         // Test invalidate cache for model3
@@ -196,10 +196,10 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model1), any());
-        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model2), any());
-        verify(trainedModelProvider, Mockito.atLeast(4)).getTrainedModel(eq(model3), any());
-        verify(trainedModelProvider, Mockito.atMost(5)).getTrainedModel(eq(model3), any());
+        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model1), eq(true), any());
+        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model2), eq(true), any());
+        verify(trainedModelProvider, Mockito.atLeast(4)).getTrainedModel(eq(model3), eq(true), any());
+        verify(trainedModelProvider, Mockito.atMost(5)).getTrainedModel(eq(model3), eq(true), any());
     }
 
 
@@ -221,7 +221,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(10)).getTrainedModel(eq(model1), any());
+        verify(trainedModelProvider, times(10)).getTrainedModel(eq(model1), eq(true), any());
     }
 
     public void testGetCachedMissingModel() throws Exception {
@@ -245,7 +245,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
 
-        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model), any());
+        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model), eq(true), any());
     }
 
     public void testGetMissingModel() {
@@ -284,7 +284,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(3)).getTrainedModel(eq(model), any());
+        verify(trainedModelProvider, times(3)).getTrainedModel(eq(model), eq(true), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -295,20 +295,20 @@ public class ModelLoadingServiceTests extends ESTestCase {
         when(trainedModelConfig.getDefinition()).thenReturn(definition);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             listener.onResponse(trainedModelConfig);
             return null;
-        }).when(trainedModelProvider).getTrainedModel(eq(modelId), any());
+        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(true), any());
     }
 
     private void withMissingModel(String modelId) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             listener.onFailure(new ResourceNotFoundException(
                 Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
             return null;
-        }).when(trainedModelProvider).getTrainedModel(eq(modelId), any());
+        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(true), any());
     }
 
     private static ClusterChangedEvent ingestChangedEvent(String... modelId) throws IOException {

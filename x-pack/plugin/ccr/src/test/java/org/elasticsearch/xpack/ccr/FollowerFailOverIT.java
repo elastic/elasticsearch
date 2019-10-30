@@ -276,7 +276,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
             // Make sure the mapping is ready on the shard before we execute the index request; otherwise the index request
             // will perform a dynamic mapping update which however will be blocked because the latch is remained closed.
             assertBusy(() -> {
-                DocumentMapper mapper = indexShard.mapperService().documentMapper("doc");
+                DocumentMapper mapper = indexShard.mapperService().documentMapper();
                 assertNotNull(mapper);
                 assertNotNull(mapper.mappers().getMapper("balance"));
             });

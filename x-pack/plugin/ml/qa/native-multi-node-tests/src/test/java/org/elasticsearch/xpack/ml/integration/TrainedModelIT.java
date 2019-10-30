@@ -22,6 +22,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -78,14 +79,12 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/test_regression*?human"));
+            MachineLearning.BASE_PATH + "inference/test_regression*"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
         assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
         assertThat(response, containsString("\"model_id\":\"test_regression_model-2\""));
-        assertThat(response, containsString("\"heap_memory_estimation_bytes\""));
-        assertThat(response, containsString("\"heap_memory_estimation\""));
         assertThat(response, containsString("\"count\":2"));
 
         getModel = client().performRequest(new Request("GET",
@@ -148,9 +147,9 @@ public class TrainedModelIT extends ESRestTestCase {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
             TrainedModelConfig.builder()
                 .setModelId(modelId)
+                .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3")))
                 .setCreatedBy("ml_test")
                 .setDefinition(new TrainedModelDefinition.Builder()
-                    .setInput(new TrainedModelDefinition.Input(Arrays.asList("col1", "col2", "col3")))
                     .setPreProcessors(Collections.emptyList())
                     .setTrainedModel(LocalModelTests.buildRegression()))
                 .setVersion(Version.CURRENT)

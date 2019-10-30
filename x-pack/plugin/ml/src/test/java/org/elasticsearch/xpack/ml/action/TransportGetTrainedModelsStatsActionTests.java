@@ -126,16 +126,19 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                     ),
                 Arrays.asList(
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", new IngestStats.Stats(10, 1, 0, 0)),
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, new IngestStats.Stats(100, 10, 0, 1))
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0)),
+                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)),
+                        new IngestStats.ProcessorStat(
+                            InferenceProcessor.TYPE,
+                            InferenceProcessor.TYPE,
+                            new IngestStats.Stats(100, 10, 0, 1))
                     ),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", new IngestStats.Stats(10, 1, 0, 0))
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
+                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
                     ),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat("grok", new IngestStats.Stats(10, 1, 0, 0))
+                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
                     )
                 )),
             buildNodeStats(
@@ -153,16 +156,16 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 ),
                 Arrays.asList(
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, new IngestStats.Stats(0, 0, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", new IngestStats.Stats(0, 0, 0, 0)),
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0))
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(0, 0, 0, 0)),
+                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(0, 0, 0, 0)),
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0))
                     ),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", new IngestStats.Stats(10, 1, 0, 0))
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
+                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
                     ),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat("grok", new IngestStats.Stats(10, 1, 0, 0))
+                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
                     )
                 ))
         );
@@ -182,8 +185,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             new IngestStats.Stats(10, 1, 6, 2),
             Collections.singletonList(new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2))),
             Collections.singletonMap("pipeline1", Arrays.asList(
-                new IngestStats.ProcessorStat("inference", new IngestStats.Stats(120, 12, 0, 1)),
-                new IngestStats.ProcessorStat("grok", new IngestStats.Stats(10, 1, 0, 0))))
+                new IngestStats.ProcessorStat("inference", "inference", new IngestStats.Stats(120, 12, 0, 1)),
+                new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))))
         );
 
         IngestStats expectedStatsModel2 = new IngestStats(
@@ -193,11 +196,11 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(2, 2, 0, 2))),
             new HashMap<>() {{
                 put("pipeline2", Arrays.asList(
-                    new IngestStats.ProcessorStat("inference", new IngestStats.Stats(10, 2, 0, 0)),
-                    new IngestStats.ProcessorStat("grok", new IngestStats.Stats(20, 2, 0, 0))));
+                    new IngestStats.ProcessorStat("inference", "inference", new IngestStats.Stats(10, 2, 0, 0)),
+                    new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(20, 2, 0, 0))));
                 put("pipeline1", Arrays.asList(
-                    new IngestStats.ProcessorStat("inference", new IngestStats.Stats(120, 12, 0, 1)),
-                    new IngestStats.ProcessorStat("grok", new IngestStats.Stats(10, 1, 0, 0))));
+                    new IngestStats.ProcessorStat("inference", "inference", new IngestStats.Stats(120, 12, 0, 1)),
+                    new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))));
             }}
         );
 

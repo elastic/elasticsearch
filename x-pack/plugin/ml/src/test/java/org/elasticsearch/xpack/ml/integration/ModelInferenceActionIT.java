@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -61,17 +62,17 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
         TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
+            .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
-                .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
                 .setTrainedModel(buildClassification(true)))
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
             .build();
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
+            .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
-                .setInput(new TrainedModelDefinition.Input(Arrays.asList("field1", "field2")))
                 .setTrainedModel(buildRegression()))
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
@@ -173,7 +174,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
     private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
-            .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+            .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
             .setDescription("trained model config for test")
             .setModelId(modelId);
     }
